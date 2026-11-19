@@ -77,7 +77,21 @@ export function checkMaxDepth(label: string, value: unknown): number {
     return value;
 }
 
-/** A copy of `from` (agent names); InvalidAgentDefinitionError for no array or an entry breaking the agent-name rule. */
+/** Whether `entry` is an agent name or a remote caller `<peer>/<agent>`, each part by the agent-name rule. */
+function isFromEntry(entry: unknown): boolean {
+    if (typeof entry !== 'string') {
+        return false;
+    }
+
+    const parts = entry.split('/');
+
+    return parts.length <= 2 && parts.every((part) => part.length <= NAME_MAX_LENGTH && NAME_PATTERN.test(part));
+}
+
+/**
+ * A copy of `from` (agent names, or `<peer>/<agent>` for a remote caller);
+ * InvalidAgentDefinitionError for no array or an entry whose parts break the agent-name rule.
+ */
 export function checkFrom(label: string, value: unknown): string[] | undefined {
     if (value === undefined) {
         return undefined;
@@ -88,9 +102,9 @@ export function checkFrom(label: string, value: unknown): string[] | undefined {
     }
 
     for (const entry of value) {
-        if (typeof entry !== 'string' || entry.length > NAME_MAX_LENGTH || !NAME_PATTERN.test(entry)) {
+        if (!isFromEntry(entry)) {
             throw new InvalidAgentDefinitionError(
-                `${label}: from entry "${String(entry)}" must match ${NAME_PATTERN} and be at most ${NAME_MAX_LENGTH} characters.`,
+                `${label}: from entry "${String(entry)}" must be an agent name or <peer>/<agent>, each matching ${NAME_PATTERN} and at most ${NAME_MAX_LENGTH} characters.`,
             );
         }
     }
@@ -143,7 +157,7 @@ export function fromOf(agent: string, subscription: ChannelSubscription): string
  * The stored run `runId` first, then its ancestors up `parentRunId` (at most
  * DISPATCH_DEPTH_MAX hops); stops at a run the store does not hold.
  */
-export async function ancestorsOf(host: DispatchHost, runId: string): Promise<Run[]> {
+export async function ancestorsOf(host: { runs: Pick<DispatchHost['runs'], 'findOne'> }, runId: string): Promise<Run[]> {
     const chain: Run[] = [];
     let next: string | undefined = runId;
 
@@ -277,6 +291,10 @@ function cloneInvoker(invoker: Invoker): Invoker {
 }
 
 function cloneParent(parent: TriggerParent): TriggerParent {
+    if (parent.kind === 'peer') {
+        return { ...parent };
+    }
+
     return {
         kind: parent.kind,
         runId: parent.runId,
@@ -483,4 +501,27 @@ export function assertNoDispatchCollision(agent: string, tools: ToolSet, others:
             throw new InvalidAgentDefinitionError(`Agent "${agent}": dispatch tool "${name}" collides with another tool of that name.`);
         }
     }
+}
+
+/**
+ * A `serial(key, fn)`: runs `fn` after every earlier call under the same key
+ * settled (in this process), whatever their outcome; a key's chain is dropped once idle.
+ */
+export function createSerial(): DispatchHost['serial'] {
+    const chains = new Map<string, Promise<unknown>>();
+
+    return (key, fn) => {
+        const previous = chains.get(key) ?? Promise.resolve();
+        const next = previous.then(fn, fn);
+        const tail = next.catch(() => {});
+
+        chains.set(key, tail);
+        void tail.then(() => {
+            if (chains.get(key) === tail) {
+                chains.delete(key);
+            }
+        });
+
+        return next;
+    };
 }

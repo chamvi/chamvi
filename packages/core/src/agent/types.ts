@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type {
     AssistantModelMessage,
     InferToolOutput,
@@ -223,7 +224,56 @@ export type SimpleAgentDefinition<S extends StateSchema = StateSchema, T extends
     toolsContext?: never;
 };
 
-export type AgentDefinition<S extends StateSchema = StateSchema> = ModelAgentDefinition<S> | SimpleAgentDefinition<S>;
+/**
+ * An agent whose runs another chamvi app (a peer) executes: defineRemoteAgent()'s input.
+ * A run here is a stand-in that waits on the remote run.
+ */
+export type RemoteAgentDefinition = {
+    name: string;
+
+    /** A configured peer (EngineOptions.peers). */
+    peer: string;
+
+    /** The agent at the peer; default `name`. */
+    agent?: string;
+
+    /** Its `agent.on()` role at the peer; default `default`. */
+    role?: string;
+
+    /** The text of the agent's MCP run tool. */
+    description?: string;
+
+    channels?: ChannelSubscription[];
+
+    /** The remote run's output, validated here (a failure is a ValidationError). */
+    output?: StandardSchemaV1;
+
+    /** The deadline of the whole remote run: 1 to APPROVAL_TIMEOUT_MAX_MS, default 24 h. */
+    timeoutMs?: number;
+
+    /** Where approvals of the remote run are announced (a channel with `out`, fixed in code). */
+    approvals?: { channel: string; address: string };
+
+    /** Only principals granted `chamvi_agent_read` for this agent read its runs. */
+    private?: boolean;
+
+    concurrencyMaxRuns?: number | false;
+
+    run?: never;
+    model?: never;
+    instructions?: never;
+    readonly skills?: never;
+    tools?: never;
+    trust?: never;
+    hooks?: never;
+    toolPolicy?: never;
+    state?: never;
+    budget?: never;
+    conversation?: never;
+    toolsContext?: never;
+};
+
+export type AgentDefinition<S extends StateSchema = StateSchema> = ModelAgentDefinition<S> | SimpleAgentDefinition<S> | RemoteAgentDefinition;
 
 /** defineModelAgent()'s result: its definition with the budget defaults applied. */
 export type ModelAgent<S extends StateSchema = StateSchema> = {
@@ -239,5 +289,12 @@ export type SimpleAgent<S extends StateSchema = StateSchema, T extends ToolSet =
     readonly definition: Required<Pick<SimpleAgentDefinition<S, T>, 'budget'>> & SimpleAgentDefinition<S, T>;
 };
 
-/** A registrable agent; `kind` tells the two apart and narrows the definition. */
-export type Agent<S extends StateSchema = StateSchema> = ModelAgent<S> | SimpleAgent<S>;
+/** defineRemoteAgent()'s result: its definition with `agent`, `role` and `timeoutMs` defaulted. */
+export type RemoteAgent = {
+    readonly kind: 'remote';
+    readonly name: string;
+    readonly definition: Required<Pick<RemoteAgentDefinition, 'agent' | 'role' | 'timeoutMs'>> & RemoteAgentDefinition;
+};
+
+/** A registrable agent; `kind` tells them apart and narrows the definition. */
+export type Agent<S extends StateSchema = StateSchema> = ModelAgent<S> | SimpleAgent<S> | RemoteAgent;

@@ -178,6 +178,7 @@ describe('public api', () => {
     it.each([
         'defineModelAgent',
         'defineSimpleAgent',
+        'defineRemoteAgent',
         'Engine',
         'formatRevision',
         'ConnectionService',
@@ -220,6 +221,8 @@ describe('public api', () => {
         'ContextNotProvidedError',
         'AgentNotFoundError',
         'AgentReplacedError',
+        'PeerStartBusyError',
+        'isAgentName',
         'checkAgentModel',
         'resolveModel',
         'extract',
@@ -228,6 +231,7 @@ describe('public api', () => {
         'dispatchTo',
         'dispatchTools',
         'findApprovalWaitBelow',
+        'pendingApprovalOf',
         'rebaseJsonSchemaRefs',
         'waitForDispatch',
         'createKeyring',
@@ -271,6 +275,71 @@ describe('public api', () => {
         expect(core.toolContextSchema['~standard'].vendor).toBe('chamvi');
     });
 
+    it('exports the remote agent and peer api', () => {
+        expect(core.REMOTE_TIMEOUT_DEFAULT_MS).toBe(86_400_000);
+        expect(core.PEER_REQUEST_TIMEOUT_MS).toBe(30_000);
+        expect(core.ErrorCode.REMOTE_FAILED).toBe('remote_failed');
+        expect(core.ErrorCode.PEER_START_BUSY).toBe('peer_start_busy');
+        expect(new core.PeerStartBusyError('dev', 'r1').code).toBe('peer_start_busy');
+        expect(core.AGENT_NAME_MAX_LENGTH).toBe(64);
+        expect(core.isAgentName('dev-ops')).toBe(true);
+        expect(core.isAgentName('Dev')).toBe(false);
+        expect(core.isAgentName('a'.repeat(65))).toBe(false);
+        expectTypeOf<core.IEngine['wake']>().toEqualTypeOf<(runId: string, invoker: store.Invoker | undefined) => Promise<core.WakeOutcome | undefined>>();
+        expectTypeOf<core.Agent>().toEqualTypeOf<core.ModelAgent | core.SimpleAgent | core.RemoteAgent>();
+        expectTypeOf(core.defineRemoteAgent).returns.toEqualTypeOf<core.RemoteAgent>();
+        expectTypeOf(core.defineRemoteAgent).parameter(0).toEqualTypeOf<core.RemoteAgentDefinition>();
+        expectTypeOf<core.EngineOptions['peers']>().toEqualTypeOf<core.IPeerResolver | undefined>();
+        expectTypeOf<core.IEngine['peers']>().toEqualTypeOf<core.IPeerResolver | undefined>();
+        expectTypeOf<core.PeerStartInput>().toEqualTypeOf<{
+            agent: string;
+            role: string;
+            payload: unknown;
+            attachments?: core.ArtifactInput[];
+            idempotencyKey: string;
+            peer: {
+                standIn: string;
+                parent: {
+                    runId: string;
+                    agent: string;
+                    depth: number
+                };
+                taint: boolean;
+                origin?: string;
+            };
+        }>();
+        expectTypeOf<core.PeerRunView>().toEqualTypeOf<{
+            id: string;
+            status: store.RunStatusLiteral;
+            waiting?: store.WaitPoint['kind'];
+            approval?: Omit<store.RemoteApproval, 'notifiedAt'>;
+            output?: unknown;
+            error?: { code: string; message: string };
+            tainted: boolean;
+            usage: store.Usage;
+        }>();
+        expectTypeOf<core.PeerSettings>().toEqualTypeOf<{
+            pollMs: number;
+            untrusted: boolean;
+            approvals?: { channel: string; address: string };
+            outgoing: boolean;
+        }>();
+        expectTypeOf<core.PeerRequestOptions>().toEqualTypeOf<{ signal: AbortSignal }>();
+        expectTypeOf<core.IPeerTransport['start']>()
+            .toEqualTypeOf<(input: core.PeerStartInput, opts: core.PeerRequestOptions) => Promise<{ runId: string }>>();
+        expectTypeOf<core.IPeerTransport['read']>()
+            .toEqualTypeOf<(runId: string, opts: core.PeerRequestOptions) => Promise<core.PeerRunView>>();
+        expectTypeOf<core.IPeerTransport['cancel']>()
+            .toEqualTypeOf<(runId: string, opts: core.PeerRequestOptions) => Promise<void>>();
+        expectTypeOf<core.IPeerTransport['wake']>()
+            .toEqualTypeOf<(standInRunId: string, opts: core.PeerRequestOptions) => Promise<void>>();
+        expectTypeOf<core.IPeerResolver['recognize']>().toEqualTypeOf<(invoker: store.Invoker | undefined) => string | undefined>();
+        expectTypeOf<core.IPeerResolver['settings']>().toEqualTypeOf<(name: string) => core.PeerSettings>();
+        expectTypeOf<core.IPeerResolver['transport']>().toEqualTypeOf<(name: string) => core.IPeerTransport>();
+        expectTypeOf<core.IPeerResolver['approvalUrl']>()
+            .toEqualTypeOf<((ref: { runId: string; approvalId: string }) => string | undefined) | undefined>();
+    });
+
     it('exports the dispatch api', () => {
         expect(core.AGENT_CHANNEL_NAME).toBe('agent');
         expect(core.DEFAULT_DISPATCH_ROLE).toBe('default');
@@ -304,12 +373,14 @@ describe('public api', () => {
             source?: store.TriggerSource;
         }>();
         expectTypeOf<store.TriggerSource>().toEqualTypeOf<{ channel: string; address: string }>();
-        expectTypeOf<store.TriggerParent['source']>().toEqualTypeOf<store.TriggerSource | undefined>();
+        expectTypeOf<store.DispatchParent['source']>().toEqualTypeOf<store.TriggerSource | undefined>();
         expectTypeOf<core.AgentSubscriber['on']>().returns.toEqualTypeOf<core.ChannelSubscription<unknown>>();
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('maxDepth').toEqualTypeOf<number | undefined>();
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('from').toEqualTypeOf<string[] | undefined>();
         expectTypeOf<ReturnType<typeof core.dispatchTo>>().toEqualTypeOf<Promise<core.DispatchResult>>();
         expectTypeOf<ReturnType<typeof core.findApprovalWaitBelow>>().toEqualTypeOf<Promise<store.Run | undefined>>();
+        expectTypeOf<ReturnType<typeof core.pendingApprovalOf>>().toEqualTypeOf<Omit<store.RemoteApproval, 'notifiedAt'> | undefined>();
+        expectTypeOf<core.IRunService['updateWith']>().parameter(1).toEqualTypeOf<(run: store.Run) => Partial<store.Run>>();
         expectTypeOf<core.DispatchToInput>().toEqualTypeOf<core.DispatchInput & { agent: string }>();
         expectTypeOf<core.Budget>().toHaveProperty('maxSubtreeTokens').toEqualTypeOf<number | undefined>();
         expectTypeOf<core.DispatchOutcome>().toEqualTypeOf<{
@@ -533,11 +604,11 @@ describe('public api', () => {
         expectTypeOf<Parameters<core.ChannelHandle['approve']>[0]>().toEqualTypeOf<core.ApprovalRequestInput & { address?: string; slot?: string }>();
         expectTypeOf<core.ChannelMessage['slot']>().toEqualTypeOf<string | undefined>();
         expectTypeOf<store.ApprovalWaitPoint['slot']>().toEqualTypeOf<string | undefined>();
-        expectTypeOf<store.WaitPoint>().toEqualTypeOf<store.ApprovalWaitPoint | store.DispatchWaitPoint>();
+        expectTypeOf<store.WaitPoint>().toEqualTypeOf<store.ApprovalWaitPoint | store.DispatchWaitPoint | store.RemoteWaitPoint>();
         expectTypeOf<store.DispatchWaitPoint['runIds']>().toEqualTypeOf<string[]>();
         expectTypeOf<store.Run['parentRunId']>().toEqualTypeOf<string | undefined>();
         expectTypeOf<store.Run['subtreeUsage']>().toEqualTypeOf<store.Usage | undefined>();
-        expectTypeOf<store.TriggerParent['kind']>().toEqualTypeOf<'dispatch'>();
+        expectTypeOf<store.TriggerParent['kind']>().toEqualTypeOf<'dispatch' | 'peer'>();
         expectTypeOf<core.RunFindOptions['parentRunId']>().toEqualTypeOf<string | undefined>();
         expectTypeOf<core.RunUpdateOptions['expectWaitId']>().toEqualTypeOf<string | undefined>();
         expectTypeOf<core.ConsoleChannelOptions>().toHaveProperty('name').toEqualTypeOf<string | undefined>();

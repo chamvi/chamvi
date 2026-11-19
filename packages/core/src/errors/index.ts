@@ -21,6 +21,7 @@ export * from './decryption-failed.ts';
 export * from './fatal-tool.ts';
 export * from './incomplete-response.ts';
 export * from './lease-lost.ts';
+export * from './peer-start-busy.ts';
 export * from './repository-not-found.ts';
 export * from './run-not-found.ts';
 export * from './run-state.ts';

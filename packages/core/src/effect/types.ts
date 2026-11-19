@@ -9,7 +9,7 @@ import type { Tool, ToolExecutionOptions } from 'ai';
 import type { IEffectRepository } from '@chamvi/store';
 import type { AgentHooks } from '../agent/types.ts';
 import type { IRunArtifacts } from '../artifact/types.ts';
-import type { SuspendRequest } from '../engine/execute/types.ts';
+import type { CallSuspendRequest } from '../engine/execute/types.ts';
 import type { StateSchema } from '../state/types.ts';
 import type { AgentTrust, ToolContext } from '../tool/types.ts';
 import type { EFFECT, EFFECT_HOOKS } from './constants.ts';
@@ -50,7 +50,7 @@ export type ToolCallFrame = {
     /** The run's artifacts, where approve() checks the artifact ids a request names. */
     artifacts?: IRunArtifacts;
     /** Set by the approve() or waitForDispatch() that suspended the call; the wrapper answers it with a placeholder. */
-    suspended?: SuspendRequest;
+    suspended?: CallSuspendRequest;
     /** True while a streaming tool's body runs: approve() and waitForDispatch() are refused there. */
     streaming?: boolean;
     /**
@@ -77,7 +77,7 @@ export type WrapToolsOptions = {
      * answer is not recorded yet); the call then resolves with a placeholder
      * that never reaches a checkpoint.
      */
-    onSuspend?: (request: SuspendRequest) => void;
+    onSuspend?: (request: CallSuspendRequest) => void;
     /** The checkpoint step index of the step whose calls run now (read per call); default 0. */
     stepIndex?: () => number;
     /**

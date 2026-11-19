@@ -27,6 +27,8 @@ import type {
     ApprovalWaitPoint,
     DispatchWaitPoint,
     IRunRepository,
+    PeerParent,
+    RemoteWaitPoint,
     Run,
 } from '@chamvi/store';
 import { makeChild, makeRun, testUuid } from '../fixture/helpers.ts';
@@ -66,6 +68,37 @@ const DISPATCH: DispatchWaitPoint = {
     toolCallId: 'c2',
     runIds: [testUuid('c1'), testUuid('c2')],
     expiresAt: new Date(9_000),
+};
+
+const REMOTE: RemoteWaitPoint = {
+    kind: 'remote',
+    id: 'remote',
+    peer: 'dev',
+    agent: 'developer',
+    remoteRunId: 'remote-run-1',
+    expiresAt: new Date(9_000),
+    wakeRequested: true,
+    remote: {
+        status: RunStatus.WAITING,
+        approval: {
+            runId: 'remote-run-2',
+            approvalId: '0:c1:0',
+            title: 'Deploy?',
+            url: 'https://dev.example.com/approvals/remote-run-2/0:c1:0',
+            notifiedAt: new Date(3_000),
+        },
+    },
+};
+
+const PEER: PeerParent = {
+    kind: 'peer',
+    peer: 'dev',
+    runId: 'caller-run-1',
+    standIn: 'caller-run-2',
+    agent: 'assistant',
+    role: 'default',
+    depth: 2,
+    origin: 'Peter',
 };
 
 /** A run with every optional field set (no conversation: its scope references another aggregate). */
@@ -209,6 +242,40 @@ export function describeRunRepositoryContract(input: RunRepositoryContractInput)
 
             expect((await runs.findOneById(testUuid('c1')))!.trigger.parent).toEqual(parent);
             expect((await runs.findMany(defineQuery({ filters: eq('id', testUuid('c1')) }))).data[0]!.trigger.parent).toEqual(parent);
+        });
+
+        it('stores a remote wait point and reads it back with Date instances; findByWaitKind lists it', async () => {
+            await insert(runs, makeRun(testUuid('r1'), { status: RunStatus.WAITING, waiting: REMOTE }));
+            await insert(runs, makeRun(testUuid('r2'), { status: RunStatus.WAITING, waiting: DISPATCH }));
+
+            const stored = (await runs.findOneById(testUuid('r1')))!;
+
+            expect(stored.waiting).toEqual(REMOTE);
+            expect(stored.waiting?.expiresAt).toBeInstanceOf(Date);
+            expect(stored.waiting?.kind === 'remote' ? stored.waiting.remote?.approval?.notifiedAt : undefined).toBeInstanceOf(Date);
+
+            const remote = await runs.findByWaitKind('remote', defineQuery({}));
+
+            expect(idsOf(remote.data)).toEqual([testUuid('r1')]);
+            expect(remote.meta.total).toBe(1);
+            expect(remote.data[0]!.waiting).toEqual(REMOTE);
+        });
+
+        it('stores a peer parent as given, a foreign run id without parentRunId', async () => {
+            const run = makeRun(testUuid('r1'));
+
+            run.trigger = {
+                ...run.trigger,
+                channel: 'agent',
+                parent: PEER,
+            };
+
+            await insert(runs, run);
+
+            const stored = (await runs.findOneById(testUuid('r1')))!;
+
+            expect(stored.trigger.parent).toEqual(PEER);
+            expect(stored).not.toHaveProperty('parentRunId');
         });
 
         it('reads an unknown or malformed id as null', async () => {

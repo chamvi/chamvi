@@ -21,7 +21,7 @@ import {
     systemClock,
 } from '@chamvi/core';
 import type { DispatchEnvelope } from '@chamvi/core';
-import type { TriggerParent } from '@chamvi/store';
+import type { DispatchParent, TriggerParent } from '@chamvi/store';
 import {
     MemoryAgentRevisionRepository,
     MemoryArtifactRepository,
@@ -42,7 +42,7 @@ export type RunToolOptions = {
     clock?: ControllableClock;
     trigger?: Partial<DispatchEnvelope>;
     /** Lineage only the dispatch host can set: dispatched through a test subclass. */
-    parent?: Omit<TriggerParent, 'runId'>;
+    parent?: Omit<DispatchParent, 'runId'>;
 };
 
 class LineageEngine extends Engine {

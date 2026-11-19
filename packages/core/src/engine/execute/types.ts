@@ -14,7 +14,8 @@ import type {
     Usage,
 } from '@chamvi/store';
 import type { ToolSet } from 'ai';
-import type { Agent } from '../../agent/types.ts';
+import type { ModelAgent, RemoteAgent, SimpleAgent } from '../../agent/types.ts';
+import type { IPeerResolver } from '../../peer/types.ts';
 import type { IClock } from '../../clock/index.ts';
 import type { ContextKey } from '../../context/types.ts';
 import type { IEffectService, ToolCallFrame  } from '../../effect/types.ts';
@@ -43,7 +44,7 @@ export type AssembleToolsOptions = {
     /** The execution's end: a call still running after it can no longer dispatch, wait, approve or emit. */
     gate: ExecutionGate;
     /** Called with the request of a call approve() or waitForDispatch() suspended. */
-    onSuspend?: (request: SuspendRequest) => void;
+    onSuspend?: (request: CallSuspendRequest) => void;
     /** The checkpoint step index of the step whose calls run now (read per call); default 0. */
     stepIndex?: () => number;
 };
@@ -60,7 +61,8 @@ export type ExecuteContext = {
     engine: IEngine;
     conversation?: { capability: IConversations; snapshot: ConversationSnapshot };
     run: Run;
-    agent: Agent;
+    /** The executing agent: a remote agent's runs never execute here. */
+    agent: ModelAgent | SimpleAgent;
     skills?: SkillContribution;
     /** The model to run: the agent's, else the engine default; undefined fails the run. */
     model: ModelRef | undefined;
@@ -139,8 +141,43 @@ export type DispatchWaitRequest = {
     timeoutMs: number;
 };
 
+/** What a stand-in run of a remote agent waits on (internal): its remote run at the peer. */
+export type RemoteWaitRequest = {
+    kind: 'remote';
+    /** A stand-in waits on one remote run only. */
+    id: 'remote';
+    peer: string;
+    /** The agent at the peer. */
+    agent: string;
+    remoteRunId: string;
+    timeoutMs: number;
+};
+
 /** What a suspended tool call waits on (internal). */
-export type SuspendRequest = ApprovalRequest | DispatchWaitRequest;
+export type CallSuspendRequest = ApprovalRequest | DispatchWaitRequest;
+
+/** What a paused run waits on (internal): a suspended tool call's request, or a stand-in's remote run. */
+export type SuspendRequest = CallSuspendRequest | RemoteWaitRequest;
+
+/** What one execution of a remote agent's stand-in run gets from the engine (internal). */
+export type RemoteExecuteContext = {
+    run: Run;
+    agent: RemoteAgent;
+    peers: IPeerResolver;
+    effectService: Pick<IEffectService, 'findOne' | 'save'>;
+    artifactService: Pick<IArtifactService, 'findOne' | 'read'>;
+    clock: IClock;
+    /** Aborted by engine.cancel() (and drain). */
+    signal: AbortSignal;
+    /** As ExecuteContext.finish. */
+    finish: (patch: Partial<Run>) => Promise<Run | undefined>;
+    /** As ExecuteContext.update. */
+    update: (patch: Partial<Run>) => Promise<Run>;
+    /** As ExecuteContext.pause. */
+    pause: (request: SuspendRequest, usage: Usage) => Promise<void>;
+    /** Reports a failure that ends the execution but not the run (recovery retries it). */
+    onError: (error: unknown, run: Run) => void;
+};
 
 /** A tool call `ctx.tools` made in a simple run, appended as a `tool` step (internal). */
 export type SimpleToolStep = Pick<Step, 'name' | 'input' | 'output' | 'error' | 'startedAt' | 'finishedAt'>;

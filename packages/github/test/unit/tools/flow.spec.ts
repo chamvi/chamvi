@@ -105,7 +105,7 @@ describe('webhook to comment', () => {
         const waiting = await engine.runService.findOne(runs[0]!.runId);
 
         expect(waiting?.status).toBe('waiting');
-        expect(waiting?.waiting?.toolName).toBe('github_add_labels');
+        expect(waiting?.waiting).toMatchObject({ kind: 'approval', toolName: 'github_add_labels' });
         expect(fake.issues.get('octo/demo#5')?.labels).toEqual([]);
 
         const isToolComment = (comment: Record<string, unknown>) => String(comment.body).includes(':github_create_comment:');
@@ -167,7 +167,7 @@ describe('webhook to comment', () => {
         const run = await engine.runService.findOne(runs[0]!.runId);
 
         expect(run?.status).toBe('waiting');
-        expect(run?.waiting?.toolName).toBe('github_close_issue');
+        expect(run?.waiting).toMatchObject({ kind: 'approval', toolName: 'github_close_issue' });
         expect(fake.requests.filter((r) => r.method === 'PATCH')).toHaveLength(0);
         await engine.drain();
     });
@@ -214,7 +214,7 @@ describe('webhook to comment', () => {
         const paused = await engine.runService.findOne(runId);
 
         expect(paused?.status).toBe('waiting');
-        expect(paused?.waiting?.toolName).toBe('github_create_comment');
+        expect(paused?.waiting).toMatchObject({ toolName: 'github_create_comment' });
         expect(fake.comments.get('octo/demo#5')).toHaveLength(1);
 
         await engine.approve(runId, { approvalId: paused!.waiting!.id, approved: true });

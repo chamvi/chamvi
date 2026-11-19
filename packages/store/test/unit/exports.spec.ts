@@ -50,12 +50,14 @@ describe('public api', () => {
         expectTypeOf<store.Run['taint']>().toEqualTypeOf<store.RunTaint | undefined>();
         expectTypeOf<store.Run['waiting']>().toEqualTypeOf<store.WaitPoint | undefined>();
         expectTypeOf<store.Run['conversation']>().toEqualTypeOf<store.ConversationBinding | undefined>();
-        expectTypeOf<store.WaitPoint>().toEqualTypeOf<store.ApprovalWaitPoint | store.DispatchWaitPoint>();
+        expectTypeOf<store.WaitPoint>().toEqualTypeOf<store.ApprovalWaitPoint | store.DispatchWaitPoint | store.RemoteWaitPoint>();
+        expectTypeOf<NonNullable<store.RemoteWaitPoint['remote']>['approval']>().toEqualTypeOf<store.RemoteApproval | undefined>();
         expectTypeOf<store.ApprovalWaitPoint['options']>().toEqualTypeOf<store.ApprovalOption[] | undefined>();
         expectTypeOf<store.TriggerEnvelope['invoker']>().toEqualTypeOf<store.Invoker | undefined>();
         expectTypeOf<store.TriggerEnvelope['parent']>().toEqualTypeOf<store.TriggerParent | undefined>();
         expectTypeOf<store.TriggerEnvelope['attachments']>().toEqualTypeOf<store.Artifact[] | undefined>();
-        expectTypeOf<store.TriggerParent['source']>().toEqualTypeOf<store.TriggerSource | undefined>();
+        expectTypeOf<store.TriggerParent>().toEqualTypeOf<store.DispatchParent | store.PeerParent>();
+        expectTypeOf<store.DispatchParent['source']>().toEqualTypeOf<store.TriggerSource | undefined>();
         expectTypeOf<store.Step['kind']>().toEqualTypeOf<'llm' | 'tool' | 'wait'>();
         expectTypeOf<store.Checkpoint['messages']>().toEqualTypeOf<ModelMessage[]>();
         expectTypeOf<store.AgentRevision>().toEqualTypeOf<{

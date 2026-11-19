@@ -55,7 +55,7 @@ async function recordChild(host: DispatchHost, runId: string, childId: string): 
  * the sum (it errs only low) counts instead.
  */
 async function overSubtreeBudget(host: DispatchHost, chain: Run[]): Promise<{ run: Run, max: number } | undefined> {
-    const budgets = chain.map((run) => host.getAgent(run.agent)?.definition.budget.maxSubtreeTokens);
+    const budgets = chain.map((run) => host.getAgent(run.agent)?.definition.budget?.maxSubtreeTokens);
     let last = -1;
 
     budgets.forEach((max, i) => {
@@ -162,7 +162,8 @@ async function start(
 
     const maxPerRun = maxPerRunOf(target, subscription);
     const maxDepth = maxDepthOf(target, subscription);
-    const depth = (run.parent?.kind === 'dispatch' ? run.parent.depth : 0) + 1;
+    // a peer parent's depth counts too, so calls bouncing between apps reach maxDepth
+    const depth = (run.parent?.depth ?? 0) + 1;
 
     if (depth > maxDepth) {
         throw new ValidationError(`Agent "${target}" role "${role}" accepts dispatches up to depth ${maxDepth}.`);

@@ -18,6 +18,7 @@ import {
     parentOf,
     shortId,
     subtreeTotal,
+    waitToolName,
 } from '../../../../app/runs/helpers.ts';
 import type { RunDetailState } from '../../../../app/runs/helpers.ts';
 import { ALL, allowedOf } from '../../../utils/permissions.ts';
@@ -235,5 +236,33 @@ describe('childRole', () => {
             },
         }))).toBe('review');
         expect(childRole(base)).toBe('http');
+    });
+});
+
+describe('waitToolName', () => {
+    it('names the tool of an approval or dispatch wait, none for a remote wait', () => {
+        const expiresAt = '2026-01-01T00:00:00.000Z';
+
+        expect(waitToolName(wireRun({
+            waiting: {
+                kind: 'dispatch',
+                id: '1:c2:w0',
+                toolName: 'review',
+                toolCallId: 'c2',
+                runIds: ['c1'],
+                expiresAt,
+            },
+        }))).toBe('review');
+        expect(waitToolName(wireRun({
+            waiting: {
+                kind: 'remote',
+                id: 'remote',
+                peer: 'dev',
+                agent: 'developer',
+                remoteRunId: 'x1',
+                expiresAt,
+            },
+        }))).toBeUndefined();
+        expect(waitToolName(wireRun())).toBeUndefined();
     });
 });

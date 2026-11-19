@@ -170,6 +170,11 @@ export function runDuration(run: RunWire, now: number): number | undefined {
     return end - Date.parse(run.startedAt);
 }
 
+/** The tool a run's wait point paused in; none for a remote wait. */
+export function waitToolName(run: RunWire): string | undefined {
+    return run.waiting && run.waiting.kind !== 'remote' ? run.waiting.toolName : undefined;
+}
+
 /** Use the entropy tail so nearby UUID v7 runs have distinguishable short labels. */
 export function shortId(id: string): string {
     return id.slice(-8);

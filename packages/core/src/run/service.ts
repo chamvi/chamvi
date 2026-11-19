@@ -56,7 +56,8 @@ export class RunService implements IRunService {
     }
 
     async create(run: Run): Promise<boolean> {
-        const parentRunId = run.trigger.parent?.runId;
+        // a peer parent names a run of another app: no local lineage
+        const parentRunId = run.trigger.parent?.kind === 'dispatch' ? run.trigger.parent.runId : undefined;
         const value: Run = { ...run };
 
         delete value.parentRunId;
@@ -102,6 +103,10 @@ export class RunService implements IRunService {
     }
 
     async update(id: string, patch: Partial<Run>, expect: RunUpdateOptions = {}): Promise<Run> {
+        return this.updateWith(id, () => patch, expect);
+    }
+
+    async updateWith(id: string, derive: (run: Run) => Partial<Run>, expect: RunUpdateOptions = {}): Promise<Run> {
         return this.repository.transaction(async (repository) => {
             const run = await repository.findOneById(id);
 
@@ -128,6 +133,8 @@ export class RunService implements IRunService {
             }
 
             const { parentRunId, updatedAt } = run;
+            // derived from the locked row: a field the patch keeps is never written back stale
+            const patch = derive(readRun(structuredClone(run)));
 
             repository.merge(run, {
                 ...patch,

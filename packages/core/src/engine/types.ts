@@ -7,7 +7,7 @@
 
 import type { Agent } from '../agent/types.ts';
 import type { ArtifactInput, IArtifactService  } from '../artifact/types.ts';
-import type { ChannelContext, IChannel } from '../channel/types.ts';
+import type { ChannelContext, DispatchResult, IChannel } from '../channel/types.ts';
 import type { IClock } from '../clock/index.ts';
 import type { IContextProvider } from '../context/types.ts';
 import type { ConversationInspection, ConversationOptions, IConversationService  } from '../conversation/types.ts';
@@ -20,6 +20,7 @@ import type {
     TriggerEnvelope,
 } from '@chamvi/store';
 import type { IModelResolver, ModelRef } from '../model/types.ts';
+import type { IPeerResolver, PeerStartInput } from '../peer/types.ts';
 import type { SkillInput } from '../skill/types.ts';
 import type { IAgentRevisionService } from '../agent-revision/types.ts';
 import type { IConnectionService } from '../connection/types.ts';
@@ -62,10 +63,20 @@ export interface IEngine extends IContextProvider {
      * them; the conversation capability (`conversations`) needs it.
      */
     readonly conversationService: IConversationService | undefined;
+    /** The configured peers remote agents run at, when the app has any. */
+    readonly peers: IPeerResolver | undefined;
     readonly clock: IClock;
     readonly isDraining: boolean;
 
     dispatch(envelope: DispatchEnvelope): Promise<{ runId: string; deduplicated: boolean }>;
+    /**
+     * Starts a run a peer asked for: the peer is the one `peers.recognize()`
+     * names for `envelope.invoker`, the target its `agent.on()` role
+     * `fields.role`, checked like a local cross-agent dispatch (`from` entry
+     * `<peer>/<parent.agent>`); a refusal writes nothing (an unknown or
+     * ungranted agent: AgentNotFoundError, else ValidationError).
+     */
+    dispatchPeer(envelope: DispatchEnvelope, fields: PeerStartInput['peer'] & { role: string }): Promise<DispatchResult>;
     inspectConversation(identity: ConversationIdentity, query?: { limit?: number; offset?: number }): Promise<ConversationInspection | undefined>;
     resetConversation(identity: ConversationIdentity, options?: { keepNotes?: boolean }): Promise<ConversationScope>;
     deleteConversation(identity: ConversationIdentity): Promise<void>;
@@ -94,6 +105,13 @@ export interface IEngine extends IContextProvider {
     idle(): Promise<void>;
     cancel(runId: string): Promise<void>;
     approve(runId: string, answer: ApprovalAnswer): Promise<void>;
+    /**
+     * A peer's content-free wake of stand-in `runId` waiting on the peer
+     * `invoker` authenticates as (the next tick polls it at once): `marked`
+     * when this call set the mark, `pending` when it was set already;
+     * `undefined`, with nothing written, for any other run or invoker.
+     */
+    wake(runId: string, invoker: Invoker | undefined): Promise<WakeOutcome | undefined>;
     tick(): Promise<void>;
     checkAgent(agent: Agent): void;
 }
@@ -186,6 +204,12 @@ export type EngineOptions = {
      */
     models?: IModelResolver;
     /**
+     * The peers remote agents run at; registration (constructor, putAgent)
+     * refuses a remote agent whose peer it does not have, and any remote
+     * agent without it (InvalidAgentDefinitionError).
+     */
+    peers?: IPeerResolver;
+    /**
      * The conversation capability agents with `conversation: true` need: the
      * authorizer and the limits. Persistence comes from `conversationService`.
      */
@@ -200,6 +224,9 @@ export type EngineOptions = {
     /** Receives errors that have no caller to throw to. Default console.error. */
     onError?: (error: unknown, run?: Run) => void;
 };
+
+/** What a peer's wake did to a stand-in's remote wait: set the mark, or found it set. */
+export type WakeOutcome = 'marked' | 'pending';
 
 /** A run to create; `parent` is no field: only the dispatch host (dispatch()) sets the lineage. */
 export type DispatchEnvelope = Omit<TriggerEnvelope, 'id' | 'receivedAt' | 'attachments' | 'parent'> &

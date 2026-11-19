@@ -25,6 +25,7 @@ export * from './keyring/index.ts';
 export * from './lock/index.ts';
 export * from './message/index.ts';
 export * from './model/index.ts';
+export * from './peer/index.ts';
 export * from './permission/index.ts';
 export * from './run/index.ts';
 export * from './skill/index.ts';

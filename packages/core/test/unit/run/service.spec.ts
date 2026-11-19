@@ -157,6 +157,28 @@ describe('RunService', () => {
             expect(idsOf((await service.find({ parentRunId: uuid('p1') })).data)).toEqual([uuid('c1')]);
         });
 
+        it('takes no parentRunId from a peer parent: its run id names a run of another app', async () => {
+            const run = makeRun(uuid('r1'));
+
+            run.trigger = {
+                ...run.trigger,
+                channel: 'agent',
+                parent: {
+                    kind: 'peer',
+                    peer: 'dev',
+                    runId: uuid('foreign'),
+                    standIn: uuid('stand-in'),
+                    agent: 'assistant',
+                    role: 'default',
+                    depth: 1,
+                },
+            };
+
+            expect(await service.create(run)).toBe(true);
+            expect(await service.findOneOrFail(uuid('r1'))).not.toHaveProperty('parentRunId');
+            expect(await service.find({ hasParent: true })).toEqual({ data: [], total: 0 });
+        });
+
         it('create of a child whose parent is absent throws RunNotFoundError naming the parent and writes nothing', async () => {
             await expect(service.create(makeChild(uuid('r1'), uuid('missing')))).rejects.toThrow(new RunNotFoundError(uuid('missing')));
             expect(await service.findOne(uuid('r1'))).toBeUndefined();
@@ -230,6 +252,28 @@ describe('RunService', () => {
             expect((await service.update(uuid('r1'), { status: RunStatus.RUNNING })).updatedAt).toEqual(new Date(15_000));
             expect((await service.update(uuid('r1'), { updatedAt: new Date(2_000) })).updatedAt).toEqual(new Date(2_000));
             expect((await service.update(uuid('r1'), { updatedAt: new Date(3_000) }, { keepUpdatedAt: true })).updatedAt).toEqual(new Date(3_000));
+        });
+
+        it('updateWith derives the patch from the stored row after the checks, a throw writes nothing', async () => {
+            await service.create(makeRun(uuid('r1'), { status: RunStatus.WAITING, waiting: DISPATCH }));
+            await service.update(uuid('r1'), { usage: { inputTokens: 7, outputTokens: 0 } });
+
+            const seen: Run[] = [];
+            const updated = await service.updateWith(uuid('r1'), (run) => {
+                seen.push(run);
+
+                return { usage: { inputTokens: run.usage.inputTokens + 1, outputTokens: 0 } };
+            }, { expectStatus: [RunStatus.WAITING], expectWaitId: DISPATCH.id });
+
+            expect(updated.usage).toEqual({ inputTokens: 8, outputTokens: 0 });
+            expect(seen[0]?.waiting).toEqual(DISPATCH);
+
+            await expect(service.updateWith(uuid('r1'), () => {
+                throw new InvalidRunStateError('moved on');
+            })).rejects.toBeInstanceOf(InvalidRunStateError);
+            await expect(service.updateWith(uuid('r1'), () => ({ usage: { inputTokens: 0, outputTokens: 0 } }), { expectWaitId: 'other' }))
+                .rejects.toBeInstanceOf(InvalidRunStateError);
+            expect((await service.findOneOrFail(uuid('r1'))).usage).toEqual({ inputTokens: 8, outputTokens: 0 });
         });
 
         it('clears a property set to undefined and keeps untouched ones, the claim too', async () => {

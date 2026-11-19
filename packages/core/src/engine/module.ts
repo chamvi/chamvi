@@ -9,8 +9,13 @@ import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { pid } from 'node:process';
 import { uuidv7 } from 'uuidv7';
-import type { Agent } from '../agent/types.ts';
-import { assertAgentKind, conversationKey } from '../agent/asserts.ts';
+import type {
+    Agent,
+    ModelAgent,
+    RemoteAgent,
+    SimpleAgent,
+} from '../agent/types.ts';
+import { assertAgentKind, assertRemoteAgent, conversationKey } from '../agent/asserts.ts';
 import { approvalDecisionKey, assertSelectionShape, toSelection } from '../approval/helpers.ts';
 import { assertArtifactInput } from '../artifact/helpers.ts';
 import { storeArtifact } from '../artifact/module.ts';
@@ -41,6 +46,7 @@ import type {
     ConversationBinding,
     ConversationIdentity,
     ConversationScope,
+    Invoker,
     Run,
     Step,
     TriggerEnvelope,
@@ -65,12 +71,15 @@ import {
 } from '../errors/index.ts';
 import { RunStatus } from '@chamvi/store';
 import { untilAborted } from '../run/helpers.ts';
+import { deliverOnce } from './notify/module.ts';
 import { DISPATCH_CONTEXT } from '../dispatch/constants.ts';
-import type { DispatchHost } from '../dispatch/types.ts';
-import { assertDispatchRoles, declaresDispatchRole } from '../dispatch/helpers.ts';
+import type { DispatchHost, PeerDispatchHost } from '../dispatch/types.ts';
+import { assertDispatchRoles, createSerial, declaresDispatchRole } from '../dispatch/helpers.ts';
+import { dispatchPeer } from '../dispatch/peer/module.ts';
 import { MODEL_CONTEXT } from '../model/constants.ts';
 import { checkAgentModel, checkDefaultModel } from '../model/module.ts';
 import type { IModelResolver, ModelContext, ModelRef } from '../model/types.ts';
+import type { IPeerResolver, PeerStartInput } from '../peer/types.ts';
 import { EngineSkills } from './skills/module.ts';
 import type { IEngineSkills } from './skills/types.ts';
 import type { SkillContribution } from '../skill/types.ts';
@@ -94,7 +103,13 @@ import {
 import { sameWait, toRunError, toWaitPoint } from './execute/helpers.ts';
 import { executeSimpleRun } from './execute/simple.ts';
 import { executeRun } from './execute/module.ts';
-import type { ExecuteContext, SuspendRequest } from './execute/types.ts';
+import { executeRemoteRun } from './execute/remote/module.ts';
+import { EngineRemote } from './remote/caller/module.ts';
+import type { IEngineRemote } from './remote/caller/types.ts';
+import { EnginePeerReceiver } from './remote/receiver/module.ts';
+import type { IEnginePeerReceiver } from './remote/receiver/types.ts';
+import type { RemoteEngineContext } from './remote/types.ts';
+import type { ExecuteContext, RemoteExecuteContext, SuspendRequest } from './execute/types.ts';
 import {
     answerDispatchWait,
     healCancelCascade,
@@ -119,6 +134,7 @@ import type {
     EngineOptions,
     EngineStartOptions,
     IEngine,
+    WakeOutcome,
 } from './types.ts';
 
 /** What `answer()` records: an `ApprovalAnswer` without its approval id. */
@@ -157,6 +173,9 @@ export class Engine implements IEngine {
 
     /** The idempotency keys of dispatches over the idempotency repository. */
     readonly idempotencyService: IIdempotencyService;
+
+    /** The configured peers remote agents run at (EngineOptions.peers). */
+    readonly peers: IPeerResolver | undefined;
 
     protected readonly agents: Map<string, Agent>;
 
@@ -236,11 +255,20 @@ export class Engine implements IEngine {
     /**
      * Approval deliveries started by a pause, detached from the execution so
      * a slow channel holds neither the slot nor the executions entry (a resume
-     * meanwhile starts the next execution); idle() and drain() wait for them.
+     * meanwhile starts the next execution), and the peer requests of remote
+     * waits (polls, remote cancels); idle() and drain() wait for them.
      */
     protected readonly deliveries = new Set<Promise<void>>();
 
     protected readonly deliveryControllers = new Set<AbortController>();
+
+    protected readonly peerDispatchHost: PeerDispatchHost;
+
+    /** The caller side of remote agents (polls, wakes, timeouts, remote approvals and cancels); only with peers. */
+    protected readonly remote?: IEngineRemote;
+
+    /** The receiver side: signals to the peer that started a run here; only with peers. */
+    protected readonly peerReceiver?: IEnginePeerReceiver;
 
     protected started = false;
 
@@ -321,6 +349,7 @@ export class Engine implements IEngine {
 
         this.model = opts.model;
         this.models = opts.models;
+        this.peers = opts.peers;
         checkDefaultModel({ model: this.model, models: this.models });
         // set directly: the key is module-private, so no provide() can collide
         this.provided.set(MODEL_CONTEXT, {
@@ -331,6 +360,23 @@ export class Engine implements IEngine {
 
         this.provided.set(CLOCK_KEY, this.clock);
         this.provided.set(DISPATCH_CONTEXT, this.createDispatchHost());
+        this.peerDispatchHost = this.createPeerDispatchHost();
+
+        if (opts.peers) {
+            const remoteContext: RemoteEngineContext = {
+                ...this.dispatchContext(),
+                lockService: this.lockService,
+                effectService: this.effectService,
+                peers: opts.peers,
+                getAgent: (name) => this.getAgent(name),
+                getChannel: (name) => this.getChannel(name),
+                detach: (work, run) => this.detach(work, run),
+                peerEvent: (run) => this.peerReceiver?.onRunEvent(run),
+            };
+
+            this.remote = new EngineRemote(remoteContext);
+            this.peerReceiver = new EnginePeerReceiver(remoteContext);
+        }
 
         for (const agent of opts.agents) {
             this.assertRegistrable(agent);
@@ -371,13 +417,30 @@ export class Engine implements IEngine {
     }
 
     /**
+     * Starts a run a peer asked for (a stand-in run of another chamvi app
+     * waits on it): the peer is the one `peers.recognize(envelope.invoker)`
+     * names, the target is the agent's `agent.on()` role `fields.role`,
+     * checked like a local cross-agent dispatch (`from` lists
+     * `<peer>/<parent.agent>`, the peer's `chamvi_agent_run`, `maxDepth`,
+     * the schema, `maxPerRun` per peer and calling run, a required
+     * idempotency key); a refusal writes nothing (an unknown or ungranted
+     * agent: AgentNotFoundError, else ValidationError). The run gets a `peer`
+     * parent (no parentRunId) and, for a tainted caller, taint `peer:<peer>`.
+     */
+    async dispatchPeer(envelope: DispatchEnvelope, fields: PeerStartInput['peer'] & { role: string }): Promise<DispatchResult> {
+        return dispatchPeer(this.peerDispatchHost, envelope, fields);
+    }
+
+    /**
      * dispatch()'s body; `parent` comes only from this argument (the
-     * dispatch host), never from the envelope.
+     * dispatch host or the peer host), never from the envelope, and so does
+     * `taintSource` (a peer parent's initial taint, ignored for any other).
      */
     protected async createRun(
         envelope: DispatchEnvelope,
         parent?: TriggerParent,
         conversation?: ConversationBinding,
+        taintSource?: string,
     ): Promise<{ runId: string; deduplicated: boolean }> {
         // resolved once, synchronously: the agent and revision this run is created for
         const agent = this.agents.get(envelope.agent);
@@ -430,7 +493,7 @@ export class Engine implements IEngine {
             ...(parent ? {
                 parent: {
                     ...parent,
-                    ...(parent.source ? { source: { ...parent.source } } : {}),
+                    ...(parent.kind === 'dispatch' && parent.source ? { source: { ...parent.source } } : {}),
                 },
             } : {}),
             id: envelope.id ?? randomUUID(),
@@ -492,7 +555,9 @@ export class Engine implements IEngine {
             id: runId,
             agent: trigger.agent,
             status: RunStatus.QUEUED,
-            taint: (parent ? (await this.runService.findOne(parent.runId))?.taint : undefined) ??
+            // a dispatched run inherits its parent's taint; a peer parent's runId names a run of the peer
+            taint: (parent?.kind === 'dispatch' ? (await this.runService.findOne(parent.runId))?.taint : undefined) ??
+                (parent?.kind === 'peer' && taintSource !== undefined ? { at: now, source: taintSource } : undefined) ??
                 (this.channels.get(trigger.channel)?.untrusted ? { at: now, source: `channel:${trigger.channel}` } : undefined),
             trigger,
             concurrencyKey: trigger.concurrencyKey,
@@ -592,8 +657,6 @@ export class Engine implements IEngine {
      * path that sets a run's parent.
      */
     protected createDispatchHost(): DispatchHost {
-        const chains = new Map<string, Promise<unknown>>();
-
         return {
             getAgent: (name) => this.agents.get(name),
             hasChannel: (name) => this.channels.has(name),
@@ -611,21 +674,25 @@ export class Engine implements IEngine {
 
                 return this.createRun(envelope, parent);
             },
-            serial: (runId, fn) => {
-                const previous = chains.get(runId) ?? Promise.resolve();
-                const next = previous.then(fn, fn);
-                const tail = next.catch(() => {});
-
-                chains.set(runId, tail);
-                void tail.then(() => {
-                    if (chains.get(runId) === tail) {
-                        chains.delete(runId);
-                    }
-                });
-
-                return next;
-            },
+            serial: createSerial(),
             inflight: new Map(),
+        };
+    }
+
+    /**
+     * The internal host of dispatchPeer(): the only path that sets a peer
+     * parent or an initial peer taint.
+     */
+    protected createPeerDispatchHost(): PeerDispatchHost {
+        return {
+            getAgent: (name) => this.agents.get(name),
+            clock: this.clock,
+            effects: this.effectService,
+            peers: this.peers,
+            locks: this.lockService,
+            lockTtlMs: this.claimTtlMs,
+            createRun: (envelope, parent, taintSource) => this.createRun(envelope, parent, undefined, taintSource),
+            serial: createSerial(),
         };
     }
 
@@ -1397,7 +1464,20 @@ export class Engine implements IEngine {
         this.checkedRuns.delete(runId);
         this.emit({ type: 'run.updated', run: updated });
         await this.reconcileConversation(updated);
+        this.remote?.cancelSettled(updated);
+        this.peerReceiver?.onRunEvent(updated);
         await onRunSettled(this.dispatchContext(), updated);
+    }
+
+    /**
+     * Marks the remote wait of stand-in `runId` `wakeRequested`, so the next
+     * tick on any replica polls its remote run at once (a peer's
+     * content-free wake): `marked` when this call set the mark, `pending`
+     * when it was set already; only for a stand-in waiting on the peer
+     * `invoker` authenticates as, `undefined`, with nothing written, otherwise.
+     */
+    async wake(runId: string, invoker: Invoker | undefined): Promise<WakeOutcome | undefined> {
+        return this.remote?.wake(runId, invoker);
     }
 
     /**
@@ -1449,8 +1529,10 @@ export class Engine implements IEngine {
      * re-sends the approval message of every other approval not delivered
      * yet (a failed send, or a crash between the pause and the send).
      * Answers every dispatch wait whose runs all settled (a lost push) and
-     * expires the ones past their expiresAt. Cancels the unsettled runs of a
-     * cancelled parent a lost cascade left. Also runs on every poll.
+     * expires the ones past their expiresAt. Starts the polls of remote waits
+     * detached (one read per window across replicas, at once after a wake)
+     * and times out the ones past their expiresAt. Cancels the unsettled runs
+     * of a cancelled parent a lost cascade left. Also runs on every poll.
      */
     async tick(): Promise<void> {
         const now = this.clock.now();
@@ -1497,6 +1579,11 @@ export class Engine implements IEngine {
 
         // a dispatch wait is never delivered or denied: answered once its runs settled, or expired
         if (await healDispatchWaits(this.dispatchContext(), data, now)) {
+            resumed = true;
+        }
+
+        // a remote wait is polled detached (never awaited here), or timed out
+        if (this.remote && await this.remote.pollWaits(data, now)) {
             resumed = true;
         }
 
@@ -1678,6 +1765,13 @@ export class Engine implements IEngine {
             return;
         }
 
+        if (waiting.kind !== 'approval') {
+            return;
+        }
+
+        // also on a pause on an approval delivered before: the peer side dedupes its notification
+        this.peerReceiver?.onRunEvent(updated);
+
         if (waiting.notifiedAt) {
             return;
         }
@@ -1716,9 +1810,6 @@ export class Engine implements IEngine {
         }
 
         const key = `${run.id}:${waiting.approvalId}`;
-        const lockKey = `notify:${key}`;
-        const attempt = randomUUID();
-        let acquired = false;
         const currentWait = (current: Run | undefined): ApprovalWaitPoint | undefined => (
             current?.status === RunStatus.WAITING && current.waiting?.kind === 'approval' &&
             current.waiting.approvalId === waiting.approvalId ?
@@ -1729,40 +1820,27 @@ export class Engine implements IEngine {
 
         this.deliveryControllers.add(controller);
 
-        const timer = this.clock.setTimeout(() => controller.abort(new ChamviError({
-            message: `Channel "${channel.name}" did not deliver approval "${waiting.approvalId}" within ${this.claimTtlMs}ms.`,
-            code: ErrorCode.TIMEOUT,
-        })), this.claimTtlMs);
-
-        timer.unref?.();
-
         try {
-            acquired = await this.lockService.acquire(lockKey, attempt, this.claimTtlMs);
+            await deliverOnce({
+                clock: this.clock,
+                lockService: this.lockService,
+                claimTtlMs: this.claimTtlMs,
+                onError: (error, failed) => this.onError(error, failed),
+            }, {
+                key,
+                run,
+                signal: controller.signal,
+                timeout: () => new ChamviError({
+                    message: `Channel "${channel.name}" did not deliver approval "${waiting.approvalId}" within ${this.claimTtlMs}ms.`,
+                    code: ErrorCode.TIMEOUT,
+                }),
+                // another attempt may have delivered it since `run` was read
+                pending: async () => {
+                    const current = currentWait(await this.runService.findOne(run.id));
 
-            if (!acquired) {
-                return;
-            }
-
-            // another attempt may have delivered it since `run` was read
-            const current = await this.runService.findOne(run.id);
-
-            if (!currentWait(current) || currentWait(current)?.notifiedAt) {
-                return;
-            }
-
-            controller.signal.throwIfAborted();
-
-            const aborted = new Promise<never>((_, reject) => {
-                if (controller.signal.aborted) {
-                    reject(controller.signal.reason);
-                }
-
-                controller.signal.addEventListener('abort', () => reject(controller.signal.reason), { once: true });
-            });
-
-            // a transport that ignores the signal must not hold the pause (or tick) forever
-            await Promise.race([
-                channel.out({
+                    return current !== undefined && !current.notifiedAt;
+                },
+                send: (signal) => channel.out!({
                     kind: 'approval',
                     key,
                     runId: run.id,
@@ -1783,35 +1861,31 @@ export class Engine implements IEngine {
                         } :
                         {}),
                     ...(waiting.multiple === true ? { multiple: true } : {}),
-                }, waiting.address ?? '', { signal: controller.signal, trigger: run.trigger }),
-                aborted,
-            ]);
+                }, waiting.address ?? '', { signal, trigger: run.trigger }),
+                record: async (signal) => {
+                    // answered meanwhile: nothing left to record
+                    if (!currentWait(await this.runService.findOne(run.id))) {
+                        return;
+                    }
 
-            // answered meanwhile: nothing left to record
-            if (!currentWait(await this.runService.findOne(run.id))) {
-                return;
-            }
+                    signal.throwIfAborted();
 
-            controller.signal.throwIfAborted();
+                    const notified = await this.runService.update(
+                        run.id,
+                        { waiting: { ...waiting, notifiedAt: new Date(this.clock.now()) } },
+                        { expectStatus: [RunStatus.WAITING] },
+                    );
 
-            const notified = await this.runService.update(
-                run.id,
-                { waiting: { ...waiting, notifiedAt: new Date(this.clock.now()) } },
-                { expectStatus: [RunStatus.WAITING] },
-            );
-
-            this.emit({ type: 'run.updated', run: notified });
-        } catch (error) {
-            if (!(error instanceof InvalidRunStateError) && (!this.draining || !controller.signal.aborted)) {
-                this.onError(error, run);
-            }
+                    this.emit({ type: 'run.updated', run: notified });
+                },
+                fail: (error, signal) => {
+                    if (!this.draining || !signal.aborted) {
+                        this.onError(error, run);
+                    }
+                },
+            });
         } finally {
             this.deliveryControllers.delete(controller);
-            timer.clear();
-
-            if (acquired) {
-                await this.lockService.release(lockKey, attempt).catch((releaseError: unknown) => this.onError(releaseError, run));
-            }
         }
     }
 
@@ -1864,6 +1938,13 @@ export class Engine implements IEngine {
 
         // started on the agent its check saw
         this.checkedRuns.delete(run.id);
+
+        if (agent.kind === 'remote') {
+            // never a model run: a remote agent's runs are stand-ins
+            await executeRemoteRun(this.remoteExecuteContext(run, agent, signal));
+
+            return;
+        }
 
         if (agent.kind === 'simple') {
             // a simple agent takes no conversation, so it skips admission
@@ -1923,7 +2004,7 @@ export class Engine implements IEngine {
     /** What one execution of `run` gets from this engine (an LLM and a simple run alike). */
     protected executeContext(
         run: Run,
-        agent: Agent,
+        agent: ModelAgent | SimpleAgent,
         skills: SkillContribution,
         signal: AbortSignal,
         conversation?: ExecuteContext['conversation'],
@@ -1944,22 +2025,59 @@ export class Engine implements IEngine {
             clock: this.clock,
             signal,
             finish: (patch) => this.finish(run.id, patch),
-            update: async (patch) => {
-                const updated = await this.ownedUpdate(run.id, patch);
-
-                if (!updated) {
-                    throw new InvalidRunStateError(`Run "${run.id}" was taken over by another owner.`);
-                }
-
-                this.emit({ type: 'run.updated', run: updated });
-
-                return updated;
-            },
+            update: (patch) => this.executionUpdate(run.id, patch),
             onStepAppended: (step) => this.emit({ type: 'step.appended', step }),
             onDelta: (delta) => this.emit({ type: 'run.delta', delta }),
             pause: (request, usage) => this.pause(run, request, usage),
             ownsRun: () => this.ownsRun(run.id),
             provided: this.provided,
+        };
+    }
+
+    /** An execution's patch of its still `running` run, emitted; InvalidRunStateError once another owner took it over. */
+    protected async executionUpdate(runId: string, patch: Partial<Run>): Promise<Run> {
+        const updated = await this.ownedUpdate(runId, patch);
+
+        if (!updated) {
+            throw new InvalidRunStateError(`Run "${runId}" was taken over by another owner.`);
+        }
+
+        this.emit({ type: 'run.updated', run: updated });
+
+        return updated;
+    }
+
+    /**
+     * What one execution of a remote agent's stand-in `run` gets from this
+     * engine. Its signal aborts with the execution's stop as the reason
+     * (`cancel`, `drain`, `lease-lost`), so the start can outlive a cancel.
+     */
+    protected remoteExecuteContext(run: Run, agent: RemoteAgent, signal: AbortSignal): RemoteExecuteContext {
+        if (!this.peers) {
+            throw new InvalidRunStateError(`Agent "${agent.name}" is a remote agent, but the engine has no peers.`);
+        }
+
+        const stopped = new AbortController();
+        const forward = () => stopped.abort(this.executions.get(run.id)?.stop ?? 'cancel');
+
+        if (signal.aborted) {
+            forward();
+        } else {
+            signal.addEventListener('abort', forward, { once: true });
+        }
+
+        return {
+            run,
+            agent,
+            peers: this.peers,
+            effectService: this.effectService,
+            artifactService: this.artifactService,
+            clock: this.clock,
+            signal: stopped.signal,
+            finish: (patch) => this.finish(run.id, patch),
+            update: (patch) => this.executionUpdate(run.id, patch),
+            pause: (request, usage) => this.pause(run, request, usage),
+            onError: (error, failed) => this.onError(error, failed),
         };
     }
 
@@ -2187,6 +2305,8 @@ export class Engine implements IEngine {
         if (updated) {
             this.emit({ type: 'run.updated', run: updated });
             await this.reconcileConversation(updated);
+            this.remote?.cancelSettled(updated);
+            this.peerReceiver?.onRunEvent(updated);
             await onRunSettled(this.dispatchContext(), updated);
         }
 
@@ -2278,6 +2398,10 @@ export class Engine implements IEngine {
             checkAgentModel(agent, { model: this.model, models: this.models });
         }
 
+        if (agent.kind === 'remote') {
+            this.assertRemoteAgent(agent);
+        }
+
         assertConcurrencyMaxRuns(agent.definition.concurrencyMaxRuns, `Agent "${agent.name}" concurrencyMaxRuns`);
 
         for (const subscription of agent.definition.channels ?? []) {
@@ -2295,6 +2419,37 @@ export class Engine implements IEngine {
         }
 
         this.skills.checkAgent(agent, options);
+    }
+
+    /**
+     * A remote agent passes defineRemoteAgent()'s checks again (a hand-built
+     * one skipped them) with `agent`, `role` and `timeoutMs` set, its peer is
+     * configured and its `approvals` channel registered with `out`.
+     */
+    protected assertRemoteAgent(agent: RemoteAgent): void {
+        const { definition } = agent;
+
+        assertRemoteAgent(definition);
+
+        if (definition.agent === undefined || definition.role === undefined || definition.timeoutMs === undefined) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent.name}" needs agent, role and timeoutMs: build it with defineRemoteAgent().`);
+        }
+
+        const { peer, approvals } = definition;
+
+        if (!this.peers) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent.name}" names unknown peer "${peer}": the engine has no peers (EngineOptions.peers).`);
+        }
+
+        if (!this.peers.has(peer)) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent.name}" names unknown peer "${peer}".`);
+        }
+
+        if (approvals && typeof this.channels.get(approvals.channel)?.out !== 'function') {
+            throw new InvalidAgentDefinitionError(
+                `Agent "${agent.name}": approvals channel "${approvals.channel}" is not registered or sends nothing (no out).`,
+            );
+        }
     }
 
     protected registry(): RegistryContext {
@@ -2319,6 +2474,30 @@ export class Engine implements IEngine {
             onError: (error, run) => this.onError(error, run),
             emit: (run) => this.emit({ type: 'run.updated', run }),
         };
+    }
+
+    /**
+     * Runs `work` detached, tracked in `deliveries` (idle() and drain() wait
+     * for it); drain() aborts its signal. A rejection goes to onError, except
+     * an abort by drain.
+     */
+    protected detach(work: (signal: AbortSignal) => Promise<void>, run?: Run): void {
+        const controller = new AbortController();
+
+        this.deliveryControllers.add(controller);
+
+        const task: Promise<void> = Promise.try(() => work(controller.signal))
+            .catch((error: unknown) => {
+                if (!this.draining || !controller.signal.aborted) {
+                    this.onError(error, run);
+                }
+            })
+            .finally(() => {
+                this.deliveryControllers.delete(controller);
+                this.deliveries.delete(task);
+            });
+
+        this.deliveries.add(task);
     }
 
     protected emit(event: EngineEvent): void {

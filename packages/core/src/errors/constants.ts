@@ -22,6 +22,8 @@ export const ErrorCode = {
     INVALID_AGENT_DEFINITION: 'invalid_agent_definition',
     INVALID_RUN_STATE: 'invalid_run_state',
     LEASE_LOST: 'lease_lost',
+    PEER_START_BUSY: 'peer_start_busy',
+    REMOTE_FAILED: 'remote_failed',
     REPOSITORY_NOT_FOUND: 'repository_not_found',
     RUN_NOT_FOUND: 'run_not_found',
     SANDBOX: 'sandbox_error',

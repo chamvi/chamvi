@@ -27,7 +27,7 @@ import ApprovalCallout from '../components/approval-callout/ApprovalCallout.vue'
 import EmptyState from '../components/empty-state/EmptyState.vue';
 import PageHead from '../components/page-head/PageHead.vue';
 import { RouteName } from '../router/constants.ts';
-import { shortId } from '../runs/helpers.ts';
+import { shortId, waitToolName } from '../runs/helpers.ts';
 
 const { client, session } = useAppContext();
 const toast = useToast();
@@ -167,7 +167,7 @@ async function answer(run: RunWire, approved: boolean, reason: string, selected:
                 <span class="callout-icon"><NavIcon :name="entry.result === 'answered' && entry.approved ? 'check' : 'cross'" /></span>
                 <div class="callout-title">
                     <h2>
-                        {{ entry.run.waiting?.toolName }}
+                        {{ waitToolName(entry.run) }}
                         <StatusChip
                             v-if="entry.result === 'answered'"
                             status="queued"

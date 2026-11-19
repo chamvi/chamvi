@@ -7,9 +7,12 @@
 
 import type { ToolSet } from 'ai';
 import { assertConcurrencyMaxRuns } from '../channel/concurrency.ts';
+import type { ChannelSubscription } from '../channel/types.ts';
+import { DEFAULT_DISPATCH_ROLE } from '../dispatch/constants.ts';
 import { assertOwnDispatchRoles } from '../dispatch/helpers.ts';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { assertInstructions } from '../message/helpers.ts';
+import { REMOTE_TIMEOUT_DEFAULT_MS } from '../peer/constants.ts';
 import { assertAgentTrust } from '../trust/asserts.ts';
 import { snapshotSkillInputs } from '../skill/helpers.ts';
 import type { StateSchema } from '../state/types.ts';
@@ -24,15 +27,18 @@ import {
     assertModelAgent,
     assertNoNeedsApproval,
     assertPrivate,
+    assertRemoteAgent,
     assertSimpleAgent,
     assertSubtreeBudget,
     assertToolsContext,
     conversationKey,
+    isName,
 } from './asserts.ts';
 import type {
-    AgentDefinition,
     ModelAgent,
     ModelAgentDefinition,
+    RemoteAgent,
+    RemoteAgentDefinition,
     SimpleAgent,
     SimpleAgentDefinition,
 } from './types.ts';
@@ -59,6 +65,40 @@ export function defineSimpleAgent<S extends StateSchema = StateSchema, T extends
     return { kind: 'simple', ...build(def) } as SimpleAgent<S, T>;
 }
 
+/**
+ * An agent whose runs a peer executes: a run here is a stand-in waiting on
+ * the remote run. `agent` defaults to `name`, `role` to `default`,
+ * `timeoutMs` to 24 h.
+ */
+export function defineRemoteAgent(def: RemoteAgentDefinition): RemoteAgent {
+    assertName(def.name);
+    assertRemoteAgent(def);
+    assertDescription(def);
+    assertPrivate(def);
+    assertConcurrencyMaxRuns(def.concurrencyMaxRuns, `Agent "${def.name}" concurrencyMaxRuns`);
+    assertSubscriptions(def.name, def.channels);
+
+    return {
+        kind: 'remote',
+        name: def.name,
+        definition: {
+            ...def,
+            agent: def.agent ?? def.name,
+            role: def.role ?? DEFAULT_DISPATCH_ROLE,
+            timeoutMs: def.timeoutMs ?? REMOTE_TIMEOUT_DEFAULT_MS,
+        },
+    };
+}
+
+/**
+ * Whether `value` follows the agent-name rule: lowercase letters and digits
+ * in words joined by single hyphens, at most `AGENT_NAME_MAX_LENGTH`
+ * characters (agent, channel, role and peer names).
+ */
+export function isAgentName(value: unknown): value is string {
+    return isName(value);
+}
+
 function assertName(name: unknown): void {
     if (
         typeof name !== 'string' ||
@@ -71,8 +111,27 @@ function assertName(name: unknown): void {
     }
 }
 
-/** The checks both kinds share, then the definition with its budget defaults. */
-function build<S extends StateSchema>(def: AgentDefinition<S>): { name: string; definition: AgentDefinition<S> } {
+/** Each subscription's `concurrencyMaxRuns` is valid and its id unique per agent. */
+function assertSubscriptions(agent: string, channels: ChannelSubscription[] | undefined): void {
+    const seen = new Set<string>();
+
+    for (const subscription of channels ?? []) {
+        assertConcurrencyMaxRuns(subscription.concurrencyMaxRuns, `Agent "${agent}" subscription "${subscription.id}" concurrencyMaxRuns`);
+
+        if (seen.has(subscription.id)) {
+            throw new InvalidAgentDefinitionError(
+                `Agent "${agent}" has duplicate subscription id "${subscription.id}".`,
+            );
+        }
+
+        seen.add(subscription.id);
+    }
+}
+
+/** The checks the model and simple kinds share, then the definition with its budget defaults. */
+function build<S extends StateSchema>(
+    def: ModelAgentDefinition<S> | SimpleAgentDefinition<S>,
+): { name: string; definition: ModelAgentDefinition<S> | SimpleAgentDefinition<S> } {
     assertDescription(def);
     assertPrivate(def);
 
@@ -85,20 +144,7 @@ function build<S extends StateSchema>(def: AgentDefinition<S>): { name: string; 
     assertConcurrencyMaxRuns(def.concurrencyMaxRuns, `Agent "${def.name}" concurrencyMaxRuns`);
     assertSubtreeBudget(def.name, def.budget);
     conversationKey(def);
-
-    const seen = new Set<string>();
-
-    for (const subscription of def.channels ?? []) {
-        assertConcurrencyMaxRuns(subscription.concurrencyMaxRuns, `Agent "${def.name}" subscription "${subscription.id}" concurrencyMaxRuns`);
-
-        if (seen.has(subscription.id)) {
-            throw new InvalidAgentDefinitionError(
-                `Agent "${def.name}" has duplicate subscription id "${subscription.id}".`,
-            );
-        }
-
-        seen.add(subscription.id);
-    }
+    assertSubscriptions(def.name, def.channels);
 
     const skills = snapshotSkillInputs(
         def.skills,
@@ -124,7 +170,7 @@ function build<S extends StateSchema>(def: AgentDefinition<S>): { name: string; 
             timeoutMs: DEFAULT_TIMEOUT_MS,
             ...def.budget,
         },
-    } as AgentDefinition<S>;
+    } as ModelAgentDefinition<S> | SimpleAgentDefinition<S>;
 
     return { name: def.name, definition };
 }

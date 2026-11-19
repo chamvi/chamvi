@@ -194,7 +194,7 @@ describe('dispatch({ source })', () => {
         const parentId = await startParent(engine);
         const child = await childOf(store, parentId);
 
-        expect(child?.trigger.parent?.source).toEqual(SOURCE);
+        expect(child?.trigger.parent?.kind === 'dispatch' ? child.trigger.parent.source : undefined).toEqual(SOURCE);
         expect(child?.trigger.channel).toBe('agent');
         expect(child?.taint?.source).toBe('channel:gh');
         expect(child?.status).toBe('waiting');
@@ -235,7 +235,7 @@ describe('dispatch({ source })', () => {
         });
         const child = await childOf(store, await startParent(engine));
 
-        expect(child?.trigger.parent?.source).toEqual({ channel: 'agent', address: 'o/r#12' });
+        expect(child?.trigger.parent?.kind === 'dispatch' ? child.trigger.parent.source : undefined).toEqual({ channel: 'agent', address: 'o/r#12' });
         expect(approvalWait(child)?.title).toBe(GATE);
     });
 
@@ -287,7 +287,7 @@ describe('dispatch({ source })', () => {
         const done = await store.runService.findOne(waiting!.id);
 
         expect(done?.status).toBe('completed');
-        expect(done?.trigger.parent?.source).toEqual(SOURCE);
+        expect(done?.trigger.parent?.kind === 'dispatch' ? done.trigger.parent.source : undefined).toEqual(SOURCE);
         expect(second.gh.sent).toHaveLength(0);
         expect(second.errors).toEqual([]);
     });

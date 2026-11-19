@@ -39,7 +39,7 @@ export type Invoker = {
  * The run that dispatched this one. Only the engine-internal host sets it;
  * a dispatch() envelope never carries one, so no caller forges lineage.
  */
-export type TriggerParent = {
+export type DispatchParent = {
     kind: 'dispatch';
     runId: string;
     /** The parent run's agent. */
@@ -54,6 +54,30 @@ export type TriggerParent = {
      */
     source?: TriggerSource;
 };
+
+/**
+ * The run of another chamvi app that started this one through a peer. Its
+ * ids name runs of that app, so the run gets no `parentRunId`.
+ */
+export type PeerParent = {
+    kind: 'peer';
+    /** The peer name, taken from the credential the start arrived with, never from the request. */
+    peer: string;
+    /** The calling run on the peer. */
+    runId: string;
+    /** The stand-in run on the peer that waits on this run (the wake target). */
+    standIn: string;
+    /** The calling run's agent on the peer. */
+    agent: string;
+    /** The `agent.on()` role this run was started through. */
+    role: string;
+    depth: number;
+    /** The name of the person behind the call, for display only; never a grant. */
+    origin?: string;
+};
+
+/** Where a run came from when another run started it: a local dispatch or a peer. */
+export type TriggerParent = DispatchParent | PeerParent;
 
 /** A channel and an address on it, as `dispatch()`'s `source` names it. */
 export type TriggerSource = {
@@ -82,7 +106,7 @@ export type TriggerEnvelope<P = unknown> = {
      * is deduplicated (and gets its own first run).
      */
     invoker?: Invoker;
-    /** The run that dispatched this one; set only by dispatch(), never from engine.dispatch(). */
+    /** The run that started this one; set only by dispatch() or the peer intake, never from engine.dispatch(). */
     parent?: TriggerParent;
     receivedAt: Date;
 };

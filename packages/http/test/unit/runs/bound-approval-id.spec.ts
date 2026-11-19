@@ -66,7 +66,7 @@ describe('automatic approvals with long provider call ids', () => {
             const run = await setup.store.runService.findOneOrFail(runId);
 
             expect(run.status).toBe('waiting');
-            expect(run.waiting?.toolCallId).toBe(toolCallId);
+            expect(approvalWaitOf(run).toolCallId).toBe(toolCallId);
             expect(approvalWaitOf(run).approvalId.length).toBeLessThanOrEqual(255);
             expect(writes).toBe(0);
 

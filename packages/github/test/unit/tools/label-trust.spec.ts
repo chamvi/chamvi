@@ -113,7 +113,7 @@ describe('existing-label trust exemption', () => {
             expect((await engine.stepService.find(runId)).find((step) => step.name === 'github_add_labels')?.output).toEqual({ labels: [externalLabel, 'bug'] });
             expect(run?.taint).toEqual({ at: expect.any(Date), source: 'tool:github_add_labels' });
             expect(run?.status).toBe('waiting');
-            expect(run?.waiting?.toolName).toBe('github_create_issue');
+            expect(run?.waiting).toMatchObject({ toolName: 'github_create_issue' });
             expect(issueWrites()).toHaveLength(0);
 
             await engine.approve(runId, { approvalId: run!.waiting!.id, approved: false });

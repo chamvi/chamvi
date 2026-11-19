@@ -6,19 +6,49 @@
  */
 
 import { RunStatus } from '@chamvi/store';
-import type { Run, RunStatusLiteral } from '@chamvi/store';
+import type { RemoteApproval, Run, RunStatusLiteral } from '@chamvi/store';
 import type { IRunService } from '../run/types.ts';
 import { DISPATCH_DEPTH_MAX } from './constants.ts';
 
 /** Statuses of a run that may still reach an approval wait. */
 const UNSETTLED: RunStatusLiteral[] = [RunStatus.QUEUED, RunStatus.RUNNING, RunStatus.WAITING, RunStatus.INTERRUPTED];
 
-function isApprovalWait(run: Run): boolean {
-    return run.status === RunStatus.WAITING && run.waiting?.kind === 'approval';
+/**
+ * The approval `run` waits on: its own approval wait point (no `url`, the
+ * link is this app's), or the approval a remote wait point (a stand-in run)
+ * last showed pending in its remote run or below it, without `notifiedAt`;
+ * `undefined` for any other run.
+ */
+export function pendingApprovalOf(run: Run): Omit<RemoteApproval, 'notifiedAt'> | undefined {
+    if (run.status !== RunStatus.WAITING) {
+        return undefined;
+    }
+
+    if (run.waiting?.kind === 'approval') {
+        return {
+            runId: run.id,
+            approvalId: run.waiting.approvalId,
+            title: run.waiting.title,
+        };
+    }
+
+    const approval = run.waiting?.kind === 'remote' ? run.waiting.remote?.approval : undefined;
+
+    if (!approval) {
+        return undefined;
+    }
+
+    return {
+        runId: approval.runId,
+        approvalId: approval.approvalId,
+        title: approval.title,
+        ...(approval.url !== undefined ? { url: approval.url } : {}),
+    };
 }
 
 /**
- * The first unsettled run below `run` that waits on an approval, or
+ * The first unsettled run below `run` that waits on an approval (its own,
+ * or a stand-in's remote approval: `pendingApprovalOf()`), or
  * `undefined`: breadth-first over the `parentRunId` children (one `find`
  * per level, by `parentRunIds`) and the runs a dispatch wait point of the
  * level names that were not found as children (a deduplicated run another
@@ -38,7 +68,7 @@ export async function findApprovalWaitBelow(runs: Pick<IRunService, 'find'>, run
                     continue;
                 }
 
-                if (isApprovalWait(candidate)) {
+                if (pendingApprovalOf(candidate)) {
                     return candidate;
                 }
 

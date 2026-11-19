@@ -12,8 +12,15 @@ import type { ChannelSubscription, DispatchResult } from '../channel/types.ts';
 import type { IClock } from '../clock/types.ts';
 import type { DispatchEnvelope } from '../engine/types.ts';
 import type { IEffectService } from '../effect/types.ts';
+import type { ILockService } from '../lock/types.ts';
 import type { IRunService } from '../run/types.ts';
-import type { Invoker, TriggerParent, TriggerSource } from '@chamvi/store';
+import type { IPeerResolver, PeerStartInput } from '../peer/types.ts';
+import type {
+    Invoker,
+    PeerParent,
+    TriggerParent,
+    TriggerSource,
+} from '@chamvi/store';
 
 export type AgentSubscriptionOptions<P = unknown> = {
     /** The role (the subscription id), following the channel-name rule; default `default`. */
@@ -117,6 +124,23 @@ export type DispatchHost = {
     serial<T>(runId: string, fn: () => Promise<T>): Promise<T>;
     /** Dispatches in flight by effect key, so identical parallel calls share one. */
     inflight: Map<string, Promise<DispatchResult>>;
+};
+
+/** What a peer's start names besides the envelope: the caller's lineage, its taint and the receiving role. */
+export type PeerDispatchFields = PeerStartInput['peer'] & {
+    /** The receiving `agent.on()` role. */
+    role: string;
+};
+
+/** The engine side of a peer's start (internal): dispatchPeer() checks, counts and creates through it. */
+export type PeerDispatchHost = Pick<DispatchHost, 'getAgent' | 'clock' | 'effects' | 'serial'> & {
+    peers: IPeerResolver | undefined;
+    /** The store lock of the `peer-count:` read-check-write across replicas. */
+    locks: Pick<ILockService, 'acquire' | 'release'>;
+    /** That lock's TTL. */
+    lockTtlMs: number;
+    /** Creates the run with the peer lineage; `taintSource` taints it from the start. */
+    createRun(envelope: DispatchEnvelope, parent: PeerParent, taintSource: string | undefined): Promise<DispatchResult>;
 };
 
 /**

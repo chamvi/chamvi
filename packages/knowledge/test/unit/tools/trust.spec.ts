@@ -172,7 +172,7 @@ it('taints the run after searching an untrusted collection and gates the next ou
 
     expect(waiting?.status).toBe('waiting');
     expect(waiting?.taint).toEqual({ at: expect.any(Date), source: 'tool:knowledge_search' });
-    expect(waiting?.waiting?.toolName).toBe('send');
+    expect(waiting?.waiting).toMatchObject({ toolName: 'send' });
     expect(writes()).toBe(0);
 
     const calls = model.calls.length;
