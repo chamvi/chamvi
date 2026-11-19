@@ -542,6 +542,24 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 expect(await service.findOneDocumentOrFail('docs', 'b')).toEqual(documentOf('docs', 'b', origin));
             });
 
+            it('updateDetails keeps the scores of the document\'s chunks', async () => {
+                const service = await create();
+                const origin = { title: 'A', source: 'a.md' };
+
+                await service.saveCollection(collectionOf('docs'));
+                await service.saveDocument(documentOf('docs', 'a', origin));
+                await service.replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 2], 'a0', origin), chunkOf(1, [3, 1], 'a1', origin)]);
+
+                const before = await service.search('docs', 1, [1, 1], { topK: 10 });
+
+                expect(await service.updateDetails('docs', 'a', { hash: 'sha256:a', ...origin }, {})).toBe(true);
+
+                const after = await service.search('docs', 1, [1, 1], { topK: 10 });
+
+                expect(after.map((m) => [m.index, m.text, m.score])).toEqual(before.map((m) => [m.index, m.text, m.score]));
+                expect(after.every((m) => m.title === undefined && m.source === undefined)).toBe(true);
+            });
+
             it('updateDetails during a re-embed leaves the served old text under its old details', async () => {
                 const service = await create();
                 const origin = { title: 'A', source: 'a.md' };

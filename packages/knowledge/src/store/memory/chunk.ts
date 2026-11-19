@@ -57,6 +57,40 @@ export class MemoryKnowledgeChunkRepository extends MemoryEntityRepository<Knowl
         });
     }
 
+    async updateOrigin(
+        where: {
+            collectionId: string; 
+            document: string; 
+            generation: number 
+        },
+        origin: { title?: string; source?: string },
+    ): Promise<number> {
+        const rows = await this.findManyBy(where);
+
+        if (rows.length === 0) {
+            return 0;
+        }
+
+        await this.upsertMany(rows.map((row) => {
+            const next = { ...row };
+
+            delete next.title;
+            delete next.source;
+
+            if (origin.title !== undefined) {
+                next.title = origin.title;
+            }
+
+            if (origin.source !== undefined) {
+                next.source = origin.source;
+            }
+
+            return next;
+        }));
+
+        return rows.length;
+    }
+
     async search(
         collectionId: string,
         generation: number,

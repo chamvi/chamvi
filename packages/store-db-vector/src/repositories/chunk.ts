@@ -15,7 +15,12 @@ import type {
 import { EntityRepositoryAdapter } from '@chamvi/store-db';
 import type { DataSource, EntityManager } from 'typeorm';
 import { KnowledgeChunkEntity, KnowledgeCollectionEntity } from '../entities/index.ts';
-import { fromChunkEntity, toChunkEntity, toVectorParameter } from './helpers.ts';
+import {
+    fromChunkEntity,
+    sanitizeText,
+    toChunkEntity,
+    toVectorParameter,
+} from './helpers.ts';
 
 /** A row of `search`'s statement. */
 type SearchRow = {
@@ -49,6 +54,31 @@ export class DatabaseKnowledgeChunkRepository
 
     withManager(manager: EntityManager): this {
         return new DatabaseKnowledgeChunkRepository(manager) as this;
+    }
+
+    async updateOrigin(
+        where: {
+            collectionId: string; 
+            document: string; 
+            generation: number 
+        },
+        origin: { title?: string; source?: string },
+    ): Promise<number> {
+        // only title and source: the embedding column is never read or sent
+        const result = await this.persist(() => this.repository.createQueryBuilder()
+            .update(KnowledgeChunkEntity)
+            .set({
+                title: origin.title === undefined ? null : sanitizeText(origin.title),
+                source: origin.source === undefined ? null : sanitizeText(origin.source),
+            })
+            .where({
+                collectionId: where.collectionId,
+                document: where.document,
+                generation: where.generation,
+            })
+            .execute(), 'updateOrigin');
+
+        return result.affected ?? 0;
     }
 
     async search(

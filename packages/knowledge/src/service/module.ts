@@ -38,7 +38,6 @@ import {
     toCollection,
     toDocument,
     withDetails,
-    withOrigin,
 } from './helpers.ts';
 import type {
     IKnowledgeService,
@@ -286,15 +285,14 @@ export class KnowledgeService implements IKnowledgeService {
 
             // the document's own generation only: another one may hold older text (a re-embed's
             // served generation), which keeps the details it was written with until the switch
-            const chunks = await repository.chunks.findManyBy({
-                collectionId: record.id,
-                document: id,
-                generation: document.generation,
-            });
-
-            if (chunks.length > 0) {
-                await repository.chunks.upsertMany(chunks.map((chunk) => withOrigin(chunk, details)));
-            }
+            await repository.chunks.updateOrigin(
+                {
+                    collectionId: record.id, 
+                    document: id, 
+                    generation: document.generation, 
+                },
+                { title: details.title, source: details.source },
+            );
 
             return true;
         });
