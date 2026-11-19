@@ -29,6 +29,7 @@ import {
 } from '../../utils/app.ts';
 import { approvalModel, textModel } from '../../utils/model.ts';
 import { summarizeAgent } from '../../../src/agents/helpers.ts';
+import { callTool, connectMcp, textOf } from '../../utils/mcp.ts';
 
 const DEV_TOKEN = 'peer-dev-token-0123456789';
 const OPS_TOKEN = 'peer-ops-token-0123456789';
@@ -228,6 +229,24 @@ describe('POST /agents/:name/runs with peer fields', () => {
         const ordinary = await call(app, 'POST', '/agents/echo/runs', { token: ADMIN_TOKEN, body: { idempotencyKey: 'call-1' } });
 
         expect(await ordinary.json()).toMatchObject({ deduplicated: false });
+    });
+
+    it('refuses an ordinary start with a peer credential, over HTTP and MCP', async () => {
+        const { app, engine } = setup();
+
+        // no peer fields: still a peer start, refused for the missing role and peer fields (no untainted ordinary run)
+        const response = await call(app, 'POST', '/agents/echo/runs', { token: DEV_TOKEN, body: { payload: 'hi' } });
+
+        expect(response.status).toBe(400);
+
+        const client = await connectMcp(app, DEV_TOKEN);
+        const result = await callTool(client, 'run_echo', { payload: 'hi' });
+
+        expect(result.isError).toBe(true);
+        expect(textOf(result)).toMatch(/peer/);
+        await client.close();
+
+        expect(await allRuns(engine)).toEqual([]);
     });
 
     it('starts the role through dispatchPeer, without an http subscription', async () => {

@@ -82,15 +82,15 @@ export class RunHttpService implements IRunHttpService {
     }
 
     async start(input: StartRunInput, principal: Principal): Promise<StartRunView> {
-        // the peer name comes from the credential only, never from the body
-        if (hasPeerFields(input.data)) {
-            const peer = this.recognize(principal);
-
-            if (peer === undefined) {
-                throw new BadRequestError({ message: 'The peer and role fields need a peer credential.' });
-            }
-
+        // the peer name comes from the credential only, never from the body; a peer
+        // credential always starts through the peer path (its taint and `from` check), so a
+        // body without the peer and role fields is a 400 there, never an ordinary run
+        if (this.recognize(principal) !== undefined) {
             return this.startPeer(input, principal);
+        }
+
+        if (hasPeerFields(input.data)) {
+            throw new BadRequestError({ message: 'The peer and role fields need a peer credential.' });
         }
 
         const name = input.agent;
@@ -327,6 +327,11 @@ export class RunHttpService implements IRunHttpService {
      * against the subscription's schema.
      */
     protected async toDispatchEnvelope(input: DispatchRunInput, principal: Principal): Promise<DispatchEnvelope> {
+        // a peer starts runs only through POST /agents/:name/runs with the peer fields (dispatchPeer())
+        if (this.recognize(principal) !== undefined) {
+            throw new BadRequestError({ message: 'A peer credential starts runs only with the peer and role fields of POST /agents/:name/runs.' });
+        }
+
         const { agent, subscription } = input;
         const payload = await validatePayload(subscription.options.schema as StandardSchemaV1 | undefined, input.payload);
 
