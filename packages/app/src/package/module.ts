@@ -28,7 +28,7 @@ import {
     rebuildAgent,
     relativize,
     toKey,
-} from '../loader/helpers.ts';
+} from '../loader/helpers/index.ts';
 import {
     ESM_CONDITIONS,
     PACKAGE_HASH_IGNORE,
@@ -43,7 +43,7 @@ import {
     packageNameOf,
     readManifest,
     userConditions,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import { pinPackageImports } from './hooks.ts';
 import type { HashAgentPackageOptions, LoadAgentPackageOptions, LoadedPackage } from './types.ts';
 

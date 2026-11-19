@@ -11,7 +11,7 @@ import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
 import { envString } from '../env/module.ts';
 import type { Env } from '../env/types.ts';
-import { assertPackageSpecifier, assertUniqueSpecifiers } from '../package/helpers.ts';
+import { assertPackageSpecifier, assertUniqueSpecifiers } from '../package/helpers/index.ts';
 import {
     CONFIG_FILE_VARIABLE,
     DEFAULT_CONFIG_FILE,
@@ -23,7 +23,7 @@ import {
     assertHeaderName,
     isProviderName,
     isProviderType,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import type { ProviderConfig, SecretValue } from './types.ts';
 
 const FILE_KEYS = ['model', 'providers', 'agents', 'remotes'];

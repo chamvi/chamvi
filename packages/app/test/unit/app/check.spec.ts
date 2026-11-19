@@ -24,7 +24,7 @@ import {
     createApp,
 } from '@chamvi/app';
 import type { AppCheckResult, IApp, IModule } from '@chamvi/app';
-import { isSchemaBehindError } from '../../../src/module/helpers.ts';
+import { isSchemaBehindError } from '../../../src/module/helpers/index.ts';
 import {
     agentFile,
     provider,

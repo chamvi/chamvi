@@ -20,7 +20,7 @@ export {
     resolveStoredConnection,
     runHooks,
     throwIfStopped,
-} from './helpers.ts';
+} from './helpers/index.ts';
 export type * from './types.ts';
 
 /** The container and module contracts a module factory is written against (eldin, orkos). */

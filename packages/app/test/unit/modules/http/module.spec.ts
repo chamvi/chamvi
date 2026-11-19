@@ -36,7 +36,7 @@ import {
 } from '@chamvi/app';
 import type { HttpModuleOptions, ILifecycleHook } from '@chamvi/app';
 import { memoryStoreModule } from '@chamvi/app/testing';
-import { createStoppedError } from '../../../../src/module/helpers.ts';
+import { createStoppedError } from '../../../../src/module/helpers/index.ts';
 import { buildHarness } from '../../../utils/harness.ts';
 import type { Harness } from '../../../utils/harness.ts';
 import { createRecordingLogger } from '../../../utils/logger.ts';

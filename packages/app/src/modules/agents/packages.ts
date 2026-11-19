@@ -7,8 +7,8 @@
 
 import type { Agent } from '@chamvi/core';
 import type { AgentIssue } from '@chamvi/http';
-import { messageOf, relativize } from '../../loader/helpers.ts';
-import { isDevMarkerOf } from '../../package/helpers.ts';
+import { messageOf, relativize } from '../../loader/helpers/index.ts';
+import { isDevMarkerOf } from '../../package/helpers/index.ts';
 import { loadAgentPackage } from '../../package/module.ts';
 import type { LoadedPackage } from '../../package/types.ts';
 import { AGENT_PACKAGES_COMPONENT_NAME, JOB_CONFLICT_HINT } from './constants.ts';

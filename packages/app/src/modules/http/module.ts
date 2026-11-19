@@ -20,7 +20,7 @@ import type { IModule, ModuleDependency } from 'orkos';
 import { serve } from 'routup';
 import { AppToken, ModuleName } from '../../module/constants.ts';
 import { remainingDrainMs } from '../../module/drain.ts';
-import { runHooks, throwIfStopped } from '../../module/helpers.ts';
+import { runHooks, throwIfStopped } from '../../module/helpers/index.ts';
 import { registerStartStep } from '../../module/start.ts';
 import type { Server } from '../../module/types.ts';
 import { assertUntrustedOptions, createDeferredAuthenticator, resolveAuthenticators } from './helpers.ts';

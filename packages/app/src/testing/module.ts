@@ -10,7 +10,7 @@ import { Container } from 'eldin';
 import type { IModule } from 'orkos';
 import { Application } from 'orkos';
 import { AppToken, ModuleName } from '../module/constants.ts';
-import { createStoppedError, reportingModule } from '../module/helpers.ts';
+import { createStoppedError, reportingModule } from '../module/helpers/index.ts';
 import { runStartSteps } from '../module/start.ts';
 import type { AppContext } from '../module/types.ts';
 import { registerMemoryRepositories } from '../modules/repository/register.ts';

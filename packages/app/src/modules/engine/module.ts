@@ -10,10 +10,10 @@ import type { IEngine, IModelResolver, ModelRef } from '@chamvi/core';
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
 import { createModelResolver } from '../../models/resolver.ts';
-import { readModelSettings } from '../../models/settings.ts';
+import { readModelSettings } from '../../models/settings/index.ts';
 import { AppToken, ModuleName } from '../../module/constants.ts';
 import { remainingDrainMs } from '../../module/drain.ts';
-import { runHooks } from '../../module/helpers.ts';
+import { runHooks } from '../../module/helpers/index.ts';
 import { registerStartStep } from '../../module/start.ts';
 import type { EngineModuleOptions } from './types.ts';
 

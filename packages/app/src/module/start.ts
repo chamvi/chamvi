@@ -8,7 +8,7 @@
 import { TypedToken } from 'eldin';
 import type { IContainer } from 'eldin';
 import { AppToken } from './constants.ts';
-import { throwIfStopped } from './helpers.ts';
+import { throwIfStopped } from './helpers/index.ts';
 
 /** Something a module starts once every `onReady` checked its configuration. */
 type StartStep = {

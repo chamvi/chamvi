@@ -16,7 +16,7 @@ import type { AppConfig } from '../../config/types.ts';
 import type { Env } from '../../env/types.ts';
 import type { ILogger } from '../../logger/types.ts';
 import { APP_ERROR_CODE, AppToken, ModuleName } from '../../module/constants.ts';
-import { throwIfStopped } from '../../module/helpers.ts';
+import { throwIfStopped } from '../../module/helpers/index.ts';
 import type { AppContext } from '../../module/types.ts';
 import { STORE_CONNECT_TIMEOUT_MS, STORE_NOT_MIGRATED_HINT } from '../repository/constants.ts';
 import { DATABASE_DESCRIPTOR } from './constants.ts';
