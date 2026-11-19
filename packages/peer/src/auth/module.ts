@@ -26,8 +26,11 @@ type CachedToken = {
 function createAuthupCredential(options: PeerAuthupOutgoing['authup'], ctx: PeerCredentialContext): IPeerCredential {
     const endpoint = `${options.url.replace(/\/+$/, '')}/token`;
     let cached: CachedToken | undefined;
+    // the current and the previous token: a request still in flight after a refresh
+    // (at most PEER_REQUEST_TIMEOUT_MS, far below a token's life) holds one of them
+    let issued: string[] = [];
 
-    const secrets = () => [options.clientSecret, ...(cached ? [cached.value] : [])];
+    const secrets = () => [options.clientSecret, ...issued];
     const describe = (message: string) => redact(`The authup token request of peer "${ctx.peer}" failed: ${message}`, secrets());
     const fail = (message: string, retryAfterMs?: number) => new PeerRequestError(describe(message), retryAfterMs);
     // a refused or broken answer (wrong client, secret or url): a resend gets the same answer
@@ -76,7 +79,26 @@ function createAuthupCredential(options: PeerAuthupOutgoing['authup'], ctx: Peer
             throw fail(`status ${response.status}.`, retryAfterMs);
         }
 
-        const data: unknown = await response.json().catch(() => undefined);
+        let text: string;
+
+        try {
+            text = await response.text();
+        } catch (error) {
+            if (signal.aborted) {
+                throw signal.reason;
+            }
+
+            // the body broke in transfer: a resend may pass
+            throw fail(Error.isError(error) ? error.message : String(error));
+        }
+
+        let data: unknown;
+
+        try {
+            data = JSON.parse(text);
+        } catch {
+            data = undefined;
+        }
 
         if (!isObject(data) || typeof data.access_token !== 'string' || data.access_token.length === 0) {
             throw refuse('the answer carries no access_token.');
@@ -98,6 +120,7 @@ function createAuthupCredential(options: PeerAuthupOutgoing['authup'], ctx: Peer
             const next = await request(signal);
 
             cached = next;
+            issued = [...issued.slice(-1), next.value];
 
             return next.value;
         },

@@ -206,6 +206,60 @@ describe('authup outgoing credential', () => {
         expect(error.retryAfterMs).toBe(retryAfterMs);
     });
 
+    it('keeps a token answer whose body fails in transfer retryable, and refuses one that is no JSON', async () => {
+        const broken = setup({
+            token: () => new Response(new ReadableStream({
+                start(controller) {
+                    controller.error(new TypeError('terminated'));
+                },
+            }), { status: 200, headers: { 'content-type': 'application/json' } }),
+        });
+        const error = await rejection(broken.transport.read('remote-1', opts()));
+
+        expect(error).toBeInstanceOf(PeerRequestError);
+        expect(error).not.toBeInstanceOf(ValidationError);
+
+        const garbled = setup({ token: () => new Response('not json', { status: 200 }) });
+
+        await expect(garbled.transport.read('remote-1', opts())).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it('redacts a token superseded by a refresh, not only the current one', async () => {
+        let issued = 0;
+        const fake = createFakeFetch((request) => {
+            if (request.url === `${AUTHUP}/token`) {
+                issued += 1;
+
+                return json({ access_token: `access-token-${issued}`, expires_in: 3_600 });
+            }
+
+            // the peer echoes both bearers it saw
+            return json({ code: 'unauthorized', message: 'Saw access-token-1 and access-token-2.' }, { status: 401 });
+        });
+        const resolver = createPeerResolver({
+            peers: {
+                dev: {
+                    url: 'https://dev.example',
+                    outgoing: {
+                        authup: {
+                            url: AUTHUP,
+                            clientId: 'chamvi-assistants',
+                            clientSecret: SECRET,
+                        },
+                    },
+                },
+            },
+            clock: new ControllableClock(new Date('2026-11-19T10:00:00Z')),
+            fetch: fake.fetch,
+        });
+
+        const error = await rejection(resolver.transport('dev').read('remote-1', opts()));
+
+        expect(error).toBeInstanceOf(ValidationError);
+        expect(error.message).not.toContain('access-token-1');
+        expect(error.message).not.toContain('access-token-2');
+    });
+
     it('keeps a token request that hit a network error retryable', async () => {
         const { transport } = setup({
             token: () => {
