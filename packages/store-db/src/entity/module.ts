@@ -362,7 +362,8 @@ export abstract class EntityRepositoryAdapter<T extends EntityRecord, E extends 
 
         this.assertOpen(operation);
 
-        const parts = this.wheresOf(where);
+        // a locked lookup of several parts re-reads its winner with the primary key added: room for it
+        const parts = this.wheresOf(where, this.locking ? this.metadata.primaryColumns.length : 0);
         const lock = this.locking ? { lock: { mode: ENTITY_LOCK_MODES[this.options.lock ?? 'update'] } } : {};
         const findFirst = (part: FindOptionsWhere<E>, locked: boolean) => this.persist(() => this.repository.findOne({
             where: part,

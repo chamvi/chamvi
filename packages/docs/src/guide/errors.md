@@ -48,6 +48,6 @@ Some errors happen where nobody awaits: a lost lease, a failed approval message,
 
 <<< @/snippets/errors.ts#on-error
 
-`@chamvi/peer` adds `PeerRequestError` (`peer_request`): a peer request (start, read, cancel, wake) that failed for now, a 5xx, a 429, a retryable 409 or a network error, with the peer's `Retry-After` as `retryAfterMs`. The engine retries it until the remote run's deadline and reports a failed read to `onError`; a permanent refusal is a `ValidationError` instead (a refused start fails the stand-in at once).
+`@chamvi/peer` adds `PeerRequestError` (`peer_request`): a peer request (start, read, cancel, wake) that failed for now, a 5xx, a 429, a retryable 409 or a network error, with the peer's `Retry-After` of a 429 or 503 as `retryAfterMs`. The engine retries it until the remote run's deadline and reports a failed read to `onError`; a permanent refusal is a `ValidationError` instead (a refused start fails the stand-in at once).
 
 `createEngine` stands for the engine of your app, built on the repositories every replica shares ([Database store](/repositories/database)); with [`@chamvi/app`](/guide/app) the app builds it.

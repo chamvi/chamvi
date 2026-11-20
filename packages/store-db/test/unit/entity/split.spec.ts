@@ -166,6 +166,18 @@ describe.each(drivers)('split wheres of the adapter on $driver', ({ driver, skip
             expect(widest()).toBeLessThanOrEqual(LIMIT);
         });
 
+        it('keeps the locked re-read of a row from a full chunk within the limit', async () => {
+            // label-3 lands in the first chunk, filled to the limit: the re-read adds the primary key
+            const labels = ['label-3', ...Array.from({ length: 2 * LIMIT }, (_, i) => `absent-${i}`)];
+
+            log.clear();
+
+            const locked = await repositories.parents.transaction((parents) => parents.findOneBy({ label: labels }));
+
+            expect(locked).toEqual(parentOf(3, { counter: 1 }));
+            expect(widest()).toBeLessThanOrEqual(LIMIT);
+        });
+
         it.skipIf(driver !== 'postgres')('locks the lowest key and searches again when that row stopped matching meanwhile', async () => {
             const labels = [...Array.from({ length: 2 * LIMIT }, (_, i) => `absent-${i}`), 'label-5', 'label-3'];
             let found: Promise<EntityContractParent | null> | undefined;

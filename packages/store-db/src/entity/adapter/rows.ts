@@ -33,8 +33,9 @@ export abstract class EntityRowAdapter<T extends EntityRecord, E extends ObjectL
      * matches two of them (see `splitWhereValues`); none when nothing can
      * match. A where no split fits (scalars above the limit, too many parts) is `EntityQueryError`.
      */
-    protected wheresOf(values: EntityRecord): FindOptionsWhere<E>[] {
-        const parts = splitWhereValues(values, this.parameterLimit);
+    protected wheresOf(values: EntityRecord, reserved = 0): FindOptionsWhere<E>[] {
+        // `reserved`: parameters a caller adds to every part (a locked re-read's primary key)
+        const parts = splitWhereValues(values, this.parameterLimit - reserved);
 
         if (!parts) {
             throw new EntityQueryError(this.options.entity);
