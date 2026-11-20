@@ -127,7 +127,7 @@ export type GithubReleaseNote = {
 export type GithubReleaseList = {
     releases: GithubReleaseNote[];
     truncated: boolean;
-    /** The scan stopped before the last page (not exhaustive): a release in range may be missing. */
+    /** The scan stopped before the last page (not exhaustive) with nothing in range: a later page may hold a release. */
     incomplete: boolean;
 };
 

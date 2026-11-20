@@ -492,24 +492,43 @@ describe('read tools', () => {
             ]);
 
             type Result = {
-                releases: Array<{ tag: string }>; 
-                truncated: boolean; 
-                incomplete: boolean 
+                releases: Array<{ tag: string }>;
+                truncated: boolean;
+                incomplete: boolean
             };
             const input = { repo: 'octo/demo', from: '2.0.0' };
 
             const quick = await call<Result>('github_list_releases', input);
 
             expect(quick).toEqual({
-                releases: [], 
-                truncated: false, 
-                incomplete: true, 
+                releases: [],
+                truncated: false,
+                incomplete: true,
             });
 
             const full = await call<Result>('github_list_releases', { ...input, exhaustive: true });
 
             expect(full.incomplete).toBe(false);
             expect(full.truncated).toBe(false);
+        });
+
+        it('does not report an early stop that already found releases in range as incomplete', async () => {
+            const { fake, call } = setup();
+
+            // page one: in range; page two: at or below from (the usual stop); page three: more
+            fake.releases.set('octo/demo', [
+                ...Array.from({ length: 100 }, (_, i) => release(`v2.0.${i + 1}`, 1)),
+                ...Array.from({ length: 100 }, (_, i) => release(`v1.${i}.0`, 20)),
+                release('v2.9.0', 30),
+            ]);
+
+            const result = await call<{ releases: Array<{ tag: string }>; incomplete: boolean }>(
+                'github_list_releases',
+                { repo: 'octo/demo', from: '2.0.0' },
+            );
+
+            expect(result.releases).toHaveLength(20);
+            expect(result.incomplete).toBe(false);
         });
 
         it('reports a scan that read the last page as complete', async () => {
