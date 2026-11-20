@@ -6,6 +6,7 @@
  */
 
 import type { EntityRecord } from '@chamvi/store';
+import { WHERE_PARTS_MAX } from '../constants.ts';
 
 /** The bind parameters a where value takes: one per array item but `null` (`IS NULL`), one per other value. */
 function bindCountOf(value: unknown): number {
@@ -38,12 +39,14 @@ function chunksOf(items: unknown[], size: number): unknown[][] {
 
 /**
  * Entity where values as parts that each bind at most `limit` parameters,
- * matching together the rows the whole where matches, each row in one
- * part only: every array is deduplicated, then the largest arrays are
- * split until the other predicates leave each split array at least one
- * value per statement, and the parts are the cartesian product of the
- * chunks (disjoint, as the chunks of an array are). `undefined` when the
- * scalars and one value per array already bind more than `limit`.
+ * matching together the rows the whole where matches: every array is
+ * deduplicated (by JS identity: values equal only in SQL, as two `Date`s of
+ * one instant, can still match a row in two parts, which `findManyBy` drops
+ * by primary key), then the largest arrays are split until the other
+ * predicates leave each split array at least one value per statement, and
+ * the parts are the cartesian product of the chunks. `undefined` when the
+ * scalars and one value per array already bind more than `limit`, or the
+ * product would exceed WHERE_PARTS_MAX statements.
  */
 export function splitWhereValues(values: EntityRecord, limit: number): EntityRecord[] | undefined {
     const distinct: EntityRecord = {};
@@ -79,8 +82,9 @@ export function splitWhereValues(values: EntityRecord, limit: number): EntityRec
     }
 
     // the smallest split array first: each takes what it holds, at most an even share of what is left
-    const parts: EntityRecord[][] = [];
+    const sizes = new Map<string, number>();
     let left = rest;
+    let total = 1;
 
     split.reverse();
 
@@ -88,8 +92,17 @@ export function splitWhereValues(values: EntityRecord, limit: number): EntityRec
         const size = Math.max(1, Math.min(counts.get(property)!, Math.floor(left / (split.length - index))));
 
         left -= size;
-        parts.push(chunksOf(distinct[property] as unknown[], size).map((chunk) => ({ [property]: chunk })));
+        sizes.set(property, size);
+        total *= Math.ceil(counts.get(property)! / size);
     }
+
+    // counted before any part is built: a huge product never allocates
+    if (total > WHERE_PARTS_MAX) {
+        return undefined;
+    }
+
+    const parts = split.map((property) => chunksOf(distinct[property] as unknown[], sizes.get(property)!)
+        .map((chunk) => ({ [property]: chunk })));
 
     return parts.reduce(
         (wheres, chunks) => wheres.flatMap((where) => chunks.map((chunk) => ({ ...where, ...chunk }))),

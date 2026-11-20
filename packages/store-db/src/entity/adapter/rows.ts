@@ -31,7 +31,7 @@ export abstract class EntityRowAdapter<T extends EntityRecord, E extends ObjectL
      * Entity values as TypeORM wheres (see `toFindWhere`), split so no
      * statement carries more values than the driver binds and no row
      * matches two of them (see `splitWhereValues`); none when nothing can
-     * match. A where whose scalars alone exceed the limit is `EntityQueryError`.
+     * match. A where no split fits (scalars above the limit, too many parts) is `EntityQueryError`.
      */
     protected wheresOf(values: EntityRecord): FindOptionsWhere<E>[] {
         const parts = splitWhereValues(values, this.parameterLimit);

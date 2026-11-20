@@ -28,6 +28,12 @@ export const BIND_PARAMETER_LIMITS: Readonly<Record<string, number>> = { 'better
 export const DEFAULT_BIND_PARAMETER_LIMIT = 65_535;
 
 /**
+ * The most statements one split where may become: the product of the chunks
+ * of its split arrays (two arrays of 100 000 values on PostgreSQL take 16).
+ */
+export const WHERE_PARTS_MAX = 1000;
+
+/**
  * Driver codes of a value the table refuses: a NOT NULL or CHECK
  * violation, an integrity violation without a more specific class
  * (PostgreSQL 23000), and on SQLite a datatype mismatch or a value too

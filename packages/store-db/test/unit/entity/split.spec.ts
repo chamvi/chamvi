@@ -26,11 +26,20 @@ import { splitWhereValues } from '../../../src/entity/helpers/split.ts';
 describe('splitWhereValues', () => {
     it('gives no parts when the scalars and one value per array exceed the limit', () => {
         expect(splitWhereValues({
-            a: 1, 
-            b: 2, 
-            c: [1, 2, 3], 
+            a: 1,
+            b: 2,
+            c: [1, 2, 3],
         }, 2)).toBeUndefined();
         expect(splitWhereValues({ a: 1, c: [1, 2, 3] }, 2)).toEqual([{ a: 1, c: [1] }, { a: 1, c: [2] }, { a: 1, c: [3] }]);
+    });
+
+    it('gives no parts when the split would take more than WHERE_PARTS_MAX statements', () => {
+        const values = (length: number) => Array.from({ length }, (_, i) => i);
+
+        // 30 x 30 chunks of one value each: 900 statements
+        expect(splitWhereValues({ a: values(30), b: values(30) }, 2)).toHaveLength(900);
+        // 40 x 40: 1600, refused before any part is built
+        expect(splitWhereValues({ a: values(40), b: values(40) }, 2)).toBeUndefined();
     });
 });
 
