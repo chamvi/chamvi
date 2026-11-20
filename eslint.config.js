@@ -51,7 +51,7 @@ export default [
         files: ['packages/*/src/**/*.ts', 'packages/*/app/**/*.{ts,vue}'],
         ignores: ['**/migrations/**'],
         rules: {
-            'max-lines': ['warn', {
+            'max-lines': ['error', {
                 max: 400,
                 skipBlankLines: true,
                 skipComments: true,
