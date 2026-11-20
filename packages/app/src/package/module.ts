@@ -5,18 +5,17 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { readFile, realpath  } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import {
     isAbsolute,
     join,
     relative,
     sep,
 } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import type { Agent } from '@chamvi/core';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import { createJiti } from 'jiti';
-import { locateMany } from 'locter';
+import { locateMany, resolveModule } from 'locter';
 import { isObject } from 'smob';
 import {
     defaultExportOf,
@@ -30,7 +29,6 @@ import {
     toKey,
 } from '../loader/helpers/index.ts';
 import {
-    ESM_CONDITIONS,
     PACKAGE_HASH_IGNORE,
     PACKAGE_HASH_IMPORTABLE_EXTENSIONS,
     PACKAGE_MANIFEST,
@@ -121,20 +119,12 @@ async function loadOnce(spec: string, options: LoadAgentPackageOptions): Promise
 }
 
 async function resolveEntry(spec: string, cwd: string, conditions: readonly string[]): Promise<string> {
-    const resolver = createJiti(join(cwd, PACKAGE_MANIFEST), { moduleCache: false, fsCache: false });
-    let resolved: string;
-
     try {
-        resolved = resolver.esmResolve(spec, {
-            parentURL: pathToFileURL(`${cwd}${sep}`).href,
-            // jiti's default is node and import only, Node adds the user conditions in front
-            conditions: [...conditions, ...ESM_CONDITIONS],
-        });
+        // locter adds node and import after the user conditions, as Node does; the result is the real path
+        return await resolveModule(spec, { cwd, conditions: [...conditions] });
     } catch {
         throw new InvalidAgentDefinitionError(`${spec}: not found from the app's directory; add it to the app's dependencies.`);
     }
-
-    return realpath(resolved.startsWith('file:') ? fileURLToPath(resolved) : resolved);
 }
 
 function importMessage(error: unknown): string {

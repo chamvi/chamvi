@@ -5,17 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import {
-    readFileSync,
-    readdirSync,
-    realpathSync,
-    statSync,
-} from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
 import type { Jiti } from 'jiti';
+import { resolveModuleSync } from 'locter';
 import { isObject } from 'smob';
 import { PINNED_PACKAGE_SCOPES } from '../constants.ts';
 
@@ -68,7 +64,6 @@ export async function readModule(jiti: Jiti, path: string): Promise<unknown> {
  */
 export function createPackageAliases(from: string): Record<string, string> {
     const fromPath = from.startsWith('file:') ? fileURLToPath(from) : from;
-    const resolver = createJiti(fromPath, { moduleCache: false, fsCache: false });
     const packages = new Map<string, string>();
 
     for (const modules of nodeModulesPaths(dirname(fromPath))) {
@@ -86,9 +81,7 @@ export function createPackageAliases(from: string): Record<string, string> {
             const specifier = subpath === '.' ? name : `${name}${subpath.slice(1)}`;
 
             try {
-                const resolved = resolver.esmResolve(specifier, { parentURL: pathToFileURL(fromPath).href });
-
-                aliases[specifier] = realpathSync(resolved.startsWith('file:') ? fileURLToPath(resolved) : resolved);
+                aliases[specifier] = resolveModuleSync(specifier, { parentURL: fromPath });
             } catch {
                 // not resolvable with the import conditions (e.g. a require-only subpath): left to jiti
             }
