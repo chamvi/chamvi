@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
@@ -45,13 +46,24 @@ afterEach(async () => {
 });
 
 /** Whether the process `pid` still runs (signal 0). */
+/**
+ * Whether process `pid` still runs. A zombie (killed, not reaped yet) does
+ * not: `kill(pid, 0)` succeeds for it, and when its parent died with it, its
+ * reaping is up to whatever process adopts it, not to the job tools.
+ */
 function alive(pid: number): boolean {
     try {
         process.kill(pid, 0);
-
-        return true;
     } catch {
         return false;
+    }
+
+    try {
+        // Linux: the state follows the parenthesized command name in /proc/<pid>/stat
+        return !/\) Z /.test(readFileSync(`/proc/${pid}/stat`, 'utf8'));
+    } catch {
+        // gone since the kill on Linux; no /proc at all (macOS): kill() is all there is
+        return !existsSync('/proc');
     }
 }
 

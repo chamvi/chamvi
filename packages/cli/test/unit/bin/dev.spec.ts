@@ -7,6 +7,7 @@
 
 import { appendFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import {
     afterEach,
     beforeEach,
@@ -21,6 +22,9 @@ import { count, spawnCli, waitForOk } from '../../utils/spawn.ts';
 import type { CliProcess } from '../../utils/spawn.ts';
 
 const LISTENING = '"msg":"listening"';
+
+/** What `node --watch` prints when it restarts the entry. */
+const RESTARTING = 'Restarting \'';
 
 describe('bin dev', () => {
     let app: TempApp;
@@ -67,6 +71,7 @@ describe('bin dev', () => {
         await cli.waitForOutput((output) => count(output, LISTENING) === 1);
 
         await untilRestart(cli, 2, (i) => appendFile(path.join(app.cwd, 'src/agents.ts'), `\n// changed ${i}\n`));
+        await untilSettled(cli);
         await waitForOk(`http://127.0.0.1:${port}/readyz`);
 
         process.kill(-cli.child.pid!, 'SIGINT');
@@ -112,6 +117,35 @@ async function untilRestart(cli: CliProcess, times: number, change: (i: number) 
 
         await change(i);
         await cli.waitForOutput((output) => count(output, LISTENING) >= times, 2_000).catch(() => {});
+    }
+}
+
+/**
+ * Waits until every restart `node --watch` began (`Restarting '<entry>'`)
+ * has listened, with no new one for `quietMs`: a change written while an
+ * earlier restart ran restarts the app once more after untilRestart()
+ * returned, and a signal during that restart reaches a child that has no
+ * handlers yet (it dies silently, `node --watch` exits 0).
+ */
+async function untilSettled(cli: CliProcess, quietMs = 1_500, timeoutMs = 20_000): Promise<void> {
+    const until = Date.now() + timeoutMs;
+    const listened = () => count(cli.stdout() + cli.stderr(), LISTENING);
+    const settled = (output: string) => count(output, LISTENING) === count(output, RESTARTING) + 1;
+
+    for (;;) {
+        await cli.waitForOutput(settled, Math.max(0, until - Date.now()));
+
+        const seen = listened();
+
+        await delay(quietMs);
+
+        if (listened() === seen && settled(cli.stdout() + cli.stderr())) {
+            return;
+        }
+
+        if (Date.now() > until) {
+            throw new Error(`no settled restart within ${timeoutMs}ms:\n${cli.stdout()}${cli.stderr()}`);
+        }
     }
 }
 
