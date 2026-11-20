@@ -54,6 +54,13 @@ function releaseNote(data: Record<string, unknown>): GithubReleaseNote {
     };
 }
 
+/** A release's publication time, the earliest possible when it has none. */
+function publishedAt(release: Record<string, unknown>): number {
+    const time = typeof release.published_at === 'string' ? Date.parse(release.published_at) : NaN;
+
+    return Number.isNaN(time) ? -Infinity : time;
+}
+
 function firstLine(message: unknown): string {
     const line = typeof message === 'string' ? (message.split('\n')[0] ?? '') : '';
 
@@ -227,13 +234,21 @@ export function createReleaseTools(app: IGithubApp): ToolSet {
                         for (const release of data as unknown as Array<Record<string, unknown>>) {
                             const match = pick(release);
 
-                            // equal versions (v1.2.3, 1.2.3) are one release: keep the newest published
-                            const version = match?.version;
-                            const seen = version !== undefined &&
-                                matching.some((m) => m.version !== undefined && compareVersions(m.version, version) === 0);
+                            if (!match) {
+                                continue;
+                            }
 
-                            if (match && !seen) {
+                            // equal versions (v1.2.3, 1.2.3) are one release: keep the most recently
+                            // published by its date, not by the order the API lists them in
+                            const { version } = match;
+                            const index = version === undefined ?
+                                -1 :
+                                matching.findIndex((m) => m.version !== undefined && compareVersions(m.version, version) === 0);
+
+                            if (index === -1) {
                                 matching.push(match);
+                            } else if (publishedAt(match.release) > publishedAt(matching[index]!.release)) {
+                                matching[index] = match;
                             }
                         }
 

@@ -559,6 +559,20 @@ describe('read tools', () => {
             expect(unbounded.releases.map((r) => r.tag)).toEqual(['v1.0.0', '2.0.0', 'nightly']);
         });
 
+        it('keeps the most recently published of equal versions whatever order the API lists them in', async () => {
+            const { fake, call } = setup();
+
+            // listed v2.0.0 first (the fake lists the last inserted first), yet 2.0.0 was published later
+            fake.releases.set('octo/demo', [
+                release('2.0.0', 5),
+                release('v2.0.0', 2),
+            ]);
+
+            const result = await call<{ releases: Array<{ tag: string }> }>('github_list_releases', { repo: 'octo/demo', from: '1.0.0' });
+
+            expect(result.releases.map((r) => r.tag)).toEqual(['2.0.0']);
+        });
+
         it('never splits equal versions across a from continuation', async () => {
             const { fake, call } = setup();
 
