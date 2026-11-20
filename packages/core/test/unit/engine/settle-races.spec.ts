@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { defineModelAgent } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type { ApprovalWaitPoint, Run } from '@chamvi/store';
+import { approvalDecisionKey } from '../../../src/approval/helpers.ts';
 import { deliverApprovalMessage } from '../../../src/engine/approvals/delivery.ts';
 import { EngineApprovals } from '../../../src/engine/approvals/module.ts';
 import type { ApprovalDeliveryContext, EngineApprovalsContext } from '../../../src/engine/approvals/types.ts';
@@ -203,6 +204,56 @@ describe('approval resume', () => {
         expect(stored?.status).toBe(RunStatus.QUEUED);
         expect(stored?.claim?.owner).toBe('other');
         expect(stored?.waiting).toMatchObject({ approvalId: '1:b:0' });
+        expect(t.errors).toEqual([]);
+    });
+
+    it('does not overwrite the answer a replica recorded after taking the run over', async () => {
+        const t = setup();
+        const a = approvalWait('0:a:0');
+        const run = waitingRun(a);
+
+        await t.store.runService.create(run);
+
+        // no stall in the save here: the resumer stalls between its transition and the claim renewal
+        t.release.resolve();
+
+        const renewing = Promise.withResolvers<void>();
+        const resume = Promise.withResolvers<void>();
+        const update = t.store.runService.update.bind(t.store.runService);
+        let updates = 0;
+
+        t.store.runService.update = async (...args: Parameters<typeof update>) => {
+            updates++;
+
+            if (updates === 2) {
+                renewing.resolve();
+                await resume.promise;
+            }
+
+            return update(...args);
+        };
+
+        const answered = t.approvals.answer(run, a, { approved: true }, t.stale).catch((error: unknown) => error);
+
+        await renewing.promise;
+        // another replica re-paused the run on the same approval and recorded another answer
+        await update(run.id, {
+            status: RunStatus.QUEUED,
+            waiting: a,
+            claim: { owner: 'other', expiresAt: new Date(START.getTime() + 2 * TTL) },
+        });
+
+        const key = approvalDecisionKey(run.id, a.approvalId);
+
+        expect(await t.store.effectService.findOne(key)).toBeUndefined();
+        await t.store.effectService.save(key, { approved: false });
+        resume.resolve();
+        await answered;
+
+        const stored = await t.store.runService.findOne(run.id);
+
+        expect(await t.store.effectService.findOne(key)).toMatchObject({ result: { approved: false } });
+        expect(stored?.claim?.owner).toBe('other');
         expect(t.errors).toEqual([]);
     });
 });

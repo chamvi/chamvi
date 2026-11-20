@@ -226,6 +226,9 @@ export class EngineApprovals implements IEngineApprovals {
                 throw stale();
             }
 
+            // a stall since the transition may have lost the run (a replica re-paused it on this
+            // wait and recorded another answer): renew our claim, guarded, before the upsert lands
+            await runService.update(run.id, { claim: { owner: this.ctx.owner, expiresAt: new Date(clock.now() + this.ctx.claimTtlMs) } }, ours);
             await this.ctx.effectService.save(record.key, record.value);
 
             const appended: Step = {
