@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.10.0](https://github.com/chamvi/chamvi/compare/v0.9.0...v0.10.0) (2026-11-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* issue lock fencing tokens and harden knowledge passes ([#259](https://github.com/chamvi/chamvi/issues/259))
+* **knowledge:** fence pass writes and move storage onto a knowledge service ([#247](https://github.com/chamvi/chamvi/issues/247))
+* identify connection rows by generation and refuse stale saves ([#243](https://github.com/chamvi/chamvi/issues/243))
+
+### Features
+
+* **app:** export TypedToken, and create the knowledge repository token with it ([6e1c1fc](https://github.com/chamvi/chamvi/commit/6e1c1fc1f5518128e9df54a0e3ab6ed3f4d6f527))
+* **core:** run remote agents as stand-in runs ([#250](https://github.com/chamvi/chamvi/issues/250)) ([4cfc60e](https://github.com/chamvi/chamvi/commit/4cfc60e7556afbc11622c5c907622a7564a33d4c))
+* identify connection rows by generation and refuse stale saves ([#243](https://github.com/chamvi/chamvi/issues/243)) ([5f14b6c](https://github.com/chamvi/chamvi/commit/5f14b6c564227231fefe62eb154fbb2e69bffb22))
+* issue lock fencing tokens and harden knowledge passes ([#259](https://github.com/chamvi/chamvi/issues/259)) ([52384cd](https://github.com/chamvi/chamvi/commit/52384cdb36e3029935e2b773dd0858993adf5056))
+* **knowledge:** fence pass writes and move storage onto a knowledge service ([#247](https://github.com/chamvi/chamvi/issues/247)) ([e711cfa](https://github.com/chamvi/chamvi/commit/e711cfa0fc0c6948d5df4f6205f99d4e3a237cfb))
+* **peer:** connect chamvi apps as peers ([#251](https://github.com/chamvi/chamvi/issues/251)) ([98d539b](https://github.com/chamvi/chamvi/commit/98d539b6d598ddb631406c3c7f441430a6a74abe))
+* **store-db-vector:** add a pgvector knowledge store ([#248](https://github.com/chamvi/chamvi/issues/248)) ([1604a6e](https://github.com/chamvi/chamvi/commit/1604a6e8248cc5b252487a6a78205c9b43f26846))
+* switch the brand to the Cobalt palette and Geist ([396a5ca](https://github.com/chamvi/chamvi/commit/396a5caa1dcc428d1eecd68a763077c23dc3d3bd))
+
+
+### Bug Fixes
+
+* **app:** read the schema-behind code without loading typeorm ([8dfe883](https://github.com/chamvi/chamvi/commit/8dfe8833a94a48b8f157e965ac59dc4224117573))
+* close engine, workspace manager, where-split and release scan edge cases ([#275](https://github.com/chamvi/chamvi/issues/275)) ([96f0b67](https://github.com/chamvi/chamvi/commit/96f0b67ab682f3a307c35fa6f55971fac926de81))
+* **core:** cancel lost remote starts, validate peer views and fail refused polls ([#277](https://github.com/chamvi/chamvi/issues/277)) ([ee33360](https://github.com/chamvi/chamvi/commit/ee333605660b92d4c72befc9a223a2c91a21f67f))
+* **deps:** bump authup to 1.0.0-beta.76 ([#244](https://github.com/chamvi/chamvi/issues/244)) ([4a04438](https://github.com/chamvi/chamvi/commit/4a04438a9cda88bfbd37ae07ad5eedc3f566b25f))
+* **deps:** bump the minorandpatch group across 1 directory with 34 updates ([#258](https://github.com/chamvi/chamvi/issues/258)) ([50866c4](https://github.com/chamvi/chamvi/commit/50866c4e5bab2152f8e6cf7c84ba80ca17833689))
+* **deps:** bump typeorm-extension to ^4.6.0 and use its error and row-lock helpers ([7a6023b](https://github.com/chamvi/chamvi/commit/7a6023b2c2e1ec86060f29b58c2dffdd77d327d7))
+* ensure consistent version for release ([ec80aa1](https://github.com/chamvi/chamvi/commit/ec80aa1f1f20007eedc780702f07a0fa4ec0b171))
+* remote agent follow-ups and findOneBy bind limit splitting ([#276](https://github.com/chamvi/chamvi/issues/276)) ([dbdc213](https://github.com/chamvi/chamvi/commit/dbdc2138479ae1e04240f01d8f611515c7dec221))
+
 ## [0.9.0](https://github.com/chamvi/chamvi/compare/v0.8.0...v0.9.0) (2026-11-18)
 
 

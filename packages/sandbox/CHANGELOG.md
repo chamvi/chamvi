@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.10.0](https://github.com/chamvi/chamvi/compare/v0.9.0...v0.10.0) (2026-11-20)
+
+
+### Bug Fixes
+
+* close engine, workspace manager, where-split and release scan edge cases ([#275](https://github.com/chamvi/chamvi/issues/275)) ([96f0b67](https://github.com/chamvi/chamvi/commit/96f0b67ab682f3a307c35fa6f55971fac926de81))
+* **deps:** bump the minorandpatch group across 1 directory with 34 updates ([#258](https://github.com/chamvi/chamvi/issues/258)) ([50866c4](https://github.com/chamvi/chamvi/commit/50866c4e5bab2152f8e6cf7c84ba80ca17833689))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/app bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/core bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/store bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/store-memory bumped from ^0.9.0 to ^0.10.0
+  * peerDependencies
+    * @chamvi/app bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/core bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/store bumped from ^0.9.0 to ^0.10.0
+
 ## [0.9.0](https://github.com/chamvi/chamvi/compare/v0.8.0...v0.9.0) (2026-11-18)
 
 
