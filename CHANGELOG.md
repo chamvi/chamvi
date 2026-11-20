@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/chamvi/chamvi/compare/v0.10.0...v0.10.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **deps:** bump the minorandpatch group across 1 directory with 4 updates ([#279](https://github.com/chamvi/chamvi/issues/279)) ([02cce84](https://github.com/chamvi/chamvi/commit/02cce84e56cedec3ffe38b5c19ea806c3e6065a1))
+
 ## [0.10.0](https://github.com/chamvi/chamvi/compare/v0.9.0...v0.10.0) (2026-11-20)
 
 
