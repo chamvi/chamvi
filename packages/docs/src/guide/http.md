@@ -29,14 +29,15 @@ An agent without `http.on()` answers 404 on REST and gets no MCP tool; the engin
 
 | Method and path | Permission | Answer |
 |---|---|---|
-| `POST /agents/:name/runs` | `chamvi_agent_run` | `202 { runId, deduplicated }`; body `{ payload?, idempotencyKey?, address?, attachments? }` (or an `Idempotency-Key` header); runs carry channel `http`; a start while the agent is being replaced answers 409 `agent_replaced` with nothing written, and the caller can retry |
+| `POST /agents/:name/runs` | `chamvi_agent_run` | `202 { runId, deduplicated }`; body `{ payload?, idempotencyKey?, address?, attachments? }` (or an `Idempotency-Key` header); runs carry channel `http`; a start while the agent is being replaced answers 409 `agent_replaced` with nothing written, and the caller can retry. A [peer](#peers) sends `role` and `peer` too, which any other principal gets 400 for |
 | `GET /runs` | the read rule of each listed run's agent ([below](#permissions)) | `200 { data, meta: { total, limit, offset } }` |
-| `GET /runs/:id` | `chamvi_agent_read` for the run's agent, or for a public agent also `chamvi_run_read` or `chamvi_agent_run` ([private agents](#private-agents)) | The run with its `steps` |
+| `GET /runs/:id` | `chamvi_agent_read` for the run's agent, or for a public agent also `chamvi_run_read` or `chamvi_agent_run` ([private agents](#private-agents)) | The run with its `steps`; a peer gets the [peer view](#peers) |
 | `GET /runs/:id/stream` | as `GET /runs/:id` | SSE |
 | `GET /runs/:id/artifacts` | as `GET /runs/:id` | `200 { data: Artifact[] }` |
 | `GET /runs/:id/artifacts/:artifactId` | as `GET /runs/:id` | The bytes, as a download |
-| `POST /runs/:id/cancel` | `chamvi_run_cancel` | `202 { runId, status }` |
-| `POST /runs/:id/approve` | `chamvi_agent_approve` for the run's agent | `202 { runId, status: 'queued' }`; body `{ approvalId, approved, reason?, selected? }`; answers the run's current wait point without a token (409 for another `approvalId`, an expired wait point, a run waiting on dispatched runs or a run not waiting; 400 for a `selected` that does not fit the wait point's [options](/guide/approvals#offering-options)) |
+| `POST /runs/:id/cancel` | `chamvi_run_cancel` (a peer: none, for a run it started) | `202 { runId, status }` |
+| `POST /runs/:id/wake` | a [peer](#peers) | `202` without a body |
+| `POST /runs/:id/approve` | `chamvi_agent_approve` for the run's agent (never a peer) | `202 { runId, status: 'queued' }`; body `{ approvalId, approved, reason?, selected? }`; answers the run's current wait point without a token (409 for another `approvalId`, an expired wait point, a run waiting on dispatched runs or a run not waiting; 400 for a `selected` that does not fit the wait point's [options](/guide/approvals#offering-options)) |
 | `POST /channels/<name>[/...]` | the channel's own | Whatever the channel's `in` answers; only for the channels in `channels` |
 | `GET /agents`, `GET /schedules` | `chamvi_run_read` (the agents it reaches) | `{ data, issues }`: agent summaries and the [agent folders](/guide/agent-folders) that failed to load (`{ agent, message, at }`); agent summaries list their `kind` (`model`, or `simple` for a [simple agent](/guide/dispatch#simple-agents)) and subscriptions `{ channel, id, hook? }`; cron subscriptions with their channel and next fire time |
 | `GET /components` | `chamvi_component_read` | `200 { data: [{ name, kind, lastSuccessAt?, lastErrorAt?, lastRunAt?, runningSince? }] }`: the app's [background components](/guide/app#background-components) (`kind: 'job'`) in start order, then every channel that reports a status (`kind: 'channel'`, the `cron` channel); times are ISO 8601, absent when it never happened. The status is this replica's: behind a load balancer each request may answer from another replica, and a `cron` channel reads as never fired on a replica that never won a tick's lock. A `status()` that throws lists the entry without times and goes to `onError` |
@@ -96,6 +97,15 @@ A route on one resource checks with that resource's attributes. An agent route c
 An agent defined with `private: true` keeps its runs and state from everyone without `chamvi_agent_read` for it (`chamvi_run_read`, `chamvi_agent_run`, `chamvi_state_read` and `chamvi_state_write` do not cover it). Such a principal gets 404 for the agent's runs (`GET /runs/:id`, `/stream`, `/artifacts*`, MCP `get_run`), as for an unknown run, so run ids cannot be probed. `GET /runs` and MCP `list_runs` leave the agent's runs out (`filter[agent]=<name>` is 403), its state routes answer 403, and MCP `run_<agent>` returns only `{ runId, status, deduplicated }`. A run whose agent the app no longer registers is treated as private. `chamvi_agent_run` still starts runs, and `chamvi_agent_approve` still answers approvals. `GET /agents` lists each agent's `private` flag, every run (REST, SSE, MCP `get_run`) carries its agent's as `agentPrivate` (`true` for an agent the app no longer registers), and a policy can match it (`{ "private": false }`).
 
 `POST /runs/:id/approve` needs the approve permission for the run's agent (no read permission); it reads the body, loads the run (404), checks the permission (403) and only then validates the body, and passes the `approvalId` it was shown, so a stale or concurrent answer is a 409 rather than an answer to a newer call.
+
+## Peers
+
+A credential that `peerModule()` recognizes as a [peer](/guide/remote-agents) (its `incoming` setting) gets these rules, whatever grants it holds:
+
+- **Start.** A peer starts runs only with `POST /agents/:name/runs` and the peer fields: `role` (the receiving `agent.on()` role, not `http.on()`), `peer: { standIn, parent: { runId, agent, depth }, taint, origin? }` and an idempotency key (body or `Idempotency-Key` header, required). A body without them is 400, and so is MCP `run_<agent>`. An agent the peer may not start answers 404 like a missing one, before the body is validated. The role's `from` must list `<peer>/<parent.agent>`; `maxPerRun` counts per calling run, and the run's depth is `parent.depth + 1`. While another replica counts a start of the same calling run and role, the start answers 503 `peer_start_busy` with `Retry-After: 1` and writes nothing; resend it.
+- **Peer view.** `GET /runs/:id` of a run the peer started answers `{ id, status, waiting?, approval?, output?, error?, tainted, usage }`: `waiting` is the wait point's kind, `approval` the approval pending in the run or a run below it (with this app's approval link), `usage` the run's tokens plus its subtree's. Any other run is 404.
+- **Cancel and wake.** A peer cancels the runs it started without `chamvi_run_cancel`. `POST /runs/:id/wake` is the content-free ping a receiver sends to a stand-in run: the next poll of its remote run happens at once. Every peer gets 202, also for a run that settled meanwhile; any other principal gets 404.
+- **No answers.** `POST /runs/:id/approve` and MCP `approve_run` answer a peer 404, so an approval is answered only in the app that runs it.
 
 ## Invoker
 

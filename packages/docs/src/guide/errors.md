@@ -22,6 +22,7 @@ Every error chamvi throws extends `ChamviError`, which extends ebec's `BaseError
 | `DecryptionFailedError` | `DECRYPTION_FAILED` | `decryption_failed` | Sealed bytes do not open: a wrong or tampered value, or a data key wrapped under a key the keyring lacks (carries that `keyId`); the message never holds key material; http answers 409 |
 | `SandboxError` | `SANDBOX` | `sandbox_error` | A [workspace](/guide/workspaces) or its provider failed: a create, start or checkout (with git's stderr), a missing or oversized file, an unknown, expired or disposed workspace, a Docker or Kubernetes API error, a reached per-run workspace cap; a tool error, the run goes on |
 | `ValidationError` | `VALIDATION` | `validation_error` | A state document fails its schema (carries `issues`); an invalid attachment at `dispatch()` or `artifacts.put()`; a final answer that does not parse as the agent's [structured `output`](/guide/agents#structured-output) (the run fails); a workspace path, repository or ref the sandbox rules refuse (a tool error); an `emit()` without an address off the source channel (a tool error) |
+| `PeerStartBusyError` | `PEER_START_BUSY` | `peer_start_busy` | A [peer](/guide/remote-agents) start while another replica counts a start of the same calling run and role (`maxPerRun`); nothing is written and a resend is safe; `@chamvi/http` answers 503 with `Retry-After: 1` |
 | `RepositoryNotFoundError` | `REPOSITORY_NOT_FOUND` | `repository_not_found` | A repository `OrFail` query has no result; single run/artifact lookups use their specific not-found errors |
 
 ## Run errors
@@ -35,6 +36,8 @@ A run the registry cancelled stores why in `run.error` too (`AgentReplacedError`
 | `AGENT_REPLACED` | `agent_replaced` | A folder change (a new revision) or a replaced agent without a revision cancelled the run while it was unsettled; or the run was dispatched with `checked` and its agent was replaced since (see [Many agents per engine](/guide/agents#many-agents-per-engine)) |
 | `AGENT_REMOVED` | `agent_removed` | The agent was removed (its folder deleted) while the run was unsettled |
 
+A [remote agent](/guide/remote-agents)'s stand-in that fails with its remote run stores the remote run's error; when the peer reports none, it stores `remote_failed` (`ErrorCode.REMOTE_FAILED`, no class).
+
 A run cancelled on another replica keeps the reason once its owner settles it; a run that completes anyway ends without one. A user's cancel stores no error.
 
 <<< @/snippets/errors.ts#run-error
@@ -44,5 +47,7 @@ A run cancelled on another replica keeps the reason once its owner settles it; a
 Some errors happen where nobody awaits: a lost lease, a failed approval message, a listener that throws, a failed recovery pass. They go to `onError(error, run?)`, by default `console.error`. Pass your logger. A `LeaseLostError` there is informational: another replica carries the run on.
 
 <<< @/snippets/errors.ts#on-error
+
+`@chamvi/peer` adds `PeerRequestError` (`peer_request`): a peer request (start, read, cancel, wake) that failed for now, a 5xx, a 429, a retryable 409 or a network error, with the peer's `Retry-After` as `retryAfterMs`. The engine retries it until the remote run's deadline and reports a failed read to `onError`; a permanent refusal is a `ValidationError` instead (a refused start fails the stand-in at once).
 
 `createEngine` stands for the engine of your app, built on the repositories every replica shares ([Database store](/repositories/database)); with [`@chamvi/app`](/guide/app) the app builds it.
