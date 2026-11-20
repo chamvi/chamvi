@@ -75,6 +75,7 @@ export function createPeerResolver(options: PeerResolverOptions): IPeerResolver 
     };
 
     return {
+        names: () => entries.keys().toArray(),
         has: (name) => entries.has(name),
         settings(name): PeerSettings {
             const { settings } = find(name).entry;

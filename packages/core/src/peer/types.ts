@@ -87,6 +87,8 @@ export type PeerSettings = {
 
 /** The configured peers, by name (the agent-name rule). */
 export interface IPeerResolver {
+    /** Every configured peer's name (the engine checks each one's settings at construction). */
+    names(): string[];
     has(name: string): boolean;
     settings(name: string): PeerSettings;
     transport(name: string): IPeerTransport;

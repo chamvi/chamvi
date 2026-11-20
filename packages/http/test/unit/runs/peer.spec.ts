@@ -63,6 +63,7 @@ function approvalUrl(ref: { runId: string; approvalId: string }): string {
  */
 function fakeResolver(reads: string[]): IPeerResolver {
     return {
+        names: () => ['dev', 'ops'],
         has: (name) => name === 'dev' || name === 'ops',
         settings: () => ({
             pollMs: 60_000, 

@@ -50,7 +50,7 @@ export interface IEngineRunner {
 export type EngineRunnerContext = Pick<
     EngineContext,
     'runService' | 'stepService' | 'checkpointService' | 'effectService' | 'artifactService' | 'stateService' |
-    'clock' | 'owner' | 'peers' | 'executions' | 'provided' | 'emit' | 'onError'
+    'clock' | 'owner' | 'peers' | 'executions' | 'provided' | 'emit' | 'onError' | 'detach'
 > & {
     /** The engine an execution's tools see (ExecuteContext.engine). */
     engine: IEngine;

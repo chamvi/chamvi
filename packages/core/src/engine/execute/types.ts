@@ -15,7 +15,7 @@ import type {
 } from '@chamvi/store';
 import type { ToolSet } from 'ai';
 import type { ModelAgent, RemoteAgent, SimpleAgent } from '../../agent/types.ts';
-import type { IPeerResolver } from '../../peer/types.ts';
+import type { IPeerResolver, PeerStartInput } from '../../peer/types.ts';
 import type { IClock } from '../../clock/index.ts';
 import type { ContextKey } from '../../context/types.ts';
 import type { IEffectService, ToolCallFrame  } from '../../effect/types.ts';
@@ -177,6 +177,15 @@ export type RemoteExecuteContext = {
     pause: (request: SuspendRequest, usage: Usage) => Promise<void>;
     /** Reports a failure that ends the execution but not the run (recovery retries it). */
     onError: (error: unknown, run: Run) => void;
+    /** Runs work past the execution, tracked by idle() and drain() (EngineContext.detach); its rejection reaches onError. */
+    detach: (work: (signal: AbortSignal) => Promise<void>) => void;
+};
+
+/** A start a cancel left in flight (internal): the request, its input and the controller of its signal. */
+export type CancelledRemoteStart = {
+    pending: Promise<{ runId: string }>;
+    input: PeerStartInput;
+    request: AbortController;
 };
 
 /** A tool call `ctx.tools` made in a simple run, appended as a `tool` step (internal). */
