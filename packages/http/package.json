@@ -93,7 +93,7 @@
         "@chamvi/store-memory": "^0.10.0",
         "@chamvi/test-kit": "^0.10.0",
         "@modelcontextprotocol/client": "^2.4.0",
-        "@routup/decorators": "^5.3.0",
+        "@routup/decorators": "^5.3.1",
         "@swc/core": "^1.16.22",
         "@trapi/cli": "^2.3.0",
         "@trapi/core": "^2.3.0",
@@ -108,6 +108,6 @@
     "peerDependencies": {
         "@chamvi/core": "^0.10.0",
         "@chamvi/store": "^0.10.0",
-        "@routup/decorators": "^5.3.0"
+        "@routup/decorators": "^5.3.1"
     }
 }

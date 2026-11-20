@@ -59,7 +59,7 @@
         "@ebec/http": "^4.3.2",
         "@fontsource-variable/geist": "^5.3.0",
         "@fontsource-variable/geist-mono": "^5.3.0",
-        "@routup/decorators": "^5.3.0",
+        "@routup/decorators": "^5.3.1",
         "@tailwindcss/vite": "^4.3.5",
         "@trapi/cli": "^2.3.0",
         "ai": "^7.0.173",
