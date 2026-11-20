@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { isObject } from 'smob';
+import { readDatabaseErrorCode } from 'typeorm-extension';
 import { SCHEMA_BEHIND_SQLSTATES } from '../constants.ts';
 
 /**
@@ -13,12 +13,7 @@ import { SCHEMA_BEHIND_SQLSTATES } from '../constants.ts';
  * its migrations, which a check meets because it never migrates.
  */
 export function isSchemaBehindError(error: unknown): boolean {
-    if (!isObject(error)) {
-        return false;
-    }
+    const code = readDatabaseErrorCode(error);
 
-    // TypeORM's QueryFailedError carries the driver's error, with its SQLSTATE
-    const code = isObject(error.driverError) ? error.driverError.code : error.code;
-
-    return typeof code === 'string' && SCHEMA_BEHIND_SQLSTATES.includes(code);
+    return code !== undefined && SCHEMA_BEHIND_SQLSTATES.includes(code);
 }

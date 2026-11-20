@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { errorField } from '../../../src/error/helpers.ts';
-import { DatabaseUnavailableError, errorCode, maskDatabaseUrl } from '../../../src/error/index.ts';
+import { DatabaseUnavailableError, maskDatabaseUrl } from '../../../src/error/index.ts';
 
 describe('database errors', () => {
     it('maskDatabaseUrl hides the credentials of every URL in a text', () => {
@@ -38,15 +38,6 @@ describe('database errors', () => {
         expect(maskDatabaseUrl('postgres://u:p@db/x?PASSWORD=q-s3cret')).toBe('postgres://***@db/x?PASSWORD=***');
         expect(maskDatabaseUrl('nothing to hide at postgres://content@db/content'))
             .toBe('nothing to hide at postgres://***@db/content');
-    });
-
-    it('errorCode reads the driver\'s code', () => {
-        expect(errorCode({ driverError: { code: '23505' }, code: 'other' })).toBe('23505');
-        expect(errorCode({ code: 'SQLITE_CONSTRAINT_UNIQUE' })).toBe('SQLITE_CONSTRAINT_UNIQUE');
-        expect(errorCode({ code: 42 })).toBeUndefined();
-        expect(errorCode(new Error('plain'))).toBeUndefined();
-        expect(errorCode('text')).toBeUndefined();
-        expect(errorCode(undefined)).toBeUndefined();
     });
 
     it('DatabaseUnavailableError carries the operation and the driver code, never a cause', () => {

@@ -25,23 +25,6 @@ export function maskDatabaseUrl(text: string): string {
 }
 
 /**
- * The driver's error code of a failed database call: TypeORM's
- * `driverError.code` (a PostgreSQL SQLSTATE such as `23505`), else the
- * error's own `code` (better-sqlite3's `SQLITE_CONSTRAINT_UNIQUE`).
- */
-export function errorCode(error: unknown): string | undefined {
-    if (!isObject(error)) {
-        return undefined;
-    }
-
-    if (isObject(error.driverError) && typeof error.driverError.code === 'string') {
-        return error.driverError.code;
-    }
-
-    return typeof error.code === 'string' ? error.code : undefined;
-}
-
-/**
  * The name of the constraint a PostgreSQL error names, if any.
  */
 export function errorConstraint(error: unknown): string | undefined {

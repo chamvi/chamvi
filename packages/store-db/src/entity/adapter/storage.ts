@@ -14,6 +14,12 @@ import type {
     Repository,
 } from 'typeorm';
 import {
+    isDatabaseForeignKeyViolationError,
+    isDatabaseUniqueViolationError,
+    isRowLockSupported,
+    readDatabaseErrorCode,
+} from 'typeorm-extension';
+import {
     EntityConflictError,
     EntityDeadlockError,
     EntityInvalidError,
@@ -22,15 +28,14 @@ import {
 } from '@chamvi/store';
 import type { EntityRecord } from '@chamvi/store';
 import { DatabaseUnavailableError } from '../../error/unavailable.ts';
-import { errorCode, errorConstraint, errorField } from '../../error/helpers.ts';
+import { errorConstraint, errorField } from '../../error/helpers.ts';
 import {
     BIND_PARAMETER_LIMITS,
-    CONFLICT_CODES,
     DEADLOCK_CODES,
     DEFAULT_BIND_PARAMETER_LIMIT,
     INVALID_CODES,
     INVALID_CODE_CLASSES,
-    RELATION_CODES,
+    RESTRICT_CODES,
     SERIALIZED_DRIVERS,
     UNKNOWN_RELATION,
 } from '../constants.ts';
@@ -192,7 +197,7 @@ export abstract class EntityStorageAdapter<T extends EntityRecord, E extends Obj
 
     /** Single-row reads lock: inside a transaction, on a driver with row locks. */
     protected get locking(): boolean {
-        return this.tx !== undefined && !this.serialized;
+        return this.tx !== undefined && isRowLockSupported(this.dataSource);
     }
 
     /** An operation outside a transaction on a serialized driver runs as a queued transaction. */
@@ -348,13 +353,13 @@ export abstract class EntityStorageAdapter<T extends EntityRecord, E extends Obj
             return error;
         }
 
-        const code = errorCode(error);
+        const code = readDatabaseErrorCode(error);
 
-        if (code && CONFLICT_CODES.includes(code)) {
+        if (isDatabaseUniqueViolationError(error)) {
             return new EntityConflictError(this.options.entity);
         }
 
-        if (code && RELATION_CODES.includes(code)) {
+        if (isDatabaseForeignKeyViolationError(error) || (code && RESTRICT_CODES.includes(code))) {
             const constraint = errorConstraint(error);
             const foreignKey = constraint ?
                 this.dataSource.entityMetadatas

@@ -8,7 +8,7 @@
 export * from './busy.ts';
 export * from './constants.ts';
 export * from './driver-missing.ts';
-export { errorCode, maskDatabaseUrl } from './helpers.ts';
+export { maskDatabaseUrl } from './helpers.ts';
 export * from './legacy.ts';
 export * from './options.ts';
 export type * from './types.ts';

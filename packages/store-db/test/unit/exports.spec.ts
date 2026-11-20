@@ -35,7 +35,6 @@ describe('public api', () => {
         'DatabaseBusyError',
         'LegacySchemaError',
         'maskDatabaseUrl',
-        'errorCode',
         'DatabaseDriverMissingError',
         'buildDatabaseOptions',
         'connectDatabase',

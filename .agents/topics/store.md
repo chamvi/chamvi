@@ -73,7 +73,7 @@ SQLite (an app's database only): every use of a better-sqlite3 data source (tran
 | `migration/` | `runMigrationOperation`, `isSameDatabase`, the scratch guard, `storeMigrationsDirectory`, `MIGRATION_OPERATIONS`, `STORE_DATABASE`, `DATABASE_LOCK_PREFIX` |
 | `query/` | `applyQuery`, `validateEntitySchemas` |
 | `column/` | `dateToISOStringTransformer` |
-| `error/` | The errors above, `maskDatabaseUrl`, `errorCode` |
+| `error/` | The errors above, `maskDatabaseUrl` |
 
 `packages/store/src` and `packages/store-memory/src/repositories` hold one folder per aggregate (the port and its record types; the memory repository), plus `entity/` (the generic port, `MemoryEntityRepository`), `error/` (store) and `registry/` (store-memory).
 

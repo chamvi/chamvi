@@ -7,10 +7,11 @@
 
 import { isObject } from 'smob';
 import type { DataSource } from 'typeorm';
+import { readDatabaseErrorCode } from 'typeorm-extension';
 import { serialize } from '../entity/helpers/index.ts';
 import { SERIALIZED_DRIVERS } from '../entity/constants.ts';
 import { DatabaseUnavailableError } from '../error/unavailable.ts';
-import { errorCode, maskDatabaseUrl } from '../error/helpers.ts';
+import { maskDatabaseUrl } from '../error/helpers.ts';
 import { DatabaseOptionsError } from '../error/options.ts';
 import type { SerializeOptions } from '../entity/types.ts';
 import { CONFIGURATION_ERRORS, CONFIGURATION_MESSAGE_MAX_LENGTH } from './constants.ts';
@@ -21,7 +22,7 @@ export function toUnavailable(operation: string, error: unknown, subject?: strin
         return error;
     }
 
-    return new DatabaseUnavailableError(operation, errorCode(error), subject);
+    return new DatabaseUnavailableError(operation, readDatabaseErrorCode(error), subject);
 }
 
 /**
@@ -36,7 +37,7 @@ export function toConfigurationError(error: unknown): DatabaseOptionsError | und
         return undefined;
     }
 
-    if ('driverError' in error || errorCode(error) !== undefined || !CONFIGURATION_ERRORS.includes(error.name)) {
+    if ('driverError' in error || readDatabaseErrorCode(error) !== undefined || !CONFIGURATION_ERRORS.includes(error.name)) {
         return undefined;
     }
 

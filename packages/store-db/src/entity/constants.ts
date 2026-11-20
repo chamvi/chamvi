@@ -27,9 +27,6 @@ export const BIND_PARAMETER_LIMITS: Readonly<Record<string, number>> = { 'better
 
 export const DEFAULT_BIND_PARAMETER_LIMIT = 65_535;
 
-/** Driver codes of a unique or primary key violation. */
-export const CONFLICT_CODES: readonly string[] = ['23505', 'SQLITE_CONSTRAINT_UNIQUE', 'SQLITE_CONSTRAINT_PRIMARYKEY'];
-
 /**
  * Driver codes of a value the table refuses: a NOT NULL or CHECK
  * violation, an integrity violation without a more specific class
@@ -51,8 +48,8 @@ export const INVALID_CODES: readonly string[] = [
 /** The PostgreSQL SQLSTATE classes (first two characters) of a refused value: 22, a data exception. */
 export const INVALID_CODE_CLASSES: readonly string[] = ['22'];
 
-/** Driver codes of a foreign key violation (PostgreSQL's 23001 a restrict violation). */
-export const RELATION_CODES: readonly string[] = ['23001', '23503', 'SQLITE_CONSTRAINT_FOREIGNKEY'];
+/** PostgreSQL's restrict violation (23001), a foreign key failure typeorm-extension's predicate does not cover. */
+export const RESTRICT_CODES: readonly string[] = ['23001'];
 
 /** Driver codes of a transaction chosen as a deadlock victim. */
 export const DEADLOCK_CODES: readonly string[] = ['40P01'];
