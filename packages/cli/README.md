@@ -92,7 +92,7 @@ The entry is `--entry`, else for the source commands (`dev`, `build`, `start --d
 - Node resolves every import, so tsconfig `paths` are not applied (an alias import fails with `ERR_MODULE_NOT_FOUND`); use relative imports or `package.json` `imports`.
 - Decorators (a `@routup/decorators` controller) need `"experimentalDecorators": true`; without it the import fails with `SyntaxError: Unexpected token 'export'` and no file name (a built `dist/index.mjs` fails the same way at start). `"emitDecoratorMetadata": true` with `import 'reflect-metadata'` as the entry's first import is the app's choice (TypeORM entities that omit their column types need it).
 - tsdown must be installed to load a TypeScript entry: without it the command exits 2 (`The entry is TypeScript: install tsdown ^0.23.4 to load it.`). A built entry needs nothing.
-- Files of an agents folder (`CHAMVI_AGENTS_DIR`) are loaded by jiti and cannot use decorators.
+- Files of an agents folder (`CHAMVI_AGENTS_DIR`) are loaded by locter's transpiling module reader and cannot use decorators.
 - `@oxc-project/runtime`, the helpers the transformed code imports, is a dependency of the CLI.
 
 ## Exit codes

@@ -16,7 +16,7 @@ import {
     it,
 } from 'vitest';
 import { loadAgent } from '@chamvi/app';
-import { createModuleJiti, createPackageAliases, readModule } from '../../../src/loader/helpers/index.ts';
+import { createModuleReader, createPackageAliases } from '../../../src/loader/helpers/index.ts';
 import { createTempDir, writeTree } from '../../utils/folder.ts';
 
 describe('the default module reader', () => {
@@ -111,9 +111,9 @@ describe('the default module reader', () => {
         ].join('\n');
         await writeTree(root.path, tree);
 
-        const jiti = createModuleJiti(join(root.path, 'app/src/main.ts'));
+        const reader = createModuleReader(join(root.path, 'app/src/main.ts'));
 
-        const loaded = await loadAgent(join(root.path, 'data/volume/agents/triage'), { load: (path) => readModule(jiti, path) });
+        const loaded = await loadAgent(join(root.path, 'data/volume/agents/triage'), { load: (path) => reader.read(path) });
         const app = await import(pathToFileURL(join(root.path, 'app/node_modules/@chamvi/fake/index.mjs')).href) as { registry: WeakSet<object> };
 
         expect(loaded.agent.definition.instructions).toBe('app app sub');
