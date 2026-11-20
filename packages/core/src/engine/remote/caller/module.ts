@@ -8,21 +8,26 @@
 import { randomUUID } from 'node:crypto';
 import { RunStatus } from '@chamvi/store';
 import type { Invoker, RemoteWaitPoint, Run } from '@chamvi/store';
+import { ValidationError } from '../../../errors/index.ts';
 import type { PeerRunView } from '../../../peer/types.ts';
+import { toRunError } from '../../execute/helpers/index.ts';
 import type { WakeOutcome } from '../../types.ts';
 import { REMOTE_NO_USAGE } from '../constants.ts';
 import {
+    cancelLostRemoteStart,
     peerRequest,
     peerRetryAfterOf,
     readRemoteOutcome,
+    readRemoteStartAttempt,
     readRemoteStartRecord,
+    readRemoteViewApproval,
     remoteOutcomeOf,
     remotePollKey,
     remoteStartKey,
     remoteWaitKey,
     remoteWaitOf,
 } from '../helpers/index.ts';
-import type { RemoteEngineContext } from '../types.ts';
+import type { RemoteEngineContext, RemoteOutcome } from '../types.ts';
 import { answerRemoteWait } from './answer.ts';
 import { EngineRemoteApprovals } from './approval/module.ts';
 import type { IEngineRemoteApprovals } from './approval/types.ts';
@@ -42,6 +47,9 @@ export class EngineRemote implements IEngineRemote {
     protected readonly approvals: IEngineRemoteApprovals;
 
     protected readonly wakes: IEngineRemoteWakes;
+
+    /** Stand-ins whose in-flight start finishes detached (handOffStart()), until their cancelled settle. */
+    protected readonly handedOff = new Set<string>();
 
     constructor(ctx: RemoteEngineContext) {
         this.ctx = ctx;
@@ -93,9 +101,10 @@ export class EngineRemote implements IEngineRemote {
      * One poll of stand-in `run`'s remote run: once per `pollMs` window across
      * replicas (the store lock `remote-poll:<runId>`), or at once when a wake
      * marked the wait. A settled remote run answers the wait (the next execution
-     * settles the stand-in); anything else keeps it waiting. A failed read
-     * rejects (onError) and is retried next window, or after the peer's
-     * `retryAfterMs` when that is longer.
+     * settles the stand-in); anything else keeps it waiting. A read the peer
+     * refuses permanently (a ValidationError, also a malformed view) fails the
+     * stand-in (refuse()); any other failed read rejects (onError) and is
+     * retried next window, or after the peer's `retryAfterMs` when that is longer.
      */
     async poll(run: Run, waiting: RemoteWaitPoint, signal: AbortSignal): Promise<void> {
         const { ctx } = this;
@@ -111,6 +120,7 @@ export class EngineRemote implements IEngineRemote {
         }
 
         let view: PeerRunView;
+        let outcome: RemoteOutcome | undefined;
 
         try {
             view = await peerRequest(
@@ -118,7 +128,17 @@ export class EngineRemote implements IEngineRemote {
                 signal,
                 (requestSignal) => ctx.peers.transport(waiting.peer).read(waiting.remoteRunId, { signal: requestSignal }),
             );
+            outcome = remoteOutcomeOf(view);
+            // a malformed pending approval is a malformed view: surface() reads it again
+            readRemoteViewApproval(view);
         } catch (error) {
+            if (error instanceof ValidationError) {
+                // permanent (a lost remote run, revoked credentials, a malformed view): no later poll answers
+                await this.refuse(run, waiting, error);
+
+                return;
+            }
+
             const retryAfterMs = peerRetryAfterOf(error);
 
             if (held && retryAfterMs > pollMs) {
@@ -128,8 +148,6 @@ export class EngineRemote implements IEngineRemote {
 
             throw error;
         }
-
-        const outcome = remoteOutcomeOf(view);
 
         if (outcome) {
             await answerRemoteWait(ctx, run.id, outcome);
@@ -159,6 +177,24 @@ export class EngineRemote implements IEngineRemote {
         return answered;
     }
 
+    /**
+     * Fails stand-in `run` on a poll the peer refused permanently: answers
+     * its remote wait with outcome `failed` and the refusal, and sends the
+     * remote cancel once (best effort), from the replica whose answer won.
+     */
+    protected async refuse(run: Run, waiting: RemoteWaitPoint, error: ValidationError): Promise<void> {
+        const answered = await answerRemoteWait(this.ctx, run.id, {
+            status: 'failed',
+            error: toRunError(error),
+            tainted: false,
+            usage: { ...REMOTE_NO_USAGE },
+        });
+
+        if (answered) {
+            this.sendCancel(run, waiting.peer, waiting.remoteRunId);
+        }
+    }
+
     /** A peer's content-free wake of stand-in `runId` (EngineRemoteWakes.mark()). */
     wake(runId: string, invoker: Invoker | undefined): Promise<WakeOutcome | undefined> {
         return this.wakes.mark(runId, invoker);
@@ -168,21 +204,37 @@ export class EngineRemote implements IEngineRemote {
      * A stand-in that settled `cancelled` here passes the cancel on to its
      * remote run (detached, best effort: a failure reaches onError only),
      * unless it never started one or its remote run already ended (a
-     * recorded outcome; a timeout sent its own cancel).
+     * recorded outcome; a timeout sent its own cancel). A start without a
+     * recorded answer (an ambiguous failure) is resent once under the same
+     * key to learn the remote run (cancelLostRemoteStart()); one whose
+     * in-flight start finishes detached (handOffStart()) sends nothing here.
      */
     cancelSettled(run: Run): void {
-        if (run.status !== RunStatus.CANCELLED) {
+        // a handed-off start finishes detached and cancels the remote run it learns of
+        if (run.status !== RunStatus.CANCELLED || this.handedOff.delete(run.id)) {
             return;
         }
 
         const agent = this.ctx.getAgent(run.agent);
         const fallbackPeer = agent?.kind === 'remote' ? agent.definition.peer : undefined;
 
-        this.ctx.detach(async () => {
+        this.ctx.detach(async (signal) => {
             const { effectService } = this.ctx;
-            const started = readRemoteStartRecord((await effectService.findOne(remoteStartKey(run.id)))?.result);
+            const stored = (await effectService.findOne(remoteStartKey(run.id)))?.result;
+            const started = readRemoteStartRecord(stored);
 
-            if (!started || readRemoteOutcome((await effectService.findOne(remoteWaitKey(run.id)))?.result)) {
+            if (!started) {
+                const attempt = readRemoteStartAttempt(stored);
+
+                // a start that failed ambiguously: the peer may run it, unseen
+                if (attempt) {
+                    await cancelLostRemoteStart(this.ctx, run, attempt, signal);
+                }
+
+                return;
+            }
+
+            if (readRemoteOutcome((await effectService.findOne(remoteWaitKey(run.id)))?.result)) {
                 return;
             }
 
@@ -192,6 +244,10 @@ export class EngineRemote implements IEngineRemote {
                 this.sendCancel(run, peer, started.runId);
             }
         }, run);
+    }
+
+    handOffStart(runId: string): void {
+        this.handedOff.add(runId);
     }
 
     /** Sends the cancel of remote run `remoteRunId` at `peer` (best effort: a rejection reaches onError). */

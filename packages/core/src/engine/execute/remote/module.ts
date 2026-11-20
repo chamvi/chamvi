@@ -21,9 +21,10 @@ import { startRemoteRun } from './start.ts';
  * A start rejected with a ValidationError fails the run; any other
  * rejection, and a store failure while recording the start or pausing, ends
  * only the execution (onError), and recovery retries once the claim expired,
- * until the remote deadline passed: then the run fails with Timeout. A
- * cancel during an in-flight start settles the run at once; the start
- * finishes detached and cancels the remote run (cancelRemoteStart()).
+ * until the remote deadline passed: then the run fails with Timeout (and a
+ * start that failed ambiguously is resent once and its remote run
+ * cancelled). A cancel during an in-flight start settles the run at once;
+ * the start finishes detached and cancels the remote run (cancelRemoteStart()).
  */
 export async function executeRemoteRun(ctx: RemoteExecuteContext): Promise<void> {
     const {

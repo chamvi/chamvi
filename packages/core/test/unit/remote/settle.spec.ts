@@ -12,11 +12,14 @@ import {
     it,
 } from 'vitest';
 import { z } from 'zod';
+import { ValidationError } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type { Run } from '@chamvi/store';
-import { readRemoteOutcome } from '../../../src/engine/remote/helpers/index.ts';
+import { readRemoteOutcome, remoteOutcomeOf } from '../../../src/engine/remote/helpers/index.ts';
+import { peerRunView } from '../../utils/peers.ts';
 import type { RemoteOutcome } from '../../../src/engine/remote/types.ts';
+import { REMOTE_ERROR_CODE_MAX_LENGTH, REMOTE_ERROR_MESSAGE_MAX_LENGTH } from '../../../src/engine/remote/constants.ts';
 import {
     readRun,
     setupRemote,
@@ -311,5 +314,41 @@ describe('readRemoteOutcome', () => {
         expect(() => readRemoteOutcome({ ...outcome({}), tainted: 'yes' })).toThrow();
         expect(() => readRemoteOutcome({ status: 'completed', tainted: false })).toThrow();
         expect(() => readRemoteOutcome('completed')).toThrow();
+    });
+});
+
+describe('remoteOutcomeOf', () => {
+    it('reads the usage of a settled view, zero without one', () => {
+        expect(remoteOutcomeOf(peerRunView('r1', { status: 'completed', usage: { inputTokens: 3, outputTokens: 4 } }))?.usage)
+            .toEqual({ inputTokens: 3, outputTokens: 4 });
+        expect(remoteOutcomeOf({ ...peerRunView('r1', { status: 'failed' }), usage: undefined as never })?.usage)
+            .toEqual({ inputTokens: 0, outputTokens: 0 });
+        expect(remoteOutcomeOf(peerRunView('r1'))).toBeUndefined();
+    });
+
+    it('throws on a usage count that is not a non-negative integer', () => {
+        for (const count of [-1, 1.5, NaN, Infinity, '7', null]) {
+            const view = peerRunView('r1', { status: 'completed', usage: { inputTokens: count as number, outputTokens: 0 } });
+
+            expect(() => remoteOutcomeOf(view)).toThrow(ValidationError);
+        }
+
+        expect(() => remoteOutcomeOf({ ...peerRunView('r1', { status: 'completed' }), usage: 'none' as never })).toThrow(ValidationError);
+    });
+
+    it('throws on an error without a string code and message', () => {
+        for (const error of ['boom', { code: 1, message: 'x' }, { code: 'x' }]) {
+            expect(() => remoteOutcomeOf(peerRunView('r1', { status: 'failed', error: error as never }))).toThrow(ValidationError);
+        }
+    });
+
+    it('cuts a long error code and message', () => {
+        const outcome = remoteOutcomeOf(peerRunView('r1', {
+            status: 'failed',
+            error: { code: 'c'.repeat(500), message: 'm'.repeat(10_000) },
+        }));
+
+        expect(outcome?.error?.code).toHaveLength(REMOTE_ERROR_CODE_MAX_LENGTH);
+        expect(outcome?.error?.message).toBe(`${'m'.repeat(REMOTE_ERROR_MESSAGE_MAX_LENGTH)}…`);
     });
 });

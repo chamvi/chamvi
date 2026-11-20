@@ -179,10 +179,14 @@ export type RemoteExecuteContext = {
     onError: (error: unknown, run: Run) => void;
     /** Runs work past the execution, tracked by idle() and drain() (EngineContext.detach); its rejection reaches onError. */
     detach: (work: (signal: AbortSignal) => Promise<void>) => void;
+    /** The in-flight start finishes detached (cancelRemoteStart()): the run's cancelled settle sends no cancel of its own. */
+    handOffStart: () => void;
 };
 
 /** A start a cancel left in flight (internal): the request, its input and the controller of its signal. */
 export type CancelledRemoteStart = {
+    /** The peer the start went to. */
+    peer: string;
     pending: Promise<{ runId: string }>;
     input: PeerStartInput;
     request: AbortController;
