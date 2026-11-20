@@ -16,18 +16,15 @@ import { transformSync } from '@swc/core';
 
 const packages = new URL('../../../', import.meta.url);
 
-const aliases: Record<string, string> = {
-    '@chamvi/core': 'core/src/index.ts',
-    '@chamvi/store-db': 'store-db/src/index.ts',
-    '@chamvi/chat-whatsapp': 'chat-whatsapp/src/index.ts',
-};
+// every workspace package entry from its sources, so no import needs a build
+const WORKSPACE_PACKAGE = /^@chamvi\/([a-z0-9-]+)$/;
 
 registerHooks({
     resolve(specifier, context, nextResolve) {
-        const target = aliases[specifier];
+        const match = WORKSPACE_PACKAGE.exec(specifier);
 
-        if (target) {
-            return { url: new URL(target, packages).href, shortCircuit: true };
+        if (match) {
+            return { url: new URL(`${match[1]}/src/index.ts`, packages).href, shortCircuit: true };
         }
 
         return nextResolve(specifier, context);
