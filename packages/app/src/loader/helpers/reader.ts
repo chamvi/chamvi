@@ -64,15 +64,38 @@ export function createPackageAliases(from: string): Record<string, string> {
         for (const subpath of exportedSubpaths(dir)) {
             const specifier = subpath === '.' ? name : `${name}${subpath.slice(1)}`;
 
-            try {
-                aliases[specifier] = resolveModuleSync(specifier, { parentURL: fromPath });
-            } catch {
-                // not resolvable with the import conditions (e.g. a require-only subpath): left to the reader
+            const resolved = resolvePinned(specifier, fromPath);
+
+            if (resolved !== undefined) {
+                aliases[specifier] = resolved;
             }
         }
     }
 
     return aliases;
+}
+
+/**
+ * The import conditions first, then `node, require`: an exported subpath
+ * without an alias would be rewritten through the package root's alias into
+ * a path below its entry file.
+ */
+function resolvePinned(specifier: string, parentURL: string): string | undefined {
+    try {
+        return resolveModuleSync(specifier, { parentURL });
+    } catch {
+        // not exported for import (e.g. a require-only subpath)
+    }
+
+    try {
+        return resolveModuleSync(specifier, {
+            parentURL,
+            conditions: ['node', 'require'],
+            defaultConditions: false,
+        });
+    } catch {
+        return undefined;
+    }
 }
 
 function nodeModulesPaths(start: string): string[] {

@@ -128,6 +128,24 @@ describe('the default module reader', () => {
         expect(Object.keys(aliases).some((key) => key.includes('*') || key.endsWith('/package.json'))).toBe(false);
     });
 
+    it('pins a require-only subpath of a pinned package, after the import conditions', async () => {
+        await writeTree(root.path, {
+            'app/src/main.ts': '',
+            'app/node_modules/@chamvi/fake/package.json': JSON.stringify({
+                name: '@chamvi/fake',
+                exports: { '.': { import: './index.mjs', require: './index.cjs' }, './legacy': { require: './legacy.cjs' } },
+            }),
+            'app/node_modules/@chamvi/fake/index.mjs': 'export const label = \'import\';\n',
+            'app/node_modules/@chamvi/fake/index.cjs': 'exports.label = \'require\';\n',
+            'app/node_modules/@chamvi/fake/legacy.cjs': 'exports.legacy = true;\n',
+        });
+
+        const aliases = createPackageAliases(join(root.path, 'app/src/main.ts'));
+
+        expect(aliases['@chamvi/fake']).toMatch(/index\.mjs$/);
+        expect(aliases['@chamvi/fake/legacy']).toMatch(/legacy\.cjs$/);
+    });
+
     it('a package from node_modules is the same instance as a native import', async () => {
         const pkg = join(root.path, 'node_modules', 'fake-registry');
 
