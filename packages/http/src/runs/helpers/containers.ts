@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { APPROVAL_OPTIONS_MAX, DISPATCH_DEPTH_MAX } from '@chamvi/core';
+import { APPROVAL_OPTIONS_MAX, DISPATCH_DEPTH_MAX, PEER_ORIGIN_MAX_LENGTH } from '@chamvi/core';
 import type { ArtifactInput } from '@chamvi/core';
 import { Container } from 'validup';
 import {
@@ -26,7 +26,6 @@ import {
     APPROVAL_REASON_MAX_LENGTH,
     ATTACHMENT_FILENAME_MAX_LENGTH,
     MAX_ATTACHMENTS,
-    PEER_ORIGIN_MAX_LENGTH,
 } from '../constants.ts';
 import type {
     ApproveBody,

@@ -206,6 +206,7 @@ export class EngineRunner implements IEngineRunner {
             pause: (request, usage) => this.ctx.pause(run, request, usage),
             onError: (error, failed) => this.ctx.onError(error, failed),
             detach: (work) => this.ctx.detach(work, run),
+            handOffStart: () => this.ctx.remote?.handOffStart(run.id),
         };
     }
 

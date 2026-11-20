@@ -8,7 +8,7 @@
 import { isObject } from 'smob';
 import { ValidationError } from '../../../errors/index.ts';
 import { REMOTE_OUTCOME_STATUSES } from '../constants.ts';
-import type { RemoteOutcome, RemoteStartRecord } from '../types.ts';
+import type { RemoteOutcome, RemoteStartAttempt, RemoteStartRecord } from '../types.ts';
 
 /** A stored `remote-start:` record (undefined for a malformed one). */
 export function readRemoteStartRecord(value: unknown): RemoteStartRecord | undefined {
@@ -19,6 +19,26 @@ export function readRemoteStartRecord(value: unknown): RemoteStartRecord | undef
     return {
         runId: value.runId,
         ...(typeof value.peer === 'string' ? { peer: value.peer } : {}),
+    };
+}
+
+/** The start attempt `remote-start:<runId>` holds while no answer is recorded; undefined for anything else. */
+export function readRemoteStartAttempt(value: unknown): RemoteStartAttempt | undefined {
+    const attempt = isObject(value) ? value.attempt : undefined;
+
+    if (
+        !isObject(attempt) ||
+        typeof attempt.peer !== 'string' ||
+        typeof attempt.agent !== 'string' ||
+        typeof attempt.role !== 'string'
+    ) {
+        return undefined;
+    }
+
+    return {
+        peer: attempt.peer, 
+        agent: attempt.agent, 
+        role: attempt.role, 
     };
 }
 

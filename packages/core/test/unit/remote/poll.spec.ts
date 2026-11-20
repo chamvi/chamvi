@@ -11,7 +11,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { PEER_REQUEST_TIMEOUT_MS } from '@chamvi/core';
+import { PEER_REQUEST_TIMEOUT_MS, ValidationError } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type { Invoker, Run } from '@chamvi/store';
@@ -299,6 +299,58 @@ describe('the stand-in run: poll, wake, timeout and cancel', () => {
         expect(peers.calls.read).toHaveLength(3);
         expect(errors.filter((error) => error === down)).toHaveLength(2);
         expect((await readRun(store, runId)).status).toBe(RunStatus.WAITING);
+    });
+
+    it('fails a stand-in whose remote run the peer refuses to show, and cancels it once', async () => {
+        const {
+            engine,
+            store,
+            clock,
+            peers,
+            errors,
+        } = setup();
+        const gone = new ValidationError('Peer "dev" answered 404 for run "r1".');
+
+        peers.script('start', { runId: 'r1' });
+        peers.script('read', rejectWith(gone));
+
+        const runId = await startStandIn(engine);
+
+        await tickIdle(engine);
+        clock.advance(POLL_MS);
+        await tickIdle(engine);
+
+        const run = await readRun(store, runId);
+
+        expect(run.status).toBe(RunStatus.FAILED);
+        expect(run.error).toEqual({ code: 'validation_error', message: gone.message });
+        expect(peers.calls.read).toHaveLength(1);
+        expect(peers.calls.cancel).toEqual([expect.objectContaining({ peer: 'dev', runId: 'r1' })]);
+        expect(errors).toEqual([]);
+    });
+
+    it('fails a stand-in whose peer reports a malformed usage', async () => {
+        const {
+            engine,
+            store,
+            peers,
+        } = setup();
+
+        peers.script('start', { runId: 'r1' });
+        peers.script('read', peerRunView('r1', {
+            status: 'completed',
+            usage: { inputTokens: -5_000, outputTokens: 0 },
+        }));
+
+        const runId = await startStandIn(engine);
+
+        await tickIdle(engine);
+
+        const run = await readRun(store, runId);
+
+        expect(run.status).toBe(RunStatus.FAILED);
+        expect(run.error?.code).toBe('validation_error');
+        expect(run.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
     });
 
     it('fails a stand-in at expiresAt with Timeout and cancels the remote run once', async () => {

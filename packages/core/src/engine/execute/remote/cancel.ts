@@ -6,18 +6,8 @@
  */
 
 import { ValidationError } from '../../../errors/index.ts';
-import { peerRequest } from '../../remote/helpers/index.ts';
+import { peerRequest, readRemoteStartAnswer } from '../../remote/helpers/index.ts';
 import type { CancelledRemoteStart, RemoteExecuteContext } from '../types.ts';
-
-/** The remote run id of a start answer; a ValidationError for an answer without one (a broken peer). */
-export function readRemoteStartAnswer(answer: { runId: string } | undefined, peer: string, runId: string): string {
-    if (typeof answer?.runId !== 'string' || answer.runId.length === 0) {
-        // a broken peer: a resend gets the same answer
-        throw new ValidationError(`Peer "${peer}" answered the start of run "${runId}" without a run id.`);
-    }
-
-    return answer.runId;
-}
 
 /**
  * Finishes, detached (`ctx.detach()`, so idle() and drain() account for

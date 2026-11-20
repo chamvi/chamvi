@@ -7,7 +7,9 @@
 
 import type { Run, Usage } from '@chamvi/store';
 import type { Agent } from '../../agent/types.ts';
+import type { IArtifactService } from '../../artifact/types.ts';
 import type { IChannel } from '../../channel/types.ts';
+import type { IClock } from '../../clock/types.ts';
 import type { IEffectService } from '../../effect/types.ts';
 import type { ILockService } from '../../lock/types.ts';
 import type { IPeerResolver } from '../../peer/types.ts';
@@ -35,6 +37,24 @@ export type RemoteStartRecord = {
     peer?: string;
 };
 
+/**
+ * What `remote-start:<runId>` holds before the first start is sent
+ * (internal): where it goes, so a cancel or the deadline can resend it under
+ * the same key and cancel the remote run a lost answer left unknown.
+ */
+export type RemoteStartAttempt = {
+    peer: string;
+    agent: string;
+    role: string;
+};
+
+/** What building and resending a remote start needs (cancelLostRemoteStart()). */
+export type RemoteStartSource = {
+    clock: IClock;
+    peers: IPeerResolver;
+    artifactService: Pick<IArtifactService, 'read'>;
+};
+
 /** What answerRemoteWait() needs from the engine. */
 export type RemoteAnswerContext = Pick<DispatchEngineContext, 'runService' | 'resume'>;
 
@@ -43,6 +63,8 @@ export type RemoteEngineContext = RemoteAnswerContext & Pick<DispatchEngineConte
     lockService: ILockService;
     effectService: IEffectService;
     peers: IPeerResolver;
+    /** Reads a stand-in's attachments when a lost start is resent (cancelLostRemoteStart()). */
+    artifactService: Pick<IArtifactService, 'read'>;
     /** The registered agent `name` (a remote agent's `approvals` destination). */
     getAgent(name: string): Agent | undefined;
     /** The registered channel `name` (the `approvals` destination's channel). */

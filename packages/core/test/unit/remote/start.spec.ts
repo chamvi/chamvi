@@ -13,6 +13,7 @@ import {
 } from 'vitest';
 import {
     InvalidAgentDefinitionError,
+    PEER_ORIGIN_MAX_LENGTH,
     PEER_REQUEST_TIMEOUT_MS,
     ValidationError,
     agent,
@@ -349,7 +350,8 @@ describe('the stand-in run: start', () => {
         let failures = 1;
 
         store.effectService.save = (key, value) => {
-            if (key.startsWith('remote-start:') && failures-- > 0) {
+            // the record of the answer, not the attempt written before the send
+            if (key.startsWith('remote-start:') && (value as { runId?: string }).runId !== undefined && failures-- > 0) {
                 return Promise.reject(broken);
             }
 
@@ -368,6 +370,42 @@ describe('the stand-in run: start', () => {
 
         expect(peers.calls.start.map((call) => call.input.idempotencyKey)).toEqual([runId, runId]);
         expect((await readRun(store, runId)).waiting).toMatchObject({ kind: 'remote', remoteRunId: 'r1' });
+    });
+
+    it('sends no start until the start attempt is written', async () => {
+        const {
+            engine,
+            store,
+            clock,
+            peers,
+            errors,
+        } = setup();
+        const broken = new Error('store down');
+        const save = store.effectService.save.bind(store.effectService);
+        let failures = 1;
+
+        store.effectService.save = (key, value) => {
+            if (key.startsWith('remote-start:') && failures-- > 0) {
+                return Promise.reject(broken);
+            }
+
+            return save(key, value);
+        };
+
+        const runId = await startStandIn(engine);
+
+        expect(peers.calls.start).toHaveLength(0);
+        expect(errors).toEqual([broken]);
+
+        // nothing was sent: a cancel now has no remote run to look for
+        await engine.cancel(runId);
+        clock.advance(120_000);
+        await engine.recover();
+        await engine.idle();
+
+        expect((await readRun(store, runId)).status).toBe(RunStatus.CANCELLED);
+        expect(peers.calls.start).toHaveLength(0);
+        expect(peers.calls.cancel).toHaveLength(0);
     });
 
     it('re-pauses without a second start when the pause write fails', async () => {
@@ -642,7 +680,7 @@ describe('the stand-in run: start', () => {
         expect(run.waiting?.expiresAt).toEqual(new Date(REMOTE_START.getTime() + 3_600_000));
     });
 
-    it('fails with Timeout instead of retrying a start past the remote deadline', async () => {
+    it('fails with Timeout past the remote deadline and cancels the remote run a lost start created', async () => {
         const {
             engine,
             store,
@@ -652,7 +690,7 @@ describe('the stand-in run: start', () => {
         } = setup({ developer: { timeoutMs: 100_000 }, engine: { claimTtlMs: 150_000 } });
         const down = new Error('down');
 
-        peers.script('start', rejectWith(down));
+        peers.script('start', rejectWith(down), { runId: 'r1' });
 
         const runId = await startStandIn(engine);
 
@@ -666,7 +704,80 @@ describe('the stand-in run: start', () => {
 
         expect(run.status).toBe(RunStatus.FAILED);
         expect(run.error?.code).toBe('Timeout');
-        expect(peers.calls.start).toHaveLength(1);
+        // one resend under the same key learns the run the lost start may have created, then cancels it
+        expect(peers.calls.start).toHaveLength(2);
+        expect(peers.calls.start[1]!.input).toEqual(peers.calls.start[0]!.input);
+        expect(peers.calls.cancel).toEqual([expect.objectContaining({ peer: 'dev', runId: 'r1' })]);
+        expect(errors).toEqual([down]);
+    });
+
+    it('cancels the remote run a lost start created when the stand-in is cancelled before the retry', async () => {
+        const {
+            engine,
+            store,
+            clock,
+            peers,
+            errors,
+        } = setup();
+        const lost = new Error('socket hang up');
+
+        peers.script('start', rejectWith(lost), { runId: 'r1' });
+
+        const runId = await startStandIn(engine);
+
+        expect((await readRun(store, runId)).status).toBe(RunStatus.RUNNING);
+
+        await engine.cancel(runId);
+        clock.advance(120_000);
+        await engine.recover();
+        await engine.idle();
+
+        expect((await readRun(store, runId)).status).toBe(RunStatus.CANCELLED);
+        expect(peers.calls.start).toHaveLength(2);
+        expect(peers.calls.start[1]!.input).toEqual(peers.calls.start[0]!.input);
+        expect(peers.calls.cancel).toEqual([expect.objectContaining({ peer: 'dev', runId: 'r1' })]);
+        expect(errors).toEqual([lost]);
+    });
+
+    it('sends no start and no cancel for a stand-in cancelled before its start', async () => {
+        const {
+            engine,
+            store,
+            peers,
+        } = setup();
+
+        const { runId } = await engine.dispatch({
+            agent: 'developer',
+            trigger: 'test',
+            channel: 'test',
+            payload: { task: 'upgrade' },
+        });
+
+        await engine.cancel(runId);
+        await engine.idle();
+
+        expect((await readRun(store, runId)).status).toBe(RunStatus.CANCELLED);
+        expect(peers.calls.start).toHaveLength(0);
+        expect(peers.calls.cancel).toHaveLength(0);
+    });
+
+    it('cuts the origin to the length a peer accepts', async () => {
+        const { engine, peers } = setup();
+
+        await startStandIn(engine, {
+            invoker: {
+                id: 'u1',
+                kind: 'user',
+                name: `${'a'.repeat(127)}\u{1F600}`,
+                bindings: [],
+            },
+        });
+
+        const { origin } = peers.calls.start[0]!.input.peer;
+
+        expect(origin).toHaveLength(PEER_ORIGIN_MAX_LENGTH);
+        expect(origin!.isWellFormed()).toBe(true);
+        expect(origin!.startsWith('a'.repeat(127))).toBe(true);
     });
 });
 

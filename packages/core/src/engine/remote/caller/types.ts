@@ -24,4 +24,6 @@ export interface IEngineRemote {
     wake(runId: string, invoker: Invoker | undefined): Promise<WakeOutcome | undefined>;
     /** A stand-in that settled `cancelled` passes the cancel on to its remote run (detached, best effort). */
     cancelSettled(run: Run): void;
+    /** The in-flight start of stand-in `runId` finishes detached and cancels its remote run: its cancelled settle sends nothing. */
+    handOffStart(runId: string): void;
 }

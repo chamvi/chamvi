@@ -72,7 +72,7 @@ export type EngineRunnerContext = Pick<
     guard: Pick<IEngineStartGuard, 'isCurrent' | 'replacedSince' | 'isStale'>;
     /** The checked-run fence, by run id (shared with intake, cancel and the start guard). */
     checkedRuns: Map<string, Agent>;
-    remote?: Pick<IEngineRemote, 'cancelSettled'>;
+    remote?: Pick<IEngineRemote, 'cancelSettled' | 'handOffStart'>;
     peerReceiver?: Pick<IEnginePeerReceiver, 'onRunEvent'>;
     /** Pauses a running run on a wait point. */
     pause(run: Run, request: SuspendRequest, usage: Usage): Promise<void>;

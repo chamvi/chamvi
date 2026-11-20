@@ -278,6 +278,7 @@ describe('public api', () => {
     it('exports the remote agent and peer api', () => {
         expect(core.REMOTE_TIMEOUT_DEFAULT_MS).toBe(86_400_000);
         expect(core.PEER_REQUEST_TIMEOUT_MS).toBe(30_000);
+        expect(core.PEER_ORIGIN_MAX_LENGTH).toBe(128);
         expect(core.ErrorCode.REMOTE_FAILED).toBe('remote_failed');
         expect(core.ErrorCode.PEER_START_BUSY).toBe('peer_start_busy');
         expect(new core.PeerStartBusyError('dev', 'r1').code).toBe('peer_start_busy');
