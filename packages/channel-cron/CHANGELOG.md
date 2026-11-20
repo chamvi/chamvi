@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.10.0](https://github.com/chamvi/chamvi/compare/v0.9.0...v0.10.0) (2026-11-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* issue lock fencing tokens and harden knowledge passes ([#259](https://github.com/chamvi/chamvi/issues/259))
+
+### Features
+
+* issue lock fencing tokens and harden knowledge passes ([#259](https://github.com/chamvi/chamvi/issues/259)) ([52384cd](https://github.com/chamvi/chamvi/commit/52384cdb36e3029935e2b773dd0858993adf5056))
+
+
+### Bug Fixes
+
+* **deps:** bump the minorandpatch group across 1 directory with 34 updates ([#258](https://github.com/chamvi/chamvi/issues/258)) ([50866c4](https://github.com/chamvi/chamvi/commit/50866c4e5bab2152f8e6cf7c84ba80ca17833689))
+* remote agent follow-ups and findOneBy bind limit splitting ([#276](https://github.com/chamvi/chamvi/issues/276)) ([dbdc213](https://github.com/chamvi/chamvi/commit/dbdc2138479ae1e04240f01d8f611515c7dec221))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/core bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/store bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/store-memory bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/test-kit bumped from ^0.9.0 to ^0.10.0
+  * peerDependencies
+    * @chamvi/core bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/store bumped from ^0.9.0 to ^0.10.0
+
 ## [0.9.0](https://github.com/chamvi/chamvi/compare/v0.8.0...v0.9.0) (2026-11-18)
 
 

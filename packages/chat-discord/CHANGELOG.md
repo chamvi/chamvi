@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.10.0](https://github.com/chamvi/chamvi/compare/v0.9.0...v0.10.0) (2026-11-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* identify connection rows by generation and refuse stale saves ([#243](https://github.com/chamvi/chamvi/issues/243))
+
+### Features
+
+* identify connection rows by generation and refuse stale saves ([#243](https://github.com/chamvi/chamvi/issues/243)) ([5f14b6c](https://github.com/chamvi/chamvi/commit/5f14b6c564227231fefe62eb154fbb2e69bffb22))
+
+
+### Bug Fixes
+
+* **deps:** bump the minorandpatch group across 1 directory with 34 updates ([#258](https://github.com/chamvi/chamvi/issues/258)) ([50866c4](https://github.com/chamvi/chamvi/commit/50866c4e5bab2152f8e6cf7c84ba80ca17833689))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/app bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/channel-cron bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/chat bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/core bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/store bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/store-memory bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/test-kit bumped from ^0.9.0 to ^0.10.0
+  * peerDependencies
+    * @chamvi/app bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/chat bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/core bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/store bumped from ^0.9.0 to ^0.10.0
+
 ## [0.9.0](https://github.com/chamvi/chamvi/compare/v0.8.0...v0.9.0) (2026-11-18)
 
 

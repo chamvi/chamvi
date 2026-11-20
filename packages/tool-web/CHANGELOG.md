@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.10.0](https://github.com/chamvi/chamvi/compare/v0.9.0...v0.10.0) (2026-11-20)
+
+
+### Features
+
+* **core:** run remote agents as stand-in runs ([#250](https://github.com/chamvi/chamvi/issues/250)) ([4cfc60e](https://github.com/chamvi/chamvi/commit/4cfc60e7556afbc11622c5c907622a7564a33d4c))
+
+
+### Bug Fixes
+
+* **deps:** bump the minorandpatch group across 1 directory with 34 updates ([#258](https://github.com/chamvi/chamvi/issues/258)) ([50866c4](https://github.com/chamvi/chamvi/commit/50866c4e5bab2152f8e6cf7c84ba80ca17833689))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/core bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/http bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/test-kit bumped from ^0.9.0 to ^0.10.0
+  * peerDependencies
+    * @chamvi/core bumped from ^0.9.0 to ^0.10.0
+
 ## [0.9.0](https://github.com/chamvi/chamvi/compare/v0.8.0...v0.9.0) (2026-11-18)
 
 

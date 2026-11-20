@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.10.0](https://github.com/chamvi/chamvi/compare/v0.9.0...v0.10.0) (2026-11-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* issue lock fencing tokens and harden knowledge passes ([#259](https://github.com/chamvi/chamvi/issues/259))
+* identify connection rows by generation and refuse stale saves ([#243](https://github.com/chamvi/chamvi/issues/243))
+
+### Features
+
+* **core:** run remote agents as stand-in runs ([#250](https://github.com/chamvi/chamvi/issues/250)) ([4cfc60e](https://github.com/chamvi/chamvi/commit/4cfc60e7556afbc11622c5c907622a7564a33d4c))
+* identify connection rows by generation and refuse stale saves ([#243](https://github.com/chamvi/chamvi/issues/243)) ([5f14b6c](https://github.com/chamvi/chamvi/commit/5f14b6c564227231fefe62eb154fbb2e69bffb22))
+* issue lock fencing tokens and harden knowledge passes ([#259](https://github.com/chamvi/chamvi/issues/259)) ([52384cd](https://github.com/chamvi/chamvi/commit/52384cdb36e3029935e2b773dd0858993adf5056))
+* **peer:** connect chamvi apps as peers ([#251](https://github.com/chamvi/chamvi/issues/251)) ([98d539b](https://github.com/chamvi/chamvi/commit/98d539b6d598ddb631406c3c7f441430a6a74abe))
+
+
+### Bug Fixes
+
+* **core:** cancel lost remote starts, validate peer views and fail refused polls ([#277](https://github.com/chamvi/chamvi/issues/277)) ([ee33360](https://github.com/chamvi/chamvi/commit/ee333605660b92d4c72befc9a223a2c91a21f67f))
+* **deps:** bump authup to 1.0.0-beta.76 ([#244](https://github.com/chamvi/chamvi/issues/244)) ([4a04438](https://github.com/chamvi/chamvi/commit/4a04438a9cda88bfbd37ae07ad5eedc3f566b25f))
+* **deps:** bump the minorandpatch group across 1 directory with 34 updates ([#258](https://github.com/chamvi/chamvi/issues/258)) ([50866c4](https://github.com/chamvi/chamvi/commit/50866c4e5bab2152f8e6cf7c84ba80ca17833689))
+* remote agent follow-ups and findOneBy bind limit splitting ([#276](https://github.com/chamvi/chamvi/issues/276)) ([dbdc213](https://github.com/chamvi/chamvi/commit/dbdc2138479ae1e04240f01d8f611515c7dec221))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @chamvi/access bumped from ^0.9.0 to ^0.10.0
+  * devDependencies
+    * @chamvi/core bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/store bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/store-memory bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/test-kit bumped from ^0.9.0 to ^0.10.0
+  * peerDependencies
+    * @chamvi/core bumped from ^0.9.0 to ^0.10.0
+    * @chamvi/store bumped from ^0.9.0 to ^0.10.0
+
 ## [0.9.0](https://github.com/chamvi/chamvi/compare/v0.8.0...v0.9.0) (2026-11-18)
 
 
