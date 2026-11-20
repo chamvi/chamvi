@@ -6,8 +6,8 @@
  */
 
 /*
- * Tailwind v4 entry and design tokens ("Glacier": a light sky on deep navy,
- * a deeper sky on blue-tinted white in light mode). See .agents/design.md.
+ * Tailwind v4 entry and design tokens ("Cobalt": one saturated cobalt on
+ * near-neutral graphite, a lighter cobalt in dark mode). See .agents/design.md.
  *
  * VitePress ships its base and doc styles unlayered, so they would win over
  * every Tailwind utility. The landing page and the footer therefore render
@@ -55,46 +55,46 @@
 
 @layer base {
     :root {
-        --ch-font-display: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
+        --ch-font-display: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
 
-        --ch-hero-bg: #eef5fa;
+        --ch-hero-bg: #f4f5f8;
         --ch-paper: #ffffff;
-        --ch-ink: #0b2233;
-        --ch-muted: #4a5e6d;
-        --ch-line: #dce6ee;
-        --ch-chip: #e9f1f7;
-        --ch-accent: #1479b0;
-        --ch-accent-text: #0b5e8c;
+        --ch-ink: #121419;
+        --ch-muted: #555b67;
+        --ch-line: #e2e4ea;
+        --ch-chip: #eef0f4;
+        --ch-accent: #2f55e4;
+        --ch-accent-text: #2243c2;
 
         /* Primary buttons keep the light accent in dark mode too: white text
-         * on #9ad8f5 is only 1.6:1, on #1479b0 4.8:1. */
-        --ch-button-bg: #1479b0;
+         * on #7f9cff is only 2.6:1, on #2f55e4 5.9:1. */
+        --ch-button-bg: #2f55e4;
 
         /* Fixed-dark: the footer and code blocks stay dark in light mode too. */
-        --ch-night-bg: #0a1620;
-        --ch-night-fg: #e2f0f8;
-        --ch-night-muted: #9db2c2;
-        --ch-night-line: #1e3242;
+        --ch-night-bg: #0c0d10;
+        --ch-night-fg: #ececf0;
+        --ch-night-muted: #9a9fab;
+        --ch-night-line: #25282f;
 
-        --ch-code-bg: #0a1620;
-        --ch-code-ink: #dce9f2;
-        --ch-code-line: #1e3242;
+        --ch-code-bg: #0c0d10;
+        --ch-code-ink: #e3e5ea;
+        --ch-code-line: #25282f;
 
         --ch-radius: 4px;
     }
 
     .dark {
-        --ch-hero-bg: #0a1620;
-        --ch-paper: #0e1d28;
-        --ch-ink: #e2f0f8;
-        --ch-muted: #9db2c2;
-        --ch-line: #1e3242;
-        --ch-chip: #172a38;
-        --ch-accent: #9ad8f5;
-        --ch-accent-text: #b5e3f8;
+        --ch-hero-bg: #0c0d10;
+        --ch-paper: #121418;
+        --ch-ink: #ececf0;
+        --ch-muted: #9a9fab;
+        --ch-line: #25282f;
+        --ch-chip: #1c1f25;
+        --ch-accent: #7f9cff;
+        --ch-accent-text: #a9bcff;
 
-        --ch-code-bg: #06111a;
-        --ch-code-line: #172a38;
+        --ch-code-bg: #08090b;
+        --ch-code-line: #1c1f25;
     }
 
     /* Tailwind's preflight resets headings; keep them tight inside `.vp-raw`. */
@@ -136,14 +136,14 @@
     .ch-display {
         font-family: var(--ch-font-display);
         font-weight: 600;
-        letter-spacing: -0.015em;
+        letter-spacing: -0.03em;
     }
 
     .ch-heading {
         @apply m-0 text-3xl leading-[1.1] md:text-[2.5rem];
         font-family: var(--ch-font-display);
         font-weight: 600;
-        letter-spacing: -0.015em;
+        letter-spacing: -0.03em;
         color: var(--ch-ink);
     }
 
@@ -244,8 +244,8 @@
  */
 
 :root {
-    --vp-font-family-base: "Instrument Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    --vp-font-family-mono: "JetBrains Mono Variable", ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
+    --vp-font-family-base: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --vp-font-family-mono: "Geist Mono Variable", ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
 
     --vp-c-bg: var(--ch-paper);
     --vp-c-bg-alt: var(--ch-hero-bg);
@@ -279,13 +279,13 @@
     --vp-code-block-bg: var(--ch-code-bg);
     --vp-code-block-color: var(--ch-code-ink);
     --vp-code-block-divider-color: var(--ch-code-line);
-    --vp-code-lang-color: #7f95a6;
+    --vp-code-lang-color: #80858f;
     --vp-code-line-highlight-color: rgb(255 255 255 / 0.06);
-    --vp-code-line-number-color: #7f95a6;
+    --vp-code-line-number-color: #80858f;
     --vp-code-copy-code-border-color: var(--ch-night-line);
-    --vp-code-copy-code-bg: #172a38;
-    --vp-code-copy-code-hover-border-color: #2d4558;
-    --vp-code-copy-code-hover-bg: #172a38;
+    --vp-code-copy-code-bg: #1c1f25;
+    --vp-code-copy-code-hover-border-color: #353943;
+    --vp-code-copy-code-hover-bg: #1c1f25;
     --vp-code-copy-code-active-text: var(--ch-night-muted);
     --vp-code-tab-divider: var(--ch-code-line);
     --vp-code-tab-text-color: var(--ch-night-muted);
@@ -295,10 +295,10 @@
 }
 
 .dark {
-    --vp-c-text-3: #7f95a6;
+    --vp-c-text-3: #80858f;
 }
 
-/* JetBrains Mono would draw `=>` and `!==` as ligatures; samples should show what to type. */
+/* Geist Mono would draw `=>` and `!==` as ligatures; samples should show what to type. */
 pre,
 code {
     font-variant-ligatures: none;
@@ -309,7 +309,7 @@ code {
 .vp-doc h2 {
     font-family: var(--ch-font-display);
     font-weight: 600;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.03em;
 }
 
 /* 4px radius on the default theme's rounded chrome. */

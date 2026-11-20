@@ -11,20 +11,20 @@
  * dark mode. The colors are the `code` tokens of the site palette.
  */
 
-const INK = '#dce9f2';
-const KEYWORD = '#8fd0f2';
+const INK = '#e3e5ea';
+const KEYWORD = '#8ea7ff';
 const STRING = '#e7c58c';
-const COMMENT = '#7f95a6';
+const COMMENT = '#80858f';
 
 export const chamviCodeTheme = {
     name: 'chamvi',
     type: 'dark' as const,
     colors: {
-        'editor.background': '#0a1620',
+        'editor.background': '#0c0d10',
         'editor.foreground': INK,
     },
     fg: INK,
-    bg: '#0a1620',
+    bg: '#0c0d10',
     tokenColors: [
         {
             scope: ['comment', 'punctuation.definition.comment'],

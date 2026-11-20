@@ -18,8 +18,8 @@
 @import "@vuecs/table";
 
 /* self-hosted variable fonts, bundled by Vite (CSP font-src 'self'); one file covers every weight */
-@import "@fontsource-variable/instrument-sans/wght.css";
-@import "@fontsource-variable/jetbrains-mono/wght.css";
+@import "@fontsource-variable/geist/wght.css";
+@import "@fontsource-variable/geist-mono/wght.css";
 
 /* keep the class names the theme emits */
 @source "../node_modules/@vuecs";
@@ -37,11 +37,11 @@
  * theme's utilities and the vc-* structural rules.
  */
 
-/* ---------- Glacier tokens (see .agents/design.md) ---------- */
+/* ---------- Cobalt tokens (see .agents/design.md) ---------- */
 :root {
-    --ch-font-display: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
-    --ch-font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-    --ch-font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --ch-font-display: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+    --ch-font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --ch-font-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
     --ch-radius-chip: 1px;
     --ch-radius-sm: 4px;
@@ -49,27 +49,27 @@
     --ch-radius-lg: 9px;
     --ch-radius-canvas: 12px;
 
-    --ch-bg: #edf2f6;
-    --ch-canvas: #f8fafc;
+    --ch-bg: #eef0f4;
+    --ch-canvas: #f8f9fb;
     --ch-surface: #ffffff;
-    --ch-sunken: #f3f6f9;
-    --ch-hover: #eef3f7;
-    --ch-line: #dde6ed;
-    --ch-line-strong: #c3d1dc;
+    --ch-sunken: #f3f4f7;
+    --ch-hover: #eceef3;
+    --ch-line: #e2e4ea;
+    --ch-line-strong: #c9cdd6;
     /* form-control boundary, at least 3:1 on surface and sunken (WCAG 1.4.11) */
-    --ch-field-line: #7f8e9a;
-    --ch-ink: #0b2233;
-    --ch-muted: #4c606f;
-    --ch-accent: #1479b0;
-    --ch-btn: #1479b0;
-    --ch-btn-hover: #0b5e8c;
+    --ch-field-line: #858b97;
+    --ch-ink: #121419;
+    --ch-muted: #555b67;
+    --ch-accent: #2f55e4;
+    --ch-btn: #2f55e4;
+    --ch-btn-hover: #2243c2;
     --ch-btn-ink: #ffffff;
-    --ch-accent-text: #0b5e8c;
-    --ch-accent-tint: #e6f3fb;
-    --ch-logo: #4db3e6;
-    --ch-logo-seal: #e6f4fb;
-    --ch-run: #0b5e8c;
-    --ch-run-tint: #e3f2fb;
+    --ch-accent-text: #2243c2;
+    --ch-accent-tint: #eaeefd;
+    --ch-logo: #4a6ff0;
+    --ch-logo-seal: #eef2fe;
+    --ch-run: #2243c2;
+    --ch-run-tint: #e8edfd;
     --ch-wait: #875700;
     --ch-wait-tint: #fbf3e1;
     --ch-ok: #2a7348;
@@ -77,41 +77,41 @@
     --ch-fail: #c1272d;
     --ch-fail-ink: #ffffff;
     --ch-fail-tint: #fde8e8;
-    --ch-code-bg: #0a1620;
-    --ch-code-ink: #dce9f2;
-    --ch-code-key: #8fd0f2;
+    --ch-code-bg: #0c0d10;
+    --ch-code-ink: #e3e5ea;
+    --ch-code-key: #8ea7ff;
     --ch-code-str: #e7c58c;
-    --ch-code-com: #8aa0b0;
-    --ch-code-line: #1a2e3d;
-    --ch-shadow-c: rgba(11, 34, 51, 0.07);
-    --ch-shadow-c2: rgba(11, 34, 51, 0.14);
+    --ch-code-com: #8a8f9a;
+    --ch-code-line: #1f2228;
+    --ch-shadow-c: rgba(18, 20, 25, 0.07);
+    --ch-shadow-c2: rgba(18, 20, 25, 0.14);
     --ch-highlight: rgba(255, 255, 255, 0.7);
-    --ch-scrim: rgba(6, 17, 26, 0.45);
+    --ch-scrim: rgba(8, 9, 11, 0.45);
 
     color-scheme: light;
 }
 
 .dark {
-    --ch-bg: #071119;
-    --ch-canvas: #0a1620;
-    --ch-surface: #0e1d28;
-    --ch-sunken: #08141d;
-    --ch-hover: #132634;
-    --ch-line: #1e3242;
-    --ch-line-strong: #2b4559;
-    --ch-field-line: #5f7a8c;
-    --ch-ink: #e2f0f8;
-    --ch-muted: #9db2c2;
-    --ch-accent: #9ad8f5;
-    --ch-btn: #1479b0;
-    --ch-btn-hover: #0f72a8;
+    --ch-bg: #08090b;
+    --ch-canvas: #0c0d10;
+    --ch-surface: #121418;
+    --ch-sunken: #0a0b0e;
+    --ch-hover: #1a1d22;
+    --ch-line: #25282f;
+    --ch-line-strong: #353943;
+    --ch-field-line: #6b717d;
+    --ch-ink: #ececf0;
+    --ch-muted: #9a9fab;
+    --ch-accent: #7f9cff;
+    --ch-btn: #2f55e4;
+    --ch-btn-hover: #2a4ed8;
     --ch-btn-ink: #ffffff;
-    --ch-accent-text: #b5e3f8;
-    --ch-accent-tint: #10293a;
-    --ch-logo: #9ad8f5;
-    --ch-logo-seal: #0e1d28;
-    --ch-run: #9ad8f5;
-    --ch-run-tint: #10293a;
+    --ch-accent-text: #a9bcff;
+    --ch-accent-tint: #18203d;
+    --ch-logo: #7f9cff;
+    --ch-logo-seal: #121418;
+    --ch-run: #7f9cff;
+    --ch-run-tint: #18203d;
     --ch-wait: #eac27c;
     --ch-wait-tint: #2c2416;
     --ch-ok: #6fc493;
@@ -119,12 +119,12 @@
     --ch-fail: #d23a3f;
     --ch-fail-ink: #ffffff;
     --ch-fail-tint: #3a1719;
-    --ch-code-bg: #050e15;
-    --ch-code-ink: #dce9f2;
-    --ch-code-key: #8fd0f2;
+    --ch-code-bg: #08090b;
+    --ch-code-ink: #e3e5ea;
+    --ch-code-key: #8ea7ff;
     --ch-code-str: #e7c58c;
-    --ch-code-com: #8aa0b0;
-    --ch-code-line: #12222f;
+    --ch-code-com: #8a8f9a;
+    --ch-code-line: #17191d;
     --ch-shadow-c: rgba(0, 0, 0, 0.35);
     --ch-shadow-c2: rgba(0, 0, 0, 0.55);
     --ch-highlight: rgba(255, 255, 255, 0.045);
@@ -141,17 +141,17 @@
     --ch-btn-sheen: color-mix(in srgb, var(--ch-btn-ink) 16%, transparent);
 
     /* vuecs tokens: the components (toasts, dialogs, pagination) follow the same palette */
-    --vc-color-primary-50: #f1f8fd;
-    --vc-color-primary-100: #e1f1fa;
-    --vc-color-primary-200: #c3e4f6;
-    --vc-color-primary-300: #97d0ef;
-    --vc-color-primary-400: #5bb4e3;
-    --vc-color-primary-500: #2a9ad3;
-    --vc-color-primary-600: #1479b0;
-    --vc-color-primary-700: #0b5e8c;
-    --vc-color-primary-800: #0c5079;
-    --vc-color-primary-900: #0d4262;
-    --vc-color-primary-950: #062a3e;
+    --vc-color-primary-50: #f0f3fe;
+    --vc-color-primary-100: #e1e8fd;
+    --vc-color-primary-200: #c6d2fb;
+    --vc-color-primary-300: #9fb3f8;
+    --vc-color-primary-400: #6f8cf3;
+    --vc-color-primary-500: #4a6ff0;
+    --vc-color-primary-600: #2f55e4;
+    --vc-color-primary-700: #2243c2;
+    --vc-color-primary-800: #1f3a9c;
+    --vc-color-primary-900: #1e347b;
+    --vc-color-primary-950: #141f4a;
     --vc-color-on-primary: #ffffff;
     --vc-color-bg: var(--ch-surface);
     --vc-color-bg-muted: var(--ch-sunken);
@@ -180,7 +180,7 @@ body {
 }
 h1, h2, h3 { margin: 0; line-height: 1.15; text-wrap: balance; }
 p { margin: 0; }
-.display { font-family: var(--ch-font-display); font-weight: 600; letter-spacing: -0.015em; }
+.display { font-family: var(--ch-font-display); font-weight: 600; letter-spacing: -0.03em; }
 .mono { font-family: var(--ch-font-mono); }
 .muted { color: var(--ch-muted); }
 .tnum { font-variant-numeric: tabular-nums; }
@@ -301,7 +301,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ---------- app shell ---------- */
 .app { min-height: 100vh; }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--ch-ink); }
-.brand span { font-family: var(--ch-font-display); font-weight: 600; font-size: 20px; letter-spacing: -0.015em; }
+.brand span { font-family: var(--ch-font-display); font-weight: 600; font-size: 20px; letter-spacing: -0.03em; }
 .logo { width: 26px; height: 26px; flex: none; }
 .logo .seal { fill: var(--ch-logo-seal); stroke: var(--ch-logo); stroke-width: 10; stroke-linejoin: round; }
 .logo .chamber { fill: var(--ch-logo); fill-opacity: .35; }
@@ -364,7 +364,7 @@ button.nav-item { width: 100%; background: none; font: inherit; text-align: left
 .page-head-main { display: grid; gap: 8px; min-width: 0; }
 .crumbs { display: flex; align-items: center; gap: 6px; font: 400 12px/1 var(--ch-font-mono); color: var(--ch-muted); }
 .crumbs i { font-style: normal; opacity: .5; }
-.page-head h1 { font-size: 34px; letter-spacing: -0.015em; }
+.page-head h1 { font-size: 34px; letter-spacing: -0.03em; }
 .page-head p { color: var(--ch-muted); max-width: 62ch; font-size: 14.5px; }
 .page-head-aside { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
@@ -395,7 +395,7 @@ button.nav-item { width: 100%; background: none; font: inherit; text-align: left
 .stat { padding: 14px 16px 15px; display: grid; gap: 6px; min-width: 0; }
 .stat small { display: flex; align-items: center; gap: 7px; font: 500 10.5px/1.2 var(--ch-font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ch-muted); }
 .stat small::before { content: ""; width: 7px; height: 7px; background: var(--c, var(--ch-line-strong)); }
-.stat b { font-family: var(--ch-font-display); font-weight: 600; font-size: 30px; letter-spacing: -0.015em; line-height: 1; font-variant-numeric: tabular-nums; }
+.stat b { font-family: var(--ch-font-display); font-weight: 600; font-size: 30px; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
 .stat span { font-size: 12.5px; color: var(--ch-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stat-run { --c: var(--ch-run); }
 .stat-wait { --c: var(--ch-wait); }
@@ -471,7 +471,7 @@ table.t { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 
 .run-head { display: grid; margin-bottom: 26px; overflow: hidden; }
 .run-head-top { padding: 20px 22px 18px; display: grid; gap: 14px; }
 .run-title { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
-.run-title h1 { font-size: 30px; letter-spacing: -0.015em; }
+.run-title h1 { font-size: 30px; letter-spacing: -0.03em; }
 .run-title h1 .mono { font-family: var(--ch-font-mono); font-weight: 500; font-size: 24px; letter-spacing: -0.02em; color: var(--ch-muted); }
 .run-title > .btn { margin-left: auto; }
 .facts { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0; }
@@ -646,7 +646,7 @@ tr.expansion td { background: var(--ch-sunken); padding: 12px 14px; cursor: defa
 .sched-top span { font: 400 11.5px var(--ch-font-mono); color: var(--ch-muted); overflow-wrap: anywhere; }
 .sched-expr { padding: 10px 18px 0; display: grid; gap: 8px; justify-items: start; font-size: 13px; color: var(--ch-muted); }
 .sched-next { padding: 18px 18px 16px; display: grid; gap: 6px; }
-.sched-next b, .sched-next .countdown { font: 600 32px/1 var(--ch-font-display); letter-spacing: -0.015em; font-variant-numeric: tabular-nums; color: var(--ch-ink); }
+.sched-next b, .sched-next .countdown { font: 600 32px/1 var(--ch-font-display); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--ch-ink); }
 .sched-next > span { font-size: 12.5px; color: var(--ch-muted); }
 .sched-foot { display: grid; gap: 8px; padding: 11px 18px; background: var(--ch-sunken); border-top: 1px solid var(--ch-line); font-size: 12.5px; color: var(--ch-muted); }
 .sched-foot b { color: var(--ch-ink); font-weight: 500; font-family: var(--ch-font-mono); font-size: 12px; }
@@ -669,7 +669,7 @@ tr.expansion td { background: var(--ch-sunken); padding: 12px 14px; cursor: defa
 .card-link::after { content: ''; position: absolute; inset: 0; }
 .agent-card .last-row .id { position: relative; z-index: 1; }
 .agent-top { padding: 16px 18px 0; display: flex; align-items: center; gap: 10px; min-width: 0; }
-.agent-top h2 { font-size: 21px; letter-spacing: -0.015em; overflow-wrap: anywhere; }
+.agent-top h2 { font-size: 21px; letter-spacing: -0.03em; overflow-wrap: anywhere; }
 .agent-top svg { margin-left: auto; width: 15px; height: 15px; stroke: var(--ch-muted); fill: none; stroke-width: 1.8; flex: none; transition: transform .12s, stroke .12s; }
 .agent-card:hover .agent-top svg { transform: translateX(2px); stroke: var(--ch-accent); }
 .agent-card .trigs { padding: 10px 18px 0; }
@@ -677,7 +677,7 @@ tr.expansion td { background: var(--ch-sunken); padding: 12px 14px; cursor: defa
 .nums > div { display: grid; gap: 3px; padding: 8px 10px 9px; min-width: 0; }
 .nums > div + div { border-left: 1px solid var(--ch-line); }
 .nums small { font: 500 9.5px/1.2 var(--ch-font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ch-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nums b { font: 600 19px/1.1 var(--ch-font-display); letter-spacing: -0.015em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nums b { font: 600 19px/1.1 var(--ch-font-display); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .nums b.mono, .nums .countdown { font: 500 14px/1.45 var(--ch-font-mono); letter-spacing: 0; color: var(--ch-ink); }
 .nums .n-run b { color: var(--ch-run); }
 .nums .n-wait b { color: var(--ch-wait); }
@@ -760,7 +760,7 @@ a.aprow:focus-visible { box-shadow: inset 3px 0 0 var(--ch-wait), inset 0 0 0 2p
 }
 .login-wrap { position: relative; width: 100%; max-width: 410px; display: grid; gap: 14px; }
 .login-card { padding: 30px; display: grid; gap: 18px; box-shadow: var(--ch-shadow-3), inset 0 1px 0 var(--ch-highlight); }
-.login-card h1 { font-size: 30px; letter-spacing: -0.015em; margin-top: 8px; }
+.login-card h1 { font-size: 30px; letter-spacing: -0.03em; margin-top: 8px; }
 .login-card .brand { margin-bottom: 4px; }
 .login-card form { display: grid; gap: 18px; }
 .or { display: flex; align-items: center; gap: 10px; color: var(--ch-muted); font: 400 11px var(--ch-font-mono); text-transform: uppercase; letter-spacing: .12em; }

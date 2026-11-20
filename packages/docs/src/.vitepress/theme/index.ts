@@ -9,9 +9,9 @@ import type { Theme } from 'vitepress';
 import DefaultTheme from 'vitepress/theme';
 import Layout from './Layout.vue';
 
-import '@fontsource-variable/instrument-sans/wght.css';
-import '@fontsource-variable/instrument-sans/wght-italic.css';
-import '@fontsource-variable/jetbrains-mono/wght.css';
+import '@fontsource-variable/geist/wght.css';
+import '@fontsource-variable/geist/wght-italic.css';
+import '@fontsource-variable/geist-mono/wght.css';
 import './style.css';
 
 export default {

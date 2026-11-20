@@ -1,0 +1,107 @@
+<svg width="960" height="400" viewBox="0 0 960 400" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="rl-title rl-desc">
+    <title id="rl-title">How a chamvi run moves through its statuses</title>
+    <style>
+        :root {
+            --fg: #E2F0F8;
+            --muted: #9DB2C2;
+            --panel: #0A1620;
+            --panel-edge: #1E3242;
+            --card: #0E1D28;
+            --rail: #5F7A8C;
+            --accent: #9AD8F5;
+            --settled: #6FBF8B;
+            --waiting: #E7C58C;
+            --interrupted: #9DB2C2;
+        }
+        text { font-family: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; fill: var(--fg); }
+        .muted { fill: var(--muted); }
+        .code { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; }
+        .label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; fill: var(--muted); }
+        .title { font-size: 15px; font-weight: 600; }
+        .panel { fill: var(--panel); stroke: var(--panel-edge); }
+        .card { fill: var(--card); }
+        .rail { stroke: var(--rail); }
+        .head { fill: var(--rail); }
+        .chip { fill: var(--card); stroke: var(--panel-edge); }
+        .s-accent { stroke: var(--accent); }
+        .s-settled { stroke: var(--settled); }
+        .s-waiting { stroke: var(--waiting); }
+        .s-interrupted { stroke: var(--interrupted); }
+        .f-accent { fill: var(--accent); }
+    </style>
+    <desc id="rl-desc">dispatch() stores a queued run, deduplicated by idempotency key. The engine claims it and runs it: every LLM or tool step is followed by a checkpoint in the store. A run ends completed, failed or cancelled. A tool call that needs approval pauses the run in waiting until it is answered; approving or denying it requeues the run. drain() or a crashed process leaves a run interrupted or with an expired claim; recover() requeues it, and the next execution continues from the latest checkpoint.</desc>
+
+
+    <defs>
+        <marker id="rl-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 Z" class="head" fill="#7E909E"/>
+        </marker>
+    </defs>
+
+    <rect class="panel" x="16" y="16" width="928" height="310" rx="18"/>
+    <text class="label" x="36" y="42">run lifecycle · Engine + Store</text>
+
+    <!-- intake -->
+    <rect class="card s-accent" x="36" y="56" width="170" height="84" rx="12" stroke="#1479B0" stroke-width="1.5"/>
+    <text class="title" x="52" y="84">dispatch()</text>
+    <text class="code muted" x="52" y="106" font-size="12">trigger envelope</text>
+    <text class="code muted" x="52" y="124" font-size="12">idempotencyKey</text>
+
+    <!-- queued -->
+    <rect class="card s-accent" x="250" y="56" width="170" height="84" rx="12" stroke="#1479B0" stroke-width="1.5"/>
+    <text class="title" x="266" y="84">queued</text>
+    <text class="code muted" x="266" y="106" font-size="12">FIFO, one run</text>
+    <text class="code muted" x="266" y="124" font-size="12">per concurrencyKey</text>
+
+    <!-- running -->
+    <rect class="card s-accent" x="464" y="56" width="220" height="84" rx="12" stroke="#1479B0" stroke-width="2"/>
+    <text class="title" x="480" y="84">running</text>
+    <text class="code muted" x="480" y="106" font-size="12">llm | tool step</text>
+    <text class="code muted" x="480" y="124" font-size="12">→ checkpoint, budget</text>
+
+    <!-- settled -->
+    <rect class="card s-settled" x="728" y="56" width="196" height="84" rx="12" stroke="#2F7D4F" stroke-width="1.5"/>
+    <text class="title" x="744" y="84">completed</text>
+    <text class="code muted" x="744" y="106" font-size="12">failed</text>
+    <text class="code muted" x="744" y="124" font-size="12">cancelled</text>
+
+    <!-- waiting -->
+    <rect class="card s-waiting" x="464" y="196" width="220" height="84" rx="12" stroke="#9A6A12" stroke-width="1.5"/>
+    <text class="title" x="480" y="224">waiting</text>
+    <text class="code muted" x="480" y="246" font-size="12">approval request</text>
+    <text class="code muted" x="480" y="264" font-size="12">answered by approval id</text>
+
+    <!-- interrupted -->
+    <rect class="card s-interrupted" x="728" y="196" width="196" height="84" rx="12" stroke="#4A5E6D" stroke-width="1.5"/>
+    <text class="title" x="744" y="224">interrupted</text>
+    <text class="code muted" x="744" y="246" font-size="12">set by drain()</text>
+    <text class="code muted" x="744" y="264" font-size="12">crash: claim lapses</text>
+
+    <!-- main flow -->
+    <path class="rail" d="M206 98 H246" stroke-width="2" marker-end="url(#rl-head)"/>
+    <path class="rail" d="M420 98 H460" stroke-width="2" marker-end="url(#rl-head)"/>
+    <path class="rail" d="M684 98 H724" stroke-width="2" marker-end="url(#rl-head)"/>
+
+    <!-- pause and resume -->
+    <path class="s-waiting" d="M540 140 V192" stroke="#9A6A12" stroke-width="2" marker-end="url(#rl-head)"/>
+    <path class="s-waiting" d="M464 238 H380 V144" stroke="#9A6A12" stroke-width="2" marker-end="url(#rl-head)"/>
+    <rect class="chip" x="388" y="154" width="64" height="20" rx="10"/>
+    <text class="code" x="420" y="168" font-size="11" text-anchor="middle">approve()</text>
+
+    <!-- interruption and recovery -->
+    <path class="s-interrupted" d="M660 140 V168 H826 V192" stroke="#4A5E6D" stroke-width="2" marker-end="url(#rl-head)"/>
+    <path class="s-interrupted" d="M826 280 V304 H300 V144" stroke="#4A5E6D" stroke-width="2" marker-end="url(#rl-head)"/>
+    <rect class="chip" x="540" y="294" width="76" height="20" rx="10"/>
+    <text class="code" x="578" y="308" font-size="11" text-anchor="middle">recover()</text>
+
+    <!-- a run travelling dispatch → queued → running → completed along the arrows: one pass, then hidden -->
+    <g opacity="0">
+        <circle r="9" class="f-accent" fill="#1479B0" fill-opacity="0.25"/>
+        <circle r="4.5" class="f-accent" fill="#1479B0"/>
+        <animateMotion dur="4.5s" repeatCount="1" fill="freeze" path="M206 98 H246 M420 98 H460 M684 98 H724" calcMode="linear" keyPoints="0;0.3333;0.3333;0.6667;0.6667;1;1" keyTimes="0;0.1;0.36;0.46;0.72;0.82;1"/>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.04;0.9;1" dur="4.5s" repeatCount="1" fill="freeze"/>
+    </g>
+
+    <rect class="panel" x="16" y="342" width="928" height="44" rx="14" stroke-dasharray="5 5"/>
+    <text class="muted" x="36" y="369" font-size="13">A requeued run continues from its latest checkpoint; recorded effect results are reused, not applied again.</text>
+</svg>

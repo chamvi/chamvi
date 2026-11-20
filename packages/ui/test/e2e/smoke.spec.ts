@@ -168,10 +168,10 @@ test('fonts are self-hosted, dark mode applies and phones get no sideways scroll
         expect(await page.evaluate(() => document.documentElement.scrollWidth), path).toBeLessThanOrEqual(390);
     }
 
-    expect(await page.evaluate(() => document.fonts.check('700 16px "Instrument Sans Variable"'))).toBe(true);
+    expect(await page.evaluate(() => document.fonts.check('700 16px "Geist Variable"'))).toBe(true);
     expect(await page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true);
-    // the dark page ground of the Glacier tokens
-    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(7, 17, 25)');
+    // the dark page ground of the Cobalt tokens
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(8, 9, 11)');
     expect(fonts.length).toBeGreaterThan(0);
     expect(fonts.every((url) => url.startsWith(E2E_ORIGIN))).toBe(true);
     expect(errors).toEqual([]);

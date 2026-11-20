@@ -1,0 +1,147 @@
+/*
+ * Glacier: the parked first brand palette, a light sky on deep navy (see
+ * .agents/design.md, "Parked palettes"). Not loaded anywhere; copy the blocks
+ * into packages/docs/src/.vitepress/theme/style.css and the UI's token file to
+ * switch. Glacier is set in Instrument Sans and JetBrains Mono
+ * (@fontsource-variable/instrument-sans, @fontsource-variable/jetbrains-mono).
+ */
+
+/* ---------- docs site: replaces the --ch-* values in theme/style.css ---------- */
+:root {
+    --ch-font-display: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
+
+    --ch-hero-bg: #eef5fa;
+    --ch-paper: #ffffff;
+    --ch-ink: #0b2233;
+    --ch-muted: #4a5e6d;
+    --ch-line: #dce6ee;
+    --ch-chip: #e9f1f7;
+    --ch-accent: #1479b0;
+    --ch-accent-text: #0b5e8c;
+
+    /* Primary buttons keep the light accent in dark mode too: white text
+     * on #9ad8f5 is only 1.6:1, on #1479b0 4.8:1. */
+    --ch-button-bg: #1479b0;
+
+    /* Fixed-dark: the footer and code blocks stay dark in light mode too. */
+    --ch-night-bg: #0a1620;
+    --ch-night-fg: #e2f0f8;
+    --ch-night-muted: #9db2c2;
+    --ch-night-line: #1e3242;
+
+    --ch-code-bg: #0a1620;
+    --ch-code-ink: #dce9f2;
+    --ch-code-line: #1e3242;
+
+    --ch-radius: 4px;
+}
+
+.dark {
+    --ch-hero-bg: #0a1620;
+    --ch-paper: #0e1d28;
+    --ch-ink: #e2f0f8;
+    --ch-muted: #9db2c2;
+    --ch-line: #1e3242;
+    --ch-chip: #172a38;
+    --ch-accent: #9ad8f5;
+    --ch-accent-text: #b5e3f8;
+
+    --ch-code-bg: #06111a;
+    --ch-code-line: #172a38;
+}
+
+/* ---------- @chamvi/ui: the dashboard token set (light, then dark) ---------- */
+:root {
+    --ch-font-display: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
+    --ch-font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --ch-font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    --ch-radius-chip: 1px;
+    --ch-radius-sm: 4px;
+    --ch-radius: 6px;
+    --ch-radius-lg: 9px;
+    --ch-radius-canvas: 12px;
+
+    --ch-bg: #edf2f6;
+    --ch-canvas: #f8fafc;
+    --ch-surface: #ffffff;
+    --ch-sunken: #f3f6f9;
+    --ch-hover: #eef3f7;
+    --ch-line: #dde6ed;
+    --ch-line-strong: #c3d1dc;
+    /* form-control boundary, at least 3:1 on surface and sunken (WCAG 1.4.11) */
+    --ch-field-line: #7f8e9a;
+    --ch-ink: #0b2233;
+    --ch-muted: #4c606f;
+    --ch-accent: #1479b0;
+    --ch-btn: #1479b0;
+    --ch-btn-hover: #0b5e8c;
+    --ch-btn-ink: #ffffff;
+    --ch-accent-text: #0b5e8c;
+    --ch-accent-tint: #e6f3fb;
+    --ch-logo: #4db3e6;
+    --ch-logo-seal: #e6f4fb;
+    --ch-run: #0b5e8c;
+    --ch-run-tint: #e3f2fb;
+    --ch-wait: #875700;
+    --ch-wait-tint: #fbf3e1;
+    --ch-ok: #2a7348;
+    --ch-ok-tint: #e7f3eb;
+    --ch-fail: #c1272d;
+    --ch-fail-ink: #ffffff;
+    --ch-fail-tint: #fde8e8;
+    --ch-code-bg: #0a1620;
+    --ch-code-ink: #dce9f2;
+    --ch-code-key: #8fd0f2;
+    --ch-code-str: #e7c58c;
+    --ch-code-com: #8aa0b0;
+    --ch-code-line: #1a2e3d;
+    --ch-shadow-c: rgba(11, 34, 51, 0.07);
+    --ch-shadow-c2: rgba(11, 34, 51, 0.14);
+    --ch-highlight: rgba(255, 255, 255, 0.7);
+    --ch-scrim: rgba(6, 17, 26, 0.45);
+
+    color-scheme: light;
+}
+
+.dark {
+    --ch-bg: #071119;
+    --ch-canvas: #0a1620;
+    --ch-surface: #0e1d28;
+    --ch-sunken: #08141d;
+    --ch-hover: #132634;
+    --ch-line: #1e3242;
+    --ch-line-strong: #2b4559;
+    --ch-field-line: #5f7a8c;
+    --ch-ink: #e2f0f8;
+    --ch-muted: #9db2c2;
+    --ch-accent: #9ad8f5;
+    --ch-btn: #1479b0;
+    --ch-btn-hover: #0f72a8;
+    --ch-btn-ink: #ffffff;
+    --ch-accent-text: #b5e3f8;
+    --ch-accent-tint: #10293a;
+    --ch-logo: #9ad8f5;
+    --ch-logo-seal: #0e1d28;
+    --ch-run: #9ad8f5;
+    --ch-run-tint: #10293a;
+    --ch-wait: #eac27c;
+    --ch-wait-tint: #2c2416;
+    --ch-ok: #6fc493;
+    --ch-ok-tint: #13271c;
+    --ch-fail: #d23a3f;
+    --ch-fail-ink: #ffffff;
+    --ch-fail-tint: #3a1719;
+    --ch-code-bg: #050e15;
+    --ch-code-ink: #dce9f2;
+    --ch-code-key: #8fd0f2;
+    --ch-code-str: #e7c58c;
+    --ch-code-com: #8aa0b0;
+    --ch-code-line: #12222f;
+    --ch-shadow-c: rgba(0, 0, 0, 0.35);
+    --ch-shadow-c2: rgba(0, 0, 0, 0.55);
+    --ch-highlight: rgba(255, 255, 255, 0.045);
+    --ch-scrim: rgba(0, 0, 0, 0.6);
+
+    color-scheme: dark;
+}

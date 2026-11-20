@@ -47,7 +47,7 @@ export default defineConfig({
             type: 'image/svg+xml',
             href: '/logo.svg',
         }],
-        ['meta', { name: 'theme-color', content: '#19171a' }],
+        ['meta', { name: 'theme-color', content: '#0c0d10' }],
         ['meta', { property: 'og:type', content: 'website' }],
         ['meta', { property: 'og:url', content: 'https://chamvi.dev/' }],
         ['meta', { property: 'og:title', content: 'chamvi' }],
