@@ -362,19 +362,46 @@ export abstract class EntityRepositoryAdapter<T extends EntityRecord, E extends 
 
         this.assertOpen(operation);
 
-        const findWhere = this.toFindWhere(where);
-
-        if (!findWhere) {
-            return null;
-        }
-
-        const lock = ENTITY_LOCK_MODES[this.options.lock ?? 'update'];
-        const row = await this.persist(() => this.repository.findOne({
-            where: findWhere,
+        const parts = this.wheresOf(where);
+        const lock = this.locking ? { lock: { mode: ENTITY_LOCK_MODES[this.options.lock ?? 'update'] } } : {};
+        const findFirst = (part: FindOptionsWhere<E>, locked: boolean) => this.persist(() => this.repository.findOne({
+            where: part,
             order: this.primaryOrder(),
-            ...(this.locking ? { lock: { mode: lock } } : {}),
+            ...(locked ? lock : {}),
         }), operation);
 
-        return row ? this.read(row) : null;
+        if (parts.length <= 1) {
+            const row = parts[0] ? await findFirst(parts[0], true) : null;
+
+            return row ? this.read(row) : null;
+        }
+
+        // the lowest key over the parts, as one statement ordered by key; only that row is locked
+        for (;;) {
+            let first: { row: E; part: FindOptionsWhere<E> } | undefined;
+
+            for (const part of parts) {
+                const row = await findFirst(part, false);
+
+                if (row && (!first || this.compareKeys(row, first.row) < 0)) {
+                    first = { row, part };
+                }
+            }
+
+            if (!first) {
+                return null;
+            }
+
+            if (!this.locking) {
+                return this.read(first.row);
+            }
+
+            // read again under the lock: the row may have changed or gone meanwhile
+            const row = await findFirst({ ...first.part, ...this.keyOf(first.row as EntityRecord) }, true);
+
+            if (row) {
+                return this.read(row);
+            }
+        }
     }
 }

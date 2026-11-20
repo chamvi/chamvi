@@ -146,6 +146,55 @@ describe.each(drivers)('split wheres of the adapter on $driver', ({ driver, skip
             expect(await repositories.parents.removeManyBy({ label: [...labels, ...labels, 'label-2', 'label-3'] })).toBe(4);
         });
 
+        it('finds one row of an array beyond the limit, the lowest key of every part', async () => {
+            // the matching labels land in the last chunks: a first part matches nothing
+            const labels = [...Array.from({ length: 2 * LIMIT }, (_, i) => `absent-${i}`), 'label-7', 'label-3', 'label-5'];
+
+            expect(await repositories.parents.findOneBy({ label: labels })).toEqual(parentOf(3, { counter: 1 }));
+            expect(widest()).toBeLessThanOrEqual(LIMIT);
+
+            log.clear();
+            expect(await repositories.parents.findOneBy({ label: labels, counter: 0 })).toBeNull();
+            expect(widest()).toBeLessThanOrEqual(LIMIT);
+
+            log.clear();
+
+            const ids = [8, 6, ...Array.from({ length: LIMIT }, (_, i) => 100 + i)].map(uuid);
+            const locked = await repositories.parents.transaction((parents) => parents.findOneBy({ id: ids }));
+
+            expect(locked).toEqual(parentOf(6));
+            expect(widest()).toBeLessThanOrEqual(LIMIT);
+        });
+
+        it.skipIf(driver !== 'postgres')('locks the lowest key and searches again when that row stopped matching meanwhile', async () => {
+            const labels = [...Array.from({ length: 2 * LIMIT }, (_, i) => `absent-${i}`), 'label-5', 'label-3'];
+            let found: Promise<EntityContractParent | null> | undefined;
+
+            await repositories.parents.transaction(async (parents) => {
+                // the label changes uncommitted: the other transaction still sees row 3 match, then waits for its lock
+                const row = (await parents.findOneById(uuid(3)))!;
+
+                await parents.save(parents.merge(row, { label: 'moved' }));
+                log.clear();
+
+                found = repositories.parents.transaction((other) => other.findOneBy({ label: labels }));
+
+                // let the commit wait for the other transaction's locked read
+                let waiting = log.queries.every((query) => !/FOR UPDATE/.test(query));
+
+                while (waiting) {
+                    await new Promise((resolve) => {
+                        setImmediate(resolve);
+                    });
+                    waiting = log.queries.every((query) => !/FOR UPDATE/.test(query));
+                }
+            });
+
+            expect(await found).toEqual(parentOf(5, { counter: 1 }));
+            // row 3 under the lock, gone from the labels, then row 5
+            expect(log.queries.filter((query) => /FOR UPDATE/.test(query))).toHaveLength(2);
+        });
+
         it('returns a row once when values equal in SQL but not in JS land in two parts', async () => {
             // the same instants as distinct Date objects: a Set keeps both
             const createdAt = [1, 2, 3, 4, 5, 6, 7, 1, 2].map((n) => parentOf(n).createdAt);

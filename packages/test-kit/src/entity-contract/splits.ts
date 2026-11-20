@@ -47,7 +47,7 @@ export function registerEntitySplitCases(repositories: EntityContractRepositorie
         expect(idsOf(await parents.findManyBy({}))).toEqual([uuid(3), uuid(4)]);
     }, 120_000);
 
-    it('a repeated value in an array beyond the bind limit matches its row once, in key order', async () => {
+    it('a repeated value in an array beyond the bind limit matches its row once, in key order (findOneBy the lowest key)', async () => {
         const { parents } = repositories;
 
         await insertParent(parents, 1);
@@ -60,6 +60,8 @@ export function registerEntitySplitCases(repositories: EntityContractRepositorie
 
         expect(await parents.findManyBy({ label: labels })).toEqual([parentOf(1), parentOf(2)]);
         expect(await parents.findManyBy({ id: ids })).toEqual([parentOf(1)]);
+        expect(await parents.findOneBy({ label: [...absent('label', limit), 'label-2', 'label-1'] })).toEqual(parentOf(1));
+        expect(await parents.findOneBy({ id: ids.toReversed() })).toEqual(parentOf(1));
         expect(idsOf(await parents.findManyBy({ note: notes }))).toEqual([uuid(1), uuid(2), uuid(3)]);
         expect(await parents.removeManyBy({ label: labels })).toBe(2);
         expect(idsOf(await parents.findManyBy({}))).toEqual([uuid(3)]);
