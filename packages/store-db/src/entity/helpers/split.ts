@@ -42,9 +42,10 @@ function chunksOf(items: unknown[], size: number): unknown[][] {
  * part only: every array is deduplicated, then the largest arrays are
  * split until the other predicates leave each split array at least one
  * value per statement, and the parts are the cartesian product of the
- * chunks (disjoint, as the chunks of an array are).
+ * chunks (disjoint, as the chunks of an array are). `undefined` when the
+ * scalars and one value per array already bind more than `limit`.
  */
-export function splitWhereValues(values: EntityRecord, limit: number): EntityRecord[] {
+export function splitWhereValues(values: EntityRecord, limit: number): EntityRecord[] | undefined {
     const distinct: EntityRecord = {};
 
     for (const [property, value] of Object.entries(values)) {
@@ -70,6 +71,11 @@ export function splitWhereValues(values: EntityRecord, limit: number): EntityRec
         if (rest >= split.length) {
             break;
         }
+    }
+
+    // even one value per split array leaves a statement above the limit
+    if (rest < split.length) {
+        return undefined;
     }
 
     // the smallest split array first: each takes what it holds, at most an even share of what is left
