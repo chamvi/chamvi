@@ -5,15 +5,22 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { readDatabaseErrorCode } from 'typeorm-extension';
+import { isObject } from 'smob';
 import { SCHEMA_BEHIND_SQLSTATES } from '../constants.ts';
 
 /**
  * Whether `error` is the database's "no such table or column": a store behind
- * its migrations, which a check meets because it never migrates.
+ * its migrations, which a check meets because it never migrates. Reads the
+ * code by hand: typeorm-extension loads TypeORM, which an app without a
+ * database never loads.
  */
 export function isSchemaBehindError(error: unknown): boolean {
-    const code = readDatabaseErrorCode(error);
+    if (!isObject(error)) {
+        return false;
+    }
 
-    return code !== undefined && SCHEMA_BEHIND_SQLSTATES.includes(code);
+    // TypeORM's QueryFailedError carries the driver's error, with its SQLSTATE
+    const code = isObject(error.driverError) ? error.driverError.code : error.code;
+
+    return typeof code === 'string' && SCHEMA_BEHIND_SQLSTATES.includes(code);
 }
