@@ -5,58 +5,38 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import {
-    readFileSync,
-    readdirSync,
-    realpathSync,
-    statSync,
-} from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createJiti } from 'jiti';
-import type { Jiti } from 'jiti';
+import { fileURLToPath } from 'node:url';
+import { ModuleReader, resolveModuleSync } from 'locter';
 import { isObject } from 'smob';
 import { PINNED_PACKAGE_SCOPES } from '../constants.ts';
 
-let moduleJiti: Jiti | undefined;
+let moduleReader: ModuleReader | undefined;
 
 /**
- * The default reader of `agent.ts`: `readModule` on one jiti that pins the
- * app's packages (`createPackageAliases`), created on first use.
+ * The default reader of `agent.ts`: one module reader that pins the app's
+ * packages (`createPackageAliases`), created on first use.
  */
 export function readFreshModule(path: string): Promise<unknown> {
-    moduleJiti ??= createModuleJiti(import.meta.url);
+    moduleReader ??= createModuleReader(import.meta.url);
 
-    return readModule(moduleJiti, path);
+    return moduleReader.read(path);
 }
 
 /**
- * A jiti without module or fs cache (writes nothing into `node_modules`)
- * whose bare `@chamvi/*`, `ai` and `@ai-sdk/*` specifiers resolve to the
- * copies `from` resolves, wherever the importing file lives.
+ * A transpiling module reader without module or transpile cache (writes
+ * nothing into `node_modules`): every read evaluates a file and its
+ * `.ts`/`.mts` imports fresh, packages load natively (one instance), and bare
+ * `@chamvi/*`, `ai` and `@ai-sdk/*` specifiers resolve to the copies `from`
+ * resolves, wherever the importing file lives.
  */
-export function createModuleJiti(from: string): Jiti {
-    return createJiti(from, {
-        moduleCache: false,
-        fsCache: false,
-        interopDefault: true,
+export function createModuleReader(from: string): ModuleReader {
+    return new ModuleReader({
+        strategy: 'transpile',
+        cache: false,
+        transpileCache: false,
         alias: createPackageAliases(from),
-    });
-}
-
-/**
- * Evaluates a module file fresh on every call (transpiled, never from Node's
- * module cache). Its relative `.ts`/`.mts` imports are transpiled fresh too;
- * packages load natively (one instance).
- */
-export async function readModule(jiti: Jiti, path: string): Promise<unknown> {
-    const source = await readFile(path, 'utf8');
-
-    return jiti.evalModule(source, {
-        filename: path,
-        async: true,
-        forceTranspile: true,
     });
 }
 
@@ -68,7 +48,6 @@ export async function readModule(jiti: Jiti, path: string): Promise<unknown> {
  */
 export function createPackageAliases(from: string): Record<string, string> {
     const fromPath = from.startsWith('file:') ? fileURLToPath(from) : from;
-    const resolver = createJiti(fromPath, { moduleCache: false, fsCache: false });
     const packages = new Map<string, string>();
 
     for (const modules of nodeModulesPaths(dirname(fromPath))) {
@@ -85,17 +64,38 @@ export function createPackageAliases(from: string): Record<string, string> {
         for (const subpath of exportedSubpaths(dir)) {
             const specifier = subpath === '.' ? name : `${name}${subpath.slice(1)}`;
 
-            try {
-                const resolved = resolver.esmResolve(specifier, { parentURL: pathToFileURL(fromPath).href });
+            const resolved = resolvePinned(specifier, fromPath);
 
-                aliases[specifier] = realpathSync(resolved.startsWith('file:') ? fileURLToPath(resolved) : resolved);
-            } catch {
-                // not resolvable with the import conditions (e.g. a require-only subpath): left to jiti
+            if (resolved !== undefined) {
+                aliases[specifier] = resolved;
             }
         }
     }
 
     return aliases;
+}
+
+/**
+ * The import conditions first, then `node, require`: an exported subpath
+ * without an alias would be rewritten through the package root's alias into
+ * a path below its entry file.
+ */
+function resolvePinned(specifier: string, parentURL: string): string | undefined {
+    try {
+        return resolveModuleSync(specifier, { parentURL });
+    } catch {
+        // not exported for import (e.g. a require-only subpath)
+    }
+
+    try {
+        return resolveModuleSync(specifier, {
+            parentURL,
+            conditions: ['node', 'require'],
+            defaultConditions: false,
+        });
+    } catch {
+        return undefined;
+    }
 }
 
 function nodeModulesPaths(start: string): string[] {

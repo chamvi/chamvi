@@ -75,7 +75,7 @@ No output line or error carries a URL, a password, a statement's parameters or a
 - Since Node resolves every import, tsconfig `paths` are not applied: an alias import fails with `ERR_MODULE_NOT_FOUND`, although the build resolves it. Use relative imports or `package.json` `imports`.
 - Decorators (a `@routup/decorators` controller, a TypeORM entity) need `"experimentalDecorators": true`. Without it the import fails with `SyntaxError: Unexpected token 'export'` and no file name; `chamvi build` succeeds, and the built `dist/index.mjs` then fails the same way at start. `"emitDecoratorMetadata": true` together with `import 'reflect-metadata'` as the entry's first import is the app's choice: TypeORM entities that omit their column types need it.
 - tsdown must be installed to load a TypeScript entry; without it the command exits 2 with `The entry is TypeScript: install tsdown ^0.23.4 to load it.` A built entry needs nothing.
-- Files of an [agents folder](/guide/agent-folders) (`CHAMVI_AGENTS_DIR`) are loaded by jiti, not by these hooks, and cannot use decorators.
+- Files of an [agents folder](/guide/agent-folders) (`CHAMVI_AGENTS_DIR`) are loaded by locter's transpiling module reader, not by these hooks, and cannot use decorators.
 - `@oxc-project/runtime`, the helpers the transformed code imports, is a dependency of `@chamvi/cli`.
 
 ```json

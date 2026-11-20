@@ -24,8 +24,8 @@ export type AgentLoadIssue = {
 
 export type LoadAgentOptions = {
     /**
-     * Reads `agent.ts` by absolute path and returns its module namespace. Default: a jiti reader without module
-     * cache, so a re-read sees edits (imported files included), while
+     * Reads `agent.ts` by absolute path and returns its module namespace. Default: a transpiling locter reader without
+     * module cache, so a re-read sees edits (imported files included), while
      * packages from `node_modules` load natively (one instance).
      */
     load?: (path: string) => Promise<unknown>;
