@@ -96,10 +96,11 @@ export class WorkspaceAcquire {
                 throw toSandboxError(error, 'workspace create failed');
             }
 
-            delete entry.pending;
-            delete entry.abort;
+            const released = () => ctx.runs.get(runId) !== entries || entries.get(entry.key) !== entry;
 
-            if (ctx.runs.get(runId) !== entries || entries.get(entry.key) !== entry) {
+            if (released()) {
+                delete entry.pending;
+                delete entry.abort;
                 // released (run settled, dispose_workspace, close) while the provider created it
                 await ctx.disposeOrThrow(workspace).catch(ctx.onError);
 
@@ -108,8 +109,26 @@ export class WorkspaceAcquire {
 
             entry.workspace = workspace;
             entry.image ??= workspace.info.image;
-            // an authenticated checkout left its read credential in the file
-            await credentials?.refresh(workspace, { fresh: !authenticated });
+
+            // still pending while the credentials are written: a suspension skips it, a release waits for it
+            try {
+                // an authenticated checkout left its read credential in the file
+                await credentials?.refresh(workspace, { fresh: !authenticated });
+            } finally {
+                delete entry.pending;
+                delete entry.abort;
+            }
+
+            // released meanwhile: the release disposed it
+            if (released()) {
+                throw new SandboxError('workspace released while it was created; call create_workspace again.');
+            }
+
+            if (workspace.disposed) {
+                ctx.forget(runId, entry);
+
+                throw ctx.deadError(workspace);
+            }
 
             return workspace;
         })();
@@ -148,6 +167,8 @@ export class WorkspaceAcquire {
 
         const key = repo ?? '';
 
+        // a suspension decided before this acquire is stale
+        ctx.touch(runId);
         this.collector.maybeCollectGarbage();
 
         for (const workspace of ctx.sweep(runId).expired) {

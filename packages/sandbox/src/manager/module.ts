@@ -74,7 +74,8 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
                 return;
             }
 
-            if (isSettled && !runs.has(run.id) && !lookups.has(run.id) && !suspended.has(run.id)) {
+            if (isSettled && !runs.has(run.id) && !lookups.has(run.id) && !suspended.has(run.id) &&
+                !ctx.failedDisposals.has(run.id)) {
                 // never touched here: no lookup per settled run (a container or
                 // pod list each); another process's leftovers go with the next
                 // collection (isSettled), at most one per gcIntervalMs

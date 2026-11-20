@@ -51,6 +51,20 @@ export class WorkspaceManagerContext {
      */
     readonly suspended = new Set<string>();
 
+    /**
+     * Per run, the activity stamp of its last acquire, get or adoption: a
+     * suspension decided across a change of it is stale (a handle went out).
+     */
+    readonly activity = new Map<string, number>();
+
+    protected activityCount = 0;
+
+    /** Runs the provider is suspending: their lookups wait, so nothing adopts a workspace being stopped. */
+    readonly suspensions = new Map<string, Promise<void>>();
+
+    /** Per run and workspace id, a target whose disposal failed: only a removal retries it, never get or acquire. */
+    readonly failedDisposals = new Map<string, Map<string, IWorkspace>>();
+
     closed = false;
 
     readonly credentials: CredentialSupport | undefined;
@@ -127,6 +141,45 @@ export class WorkspaceManagerContext {
         tracked.then(() => {
             this.releasedCreates.delete(tracked);
         });
+    }
+
+    /** Disposes a workspace of the run, kept in `failedDisposals` for a retry while its disposal fails. */
+    async disposeTarget(runId: string, workspace: IWorkspace): Promise<void> {
+        let failed = this.failedDisposals.get(runId);
+
+        try {
+            await this.disposeOrThrow(workspace);
+        } catch (error) {
+            if (!failed) {
+                failed = new Map();
+                this.failedDisposals.set(runId, failed);
+            }
+
+            failed.set(workspace.id, workspace);
+
+            throw error;
+        }
+
+        failed = this.failedDisposals.get(runId);
+
+        if (failed?.get(workspace.id) !== workspace) {
+            return;
+        }
+
+        failed.delete(workspace.id);
+
+        if (failed.size === 0) {
+            this.failedDisposals.delete(runId);
+        }
+    }
+
+    touch(runId: string): void {
+        this.activityCount++;
+        this.activity.set(runId, this.activityCount);
+    }
+
+    activityOf(runId: string): number {
+        return this.activity.get(runId) ?? 0;
     }
 
     disposeInBackground(workspace: IWorkspace): void {

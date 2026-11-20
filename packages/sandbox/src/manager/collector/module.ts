@@ -83,13 +83,13 @@ export class WorkspaceCollector {
         if (isSuspendable) {
             for (const runId of runs.keys().toArray()) {
                 const entries = runs.get(runId);
-                const creating = entries?.values().some((entry) => entry.pending !== undefined) ?? false;
 
                 // released meanwhile, or a create in flight is about to hand its workspace out
-                if (!entries || creating) {
+                if (!entries || this.isCreating(runId)) {
                     continue;
                 }
 
+                const activity = ctx.activityOf(runId);
                 const answer = isSuspendable(runId);
 
                 suspendable.set(runId, answer);
@@ -101,6 +101,11 @@ export class WorkspaceCollector {
                 } catch (error) {
                     onError(error);
 
+                    continue;
+                }
+
+                // stale: released or replaced, a handle went out (acquire, get, adoption) or a create began meanwhile
+                if (runs.get(runId) !== entries || ctx.activityOf(runId) !== activity || this.isCreating(runId)) {
                     continue;
                 }
 
@@ -116,6 +121,10 @@ export class WorkspaceCollector {
         }
 
         const gcOptions: GarbageCollectOptions = { deployment: ctx.deployment };
+        // the provider's suspensions of this pass, which hold the lookups of their runs
+        const transition = Promise.withResolvers<void>();
+        const transitions: string[] = [];
+        let finished = false;
 
         if (isSettled) {
             gcOptions.isSettled = isSettled;
@@ -127,16 +136,57 @@ export class WorkspaceCollector {
             // a new create): it cannot mark the held handles gone, and their
             // first exec after the resume would fail; the manager forgot
             // every handle of a run it found suspendable
-            gcOptions.isSuspendable = (runId) => {
-                if (runs.has(runId)) {
-                    return Promise.resolve(false);
+            gcOptions.isSuspendable = async (runId) => {
+                const activity = ctx.activityOf(runId);
+
+                if (this.isHeld(runId)) {
+                    return false;
                 }
 
-                return suspendable.get(runId) ?? isSuspendable(runId);
+                // a get or acquire may adopt the workspace while the answer is pending
+                if (!await (suspendable.get(runId) ?? isSuspendable(runId)) || this.isHeld(runId) || ctx.activityOf(runId) !== activity) {
+                    return false;
+                }
+
+                // lookups wait until the provider stopped it
+                if (!finished) {
+                    ctx.suspensions.set(runId, transition.promise);
+                    transitions.push(runId);
+                }
+
+                return true;
             };
         }
 
-        return counted + settled + await ctx.provider.collectGarbage(gcOptions);
+        try {
+            return counted + settled + await ctx.provider.collectGarbage(gcOptions);
+        } finally {
+            finished = true;
+
+            for (const runId of transitions) {
+                if (ctx.suspensions.get(runId) === transition.promise) {
+                    ctx.suspensions.delete(runId);
+                }
+            }
+
+            transition.resolve();
+
+            // the stamps of runs nothing holds, looks up or suspends: a dropped stamp only makes a later decision stale
+            for (const runId of ctx.activity.keys().toArray()) {
+                if (!this.isHeld(runId) && !ctx.suspensions.has(runId)) {
+                    ctx.activity.delete(runId);
+                }
+            }
+        }
+    }
+
+    /** Whether the manager holds or looks up anything of the run: the provider must not suspend it. */
+    protected isHeld(runId: string): boolean {
+        return this.ctx.runs.has(runId) || this.ctx.lookups.has(runId);
+    }
+
+    protected isCreating(runId: string): boolean {
+        return this.ctx.runs.get(runId)?.values().some((entry) => entry.pending !== undefined) ?? false;
     }
 
     maybeCollectGarbage(): void {
