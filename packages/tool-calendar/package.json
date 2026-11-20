@@ -57,7 +57,7 @@
     "dependencies": {
         "ical.js": "2.2.1",
         "smob": "^1.6.2",
-        "tsdav": "2.5.0"
+        "tsdav": "2.5.1"
     },
     "devDependencies": {
         "@chamvi/app": "^0.10.0",
