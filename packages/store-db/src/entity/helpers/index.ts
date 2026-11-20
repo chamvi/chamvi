@@ -10,5 +10,6 @@ export * from './columns.ts';
 export * from './expiry.ts';
 export * from './query.ts';
 export * from './serialize/index.ts';
+export * from './split.ts';
 export * from './uuid.ts';
 export * from './where.ts';

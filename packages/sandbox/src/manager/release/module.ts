@@ -52,7 +52,8 @@ export class WorkspaceRelease {
 
         if (workspaceId !== undefined) {
             entry = held.find((e) => e.workspace!.id === workspaceId);
-            target = entry?.workspace ?? expired.find((workspace) => workspace.id === workspaceId);
+            target = entry?.workspace ?? expired.find((workspace) => workspace.id === workspaceId) ??
+                ctx.failedDisposals.get(runId)?.get(workspaceId);
 
             // a gone one may be back (its container restarted): the provider's handle first
             target ??= (await this.findToRemove(runId)).find((workspace) => workspace.id === workspaceId) ??
@@ -64,11 +65,17 @@ export class WorkspaceRelease {
         } else {
             let candidates: IWorkspace[] = held.map((e) => e.workspace!);
 
-            // a gone workspace may be back (its container restarted): ask before picking
+            // a gone workspace may be back (its container restarted): ask before picking;
+            // with nothing held, a target whose disposal failed is one too
             if (candidates.length === 0 || gone.length > 0) {
-                const ids = new Set(candidates.map((workspace) => workspace.id));
+                const failed = candidates.length === 0 ? ctx.failedDisposals.get(runId)?.values().toArray() ?? [] : [];
+                const ids = new Set([...candidates, ...failed].map((workspace) => workspace.id));
 
-                candidates = [...candidates, ...(await this.findToRemove(runId)).filter((workspace) => !ids.has(workspace.id))];
+                candidates = [
+                    ...candidates,
+                    ...failed,
+                    ...(await this.findToRemove(runId)).filter((workspace) => !ids.has(workspace.id)),
+                ];
             }
 
             if (candidates.length === 0) {
@@ -88,7 +95,7 @@ export class WorkspaceRelease {
             ctx.forget(runId, entry);
         }
 
-        await ctx.disposeOrThrow(target!);
+        await ctx.disposeTarget(runId, target!);
 
         return target!.id;
     }
@@ -111,6 +118,10 @@ export class WorkspaceRelease {
 
         ctx.runs.delete(runId);
         ctx.suspended.delete(runId);
+        ctx.activity.delete(runId);
+
+        // the targets whose disposal failed before go with the run (kept again while it fails)
+        const retries = ctx.failedDisposals.get(runId)?.values().toArray() ?? [];
 
         // pending creates are aborted, see their run gone and dispose what they
         // get; waiting for them keeps a container from outliving the release
@@ -124,8 +135,9 @@ export class WorkspaceRelease {
 
             return [entry.pending];
         });
-        const held = entries.values().toArray().flatMap((entry) => (entry.workspace ? [entry.workspace] : []));
-        const results = await Promise.allSettled(held.map((workspace) => ctx.disposeOrThrow(workspace)));
+        const owned = entries.values().toArray().flatMap((entry) => (entry.workspace ? [entry.workspace] : []));
+        const held = [...owned, ...retries.filter((workspace) => owned.every((item) => item.id !== workspace.id))];
+        const results = await Promise.allSettled(held.map((workspace) => ctx.disposeTarget(runId, workspace)));
 
         // their rejections belong to their acquire callers
         await Promise.allSettled(pending);
@@ -136,10 +148,13 @@ export class WorkspaceRelease {
         const rest = await ctx.provider.find(runId, { deployment: ctx.deployment, restore: false }).then(
             (found) => Promise.allSettled(found
                 .filter((workspace) => !ids.has(workspace.id) && workspace.info.runId === runId)
-                .map((workspace) => ctx.disposeOrThrow(workspace))),
+                .map((workspace) => ctx.disposeTarget(runId, workspace))),
             (error: unknown) => [{ status: 'rejected', reason: toSandboxError(error, 'workspace lookup failed') } as PromiseRejectedResult],
         );
         const failed = [...results, ...rest].find((result) => result.status === 'rejected');
+
+        // every target was tried: the provider's collection owns what a settled run left
+        ctx.failedDisposals.delete(runId);
 
         if (failed) {
             throw failed.reason;

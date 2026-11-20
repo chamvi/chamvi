@@ -17,6 +17,7 @@ import {
     isJsonColumn,
     isUuidColumn,
     isUuidValue,
+    splitWhereValues,
     storedJson,
 } from '../helpers/index.ts';
 import { EntityStorageAdapter } from './storage.ts';
@@ -27,34 +28,21 @@ import { EntityStorageAdapter } from './storage.ts';
  */
 export abstract class EntityRowAdapter<T extends EntityRecord, E extends ObjectLiteral = T> extends EntityStorageAdapter<T, E> {
     /**
-     * Entity values as TypeORM wheres (see `toFindWhere`), the longest
-     * array split so no statement carries more values than the driver
-     * binds; none when nothing can match.
+     * Entity values as TypeORM wheres (see `toFindWhere`), split so no
+     * statement carries more values than the driver binds and no row
+     * matches two of them (see `splitWhereValues`); none when nothing can
+     * match. A where no split fits (scalars above the limit, too many parts) is `EntityQueryError`.
      */
     protected wheresOf(values: EntityRecord): FindOptionsWhere<E>[] {
-        const half = Math.floor(this.parameterLimit / 2);
-        const [property] = Object.entries(values)
-            .filter(([, value]) => Array.isArray(value) && value.length > half)
-            .map(([key]) => key);
+        const parts = splitWhereValues(values, this.parameterLimit);
 
-        if (property === undefined) {
-            const where = this.toFindWhere(values);
-
-            return where ? [where] : [];
+        if (!parts) {
+            throw new EntityQueryError(this.options.entity);
         }
 
-        const items = values[property] as unknown[];
-        const wheres: FindOptionsWhere<E>[] = [];
-
-        for (let i = 0; i < items.length; i += half) {
-            const where = this.toFindWhere({ ...values, [property]: items.slice(i, i + half) });
-
-            if (where) {
-                wheres.push(where);
-            }
-        }
-
-        return wheres;
+        return parts
+            .map((part) => this.toFindWhere(part))
+            .filter((where) => where !== undefined);
     }
 
     /** Rows in the order of their primary key (as `primaryOrder()`). */

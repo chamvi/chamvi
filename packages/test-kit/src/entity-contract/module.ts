@@ -8,6 +8,7 @@
 import { beforeEach, describe } from 'vitest';
 import { registerEntityQueryCases } from './queries.ts';
 import { registerEntityRowCases } from './rows.ts';
+import { registerEntitySplitCases } from './splits.ts';
 import { registerEntityTransactionCases } from './transactions.ts';
 import { registerEntityUpsertCases } from './upserts.ts';
 import { registerEntityWhereCases } from './wheres.ts';
@@ -37,5 +38,6 @@ export function describeEntityRepositoryContract(input: EntityRepositoryContract
         registerEntityTransactionCases(repositories, input);
         registerEntityUpsertCases(repositories);
         registerEntityWhereCases(repositories);
+        registerEntitySplitCases(repositories, input);
     });
 }

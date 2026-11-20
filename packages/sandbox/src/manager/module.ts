@@ -74,7 +74,10 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
                 return;
             }
 
-            if (isSettled && !runs.has(run.id) && !lookups.has(run.id) && !suspended.has(run.id)) {
+            if (isSettled && !runs.has(run.id) && !lookups.has(run.id) && !suspended.has(run.id) &&
+                !ctx.failedDisposals.has(run.id)) {
+                // a stamp left (a get that found nothing) goes with the run
+                ctx.activity.delete(run.id);
                 // never touched here: no lookup per settled run (a container or
                 // pod list each); another process's leftovers go with the next
                 // collection (isSettled), at most one per gcIntervalMs
@@ -143,7 +146,8 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
                 throw new InvalidAgentDefinitionError(`close() timeoutMs must be an integer of at least 0, got ${JSON.stringify(timeoutMs)}.`);
             }
 
-            ctx.closed = true;
+            // also lets go of the lookups a suspension holds
+            ctx.close();
 
             for (const unsubscribe of [...subscriptions]) {
                 unsubscribe();
@@ -178,26 +182,27 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
                 .map(([pending, label]) => track([label], pending));
             // the workspaces of live runs stay (their runs resume after a
             // restart or on another replica and find them) unless `dispose`;
-            // creates in flight are aborted and what they made anyway is disposed
+            // creates in flight are aborted and what they made anyway is disposed;
+            // an acquire still writing credentials into a made one is joined
             const work = runs.entries().toArray().flatMap(([runId, entries]) => entries.values().toArray()
                 .flatMap((entry) => {
+                    const joined = entry.pending ?
+                        [track([`a workspace of run ${runId} still being created`], entry.pending.catch(() => undefined))] :
+                        [];
+
                     if (entry.workspace) {
                         if (!closeOptions.dispose) {
-                            return [];
+                            return joined;
                         }
 
                         const { workspace } = entry;
 
-                        return [track([`workspace ${workspace.id} of run ${runId}`], disposeOrThrow(workspace).catch(onError))];
-                    }
-
-                    if (!entry.pending) {
-                        return [];
+                        return [track([`workspace ${workspace.id} of run ${runId}`], disposeOrThrow(workspace).catch(onError)), ...joined];
                     }
 
                     entry.abort?.abort();
 
-                    return [track([`a workspace of run ${runId} still being created`], entry.pending.catch(() => undefined))];
+                    return joined;
                 }));
 
             runs.clear();

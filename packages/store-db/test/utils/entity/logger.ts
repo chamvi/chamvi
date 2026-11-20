@@ -14,8 +14,12 @@ import type { Logger } from 'typeorm';
 export class QueryLog implements Logger {
     readonly queries: string[] = [];
 
-    logQuery(query: string): void {
+    /** The bind parameters of each statement, by the index of `queries`. */
+    readonly parameters: unknown[][] = [];
+
+    logQuery(query: string, parameters?: unknown[]): void {
         this.queries.push(query);
+        this.parameters.push(parameters ?? []);
     }
 
     logQueryError(): void {
@@ -40,5 +44,6 @@ export class QueryLog implements Logger {
 
     clear(): void {
         this.queries.length = 0;
+        this.parameters.length = 0;
     }
 }

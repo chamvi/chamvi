@@ -482,6 +482,115 @@ describe('read tools', () => {
             expect(full.releases.map((r) => r.tag)).toEqual(['v2.1.0']);
         });
 
+        it('reports a scan that stopped early on a full page as incomplete', async () => {
+            const { fake, call } = setup();
+
+            // page one: recent 1.x backports only; page two: the release in range
+            fake.releases.set('octo/demo', [
+                release('v2.1.0', 1),
+                ...Array.from({ length: 100 }, (_, i) => release(`v1.${i}.0`, 20)),
+            ]);
+
+            type Result = {
+                releases: Array<{ tag: string }>;
+                truncated: boolean;
+                incomplete: boolean
+            };
+            const input = { repo: 'octo/demo', from: '2.0.0' };
+
+            const quick = await call<Result>('github_list_releases', input);
+
+            expect(quick).toEqual({
+                releases: [],
+                truncated: false,
+                incomplete: true,
+            });
+
+            const full = await call<Result>('github_list_releases', { ...input, exhaustive: true });
+
+            expect(full.incomplete).toBe(false);
+            expect(full.truncated).toBe(false);
+        });
+
+        it('does not report an early stop that already found releases in range as incomplete', async () => {
+            const { fake, call } = setup();
+
+            // page one: in range; page two: at or below from (the usual stop); page three: more
+            fake.releases.set('octo/demo', [
+                ...Array.from({ length: 100 }, (_, i) => release(`v2.0.${i + 1}`, 1)),
+                ...Array.from({ length: 100 }, (_, i) => release(`v1.${i}.0`, 20)),
+                release('v2.9.0', 30),
+            ]);
+
+            const result = await call<{ releases: Array<{ tag: string }>; incomplete: boolean }>(
+                'github_list_releases',
+                { repo: 'octo/demo', from: '2.0.0' },
+            );
+
+            expect(result.releases).toHaveLength(20);
+            expect(result.incomplete).toBe(false);
+        });
+
+        it('reports a scan that read the last page as complete', async () => {
+            const { call } = withReleases();
+
+            const result = await call<{ truncated: boolean; incomplete: boolean }>('github_list_releases', { repo: 'octo/demo', from: '1.0.0' });
+
+            expect(result.truncated).toBe(false);
+            expect(result.incomplete).toBe(false);
+        });
+
+        it('keeps one release per version, the most recently published', async () => {
+            const { fake, call } = setup();
+
+            fake.releases.set('octo/demo', [
+                release('v1.0.0', 1),
+                release('v2.0.0', 2),
+                release('2.0.0', 3),
+                release('nightly', 4),
+            ]);
+
+            const bounded = await call<{ releases: Array<{ tag: string }> }>('github_list_releases', { repo: 'octo/demo', from: '1.0.0' });
+
+            expect(bounded.releases.map((r) => r.tag)).toEqual(['2.0.0']);
+
+            const unbounded = await call<{ releases: Array<{ tag: string }> }>('github_list_releases', { repo: 'octo/demo' });
+
+            expect(unbounded.releases.map((r) => r.tag)).toEqual(['v1.0.0', '2.0.0', 'nightly']);
+        });
+
+        it('keeps the most recently published of equal versions whatever order the API lists them in', async () => {
+            const { fake, call } = setup();
+
+            // listed v2.0.0 first (the fake lists the last inserted first), yet 2.0.0 was published later
+            fake.releases.set('octo/demo', [
+                release('2.0.0', 5),
+                release('v2.0.0', 2),
+            ]);
+
+            const result = await call<{ releases: Array<{ tag: string }> }>('github_list_releases', { repo: 'octo/demo', from: '1.0.0' });
+
+            expect(result.releases.map((r) => r.tag)).toEqual(['2.0.0']);
+        });
+
+        it('never splits equal versions across a from continuation', async () => {
+            const { fake, call } = setup();
+
+            fake.releases.set('octo/demo', [
+                ...Array.from({ length: 20 }, (_, i) => release(`v1.${i + 1}.0`, i + 1)),
+                release('1.20.0', 21),
+            ]);
+
+            const result = await call<{ releases: Array<{ tag: string }>; truncated: boolean }>(
+                'github_list_releases',
+                { repo: 'octo/demo', from: '1.0.0' },
+            );
+
+            expect(result.releases).toHaveLength(20);
+            expect(result.releases.at(-1)!.tag).toBe('1.20.0');
+            expect(result.truncated).toBe(false);
+        });
+
         it('reads one page for the newest releases without from', async () => {
             const { fake, call } = setup();
 

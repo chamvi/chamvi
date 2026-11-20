@@ -51,6 +51,27 @@ export class WorkspaceManagerContext {
      */
     readonly suspended = new Set<string>();
 
+    /**
+     * Per run, the activity stamp of its last acquire, get or adoption: a
+     * suspension decided across a change of it is stale (a handle went out).
+     */
+    readonly activity = new Map<string, number>();
+
+    protected activityCount = 0;
+
+    /**
+     * Per run, the transitions of the collections whose provider is
+     * suspending it: its lookups wait for all of them, so nothing adopts a
+     * workspace being stopped. Overlapping passes each add their own.
+     */
+    readonly suspensions = new Map<string, Set<Promise<void>>>();
+
+    /** Resolves on close(): no suspension holds a lookup beyond it. */
+    protected readonly closing = Promise.withResolvers<void>();
+
+    /** Per run and workspace id, a target whose disposal failed: only a removal retries it, never get or acquire. */
+    readonly failedDisposals = new Map<string, Map<string, IWorkspace>>();
+
     closed = false;
 
     readonly credentials: CredentialSupport | undefined;
@@ -105,7 +126,7 @@ export class WorkspaceManagerContext {
                 await workspace.dispose();
             } catch (error) {
                 const message = Error.isError(error) ? error.message : String(error);
-                throw new SandboxError(`workspace dispose failed: ${message}`, { cause: error });
+                throw new SandboxError(`workspace ${workspace.id} dispose failed: ${message}`, { cause: error });
             }
         })();
 
@@ -127,6 +148,89 @@ export class WorkspaceManagerContext {
         tracked.then(() => {
             this.releasedCreates.delete(tracked);
         });
+    }
+
+    /** Disposes a workspace of the run, kept in `failedDisposals` for a retry while its disposal fails. */
+    async disposeTarget(runId: string, workspace: IWorkspace): Promise<void> {
+        let failed: Map<string, IWorkspace> | undefined;
+
+        try {
+            await this.disposeOrThrow(workspace);
+        } catch (error) {
+            // read after the await: a concurrent failure of the run may have created it meanwhile
+            failed = this.failedDisposals.get(runId);
+
+            if (!failed) {
+                failed = new Map();
+                this.failedDisposals.set(runId, failed);
+            }
+
+            failed.set(workspace.id, workspace);
+
+            throw error;
+        }
+
+        // disposed, also through another handle of the same workspace: nothing to retry
+        failed = this.failedDisposals.get(runId);
+
+        if (!failed?.delete(workspace.id)) {
+            return;
+        }
+
+        if (failed.size === 0) {
+            this.failedDisposals.delete(runId);
+        }
+    }
+
+    /** Stamps the run's activity; only a collection with isSuspendable reads it. */
+    touch(runId: string): void {
+        if (!this.isSuspendable) {
+            return;
+        }
+
+        this.activityCount++;
+        this.activity.set(runId, this.activityCount);
+    }
+
+    /** Holds the run's lookups until `transition` settles (or the manager closes). */
+    suspend(runId: string, transition: Promise<void>): void {
+        let transitions = this.suspensions.get(runId);
+
+        if (!transitions) {
+            transitions = new Set();
+            this.suspensions.set(runId, transitions);
+        }
+
+        transitions.add(transition);
+    }
+
+    /** Drops the hold of `transition`; the run's lookups proceed once no other pass holds them. */
+    resume(runId: string, transition: Promise<void>): void {
+        const transitions = this.suspensions.get(runId);
+
+        if (transitions?.delete(transition) && transitions.size === 0) {
+            this.suspensions.delete(runId);
+        }
+    }
+
+    /** What a lookup of the run waits for: every suspension in flight, at most until close(). */
+    async suspensionOf(runId: string): Promise<void> {
+        const transitions = this.suspensions.get(runId);
+
+        if (transitions) {
+            await Promise.race([Promise.all(transitions), this.closing.promise]);
+        }
+    }
+
+    /** Marks the manager closed and releases every lookup a suspension holds. */
+    close(): void {
+        this.closed = true;
+        this.suspensions.clear();
+        this.closing.resolve();
+    }
+
+    activityOf(runId: string): number {
+        return this.activity.get(runId) ?? 0;
     }
 
     disposeInBackground(workspace: IWorkspace): void {

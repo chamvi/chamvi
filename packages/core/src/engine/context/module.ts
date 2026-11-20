@@ -40,7 +40,11 @@ export function createEngineContext(input: EngineContextInput): EngineContext {
             const task: Promise<void> = Promise.try(() => work(controller.signal))
                 .catch((error: unknown) => {
                     if (!input.isDraining() || !controller.signal.aborted) {
-                        input.onError(error, run);
+                        try {
+                            input.onError(error, run);
+                        } catch {
+                            // a throwing onError must not leave the detached task rejected and unhandled
+                        }
                     }
                 })
                 .finally(() => {

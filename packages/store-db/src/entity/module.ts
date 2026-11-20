@@ -143,9 +143,14 @@ export abstract class EntityRepositoryAdapter<T extends EntityRecord, E extends 
             }), 'findManyBy'));
         }
 
-        // each part is in key order: the parts of a split array are merged into it
+        // each part is in key order: the parts of a split array are merged into it,
+        // a row two parts matched (values equal in SQL, not in JS: dates, uuid case) once
         if (parts.length > 1) {
             rows.sort((a, b) => this.compareKeys(a, b));
+
+            return rows
+                .filter((row, index) => index === 0 || this.compareKeys(rows[index - 1]!, row) !== 0)
+                .map((row) => this.read(row));
         }
 
         return rows.map((row) => this.read(row));

@@ -7,7 +7,7 @@
 
 import { SandboxError, ValidationError } from '@chamvi/core';
 import type { IWorkspace } from '../../workspace/types.ts';
-import { WORKSPACE_NOT_FOUND_MESSAGE } from '../context/constants.ts';
+import { WORKSPACE_MANAGER_CLOSED_MESSAGE, WORKSPACE_NOT_FOUND_MESSAGE } from '../context/constants.ts';
 import type { WorkspaceManagerContext } from '../context/module.ts';
 import type { WorkspaceEntry, WorkspaceMiss } from '../context/types.ts';
 import { isExpired, toSandboxError } from '../helpers/index.ts';
@@ -66,6 +66,7 @@ export class WorkspaceLookup {
             }
 
             entries.set(key, entry);
+            this.ctx.touch(runId);
         }
     }
 
@@ -75,7 +76,7 @@ export class WorkspaceLookup {
         const { lookups, generations } = ctx;
 
         if (ctx.closed) {
-            return Promise.reject(new SandboxError('the workspace manager is closed.'));
+            return Promise.reject(new SandboxError(WORKSPACE_MANAGER_CLOSED_MESSAGE));
         }
 
         const inFlight = lookups.get(runId);
@@ -89,6 +90,13 @@ export class WorkspaceLookup {
             let found: IWorkspace[];
 
             try {
+                // never adopt a workspace the provider is suspending
+                await ctx.suspensionOf(runId);
+
+                if (ctx.closed) {
+                    throw new SandboxError(WORKSPACE_MANAGER_CLOSED_MESSAGE);
+                }
+
                 found = await ctx.provider.find(runId, ctx.findOptions());
             } catch (error) {
                 throw toSandboxError(error, 'workspace lookup failed');
@@ -105,7 +113,7 @@ export class WorkspaceLookup {
 
             // closed meanwhile: the workspaces stay for their runs
             if (ctx.closed) {
-                throw new SandboxError('the workspace manager is closed.');
+                throw new SandboxError(WORKSPACE_MANAGER_CLOSED_MESSAGE);
             }
 
             this.adopt(runId, found);
@@ -196,6 +204,9 @@ export class WorkspaceLookup {
     }
 
     async get(runId: string, workspaceId?: string): Promise<IWorkspace> {
+        // a suspension decided before this get is stale
+        this.ctx.touch(runId);
+
         const picked = this.pick(runId, workspaceId);
 
         if (!('miss' in picked)) {

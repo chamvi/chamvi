@@ -339,7 +339,7 @@ describe.each(drivers)('entity repository adapter on $driver', ({ driver, skip }
             };
 
             for (const lock of ['update', 'no-key-update', 'share'] as const) {
-                const { parents } = createFixtureRepositories(fixture, lock);
+                const { parents } = createFixtureRepositories(fixture, { lock });
                 const locks: Record<string, (string | null)[]> = {};
                 const record = async (name: string, call: () => Promise<unknown>) => {
                     log.clear();

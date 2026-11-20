@@ -38,7 +38,14 @@ export function claimFromEntity(row: ClaimRow): Claim {
     };
 }
 
-export function createFixtureRepositories(fixture: FixtureDataSource, lock?: EntityLockMode): FixtureRepositories {
+export type FixtureRepositoriesOptions = {
+    lock?: EntityLockMode;
+    /** The bind parameters one statement may carry (default: the driver's). */
+    parameterLimit?: number;
+};
+
+export function createFixtureRepositories(fixture: FixtureDataSource, options: FixtureRepositoriesOptions = {}): FixtureRepositories {
+    const { lock, parameterLimit } = options;
     const { dataSource, schemas } = fixture;
     const related = [
         { target: schemas.parent, entity: 'parent' },
@@ -52,13 +59,13 @@ export function createFixtureRepositories(fixture: FixtureDataSource, lock?: Ent
             target: schemas.parent,
             related,
             ...(lock ? { lock } : {}),
-        }),
+        }, parameterLimit),
         children: new FixtureRepository<EntityContractChild>(dataSource.getRepository(schemas.child), {
             entity: 'child',
             alias: 'child',
             target: schemas.child,
             related,
-        }),
+        }, parameterLimit),
         claims: new FixtureRepository<Claim, ClaimRow>(dataSource.getRepository(schemas.claim), {
             entity: 'claim',
             alias: 'claim',
@@ -69,12 +76,12 @@ export function createFixtureRepositories(fixture: FixtureDataSource, lock?: Ent
                 'claim.owner': 'claimOwner',
                 'claim.expiresAt': 'claimExpiresAt',
             },
-        }),
+        }, parameterLimit),
         records: new FixtureRepository<EntityContractRecord>(dataSource.getRepository(schemas.record), {
             entity: 'record',
             alias: 'record',
             target: schemas.record,
             upsertKey: ['scope', 'name'],
-        }),
+        }, parameterLimit),
     };
 }

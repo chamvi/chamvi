@@ -6,3 +6,6 @@
  */
 
 export const AT = Date.UTC(2026, 0, 1);
+
+/** PostgreSQL's bind parameter limit, the default of `parameterLimit`. */
+export const DEFAULT_PARAMETER_LIMIT = 65_535;

@@ -127,6 +127,8 @@ export type GithubReleaseNote = {
 export type GithubReleaseList = {
     releases: GithubReleaseNote[];
     truncated: boolean;
+    /** The scan stopped before the last page (not exhaustive) with nothing in range: a later page may hold a release. */
+    incomplete: boolean;
 };
 
 /** `github_compare`: commits oldest first, both lists capped. */

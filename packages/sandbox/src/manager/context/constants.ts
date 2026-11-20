@@ -6,3 +6,5 @@
  */
 
 export const WORKSPACE_NOT_FOUND_MESSAGE = 'workspace not found in this run (disposed, expired or never created); call create_workspace for a new one.';
+
+export const WORKSPACE_MANAGER_CLOSED_MESSAGE = 'the workspace manager is closed.';
