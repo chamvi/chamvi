@@ -106,10 +106,12 @@ export async function startRemoteRun(ctx: RemoteExecuteContext): Promise<string 
         return undefined;
     }
 
-    const attempt: RemoteStartAttempt = {
+    // a retry sends to the saved target: the one a cancel or the deadline resends to (cancelLostRemoteStart())
+    const attempt: RemoteStartAttempt = attempted ?? {
         peer,
         agent: agent.definition.agent,
         role: agent.definition.role,
+        at: clock.now(),
     };
 
     if (!attempted) {
@@ -118,6 +120,18 @@ export async function startRemoteRun(ctx: RemoteExecuteContext): Promise<string 
             await effectService.save(key, { attempt });
         } catch (error) {
             ctx.onError(error, run);
+
+            return undefined;
+        }
+
+        if (ctx.signal.aborted) {
+            if (ctx.signal.reason === 'cancel') {
+                // nothing was sent: the settle must not resend the start to cancel it
+                ctx.handOffStart();
+            }
+
+            // a drain marks it interrupted instead; recovery then sends the start
+            await ctx.finish({ status: RunStatus.CANCELLED });
 
             return undefined;
         }
@@ -131,7 +145,7 @@ export async function startRemoteRun(ctx: RemoteExecuteContext): Promise<string 
         const pending = peerRequest(
             clock,
             request.signal,
-            (signal) => ctx.peers.transport(peer).start(input, { signal }),
+            (signal) => ctx.peers.transport(attempt.peer).start(input, { signal }),
         );
         const answer = await untilCancelled(pending, ctx.signal);
 
@@ -140,6 +154,7 @@ export async function startRemoteRun(ctx: RemoteExecuteContext): Promise<string 
             // so the settle below sends nothing more for it
             ctx.handOffStart();
             ctx.detach((signal) => cancelRemoteStart(ctx, {
+                peer: attempt.peer,
                 pending,
                 input,
                 request,
@@ -149,7 +164,7 @@ export async function startRemoteRun(ctx: RemoteExecuteContext): Promise<string 
             return undefined;
         }
 
-        remoteRunId = readRemoteStartAnswer(answer, peer, run.id);
+        remoteRunId = readRemoteStartAnswer(answer, attempt.peer, run.id);
     } catch (error) {
         if (ctx.signal.aborted) {
             await ctx.finish({ status: RunStatus.CANCELLED });
@@ -170,7 +185,7 @@ export async function startRemoteRun(ctx: RemoteExecuteContext): Promise<string 
     }
 
     try {
-        await effectService.save(key, { runId: remoteRunId, peer });
+        await effectService.save(key, { runId: remoteRunId, peer: attempt.peer });
     } catch (error) {
         // the start is idempotent under its key: recovery resends it and reaches the same remote run
         ctx.onError(error, run);

@@ -23,6 +23,7 @@ import {
 } from '@chamvi/core';
 import type { IEngine, RemoteAgent } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
+import { IDEMPOTENCY_TTL_MS } from '../../../src/engine/constants.ts';
 import { rejectWith } from '../../utils/peers.ts';
 import {
     REMOTE_START,
@@ -406,6 +407,98 @@ describe('the stand-in run: start', () => {
         expect((await readRun(store, runId)).status).toBe(RunStatus.CANCELLED);
         expect(peers.calls.start).toHaveLength(0);
         expect(peers.calls.cancel).toHaveLength(0);
+    });
+
+    it('sends nothing when a cancel arrives while the start attempt is written', async () => {
+        const {
+            engine,
+            store,
+            peers,
+            errors,
+        } = setup();
+        const save = store.effectService.save.bind(store.effectService);
+        const { promise: written, resolve: write } = Promise.withResolvers<void>();
+        const { promise: saving, resolve: saw } = Promise.withResolvers<void>();
+
+        store.effectService.save = async (key, value) => {
+            if (key.startsWith('remote-start:')) {
+                saw();
+                await written;
+            }
+
+            return save(key, value);
+        };
+
+        const runId = await dispatchStandIn(engine);
+
+        await saving;
+
+        // the cancel aborts the execution at once and settles once the write returns
+        const cancelling = engine.cancel(runId);
+
+        write();
+        await cancelling;
+        await engine.idle();
+
+        expect((await readRun(store, runId)).status).toBe(RunStatus.CANCELLED);
+        expect(peers.calls.start).toHaveLength(0);
+        expect(peers.calls.cancel).toHaveLength(0);
+        expect(errors).toEqual([]);
+    });
+
+    it('retries a lost start at the target its attempt saved', async () => {
+        const {
+            engine,
+            store,
+            clock,
+            peers,
+        } = setup();
+
+        peers.script('start', rejectWith(new Error('socket hang up')), { runId: 'r1' });
+
+        const runId = await startStandIn(engine);
+        const { result } = (await store.effectService.findOne(`remote-start:${runId}`))!;
+        const { attempt } = result as { attempt: Record<string, unknown> };
+
+        // the start went to a target an earlier definition named
+        await store.effectService.save(`remote-start:${runId}`, {
+            attempt: {
+                ...attempt, 
+                peer: 'ops', 
+                agent: 'builder', 
+            }, 
+        });
+        clock.advance(120_000);
+        await engine.recover();
+        await engine.idle();
+
+        expect(peers.calls.start.map((call) => [call.peer, call.input.agent])).toEqual([['dev', 'developer'], ['ops', 'builder']]);
+        expect((await store.effectService.findOne(`remote-start:${runId}`))?.result).toEqual({ runId: 'r1', peer: 'ops' });
+    });
+
+    it('sends no resend past the peer\'s dedupe window and reports the remote run that may be left', async () => {
+        const {
+            engine,
+            store,
+            clock,
+            peers,
+            errors,
+        } = setup({ developer: { timeoutMs: 10 * DAY } });
+        const lost = new Error('socket hang up');
+
+        peers.script('start', rejectWith(lost));
+
+        const runId = await startStandIn(engine);
+
+        await engine.cancel(runId);
+        clock.advance(IDEMPOTENCY_TTL_MS);
+        await engine.recover();
+        await engine.idle();
+
+        expect((await readRun(store, runId)).status).toBe(RunStatus.CANCELLED);
+        expect(peers.calls.start).toHaveLength(1);
+        expect(peers.calls.cancel).toHaveLength(0);
+        expect(errors).toEqual([lost, expect.any(ValidationError)]);
     });
 
     it('re-pauses without a second start when the pause write fails', async () => {

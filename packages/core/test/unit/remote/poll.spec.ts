@@ -329,6 +329,33 @@ describe('the stand-in run: poll, wake, timeout and cancel', () => {
         expect(errors).toEqual([]);
     });
 
+    it('fails a waiting stand-in whose peer reports a malformed pending approval, and cancels it once', async () => {
+        const {
+            engine,
+            store,
+            peers,
+            errors,
+        } = setup();
+
+        peers.script('start', { runId: 'r1' });
+        peers.script('read', peerRunView('r1', {
+            status: 'waiting',
+            waiting: 'approval',
+            approval: { runId: 'r1', approvalId: 'a1' } as never,
+        }));
+
+        const runId = await startStandIn(engine);
+
+        await tickIdle(engine);
+
+        const run = await readRun(store, runId);
+
+        expect(run.status).toBe(RunStatus.FAILED);
+        expect(run.error?.code).toBe('validation_error');
+        expect(peers.calls.cancel).toEqual([expect.objectContaining({ peer: 'dev', runId: 'r1' })]);
+        expect(errors).toEqual([]);
+    });
+
     it('fails a stand-in whose peer reports a malformed usage', async () => {
         const {
             engine,

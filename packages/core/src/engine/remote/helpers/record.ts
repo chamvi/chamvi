@@ -30,15 +30,17 @@ export function readRemoteStartAttempt(value: unknown): RemoteStartAttempt | und
         !isObject(attempt) ||
         typeof attempt.peer !== 'string' ||
         typeof attempt.agent !== 'string' ||
-        typeof attempt.role !== 'string'
+        typeof attempt.role !== 'string' ||
+        typeof attempt.at !== 'number'
     ) {
         return undefined;
     }
 
     return {
-        peer: attempt.peer, 
-        agent: attempt.agent, 
-        role: attempt.role, 
+        peer: attempt.peer,
+        agent: attempt.agent,
+        role: attempt.role,
+        at: attempt.at,
     };
 }
 

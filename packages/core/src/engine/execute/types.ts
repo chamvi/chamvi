@@ -185,6 +185,8 @@ export type RemoteExecuteContext = {
 
 /** A start a cancel left in flight (internal): the request, its input and the controller of its signal. */
 export type CancelledRemoteStart = {
+    /** The peer the start went to. */
+    peer: string;
     pending: Promise<{ runId: string }>;
     input: PeerStartInput;
     request: AbortController;

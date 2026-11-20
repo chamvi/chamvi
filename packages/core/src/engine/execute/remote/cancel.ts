@@ -20,7 +20,7 @@ import type { CancelledRemoteStart, RemoteExecuteContext } from '../types.ts';
  * A failure rejects (to onError); the local run stays `cancelled`.
  */
 export async function cancelRemoteStart(ctx: RemoteExecuteContext, start: CancelledRemoteStart, signal: AbortSignal): Promise<void> {
-    const { peer } = ctx.agent.definition;
+    const { peer } = start;
     const forward = () => start.request.abort(signal.reason);
 
     if (signal.aborted) {

@@ -9,6 +9,7 @@ import type { Run } from '@chamvi/store';
 import type { ArtifactInput, IArtifactService } from '../../../artifact/types.ts';
 import { ArtifactNotFoundError, ValidationError } from '../../../errors/index.ts';
 import { PEER_ORIGIN_MAX_LENGTH } from '../../../peer/constants.ts';
+import { IDEMPOTENCY_TTL_MS } from '../../constants.ts';
 import type { PeerStartInput } from '../../../peer/types.ts';
 import type { RemoteStartAttempt, RemoteStartSource } from '../types.ts';
 import { peerRequest } from './request.ts';
@@ -115,6 +116,9 @@ export function readRemoteStartAnswer(answer: { runId: string } | undefined, pee
  * then that run is cancelled. A peer that never got the first start creates
  * the run here and has it cancelled at once. A refused resend
  * (ValidationError) created nothing; any other failure rejects (onError).
+ * Past the peer's dedupe window (IDEMPOTENCY_TTL_MS after the first send)
+ * the key no longer names that run: nothing is sent, and a ValidationError
+ * reports the remote run that may be left (onError).
  */
 export async function cancelLostRemoteStart(
     ctx: RemoteStartSource,
@@ -122,6 +126,11 @@ export async function cancelLostRemoteStart(
     attempt: RemoteStartAttempt,
     signal: AbortSignal,
 ): Promise<void> {
+    if (ctx.clock.now() - attempt.at >= IDEMPOTENCY_TTL_MS) {
+        // a resend would create and cancel another run, not reach the one the lost start may have created
+        throw new ValidationError(`The start of run "${run.id}" at peer "${attempt.peer}" was lost too long ago to find its remote run; it may still run there.`);
+    }
+
     const transport = () => ctx.peers.transport(attempt.peer);
     const input = await buildRemoteStartInput(run, attempt, ctx.artifactService);
     let answer: { runId: string };

@@ -20,6 +20,7 @@ import {
     readRemoteOutcome,
     readRemoteStartAttempt,
     readRemoteStartRecord,
+    readRemoteViewApproval,
     remoteOutcomeOf,
     remotePollKey,
     remoteStartKey,
@@ -128,6 +129,8 @@ export class EngineRemote implements IEngineRemote {
                 (requestSignal) => ctx.peers.transport(waiting.peer).read(waiting.remoteRunId, { signal: requestSignal }),
             );
             outcome = remoteOutcomeOf(view);
+            // a malformed pending approval is a malformed view: surface() reads it again
+            readRemoteViewApproval(view);
         } catch (error) {
             if (error instanceof ValidationError) {
                 // permanent (a lost remote run, revoked credentials, a malformed view): no later poll answers

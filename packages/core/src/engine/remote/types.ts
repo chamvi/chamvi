@@ -46,6 +46,8 @@ export type RemoteStartAttempt = {
     peer: string;
     agent: string;
     role: string;
+    /** When the first start was sent (epoch ms, the engine clock): the peer dedupes its key for IDEMPOTENCY_TTL_MS. */
+    at: number;
 };
 
 /** What building and resending a remote start needs (cancelLostRemoteStart()). */
