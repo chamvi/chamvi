@@ -212,6 +212,12 @@ export class EngineApprovals implements IEngineApprovals {
             updatedAt: now,
         }, { expectStatus: [RunStatus.WAITING], expectWaitId: waitId });
 
+        // the later writes hold only while the run is still ours and on this wait point
+        const ours = {
+            expectStatus: [RunStatus.QUEUED],
+            expectOwner: this.ctx.owner,
+            expectWaitId: waitId,
+        };
         let queued: Run;
 
         try {
@@ -239,14 +245,18 @@ export class EngineApprovals implements IEngineApprovals {
                 waiting: undefined,
                 claim: undefined,
                 updatedAt: new Date(clock.now()),
-            }, { expectStatus: [RunStatus.QUEUED] });
+            }, ours);
         } catch (error) {
-            // undo, so the wait point (still on the run) stays answerable
+            // undo, so the wait point (still on the run) stays answerable; a run taken over meanwhile is left alone
             await runService.update(run.id, {
                 status: RunStatus.WAITING,
                 claim: undefined,
                 updatedAt: new Date(clock.now()),
-            }, { expectStatus: [RunStatus.QUEUED] }).catch((undoError: unknown) => this.ctx.onError(undoError, run));
+            }, ours).catch((undoError: unknown) => {
+                if (!(undoError instanceof InvalidRunStateError)) {
+                    this.ctx.onError(undoError, run);
+                }
+            });
 
             throw error;
         }

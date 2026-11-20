@@ -99,7 +99,8 @@ export async function deliverApprovalMessage(ctx: ApprovalDeliveryContext, run: 
                 const notified = await ctx.runService.update(
                     run.id,
                     { waiting: { ...waiting, notifiedAt: new Date(ctx.clock.now()) } },
-                    { expectStatus: [RunStatus.WAITING] },
+                    // a newer wait point replaced this one meanwhile: InvalidRunStateError, a stale write
+                    { expectStatus: [RunStatus.WAITING], expectWaitId: waiting.approvalId },
                 );
 
                 ctx.emit({ type: 'run.updated', run: notified });

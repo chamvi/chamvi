@@ -180,13 +180,27 @@ export class EngineLifecycle implements IEngineLifecycle {
         this.started = false;
 
         const admission = this.ctx.queue.halt();
+        const stopped = Promise.withResolvers<void>();
+        const done = stopped.promise;
+
+        // published before the aborts: a prepare() or start() from an abort listener waits for this stop
+        this.stopping = done;
+
+        const clear = () => {
+            if (this.stopping === done) {
+                this.stopping = undefined;
+            }
+        };
+
+        // both paths, so a failed stop leaves no unhandled rejection behind
+        void done.then(clear, clear);
 
         this.preparationController.abort();
         this.startup?.controller.abort();
 
         const startup = this.startup?.done;
 
-        const done = (async () => {
+        (async () => {
             if (startup) {
                 await startup.catch(() => {});
             }
@@ -197,15 +211,7 @@ export class EngineLifecycle implements IEngineLifecycle {
 
             await admission;
             await this.stopChannels();
-        })();
-
-        this.stopping = done;
-
-        void done.then(() => {
-            if (this.stopping === done) {
-                this.stopping = undefined;
-            }
-        });
+        })().then(stopped.resolve, stopped.reject);
 
         return done;
     }
