@@ -16,6 +16,7 @@ import { Permission } from '@chamvi/access';
 import {
     AgentNotFoundError,
     Engine,
+    InvalidAgentDefinitionError,
     PeerStartBusyError,
     ValidationError,
     agent,
@@ -479,6 +480,38 @@ describe('the receiver: dispatchPeer()', () => {
 
         expect(run.trigger.parent).toBeUndefined();
         expect(run.taint).toBeUndefined();
+    });
+});
+
+describe('the receiver: startup check', () => {
+    function build(approvals: PeerSettings['approvals'], channels: IChannel[]): Engine {
+        const clock = new ControllableClock(START);
+        const store = createTestServices({ clock });
+        const peers = fakePeers({ dev: { approvals } });
+
+        return new Engine({
+            ...servicesOf(store),
+            clock,
+            agents: [],
+            channels,
+            peers: peers.resolver,
+        });
+    }
+
+    it('refuses a peer whose approvals channel is not registered', () => {
+        expect(() => build({ channel: 'nope', address: 'room' }, [chatChannel().channel]))
+            .toThrow(InvalidAgentDefinitionError);
+        expect(() => build({ channel: 'nope', address: 'room' }, [chatChannel().channel]))
+            .toThrow(/Peer "dev": approvals channel "nope"/);
+    });
+
+    it('refuses a peer whose approvals channel has no out', () => {
+        expect(() => build({ channel: 'inbound', address: 'room' }, [{ name: 'inbound', in: async () => {} } as unknown as IChannel]))
+            .toThrow(InvalidAgentDefinitionError);
+    });
+
+    it('accepts a peer whose approvals channel sends', () => {
+        expect(() => build({ channel: 'chat', address: 'room' }, [chatChannel().channel])).not.toThrow();
     });
 });
 

@@ -248,6 +248,7 @@ describe('engineModule', () => {
 
     it('passes a registered PEERS resolver to the engine', async () => {
         const peers: IPeerResolver = {
+            names: () => ['billing'],
             has: (name) => name === 'billing',
             settings: () => ({
                 pollMs: 60_000,

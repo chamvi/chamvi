@@ -161,12 +161,14 @@ describePostgres('connection service in postgres', () => {
 
         await untilLockWait(ds);
 
-        const saving = connections.writeConfig('wa', { setSecrets: { s: new Uint8Array([7]) } }, { wrappedKey: stored.wrappedKey });
+        // handled from the start: the save fails once the replace commits, maybe before `replacing` settles here
+        const saving = expect(connections.writeConfig('wa', { setSecrets: { s: new Uint8Array([7]) } }, { wrappedKey: stored.wrappedKey }))
+            .rejects.toBeInstanceOf(ConnectionChangedError);
 
         await untilLockWait(ds, 2);
         await release();
         await replacing;
-        await expect(saving).rejects.toBeInstanceOf(ConnectionChangedError);
+        await saving;
         expect(await connections.findConfig('wa')).toEqual({
             keyId: replacement.keyId,
             wrappedKey: replacement.wrappedKey,
@@ -619,13 +621,14 @@ describePostgres('connection service in postgres', () => {
         await runner.startTransaction();
         await runner.query(`SELECT 1 FROM "${TableName.LOCKS}" WHERE key = $1 FOR UPDATE`, [fence.lock]);
 
-        const writing = connections.writeEntries('wa', { set: { a: new Uint8Array([1]) } }, fence);
+        // handled from the start: the write fails once the release commits, maybe before the commit settles here
+        const writing = expect(connections.writeEntries('wa', { set: { a: new Uint8Array([1]) } }, fence)).rejects.toBeInstanceOf(LeaseLostError);
 
         await untilLockWait(ds);
         await runner.query(`DELETE FROM "${TableName.LOCKS}" WHERE key = $1`, [fence.lock]);
         await runner.commitTransaction();
         await runner.release();
-        await expect(writing).rejects.toBeInstanceOf(LeaseLostError);
+        await writing;
         expect(await connections.findEntry('wa', 'a')).toBeUndefined();
     });
 
@@ -639,13 +642,14 @@ describePostgres('connection service in postgres', () => {
         await lockService.acquire(fence.lock, fence.owner, 1_000);
 
         const release = await holdLeaseRow(ds, fence.lock);
-        const writing = connections.writeEntries('wa', { set: { a: new Uint8Array([1]) } }, fence);
+        // handled from the start: the write fails once the hold commits, maybe before `release()` settles here
+        const writing = expect(connections.writeEntries('wa', { set: { a: new Uint8Array([1]) } }, fence)).rejects.toBeInstanceOf(LeaseLostError);
 
         // the lease owner is unchanged, only the time passes while the batch waits
         await untilLockWait(ds);
         clock.advance(1_000);
         await release();
-        await expect(writing).rejects.toBeInstanceOf(LeaseLostError);
+        await writing;
         expect(await connections.findEntry('wa', 'a')).toBeUndefined();
     });
 
@@ -660,12 +664,13 @@ describePostgres('connection service in postgres', () => {
         await connections.writeEntries('wa', { set: { a: new Uint8Array([1]) } }, fence);
 
         const release = await holdLeaseRow(ds, fence.lock);
-        const replacing = connections.replace({ ...connection('wa'), type: 'telegram' }, fence);
+        // handled from the start: the replace fails once the hold commits, maybe before `release()` settles here
+        const replacing = expect(connections.replace({ ...connection('wa'), type: 'telegram' }, fence)).rejects.toBeInstanceOf(LeaseLostError);
 
         await untilLockWait(ds);
         clock.advance(1_000);
         await release();
-        await expect(replacing).rejects.toBeInstanceOf(LeaseLostError);
+        await replacing;
         expect((await connections.findOneOrFail('wa')).type).toBe('whatsapp');
         expect(Array.from((await connections.findEntry('wa', 'a'))!)).toEqual([1]);
     });

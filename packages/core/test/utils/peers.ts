@@ -187,6 +187,7 @@ export function fakePeers(
             (queues[method] as unknown[]).push(...results);
         },
         resolver: {
+            names: () => Object.keys(fake.settings),
             has: (name) => Object.hasOwn(fake.settings, name),
             settings: (name) => ({ ...DEFAULT_SETTINGS, ...fake.settings[name] }),
             transport,

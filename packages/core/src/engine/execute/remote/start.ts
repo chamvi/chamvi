@@ -12,6 +12,7 @@ import { ArtifactNotFoundError, TimeoutError, ValidationError } from '../../../e
 import type { PeerStartInput } from '../../../peer/types.ts';
 import { peerRequest, readRemoteStartRecord, remoteStartKey } from '../../remote/helpers/index.ts';
 import { toRunError } from '../helpers/index.ts';
+import { cancelRemoteStart, readRemoteStartAnswer } from './cancel.ts';
 import type { RemoteExecuteContext } from '../types.ts';
 
 /**
@@ -62,12 +63,14 @@ async function remoteAttachmentsOf(ctx: RemoteExecuteContext): Promise<ArtifactI
     }));
 }
 
+const CANCELLED = Symbol('cancelled');
+
 /**
- * The signal of the start request: aborted with `signal` unless a cancel
+ * The controller of the start request: aborted with `signal` unless a cancel
  * aborted it (its reason `cancel`). A cancel lets the start finish, since the
- * peer may have created the run: only a recorded start is cancelled remotely.
+ * peer may have created the run (cancelRemoteStart()).
  */
-function remoteStartSignal(signal: AbortSignal): AbortSignal {
+function remoteStartController(signal: AbortSignal): AbortController {
     const controller = new AbortController();
     const forward = () => {
         if (signal.reason !== 'cancel') {
@@ -81,7 +84,29 @@ function remoteStartSignal(signal: AbortSignal): AbortSignal {
         signal.addEventListener('abort', forward, { once: true });
     }
 
-    return controller.signal;
+    return controller;
+}
+
+/** The start's answer, or CANCELLED as soon as a cancel aborts `signal` (the start goes on). */
+async function untilCancelled<T>(pending: Promise<T>, signal: AbortSignal): Promise<T | typeof CANCELLED> {
+    const { promise, resolve } = Promise.withResolvers<typeof CANCELLED>();
+    const onAbort = () => {
+        if (signal.reason === 'cancel') {
+            resolve(CANCELLED);
+        }
+    };
+
+    if (signal.aborted) {
+        onAbort();
+    } else {
+        signal.addEventListener('abort', onAbort, { once: true });
+    }
+
+    try {
+        return await Promise.race([pending, promise]);
+    } finally {
+        signal.removeEventListener('abort', onAbort);
+    }
 }
 
 async function remoteStartInput(ctx: RemoteExecuteContext): Promise<PeerStartInput> {
@@ -140,18 +165,27 @@ export async function startRemoteRun(ctx: RemoteExecuteContext): Promise<string 
 
     try {
         const input = await remoteStartInput(ctx);
-        const answer = await peerRequest(
+        const request = remoteStartController(ctx.signal);
+        const pending = peerRequest(
             clock,
-            remoteStartSignal(ctx.signal),
+            request.signal,
             (signal) => ctx.peers.transport(peer).start(input, { signal }),
         );
+        const answer = await untilCancelled(pending, ctx.signal);
 
-        if (typeof answer?.runId !== 'string' || answer.runId.length === 0) {
-            // a broken peer: a resend gets the same answer
-            throw new ValidationError(`Peer "${peer}" answered the start of run "${run.id}" without a run id.`);
+        if (answer === CANCELLED) {
+            // answered at once: the start finishes detached and cancels the remote run it learns of
+            ctx.detach((signal) => cancelRemoteStart(ctx, {
+                pending,
+                input,
+                request,
+            }, signal));
+            await ctx.finish({ status: RunStatus.CANCELLED });
+
+            return undefined;
         }
 
-        remoteRunId = answer.runId;
+        remoteRunId = readRemoteStartAnswer(answer, peer, run.id);
     } catch (error) {
         if (ctx.signal.aborted) {
             await ctx.finish({ status: RunStatus.CANCELLED });

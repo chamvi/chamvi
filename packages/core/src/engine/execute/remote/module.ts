@@ -22,8 +22,8 @@ import { startRemoteRun } from './start.ts';
  * rejection, and a store failure while recording the start or pausing, ends
  * only the execution (onError), and recovery retries once the claim expired,
  * until the remote deadline passed: then the run fails with Timeout. A
- * cancel lets an in-flight start finish and settles the run after recording
- * it, so the remote run is cancelled too.
+ * cancel during an in-flight start settles the run at once; the start
+ * finishes detached and cancels the remote run (cancelRemoteStart()).
  */
 export async function executeRemoteRun(ctx: RemoteExecuteContext): Promise<void> {
     const {

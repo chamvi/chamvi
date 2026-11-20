@@ -721,6 +721,49 @@ describe('isJobSettled', () => {
     });
 });
 
+const remoteWait = (approval?: boolean): WaitPoint => ({
+    kind: 'remote',
+    id: 'remote',
+    peer: 'eu',
+    agent: 'deployer',
+    remoteRunId: 'remote-1',
+    expiresAt: new Date(T.getTime() + 60_000),
+    remote: {
+        status: 'waiting',
+        ...(approval ? {
+            approval: {
+                runId: 'remote-1',
+                approvalId: '0:c9:0',
+                title: 'Ship?',
+            },
+        } : {}),
+    },
+});
+
+describe('isJobSettled with a stand-in', () => {
+    it('returns a stand-in whose remote run waits on an approval, like a local approval', async () => {
+        const engine = createTestEngine({ agents: [], clock: new ControllableClock(T) });
+        const standIn = buildRun('r', 'waiting', { waiting: remoteWait(true) });
+
+        expect(await isJobSettled(engine.runService, standIn)).toBe(standIn);
+    });
+
+    it('keeps waiting on a stand-in without a pending remote approval', async () => {
+        const engine = createTestEngine({ agents: [], clock: new ControllableClock(T) });
+
+        expect(await isJobSettled(engine.runService, buildRun('r', 'waiting', { waiting: remoteWait(false) }))).toBe(false);
+    });
+
+    it('returns a queued run behind a stand-in of its key that waits on a remote approval', async () => {
+        const engine = createTestEngine({ agents: [], clock: new ControllableClock(T) });
+        const queued = buildRun('b', 'queued', { concurrencyKey: 'k' });
+
+        await engine.runService.create(buildRun('a', 'waiting', { concurrencyKey: 'k', waiting: remoteWait(true) }));
+        await engine.runService.create(queued);
+        expect(await isQueuedBehindApproval(engine.runService, queued)).toBe(true);
+    });
+});
+
 describe('isQueuedBehindApproval', () => {
     it('a queued run behind a dispatch-waiting run of its key is not behind an approval', async () => {
         const clock = new ControllableClock(T);

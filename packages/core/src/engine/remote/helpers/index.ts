@@ -6,6 +6,7 @@
  */
 
 export * from './keys.ts';
+export * from './peers.ts';
 export * from './record.ts';
 export * from './request.ts';
 export * from './view.ts';

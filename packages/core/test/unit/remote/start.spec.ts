@@ -13,6 +13,7 @@ import {
 } from 'vitest';
 import {
     InvalidAgentDefinitionError,
+    PEER_REQUEST_TIMEOUT_MS,
     ValidationError,
     agent,
     defineRemoteAgent,
@@ -45,6 +46,20 @@ function setup(...args: Parameters<typeof setupRemote>) {
     engines.push(ctx.engine);
 
     return ctx;
+}
+
+/** Starts the engine and dispatches `developer` without waiting for its execution. */
+async function dispatchStandIn(engine: IEngine): Promise<string> {
+    await engine.start();
+
+    const { runId } = await engine.dispatch({
+        agent: 'developer',
+        trigger: 'test',
+        channel: 'test',
+        payload: { task: 'upgrade' },
+    });
+
+    return runId;
 }
 
 describe('the stand-in run: start', () => {
@@ -429,6 +444,180 @@ describe('the stand-in run: start', () => {
         expect(aborted).toBe(false);
         expect((await readRun(store, runId)).status).toBe(RunStatus.CANCELLED);
         expect(peers.calls.cancel.map((call) => call.runId)).toEqual(['r1']);
+    });
+
+    it('answers a cancel at once while the start is in flight and cancels the remote run once it answers', async () => {
+        const {
+            engine,
+            store,
+            peers,
+            errors,
+        } = setup();
+        const sent = Promise.withResolvers<void>();
+        const answer = Promise.withResolvers<{ runId: string }>();
+
+        peers.script('start', () => {
+            sent.resolve();
+
+            return answer.promise;
+        });
+
+        const runId = await dispatchStandIn(engine);
+
+        await sent.promise;
+
+        // the cancel does not wait for the start's answer
+        await engine.cancel(runId);
+
+        expect((await readRun(store, runId)).status).toBe(RunStatus.CANCELLED);
+        expect(peers.calls.cancel).toHaveLength(0);
+
+        answer.resolve({ runId: 'r1' });
+        await engine.idle();
+
+        expect(peers.calls.start).toHaveLength(1);
+        expect(peers.calls.cancel.map((call) => call.runId)).toEqual(['r1']);
+        expect((await readRun(store, runId)).status).toBe(RunStatus.CANCELLED);
+        expect(errors).toEqual([]);
+    });
+
+    it('resends the start under the same key after a cancel when the in-flight start times out, then cancels', async () => {
+        const {
+            engine,
+            store,
+            clock,
+            peers,
+            errors,
+        } = setup();
+        const sent = Promise.withResolvers<void>();
+
+        peers.script(
+            'start',
+            // the peer created the run, its answer never arrives (and the transport ignores the signal)
+            () => {
+                sent.resolve();
+
+                return new Promise<never>(() => {});
+            },
+            { runId: 'r1' },
+        );
+
+        const runId = await dispatchStandIn(engine);
+
+        await sent.promise;
+        await engine.cancel(runId);
+
+        expect((await readRun(store, runId)).status).toBe(RunStatus.CANCELLED);
+
+        clock.advance(PEER_REQUEST_TIMEOUT_MS);
+        await engine.idle();
+
+        expect(peers.calls.start.map((call) => call.input.idempotencyKey)).toEqual([runId, runId]);
+        expect(peers.calls.cancel.map((call) => call.runId)).toEqual(['r1']);
+        expect((await readRun(store, runId)).status).toBe(RunStatus.CANCELLED);
+        expect(errors).toEqual([]);
+    });
+
+    it('resends a cancelled start once and reports a second failure to onError only', async () => {
+        const {
+            engine,
+            store,
+            peers,
+            errors,
+        } = setup();
+        const sent = Promise.withResolvers<void>();
+        const first = Promise.withResolvers<{ runId: string }>();
+        const down = new Error('still down');
+
+        peers.script(
+            'start',
+            () => {
+                sent.resolve();
+
+                return first.promise;
+            },
+            rejectWith(down),
+        );
+
+        const runId = await dispatchStandIn(engine);
+
+        await sent.promise;
+        await engine.cancel(runId);
+
+        first.reject(new Error('socket hang up'));
+        await engine.idle();
+
+        expect(peers.calls.start).toHaveLength(2);
+        expect(peers.calls.cancel).toHaveLength(0);
+        expect(errors).toEqual([down]);
+
+        const run = await readRun(store, runId);
+
+        expect(run.status).toBe(RunStatus.CANCELLED);
+        expect(run.error).toBeUndefined();
+    });
+
+    it('sends no resend after a cancel when the peer refused the start', async () => {
+        const {
+            engine,
+            peers,
+            errors,
+        } = setup();
+        const sent = Promise.withResolvers<void>();
+        const first = Promise.withResolvers<{ runId: string }>();
+
+        peers.script('start', () => {
+            sent.resolve();
+
+            return first.promise;
+        });
+
+        const runId = await dispatchStandIn(engine);
+
+        await sent.promise;
+        await engine.cancel(runId);
+
+        first.reject(new ValidationError('The payload is invalid.'));
+        await engine.idle();
+
+        expect(peers.calls.start).toHaveLength(1);
+        expect(peers.calls.cancel).toHaveLength(0);
+        expect(errors).toEqual([]);
+    });
+
+    it('aborts the detached start of a cancelled run on drain, without a resend or an error', async () => {
+        const {
+            engine,
+            clock,
+            peers,
+            errors,
+        } = setup();
+        const sent = Promise.withResolvers<AbortSignal>();
+
+        peers.script('start', ({ opts }) => {
+            sent.resolve(opts.signal);
+
+            return new Promise<never>(() => {});
+        });
+
+        const runId = await dispatchStandIn(engine);
+        const signal = await sent.promise;
+
+        await engine.cancel(runId);
+
+        const drained = engine.drain({ timeoutMs: 1_000 });
+
+        // drain arms its deadline after stopping the channels and the queue
+        await new Promise<void>((resolve) => {
+            setImmediate(resolve);
+        });
+        clock.advance(1_000);
+        await drained;
+
+        expect(signal.aborted).toBe(true);
+        expect(peers.calls.start).toHaveLength(1);
+        expect(peers.calls.cancel).toHaveLength(0);
+        expect(errors).toEqual([]);
     });
 
     it('expires the remote wait at the remote deadline after a retried start', async () => {

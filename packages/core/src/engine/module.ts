@@ -63,6 +63,7 @@ import { EngineLifecycle } from './lifecycle/module.ts';
 import type { IEngineLifecycle } from './lifecycle/types.ts';
 import { EngineRemote } from './remote/caller/module.ts';
 import type { IEngineRemote } from './remote/caller/types.ts';
+import { assertPeerApprovals } from './remote/helpers/peers.ts';
 import { EnginePeerReceiver } from './remote/receiver/module.ts';
 import type { IEnginePeerReceiver } from './remote/receiver/types.ts';
 import type { RemoteEngineContext } from './remote/types.ts';
@@ -262,6 +263,8 @@ export class Engine implements IEngine {
         this.context.provided.set(DISPATCH_CONTEXT, this.createDispatchHost());
 
         if (opts.peers) {
+            assertPeerApprovals(opts.peers, (name) => this.channels.get(name));
+
             const remoteContext: RemoteEngineContext = {
                 // the context's lockService, effectService, getAgent, getChannel and detach, under the dispatch context
                 ...this.context,

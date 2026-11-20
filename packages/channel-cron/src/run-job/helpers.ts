@@ -12,7 +12,7 @@ import type {
     IRunService,
 } from '@chamvi/core';
 import type { Run } from '@chamvi/store';
-import { InvalidAgentDefinitionError, findApprovalWaitBelow } from '@chamvi/core';
+import { InvalidAgentDefinitionError, findApprovalWaitBelow, pendingApprovalOf } from '@chamvi/core';
 import { isCronChannel } from '../channel/helpers.ts';
 import { readCronOptions } from '../tick/index.ts';
 import { TERMINAL } from './constants.ts';
@@ -61,13 +61,14 @@ function findCronSubscription(engine: IEngine, agent: Agent, subscriptionId?: st
     return crons[0] as ChannelSubscription;
 }
 
-function isApprovalWait(run: Run): boolean {
-    return run.status === 'waiting' && run.waiting?.kind === 'approval';
+/** Waits on an approval: its own, or a stand-in's pending at the peer (`pendingApprovalOf()`). */
+export function isApprovalWait(run: Run): boolean {
+    return pendingApprovalOf(run) !== undefined;
 }
 
 /**
  * The run a job returns on, or `false` to keep waiting: the run itself when it
- * finished or waits for a human (an approval); when it waits on its dispatched
+ * finished or waits for a human (an approval, also a stand-in's remote one); when it waits on its dispatched
  * runs, the first unsettled descendant that waits on an approval
  * (`findApprovalWaitBelow()`). A dispatch wait alone keeps the job waiting.
  */
