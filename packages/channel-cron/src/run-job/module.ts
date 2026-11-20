@@ -7,7 +7,12 @@
 
 import type { Run } from '@chamvi/store';
 import { fireCronSubscription } from '../tick/index.ts';
-import { isJobSettled, isQueuedBehindApproval, resolveCronSubscription } from './helpers.ts';
+import {
+    isApprovalWait,
+    isJobSettled,
+    isQueuedBehindApproval,
+    resolveCronSubscription,
+} from './helpers.ts';
 import type { RunJobOptions, RunJobResult } from './types.ts';
 
 /**
@@ -125,7 +130,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
 
                     if (e.run.id === runId) {
                         probe(e.run).catch(reject);
-                    } else if (e.run.parentRunId !== undefined && e.run.status === 'waiting' && e.run.waiting?.kind === 'approval') {
+                    } else if (e.run.parentRunId !== undefined && isApprovalWait(e.run)) {
                         // a descendant paused for a human: re-check from the job's run
                         engine.getRun(runId)
                             .then((candidate) => (candidate && !settled ? probe(candidate) : false))
