@@ -65,11 +65,17 @@ export class WorkspaceRelease {
         } else {
             let candidates: IWorkspace[] = held.map((e) => e.workspace!);
 
-            // a gone workspace may be back (its container restarted): ask before picking
+            // a gone workspace may be back (its container restarted): ask before picking;
+            // with nothing held, a target whose disposal failed is one too
             if (candidates.length === 0 || gone.length > 0) {
-                const ids = new Set(candidates.map((workspace) => workspace.id));
+                const failed = candidates.length === 0 ? ctx.failedDisposals.get(runId)?.values().toArray() ?? [] : [];
+                const ids = new Set([...candidates, ...failed].map((workspace) => workspace.id));
 
-                candidates = [...candidates, ...(await this.findToRemove(runId)).filter((workspace) => !ids.has(workspace.id))];
+                candidates = [
+                    ...candidates,
+                    ...failed,
+                    ...(await this.findToRemove(runId)).filter((workspace) => !ids.has(workspace.id)),
+                ];
             }
 
             if (candidates.length === 0) {
@@ -146,6 +152,9 @@ export class WorkspaceRelease {
             (error: unknown) => [{ status: 'rejected', reason: toSandboxError(error, 'workspace lookup failed') } as PromiseRejectedResult],
         );
         const failed = [...results, ...rest].find((result) => result.status === 'rejected');
+
+        // every target was tried: the provider's collection owns what a settled run left
+        ctx.failedDisposals.delete(runId);
 
         if (failed) {
             throw failed.reason;

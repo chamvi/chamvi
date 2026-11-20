@@ -149,8 +149,8 @@ export class WorkspaceCollector {
                 }
 
                 // lookups wait until the provider stopped it
-                if (!finished) {
-                    ctx.suspensions.set(runId, transition.promise);
+                if (!finished && !ctx.closed) {
+                    ctx.suspend(runId, transition.promise);
                     transitions.push(runId);
                 }
 
@@ -164,9 +164,7 @@ export class WorkspaceCollector {
             finished = true;
 
             for (const runId of transitions) {
-                if (ctx.suspensions.get(runId) === transition.promise) {
-                    ctx.suspensions.delete(runId);
-                }
+                ctx.resume(runId, transition.promise);
             }
 
             transition.resolve();

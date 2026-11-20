@@ -76,6 +76,8 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
 
             if (isSettled && !runs.has(run.id) && !lookups.has(run.id) && !suspended.has(run.id) &&
                 !ctx.failedDisposals.has(run.id)) {
+                // a stamp left (a get that found nothing) goes with the run
+                ctx.activity.delete(run.id);
                 // never touched here: no lookup per settled run (a container or
                 // pod list each); another process's leftovers go with the next
                 // collection (isSettled), at most one per gcIntervalMs
@@ -144,7 +146,8 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
                 throw new InvalidAgentDefinitionError(`close() timeoutMs must be an integer of at least 0, got ${JSON.stringify(timeoutMs)}.`);
             }
 
-            ctx.closed = true;
+            // also lets go of the lookups a suspension holds
+            ctx.close();
 
             for (const unsubscribe of [...subscriptions]) {
                 unsubscribe();

@@ -179,7 +179,10 @@ export function createCredentialSupport(input: {
                 delete current.retryAt;
             }, (error: unknown) => {
                 current.retryAt = clock.now() + CREDENTIAL_RETRY_MS;
-                onError(redactor.redactError(error));
+
+                if (!options.released?.()) {
+                    onError(redactor.redactError(error));
+                }
             }).finally(() => {
                 delete current.pending;
             });

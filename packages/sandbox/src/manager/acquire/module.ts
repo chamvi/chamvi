@@ -11,6 +11,7 @@ import type { WorkspaceCreateOptions } from '../../provider/types.ts';
 import { assertGitRef, normalizeRepo } from '../../repo/module.ts';
 import type { IWorkspace } from '../../workspace/types.ts';
 import type { WorkspaceCollector } from '../collector/module.ts';
+import { WORKSPACE_MANAGER_CLOSED_MESSAGE } from '../context/constants.ts';
 import type { WorkspaceManagerContext } from '../context/module.ts';
 import type { WorkspaceEntry } from '../context/types.ts';
 import { imageNotOfferedMessage, offersImage, toSandboxError } from '../helpers/index.ts';
@@ -104,7 +105,9 @@ export class WorkspaceAcquire {
                 // released (run settled, dispose_workspace, close) while the provider created it
                 await ctx.disposeOrThrow(workspace).catch(ctx.onError);
 
-                throw new SandboxError('workspace released while it was created; call create_workspace again.');
+                throw new SandboxError(ctx.closed ?
+                    WORKSPACE_MANAGER_CLOSED_MESSAGE :
+                    'workspace released while it was created; call create_workspace again.');
             }
 
             entry.workspace = workspace;
@@ -113,10 +116,16 @@ export class WorkspaceAcquire {
             // still pending while the credentials are written: a suspension skips it, a release waits for it
             try {
                 // an authenticated checkout left its read credential in the file
-                await credentials?.refresh(workspace, { fresh: !authenticated });
+                // a failure after a release (it disposed the workspace) is no failure to report
+                await credentials?.refresh(workspace, { fresh: !authenticated, released });
             } finally {
                 delete entry.pending;
                 delete entry.abort;
+            }
+
+            // closed meanwhile: close() kept the workspace for its run (or disposed it with `dispose`)
+            if (ctx.closed) {
+                throw new SandboxError(WORKSPACE_MANAGER_CLOSED_MESSAGE);
             }
 
             // released meanwhile: the release disposed it
@@ -139,7 +148,7 @@ export class WorkspaceAcquire {
         const { options } = ctx;
 
         if (ctx.closed) {
-            throw new SandboxError('the workspace manager is closed.');
+            throw new SandboxError(WORKSPACE_MANAGER_CLOSED_MESSAGE);
         }
 
         const repo = input.repo === undefined ?
@@ -181,8 +190,9 @@ export class WorkspaceAcquire {
                     `dispose it first (dispose_workspace) to check out ${ref ?? 'the default branch'}.`);
             }
 
+            // a workspace still pending is handed out once its credentials are written
             if (image === undefined || existing.image === image) {
-                return { workspace: existing.workspace ?? await existing.pending!, reused: true };
+                return { workspace: existing.pending ? await existing.pending : existing.workspace!, reused: true };
             }
 
             const refuse = (held: string) => new SandboxError(`This run already has a workspace of ${repo ?? 'no repository'} ` +
@@ -194,7 +204,7 @@ export class WorkspaceAcquire {
 
             // a create without a request learns its image once it lands; a
             // workspace that records none (local) takes any request
-            const workspace = existing.workspace ?? await existing.pending!;
+            const workspace = existing.pending ? await existing.pending : existing.workspace!;
 
             if (workspace.info.image !== undefined && workspace.info.image !== image) {
                 throw refuse(workspace.info.image);
@@ -213,7 +223,7 @@ export class WorkspaceAcquire {
         await this.finder.lookup(runId);
 
         if (ctx.closed) {
-            throw new SandboxError('the workspace manager is closed.');
+            throw new SandboxError(WORKSPACE_MANAGER_CLOSED_MESSAGE);
         }
 
         let entries = ctx.runs.get(runId);

@@ -39,9 +39,10 @@ export type CredentialSupport = {
      * and one it found again may hold an earlier process's: the first
      * install overwrites (or clears) both. The file is never read back: it
      * is writable from inside the workspace, so its content is no secret to
-     * redact.
+     * redact. A failure while `released` answers true (the manager released,
+     * so disposed, the workspace meanwhile) is not reported.
      */
-    refresh(workspace: IWorkspace, options?: { fresh?: boolean }): Promise<void>;
+    refresh(workspace: IWorkspace, options?: { fresh?: boolean; released?: () => boolean }): Promise<void>;
     /** The workspace the manager hands out: redacting and refreshing before each call. One per raw workspace. */
     wrap(workspace: IWorkspace): IWorkspace;
 };
