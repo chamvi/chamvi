@@ -7,6 +7,7 @@
 
 import { afterAll, beforeAll, describe } from 'vitest';
 import { describeEntityRepositoryContract } from '@chamvi/test-kit';
+import { BIND_PARAMETER_LIMITS } from '../../../src/entity/constants.ts';
 import { postgres } from '../../utils/database.ts';
 import { openFixtureDataSource } from '../../utils/entity/data-source.ts';
 import type { FixtureDataSource } from '../../utils/entity/data-source.ts';
@@ -17,6 +18,7 @@ const drivers: {
     name: string;
     driver: FixtureDriver;
     serialized: boolean;
+    parameterLimit?: number;
     guard?: boolean;
     skip: boolean
 }[] = [
@@ -30,6 +32,7 @@ const drivers: {
         name: 'better-sqlite3',
         driver: 'better-sqlite3',
         serialized: true,
+        parameterLimit: BIND_PARAMETER_LIMITS['better-sqlite3'],
         skip: false,
     },
     {
@@ -46,6 +49,7 @@ describe.each(drivers)('entity repository adapter on $name', ({
     name,
     driver,
     serialized,
+    parameterLimit,
     guard,
     skip,
 }) => {
@@ -65,6 +69,7 @@ describe.each(drivers)('entity repository adapter on $name', ({
         describeEntityRepositoryContract({
             name,
             serialized,
+            parameterLimit,
             async create() {
                 await fixture.clear();
 

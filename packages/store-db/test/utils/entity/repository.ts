@@ -12,14 +12,22 @@ import type { EntityRepositoryAdapterOptions } from '../../../src/entity/index.t
 
 /**
  * The smallest adapter on the base: options only, as a repository of a
- * later aggregate is.
+ * later aggregate is. A `parameterLimit` replaces the driver's bind
+ * limit, so the split of a where shows with a few values.
  */
 export class FixtureRepository<T extends EntityRecord, E extends ObjectLiteral = T> extends EntityRepositoryAdapter<T, E> {
-    constructor(repository: Repository<E>, options: EntityRepositoryAdapterOptions<T, E>) {
+    protected limit: number | undefined;
+
+    constructor(repository: Repository<E>, options: EntityRepositoryAdapterOptions<T, E>, parameterLimit?: number) {
         super(repository, options);
+        this.limit = parameterLimit;
     }
 
     withManager(manager: EntityManager): this {
-        return new FixtureRepository<T, E>(manager.getRepository(this.options.target), this.options) as this;
+        return new FixtureRepository<T, E>(manager.getRepository(this.options.target), this.options, this.limit) as this;
+    }
+
+    protected override get parameterLimit(): number {
+        return this.limit ?? super.parameterLimit;
     }
 }

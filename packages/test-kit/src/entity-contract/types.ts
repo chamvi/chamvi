@@ -61,4 +61,10 @@ export type EntityRepositoryContractInput = {
      * whole point (a lock cycle).
      */
     serialized?: boolean;
+    /**
+     * The most bind parameters one statement of the driver carries
+     * (default 65535, PostgreSQL's): the split cases size their wheres
+     * beyond it.
+     */
+    parameterLimit?: number;
 };
