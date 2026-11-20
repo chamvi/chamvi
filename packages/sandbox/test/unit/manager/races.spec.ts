@@ -448,8 +448,17 @@ describe('workspace manager: races', () => {
         const acquired = manager.acquire('r1', { repo: 'octo/demo' });
 
         await until(() => state.writes === 1);
-        await manager.close();
+
+        let closed = false;
+        const closing = manager.close().then(() => {
+            closed = true;
+        });
+
+        await flush();
+        // close joins the acquire still writing credentials
+        expect(closed).toBe(false);
         write.resolve(undefined);
+        await closing;
 
         await expect(acquired).rejects.toThrow(/the workspace manager is closed/);
         expect(provider.disposed).toEqual([]);
@@ -557,6 +566,33 @@ describe('workspace manager: races', () => {
         await collected;
 
         expect(answers).toEqual([false]);
+    });
+
+    it('keeps every target of concurrent failed disposals of one run', async () => {
+        const provider = createFakeProvider();
+        const ctx = new WorkspaceManagerContext({ provider });
+        const gates = [Promise.withResolvers<void>(), Promise.withResolvers<void>()];
+        const targets = await Promise.all(gates.map(async (gate) => {
+            const workspace = await provider.create({ runId: 'r1' } as never);
+
+            workspace.dispose = async () => {
+                await gate.promise;
+
+                throw new Error('container remove failed');
+            };
+
+            return workspace;
+        }));
+
+        // both capture the run's retry map before either fails
+        const disposals = targets.map((workspace) => ctx.disposeTarget('r1', workspace).catch(() => undefined));
+
+        gates[0]!.resolve();
+        await flush();
+        gates[1]!.resolve();
+        await Promise.all(disposals);
+
+        expect(Array.from(ctx.failedDisposals.get('r1')?.keys() ?? []).toSorted()).toEqual(targets.map((w) => w.id).toSorted());
     });
 
     it('stamps no activity without isSuspendable', () => {

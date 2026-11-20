@@ -152,11 +152,14 @@ export class WorkspaceManagerContext {
 
     /** Disposes a workspace of the run, kept in `failedDisposals` for a retry while its disposal fails. */
     async disposeTarget(runId: string, workspace: IWorkspace): Promise<void> {
-        let failed = this.failedDisposals.get(runId);
+        let failed: Map<string, IWorkspace> | undefined;
 
         try {
             await this.disposeOrThrow(workspace);
         } catch (error) {
+            // read after the await: a concurrent failure of the run may have created it meanwhile
+            failed = this.failedDisposals.get(runId);
+
             if (!failed) {
                 failed = new Map();
                 this.failedDisposals.set(runId, failed);
