@@ -14,7 +14,8 @@ import {
     expect, 
     it, 
 } from 'vitest';
-import { AppToken, configModule } from '@chamvi/app';
+import { AppToken, ModuleName, configModule } from '@chamvi/app';
+import type { IModule } from '@chamvi/app';
 import { authupModule } from '@chamvi/app/authup';
 import type { AuthupModuleOptions } from '@chamvi/app/authup';
 import {
@@ -86,6 +87,9 @@ afterEach(async () => {
     servers = [];
 });
 
+/** The env of a dashboard client `client` signing in at `url`. */
+const dashboardEnv = (client: string, url = 'https://auth.example.com/api') => ({ AUTHUP_URL: url, CHAMVI_UI_AUTHUP_CLIENT_ID: client });
+
 async function fakeAuthup(clients: FakeAuthupClient[] | undefined, hold?: (route: string) => boolean) {
     const authup = await createFakeAuthup({
         users: {},
@@ -98,7 +102,7 @@ async function fakeAuthup(clients: FakeAuthupClient[] | undefined, hold?: (route
     return {
         authup,
         env: {
-            AUTHUP_URL: authup.url,
+            ...dashboardEnv('dashboard', authup.url),
             AUTHUP_CLIENT_ID: 'chamvi',
             AUTHUP_CLIENT_SECRET: 'client-secret-value',
         },
@@ -106,10 +110,22 @@ async function fakeAuthup(clients: FakeAuthupClient[] | undefined, hold?: (route
     };
 }
 
-function harnessOf(options: AuthupModuleOptions, clock = createTrackingClock()) {
+type HarnessInput = {
+    clock?: ReturnType<typeof createTrackingClock>;
+    mode?: 'start' | 'job';
+    /** Modules set up with authup, listed after it. */
+    modules?: IModule[];
+};
+
+function harnessOf(options: AuthupModuleOptions, input: HarnessInput = {}) {
     const harness = buildHarness({
         env: {},
-        modules: [configModule({ logger: createRecordingLogger(), clock }), authupModule({ env: {}, ...options })],
+        mode: input.mode ?? 'start',
+        modules: [
+            configModule({ logger: createRecordingLogger(), clock: input.clock ?? createTrackingClock() }),
+            authupModule({ env: {}, ...options }),
+            ...input.modules ?? [],
+        ],
     });
 
     harnesses.push(harness);
@@ -123,9 +139,35 @@ function harnessOf(options: AuthupModuleOptions, clock = createTrackingClock()) 
     return { harness, login };
 }
 
-describe('authupModule permission client', () => {
-    it('checks through the definition of a client given by id, without a lookup', async () => {
-        const { harness, login } = harnessOf({ ...injected, permissionClient: OWNER });
+/** A stand-in for the dashboard module: it registers UI_AUTH with an authup client. */
+function dashboard(clientId: string): IModule {
+    return {
+        name: ModuleName.UI,
+        async setup(container) {
+            container.register(AppToken.UI_AUTH, {
+                useValue: {
+                    tokens: true,
+                    authup: { url: 'https://auth.example.com/api', clientId },
+                },
+            });
+        },
+    };
+}
+
+const byName = (env: Record<string, string>): AuthupModuleOptions => ({
+    verifier,
+    catalog: async () => CATALOG,
+    permissionOwner: 'client',
+    env,
+});
+
+describe('authupModule permission owner', () => {
+    it('checks through the definition of the dashboard client given by id, without a lookup', async () => {
+        const { harness, login } = harnessOf({
+            ...injected,
+            permissionOwner: 'client',
+            env: dashboardEnv(OWNER),
+        });
 
         await harness.setup();
 
@@ -135,27 +177,39 @@ describe('authupModule permission client', () => {
         expect(await can(principal, Permission.RUN_READ)).toBe(true);
     });
 
-    it('reads AUTHUP_PERMISSION_CLIENT', async () => {
-        const { harness, login } = harnessOf({ ...injected, env: { AUTHUP_PERMISSION_CLIENT: OWNER } });
+    it('reads AUTHUP_PERMISSION_OWNER', async () => {
+        const { harness, login } = harnessOf({ ...injected, env: { ...dashboardEnv(OWNER), AUTHUP_PERMISSION_OWNER: 'client' } });
 
         await harness.setup();
 
         expect((await login())?.authorization?.client).toBe(OWNER);
     });
 
-    it('lets the option win over AUTHUP_PERMISSION_CLIENT', async () => {
+    it('lets the option win over AUTHUP_PERMISSION_OWNER', async () => {
         const { harness, login } = harnessOf({
             ...injected,
-            permissionClient: OWNER,
-            env: { AUTHUP_PERMISSION_CLIENT: OTHER },
+            permissionOwner: 'realm',
+            env: { ...dashboardEnv(OWNER), AUTHUP_PERMISSION_OWNER: 'client' },
         });
 
         await harness.setup();
 
+        expect((await login())?.authorization).not.toHaveProperty('client');
+    });
+
+    it('prefers the dashboard module\'s client over the env', async () => {
+        const { harness, login } = harnessOf({
+            ...injected,
+            permissionOwner: 'client',
+            env: dashboardEnv(OTHER),
+        }, { modules: [dashboard(OWNER)] });
+
+        await harness.setup();
+
         expect((await login())?.authorization?.client).toBe(OWNER);
     });
 
-    it('resolves a name once, in chamvi\'s realm', async () => {
+    it('resolves a dashboard client name once, in chamvi\'s realm', async () => {
         const { env, lookups } = await fakeAuthup([
             DASHBOARD,
             {
@@ -164,12 +218,7 @@ describe('authupModule permission client', () => {
                 realmId: '7d1f2c3b-4a5e-4f60-8b71-000000000000',
             },
         ]);
-        const { harness, login } = harnessOf({
-            verifier,
-            catalog: async () => CATALOG,
-            permissionClient: 'dashboard',
-            env,
-        });
+        const { harness, login } = harnessOf(byName(env));
 
         await harness.setup();
 
@@ -190,12 +239,7 @@ describe('authupModule permission client', () => {
         ['matches two clients', [DASHBOARD, { ...DASHBOARD, id: OTHER }]],
     ])('fails the start for a name that %s', async (_label, clients) => {
         const { env } = await fakeAuthup(clients);
-        const { harness } = harnessOf({
-            verifier,
-            catalog: async () => CATALOG,
-            permissionClient: 'dashboard',
-            env,
-        });
+        const { harness } = harnessOf(byName(env));
 
         await expect(harness.setup()).rejects.toThrow(new InvalidAgentDefinitionError(
             `authup: the permission client "dashboard" does not resolve to one client of realm ${AUTHUP_REALM}.`,
@@ -205,13 +249,7 @@ describe('authupModule permission client', () => {
     it('fails the start when the lookup does not answer within timeoutMs', async () => {
         const clock = createTrackingClock();
         const { env, lookups } = await fakeAuthup([DASHBOARD], (route) => route === 'GET /clients');
-        const { harness } = harnessOf({
-            verifier,
-            catalog: async () => CATALOG,
-            permissionClient: 'dashboard',
-            timeoutMs: 1000,
-            env,
-        }, clock);
+        const { harness } = harnessOf({ ...byName(env), timeoutMs: 1000 }, { clock });
         const setup = harness.setup();
 
         setup.catch(() => undefined);
@@ -231,18 +269,37 @@ describe('authupModule permission client', () => {
 
     it('fails the start when the lookup is refused', async () => {
         const { env } = await fakeAuthup(undefined);
-        const { harness } = harnessOf({
-            verifier,
-            catalog: async () => CATALOG,
-            permissionClient: 'dashboard',
-            env,
-        });
+        const { harness } = harnessOf(byName(env));
 
         await expect(harness.setup()).rejects.toThrow(InvalidAgentDefinitionError);
         await expect(harness.setup()).rejects.toThrow(/permission client "dashboard"/);
     });
 
-    it('without an owner looks nothing up and sets no client', async () => {
+    it('fails the start in client mode without a dashboard client', async () => {
+        const { harness } = harnessOf({
+            ...injected, 
+            permissionOwner: 'client', 
+            env: {}, 
+        });
+
+        await expect(harness.setup()).rejects.toThrow(new InvalidAgentDefinitionError(
+            'authup: the permission owner client needs the dashboard client (CHAMVI_UI_AUTHUP_CLIENT_ID).',
+        ));
+    });
+
+    // a migrate run takes the same path (any mode but a serving start), and needs no authup at setup
+    it('in job mode resolves a name at the first login with grants, not at setup', async () => {
+        const { env, lookups } = await fakeAuthup([]);
+        const { harness, login } = harnessOf(byName(env), { mode: 'job' });
+
+        await harness.setup();
+
+        expect(lookups()).toBe(0);
+        expect((await login())?.authorization).toBeUndefined();
+        expect(lookups()).toBe(1);
+    });
+
+    it('in realm mode, the default, looks nothing up and sets no client', async () => {
         const { env, lookups } = await fakeAuthup([DASHBOARD]);
         const { harness, login } = harnessOf({
             verifier,
@@ -260,12 +317,14 @@ describe('authupModule permission client', () => {
         expect(await can(principal, Permission.RUN_READ)).toBe(false);
     });
 
-    it('refuses an empty permissionClient', () => {
+    it('refuses any other permission owner, from the option or the env', () => {
+        const error = new InvalidAgentDefinitionError('authup: the permission owner (AUTHUP_PERMISSION_OWNER) must be realm or client.');
+
         expect(() => authupModule({
             ...injected, 
-            permissionClient: '', 
+            permissionOwner: 'scope' as never, 
             env: {}, 
-        }))
-            .toThrow(new InvalidAgentDefinitionError('authup: permissionClient must be a non-empty string.'));
+        })).toThrow(error);
+        expect(() => authupModule({ ...injected, env: { AUTHUP_PERMISSION_OWNER: 'Client' } })).toThrow(error);
     });
 });

@@ -10,28 +10,38 @@ import { ErrorCode, InvalidAgentDefinitionError } from '@chamvi/core';
 import type { IClock } from '@chamvi/core';
 import { authup } from '@chamvi/http';
 import type { IContainer } from 'eldin';
-import type { IModule } from 'orkos';
+import type { IModule, ModuleDependency } from 'orkos';
 import { isObject } from 'smob';
 import { AUTHENTICATOR_ORDER, AppToken, ModuleName } from '../module/constants.ts';
 import { TIMER_MAX_MS } from '../env/constants.ts';
 import { envInteger, envString } from '../env/module.ts';
+import type { Env } from '../env/types.ts';
 import { AUTHUP_MODULE_NAME, AUTHUP_TIMEOUT_MS_DEFAULT } from './constants.ts';
 import { boundVerifier, withDeadline } from './deadline.ts';
 import { createAuthupRemote, isClientId, once } from './remote.ts';
-import type { AuthupModuleOptions } from './types.ts';
+import { readUiAuth } from '../module/helpers/ui-auth.ts';
+import type { AuthupModuleOptions, AuthupPermissionOwner } from './types.ts';
 
 /**
  * Contributes the authup authenticator (after static tokens), over
  * `options.verifier`, `options.catalog` and `options.realm`, or what the
  * authup server of the env serves for each one not given. Catalog and realm
- * failures go to the app logger; that login then grants nothing. A
- * permission client is resolved in `setup()`: one that does not resolve
- * fails the start, never falling back to the realm's definitions.
+ * failures go to the app logger; that login then grants nothing. With the
+ * permission owner `client`, the dashboard client (`UI_AUTH` of the dashboard
+ * module, which sets up first, else `CHAMVI_UI_AUTHUP_CLIENT_ID`) owns the
+ * permissions: resolved in `setup()` of a serving start, so one that does not
+ * resolve fails the start, never falling back to the realm's definitions.
+ * Other modes (job, migrate, a check) resolve it at the first login with
+ * grants, which then grants nothing until it resolves.
  */
 export class AuthupModule implements IModule {
     readonly name: string = AUTHUP_MODULE_NAME;
 
-    readonly dependencies = [ModuleName.CONFIG];
+    readonly dependencies: (string | ModuleDependency)[] = [
+        ModuleName.CONFIG,
+        // the dashboard registers UI_AUTH, the owner client in client mode
+        { name: ModuleName.UI, optional: true },
+    ];
 
     readonly verifier: ITokenVerifier;
 
@@ -44,11 +54,13 @@ export class AuthupModule implements IModule {
 
     protected timeoutMs: number;
 
-    /** The configured owner client, an id or a name; undefined in realm mode. */
-    protected permissionClient: string | undefined;
+    /** Who owns the permissions: `client` makes the dashboard client the owner. */
+    protected permissionOwner: AuthupPermissionOwner;
 
-    /** Resolves a client name in a realm; set only when `permissionClient` is a name. */
-    protected clientLookup: ((name: string, realm: string) => Promise<string>) | undefined;
+    protected env: Env;
+
+    /** The authup server of the env, created on first use. */
+    protected server: () => ReturnType<typeof createAuthupRemote>;
 
     constructor(options: AuthupModuleOptions = {}) {
         const { realm } = options;
@@ -57,13 +69,18 @@ export class AuthupModule implements IModule {
             throw new InvalidAgentDefinitionError('authup: realm must be a non-empty string.');
         }
 
-        if (typeof options.permissionClient !== 'undefined' &&
-            (typeof options.permissionClient !== 'string' || options.permissionClient.length === 0)) {
-            throw new InvalidAgentDefinitionError('authup: permissionClient must be a non-empty string.');
+        const env = options.env ?? process.env;
+        const permissionOwner: unknown = options.permissionOwner ?? envString(env, 'AUTHUP_PERMISSION_OWNER') ?? 'realm';
+
+        if (permissionOwner !== 'realm' && permissionOwner !== 'client') {
+            throw new InvalidAgentDefinitionError('authup: the permission owner (AUTHUP_PERMISSION_OWNER) must be realm or client.');
         }
 
+        this.permissionOwner = permissionOwner;
+        this.env = env;
+
         const timeoutMs = options.timeoutMs ??
-            envInteger(options.env ?? process.env, 'AUTHUP_TIMEOUT_MS', { min: 1, max: TIMER_MAX_MS }) ??
+            envInteger(env, 'AUTHUP_TIMEOUT_MS', { min: 1, max: TIMER_MAX_MS }) ??
             AUTHUP_TIMEOUT_MS_DEFAULT;
 
         if (typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
@@ -84,15 +101,12 @@ export class AuthupModule implements IModule {
             return remote;
         };
 
+        this.server = server;
+
         this.verifier = options.verifier ?? server().verifier();
         this.catalog = options.catalog ?? server().catalog;
         this.realm = typeof realm === 'undefined' ? server().realm : async () => realm;
         this.realmLookup = typeof realm === 'undefined';
-        this.permissionClient = options.permissionClient ??
-            envString(options.env ?? process.env, 'AUTHUP_PERMISSION_CLIENT');
-        this.clientLookup = this.permissionClient && !isClientId(this.permissionClient) ?
-            server().client :
-            undefined;
     }
 
     async setup(container: IContainer): Promise<void> {
@@ -102,7 +116,14 @@ export class AuthupModule implements IModule {
         const { catalog, realm } = this;
         // the bound sits inside once: a timed-out lookup is forgotten and the next login looks up again
         const bounded = this.realmLookup ? once(() => withDeadline(clock, timeoutMs, 'realm lookup', realm)) : realm;
-        const owner = await this.resolvePermissionClient(bounded, clock);
+        const context = container.resolve(AppToken.CONTEXT);
+        const ownerClient = this.permissionOwner === 'client' ? this.readOwnerClient(container) : undefined;
+        // one lookup, kept once it resolved; serving apps resolve it now, so one that does not resolve fails the start
+        const owner = ownerClient ? once(() => this.resolvePermissionClient(ownerClient, bounded, clock)) : undefined;
+
+        if (owner && context.mode === 'start' && !context.check) {
+            await owner();
+        }
 
         container.registerMany(AppToken.AUTHENTICATORS, {
             useValue: {
@@ -112,7 +133,7 @@ export class AuthupModule implements IModule {
                     verifier: boundVerifier(this.verifier, clock, timeoutMs),
                     catalog: () => withDeadline(clock, timeoutMs, 'catalog read', catalog),
                     realm: bounded,
-                    ...(owner ? { client: async () => owner } : {}),
+                    ...(owner ? { client: owner } : {}),
                     clock,
                     onError: (error) => logger.error('authup error', error),
                 }),
@@ -120,16 +141,28 @@ export class AuthupModule implements IModule {
         });
     }
 
-    /** The owner client's id: an id as is, a name looked up once in chamvi's realm; undefined without one. */
-    protected async resolvePermissionClient(realm: () => Promise<string>, clock: IClock): Promise<string | undefined> {
-        const name = this.permissionClient;
-        const lookup = this.clientLookup;
+    /** The dashboard client, an id or a name: the dashboard module's `UI_AUTH`, else the env. */
+    protected readOwnerClient(container: IContainer): string {
+        const auth = container.has(AppToken.UI_AUTH) ? container.resolve(AppToken.UI_AUTH) : readUiAuth(this.env);
+        const clientId = auth.authup?.clientId;
 
-        if (!name || !lookup) {
+        if (typeof clientId !== 'string' || clientId.length === 0) {
+            throw new InvalidAgentDefinitionError(
+                'authup: the permission owner client needs the dashboard client (CHAMVI_UI_AUTHUP_CLIENT_ID).',
+            );
+        }
+
+        return clientId;
+    }
+
+    /** The owner client's id: an id as is, a name looked up in chamvi's realm under the deadline. */
+    protected async resolvePermissionClient(name: string, realm: () => Promise<string>, clock: IClock): Promise<string> {
+        if (isClientId(name)) {
             return name;
         }
 
         try {
+            const { client: lookup } = this.server();
             const realmId = await realm();
 
             return await withDeadline(clock, this.timeoutMs, 'permission client lookup', () => lookup(name, realmId));
@@ -147,7 +180,7 @@ export class AuthupModule implements IModule {
 
 /**
  * The authup module. Unless `verifier`, `catalog` and `realm` are all given
- * and the permission client is no name, it reads `AUTHUP_URL`,
+ * and no owner client name is looked up, it reads `AUTHUP_URL`,
  * `AUTHUP_CLIENT_ID` and `AUTHUP_CLIENT_SECRET` (all required) from
  * `options.env ?? process.env` now; options win.
  */

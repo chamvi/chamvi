@@ -176,11 +176,11 @@ async function served(options: AuthupModuleOptions) {
 const authupErrors = (logger: RecordingLogger) => logger.entries.filter((entry) => entry.msg === 'authup error');
 
 describe('authupModule', () => {
-    it('is named chamvi:authup and depends on the config module', () => {
+    it('is named chamvi:authup and depends on the config module, and on the dashboard when present', () => {
         const module = authupModule({ ...injected(), env: {} });
 
         expect(module.name).toBe('chamvi:authup');
-        expect(module.dependencies).toEqual(['chamvi:config']);
+        expect(module.dependencies).toEqual(['chamvi:config', { name: 'chamvi:ui', optional: true }]);
     });
 
     it.each(Object.keys(AUTHUP_ENV))('requires %s without a verifier', (name) => {

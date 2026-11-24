@@ -8,6 +8,9 @@
 import type { ITokenVerifier } from '@authup/server-adapter-kit';
 import type { Env } from '../env/types.ts';
 
+/** Who owns the permissions chamvi checks on an authup login. */
+export type AuthupPermissionOwner = 'realm' | 'client';
+
 export type AuthupModuleOptions = {
     /** Used as is. */
     verifier?: ITokenVerifier;
@@ -23,15 +26,16 @@ export type AuthupModuleOptions = {
      */
     realm?: string;
     /**
-     * The client that owns chamvi's permissions (#282), by id or by name in
-     * chamvi's realm. Set, every permission name is checked only as a
-     * definition of this client; global and realm-owned definitions grant
-     * nothing. A name is resolved once at start (needs `client_read`); one
-     * that does not resolve to exactly one client fails the start. Default
-     * `AUTHUP_PERMISSION_CLIENT`; unset, the global then the realm-owned
-     * definition is checked.
+     * Who owns the permissions chamvi checks (#282). `realm` (default): the
+     * global then the realm-owned definition. `client`: the dashboard client
+     * (`CHAMVI_UI_AUTHUP_CLIENT_ID`, or the dashboard module's sign-in) owns
+     * every name, checked only as its definition in chamvi's realm; global
+     * and realm-owned definitions grant nothing. A dashboard client given by
+     * name is resolved once at start (needs `client_read`); one that does not
+     * resolve to exactly one client fails the start. Default
+     * `AUTHUP_PERMISSION_OWNER`; any other value is refused.
      */
-    permissionClient?: string;
+    permissionOwner?: AuthupPermissionOwner;
     /**
      * How long each call to authup may take, in ms: the catalog read, the
      * realm lookup, the permission client lookup and each token verification
@@ -49,9 +53,9 @@ export type AuthupModuleOptions = {
     /**
      * Default `process.env`, read when the factory is called; `AUTHUP_URL`,
      * `AUTHUP_CLIENT_ID` and `AUTHUP_CLIENT_SECRET` are read unless
-     * `verifier`, `catalog` and `realm` are all given and the permission
-     * client is no name, `AUTHUP_TIMEOUT_MS` unless `timeoutMs` is,
-     * `AUTHUP_PERMISSION_CLIENT` unless `permissionClient` is.
+     * `verifier`, `catalog` and `realm` are all given and no owner client
+     * name is looked up, `AUTHUP_TIMEOUT_MS` unless `timeoutMs` is,
+     * `AUTHUP_PERMISSION_OWNER` unless `permissionOwner` is.
      */
     env?: Env;
 };
