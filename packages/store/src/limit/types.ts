@@ -15,7 +15,11 @@ export type LimitUse = {
     scope: string;
     /** The call the use belongs to, unique within its scope. */
     key: string;
-    /** How much of the limit the use takes. */
+    /**
+     * How much of the limit the use takes: a whole number from 1 to
+     * 2147483647 (the database column is an `integer`). Repositories store it
+     * as given; the limit service refuses any other value before a write.
+     */
     weight: number;
     /** When the use leaves the window: from this time on it counts as expired. */
     expiresAt: Date;
