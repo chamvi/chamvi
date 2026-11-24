@@ -14,6 +14,7 @@ import { ServiceUnavailableError, UnauthorizedError } from '@ebec/http';
 import { isObject } from 'smob';
 import type { Authenticator } from '../types.ts';
 import { createCatalogCache } from './catalog.ts';
+import { createSharedLookup } from './lookup.ts';
 import { buildPrincipalSnapshot } from './snapshot.ts';
 import type { AuthupOptions } from './types.ts';
 
@@ -46,8 +47,10 @@ function readIdentity(data: TokenVerificationData, sub: string): PermissionIdent
  * identity and grants nothing. The principal carries upstream's two-layer
  * snapshot of authup's catalog (`GET /authorization`) and the grants as its
  * `authorization`, with `realm()` as the realm every check reaches into; its
- * `bindings` stay empty. A catalog or realm that cannot be read grants
- * nothing and goes to `onError`. A verifier failing with a core
+ * `bindings` stay empty. With `client()`, the owner client id travels on the
+ * authorization as `client` and the snapshot keeps only that client's
+ * definitions in the realm. A catalog, realm or owner client that cannot be
+ * read grants nothing and goes to `onError`. A verifier failing with a core
  * `TimeoutError` answers 503, any other failure 401. In local mode authup
  * yields no permissions: grants need remote mode.
  */
@@ -89,37 +92,8 @@ export function authup(options: AuthupOptions): Authenticator {
         }
     }, { clock: options.clock ?? systemClock, maxAgeMs });
 
-    // concurrent logins share one lookup, so a failed one is reported once, not per login
-    let lookup: Promise<string> | undefined;
-    const realmOf = (): Promise<string> => {
-        if (!lookup) {
-            const current = (async () => {
-                try {
-                    const realm = await options.realm();
-
-                    if (typeof realm !== 'string' || realm.length === 0) {
-                        throw new InvalidAgentDefinitionError('authup: realm() must resolve a non-empty realm id.');
-                    }
-
-                    return realm;
-                } catch (error) {
-                    report(error);
-
-                    throw error;
-                }
-            })();
-            const clear = () => {
-                if (lookup === current) {
-                    lookup = undefined;
-                }
-            };
-
-            lookup = current;
-            current.then(clear, clear);
-        }
-
-        return lookup;
-    };
+    const realmOf = createSharedLookup(options.realm, 'realm', report);
+    const clientOf = options.client ? createSharedLookup(options.client, 'client', report) : undefined;
 
     const resolve = async (data: TokenVerificationData, identity: PermissionIdentity | undefined): Promise<PermissionAuthorization | undefined> => {
         if (!identity || !grantsGlobal(data.scope) || !Array.isArray(data.permissions) || data.permissions.length === 0) {
@@ -127,21 +101,27 @@ export function authup(options: AuthupOptions): Authenticator {
         }
 
         let realm: string;
+        let client: string | undefined;
         let document: unknown;
 
         try {
             realm = await realmOf();
+            client = clientOf ? await clientOf() : undefined;
         } catch {
             return undefined;
         }
 
         const build = async (): Promise<PermissionAuthorization> => ({
             snapshot: await buildPrincipalSnapshot({
-                catalog: document, 
-                grants: data.permissions, 
-                realm, 
+                catalog: document,
+                grants: data.permissions,
+                realm,
+                ...(client ? { client } : {}),
+                subjectKind: identity.type,
+                tokenClient: identity.clientId ?? null,
             }),
             realm,
+            ...(client ? { client } : {}),
         });
 
         try {
