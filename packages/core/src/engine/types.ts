@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { LanguageModel } from 'ai';
 import type { Agent } from '../agent/types.ts';
 import type { ArtifactInput, IArtifactService  } from '../artifact/types.ts';
 import type { ChannelContext, DispatchResult, IChannel } from '../channel/types.ts';
@@ -81,6 +82,14 @@ export interface IEngine extends IContextProvider {
     resetConversation(identity: ConversationIdentity, options?: { keepNotes?: boolean }): Promise<ConversationScope>;
     deleteConversation(identity: ConversationIdentity): Promise<void>;
     pruneConversations(): Promise<void>;
+    /**
+     * The LanguageModel for `ref`, else the model of `agent` in the live
+     * registry, else the default (EngineOptions.model): a model outside a
+     * tool call (e.g. a channel's). A string goes through
+     * EngineOptions.models; without a resolver, or with no model at all,
+     * it is an InvalidAgentDefinitionError.
+     */
+    resolveModel(ref?: ModelRef, agent?: string): LanguageModel;
     getAgent(name: string): Agent | undefined;
     listAgents(): Agent[];
     channelContext(channel: IChannel): ChannelContext;

@@ -72,6 +72,36 @@ export class IdempotencyService implements IIdempotencyService {
         }
     }
 
+    async findOne(scope: string, key: string): Promise<IdempotencyClaim | undefined> {
+        const current = await this.repository.findOneBy({ scope, key });
+
+        if (!current || current.expiresAt.getTime() <= this.clock.now()) {
+            return undefined;
+        }
+
+        return { created: false, runId: current.runId };
+    }
+
+    async release(scope: string, key: string, runId: string): Promise<void> {
+        await this.repository.transaction(async (repository) => {
+            const stored = await repository.findOneBy({ scope, key });
+
+            if (!stored || stored.runId !== runId) {
+                return;
+            }
+
+            const now = this.clock.now();
+
+            // expired already: nothing to give up
+            if (stored.expiresAt.getTime() <= now) {
+                return;
+            }
+
+            repository.merge(stored, { expiresAt: new Date(now) });
+            await repository.save(stored);
+        });
+    }
+
     async purgeExpired(now: Date = new Date(this.clock.now())): Promise<number> {
         return this.repository.transaction((repository) => repository.removeExpiredBy(now));
     }

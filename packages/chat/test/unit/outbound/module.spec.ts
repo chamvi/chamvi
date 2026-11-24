@@ -187,6 +187,69 @@ describe('createChatSender', () => {
         expect(ctx.adapter.posts).toEqual([]);
     });
 
+    it('renders the reply hint only for an approval to a direct message; a group one gets the link', async () => {
+        const ctx = setup({
+            answers: { timeoutMs: 1_000 },
+            approvalUrl: ({ runId }) => `https://chamvi.test/approvals/${runId}`,
+        });
+        const approval = message({
+            kind: 'approval',
+            title: 'Deploy?',
+            approvalId: '0:call-1:0',
+        });
+
+        ctx.adapter.isDirect = (threadId) => threadId === 'fake:chat-1';
+        await ctx.out(approval, SOURCE, opts());
+        await ctx.out(approval, OTHER, opts());
+
+        const [direct, group] = ctx.adapter.posts.map((post) => (post.message as { raw: string }).raw);
+
+        // no platform with sentMessageId: the plain-message hint
+        expect(direct).toContain('Send a new message here (not a reply) to approve or deny.');
+        expect(group).not.toContain('to approve or deny.');
+        expect(group).toContain('Approve or deny: https://chamvi.test/approvals/run-1');
+    });
+
+    it('never asks isDM without answers, nor for a plain message', async () => {
+        const plain = setup({ approvalUrl: ({ runId }) => `https://chamvi.test/approvals/${runId}` });
+        const asked: string[] = [];
+
+        plain.adapter.isDirect = (threadId) => {
+            asked.push(threadId);
+
+            return true;
+        };
+        await plain.out(message({
+            kind: 'approval',
+            title: 'Deploy?',
+            approvalId: '0:call-1:0',
+        }), SOURCE, opts());
+        await plain.out(message(), SOURCE, opts());
+
+        const answering = setup({ answers: { timeoutMs: 1_000 } });
+
+        answering.adapter.isDirect = plain.adapter.isDirect;
+        await answering.out(message(), SOURCE, opts());
+
+        expect(asked).toEqual([]);
+        expect(plain.adapter.posts).toHaveLength(2);
+    });
+
+    it('requires approvalUrl for an approval to a group even with answers', async () => {
+        const ctx = setup({ answers: { timeoutMs: 1_000 } });
+
+        ctx.adapter.isDirect = () => false;
+
+        const error = await rejection(ctx.out(message({
+            kind: 'approval',
+            title: 'Deploy?',
+            approvalId: '0:call-1:0',
+        }), SOURCE, opts()));
+
+        expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
+        expect(ctx.adapter.posts).toEqual([]);
+    });
+
     it('offline_fails_before_post: a channel that is not connected sends nothing and says so', async () => {
         const ctx = setup();
 

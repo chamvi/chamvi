@@ -23,7 +23,12 @@ import type {
     RawMessage,
     StateAdapter,
 } from 'chat';
-import type { ChatApprovalRef, ChatChannel, ChatIngress } from '@chamvi/chat';
+import type {
+    ChatAnswerOptions,
+    ChatApprovalRef,
+    ChatChannel,
+    ChatIngress,
+} from '@chamvi/chat';
 
 /**
  * The persisted WhatsApp session one connector holds while it runs. The
@@ -161,7 +166,7 @@ export type WhatsAppChatOptions = {
     resolveInvoker: (identity: WhatsAppIdentity) => Invoker | undefined | Promise<Invoker | undefined>;
     /** The Chat SDK state adapter of the Chat. */
     state: StateAdapter;
-    /** The approval link (ids only); approvals are answered in the UI. */
+    /** The approval link (ids only); approvals are answered in the UI, or in a direct chat with `answers`. */
     approvalUrl: (ref: ChatApprovalRef) => string;
     /** Receives pairing material (a QR) while the account is not paired. */
     onPairing: (pairing: WhatsAppPairing) => void;
@@ -173,6 +178,11 @@ export type WhatsAppChatOptions = {
     untrusted?: boolean;
     /** Bound of one send; default `CHAT_TIMEOUT_MS`. */
     timeoutMs?: number;
+    /**
+     * Answers to approvals in a direct chat (see chatChannel's `answers`); off by default.
+     * A swipe reply matches the approval message it quotes.
+     */
+    answers?: ChatAnswerOptions;
     /** The connector's clock (reconnect backoff, shutdown bound); default the engine's. */
     clock?: IClock;
     /** Failures nobody awaits; default console.error. Never gets pairing material. */
@@ -251,6 +261,17 @@ export type WhatsAppConnection = {
     connect(ctx: { signal: AbortSignal; clock: IClock }): Promise<void>;
     reset(): Promise<void>;
     close(): Promise<void>;
+};
+
+/** What chamvi reads of a message's context info: its mentions and the message it quotes (internal). */
+export type WhatsAppContextInfo = {
+    mentionedJid?: string[] | null;
+    /** the id of the quoted message (a swipe reply) */
+    stanzaId?: string | null;
+    /** the sender of the quoted message */
+    participant?: string | null;
+    /** the quoted message's content: present on a quote (a swipe reply), whatever its id */
+    quotedMessage?: unknown;
 };
 
 /** What the adapter needs (internal). */

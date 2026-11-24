@@ -229,6 +229,40 @@ describe('IdempotencyService', () => {
         expect(await claim).toEqual({ created: true, runId: 'run-2' });
     });
 
+    it('findOne returns an unexpired claim and undefined for an expired or missing one', async () => {
+        await keys.claim('s', 'k', 'run-1', 1_000);
+
+        expect(await keys.findOne('s', 'k')).toEqual({ created: false, runId: 'run-1' });
+        expect(await keys.findOne('s', 'other')).toBeUndefined();
+        expect(await keys.findOne('other', 'k')).toBeUndefined();
+
+        clock.advance(999);
+        expect(await keys.findOne('s', 'k')).toEqual({ created: false, runId: 'run-1' });
+        clock.advance(1);
+        expect(await keys.findOne('s', 'k')).toBeUndefined();
+    });
+
+    it('release expires the claim of the given run, so the next claim takes it over', async () => {
+        await keys.claim('s', 'k', 'run-1', 1_000);
+        clock.advance(10);
+
+        await keys.release('s', 'k', 'run-1');
+
+        expect(await keys.findOne('s', 'k')).toBeUndefined();
+        expect(await repository.findOneBy({ scope: 's', key: 'k' })).toMatchObject({ runId: 'run-1', expiresAt: new Date(10_010) });
+        expect(await keys.claim('s', 'k', 'run-2', 1_000)).toEqual({ created: true, runId: 'run-2' });
+    });
+
+    it('release leaves a claim of another run and a missing key alone', async () => {
+        await keys.claim('s', 'k', 'run-1', 1_000);
+
+        await keys.release('s', 'k', 'run-2');
+        await keys.release('s', 'missing', 'run-1');
+
+        expect(await keys.findOne('s', 'k')).toEqual({ created: false, runId: 'run-1' });
+        expect(await repository.findOneBy({ scope: 's', key: 'missing' })).toBeNull();
+    });
+
     it('purgeExpired deletes exactly the claims expired at the given time (default now) and resolves how many', async () => {
         await keys.claim('s', 'before', 'run-1', 999);
         await keys.claim('s', 'at', 'run-2', 1_000);

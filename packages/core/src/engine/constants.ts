@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+/** How long an idempotency claim (`IIdempotencyService.claim`) holds its key: 7 days. */
 export const IDEMPOTENCY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const DEFAULT_DRAIN_TIMEOUT_MS = 30_000;
 export const APPROVAL_TIMED_OUT = 'approval timed out';

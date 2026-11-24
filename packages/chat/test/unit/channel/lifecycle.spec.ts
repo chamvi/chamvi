@@ -22,6 +22,7 @@ import {
 } from '@chamvi/core';
 import type { Engine, IClock, IEngine } from '@chamvi/core';
 import {
+    CHAT_ANSWER_TIMEOUT_MS,
     CHAT_STOP_TIMEOUT_ERROR_CODE,
     CHAT_STOP_TIMEOUT_MS,
     chatChannel,
@@ -29,6 +30,7 @@ import {
 } from '@chamvi/chat';
 import type { ChatChannelOptions, ChatIngress } from '@chamvi/chat';
 import { ControllableClock, createTestEngine, textModel } from '@chamvi/test-kit';
+import { resolveOptions } from '../../../src/channel/helpers.ts';
 import { createChatChannel } from '../../../src/channel/module.ts';
 import type { ChatIntake, ChatIntakeContext } from '../../../src/channel/types.ts';
 import { bindIngress } from '../../../src/ingress/module.ts';
@@ -509,6 +511,54 @@ describe('chatChannel options', () => {
         expect(() => chatChannel(options({ account: '' }))).toThrow(/account/);
         expect(() => chatChannel(options({ account: 'a\0b' }))).toThrow(/account/);
         expect(() => chatChannel(options({ account: 42 as unknown as string }))).toThrow(/account/);
+    });
+
+    // answers needs an invoker to answer as
+    const resolveInvoker = () => undefined;
+
+    it('answers is off by default and resolves with its defaults', () => {
+        expect(resolveOptions(options()).answers).toBeUndefined();
+        expect(CHAT_ANSWER_TIMEOUT_MS).toBe(15_000);
+        expect(resolveOptions(options({ resolveInvoker, answers: {} })).answers).toEqual({ timeoutMs: CHAT_ANSWER_TIMEOUT_MS });
+        expect(resolveOptions(options({ resolveInvoker, answers: { model: 'openai/gpt-5-mini', timeoutMs: 2 ** 31 - 1 } })).answers)
+            .toEqual({ model: 'openai/gpt-5-mini', timeoutMs: 2 ** 31 - 1 });
+
+        const model = textModel('approve');
+
+        // a model object is kept as is, never resolved here
+        expect(resolveOptions(options({ resolveInvoker, answers: { model } })).answers?.model).toBe(model);
+    });
+
+    it('refuses invalid answers options', () => {
+        for (const answers of [
+            true,
+            'on',
+            [],
+            null,
+            { timeoutMs: 0 },
+            { timeoutMs: -1 },
+            { timeoutMs: 1.5 },
+            { timeoutMs: 2 ** 31 },
+            { timeoutMs: '100' },
+            { model: '' },
+            { model: 42 },
+            { model: null },
+            { model: true },
+        ]) {
+            expect(() => resolveOptions(options({ resolveInvoker, answers: answers as never })), JSON.stringify(answers))
+                .toThrow(InvalidAgentDefinitionError);
+            expect(() => resolveOptions(options({ resolveInvoker, answers: answers as never })), JSON.stringify(answers))
+                .toThrow(/answers/);
+        }
+
+        expect(() => resolveOptions(options({ resolveInvoker, answers: { timeoutMs: 1 } }))).not.toThrow();
+    });
+
+    it('refuses answers without resolveInvoker: no reply could ever answer', () => {
+        const resolve = () => resolveOptions(options({ answers: {} }));
+
+        expect(resolve).toThrow(InvalidAgentDefinitionError);
+        expect(resolve).toThrow(/answers.*resolveInvoker|resolveInvoker.*answers/);
     });
 
     it('validates the other options', () => {

@@ -133,6 +133,18 @@ function plainIdempotencyService(claims: Map<string, string>): IIdempotencyServi
 
             return { created: true, runId };
         },
+        findOne: async (scope, key): Promise<IdempotencyClaim | undefined> => {
+            const current = claims.get(`${scope}\n${key}`);
+
+            return current !== undefined ? { created: false, runId: current } : undefined;
+        },
+        release: async (scope, key, runId) => {
+            const id = `${scope}\n${key}`;
+
+            if (claims.get(id) === runId) {
+                claims.delete(id);
+            }
+        },
         purgeExpired: async () => 0,
     };
 }

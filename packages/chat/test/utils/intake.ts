@@ -49,11 +49,13 @@ export type IntakeFixtureInput = {
     authorize?: (access: ConversationAccess) => boolean | Promise<boolean>;
     /** the adapters' names; default one adapter `fake` */
     adapterNames?: string[];
+    /** another fixture's engine whose store and clock this one shares (a replica) */
+    replicaOf?: Engine;
 };
 
 /** A chat channel with the real intake over the fake adapter, on an Engine with a memory store (conversations included). */
 export function createIntakeFixture(input: IntakeFixtureInput): IntakeFixture {
-    const clock = new ControllableClock(new Date('2026-11-01T09:00:00Z'));
+    const clock = input.replicaOf ? input.replicaOf.clock as ControllableClock : new ControllableClock(new Date('2026-11-01T09:00:00Z'));
     const adapters = (input.adapterNames ?? ['fake']).map((name) => createFakeAdapter(name));
     const ingresses = adapters.map((item) => createChatIngressAdapter(item));
     const [adapter] = adapters as [FakeAdapter];
@@ -82,6 +84,7 @@ export function createIntakeFixture(input: IntakeFixtureInput): IntakeFixture {
         agents: input.agents(channel),
         channels: [channel],
         clock,
+        ...(input.replicaOf ? { replicaOf: input.replicaOf } : {}),
         conversations: {
             authorize: (item) => {
                 access.push(item);

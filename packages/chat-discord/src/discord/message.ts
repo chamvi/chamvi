@@ -7,7 +7,7 @@
 
 import type { DiscordAdapter } from '@chat-adapter/discord';
 import type { APIMessage } from 'discord.js';
-import { Message } from 'chat';
+import { Message, parseMarkdown } from 'chat';
 import type {
     DiscordApiMessage,
     DiscordIdentity,
@@ -44,11 +44,43 @@ export function toApiMessage(message: DiscordInboundMessage): DiscordApiMessage 
 }
 
 /**
+ * The quote of a message that refers to another one (a native Reply): a
+ * minimal Chat SDK message with the referenced id (`''` when the reference
+ * names none), else undefined. Discord has no `sentMessageId`, so intake
+ * never answers an approval from a quote.
+ */
+function quotedOf(message: DiscordInboundMessage, threadId: string): Message<unknown> | undefined {
+    const { reference } = message;
+
+    if (reference === undefined || reference === null) {
+        return undefined;
+    }
+
+    return new Message<unknown>({
+        id: typeof reference.messageId === 'string' ? reference.messageId : '',
+        threadId,
+        text: '',
+        formatted: parseMarkdown(''),
+        raw: undefined,
+        author: {
+            userId: '',
+            userName: '',
+            fullName: '',
+            isBot: false,
+            isMe: false,
+        },
+        metadata: { dateSent: new Date(0), edited: false },
+        attachments: [],
+    });
+}
+
+/**
  * The Chat SDK message of a discord.js message: the adapter's public
  * parseMessage() (its Discord markdown conversion), rebuilt with the
  * identity's thread id (parseMessage gives a thread its own 3-part id, no
- * parent) and chamvi's addressing verdict as a definitive isMention (the
- * Chat SDK guesses from the text only when it is undefined).
+ * parent), chamvi's addressing verdict as a definitive isMention (the
+ * Chat SDK guesses from the text only when it is undefined) and, since the
+ * pinned adapter parses none, the quote of a reference as `replyTo`.
  */
 export function toChatMessage(adapter: DiscordAdapter, message: DiscordInboundMessage, identity: DiscordIdentity): Message<unknown> {
     const parsed = adapter.parseMessage(toApiMessage(message));
@@ -62,7 +94,7 @@ export function toChatMessage(adapter: DiscordAdapter, message: DiscordInboundMe
         author: parsed.author,
         metadata: parsed.metadata,
         attachments: parsed.attachments,
-        replyTo: parsed.replyTo,
+        replyTo: parsed.replyTo ?? quotedOf(message, identity.chat),
         isMention: identity.mentioned,
         links: parsed.links,
     });

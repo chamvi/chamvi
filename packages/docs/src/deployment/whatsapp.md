@@ -19,7 +19,7 @@ Before a live cutover:
 1. **A session store.** With `@chamvi/app`, [`whatsappModule()`](#with-chamvi-app) keeps the session sealed in the app store (PostgreSQL through `@chamvi/store-db` in production) under `CHAMVI_ENCRYPTION_KEYS`. Without the app, `createStoreWhatsAppAuth()` does the same over a [connection vault](#session-store), or you write an `IWhatsAppAuthProvider` that persists the creds and every signal key write atomically, serializes writes, keeps the session secret (it is the account) and takes it exclusively. Baileys' `useMultiFileAuthState` alone is not that.
 2. **One connector.** One deployment per account, `Recreate` (stop, then start), one replica. Two processes on one session replace each other (440) and can corrupt the signal state. The `agent-app` chart's Recreate strategy fits.
 3. **The sender policy.** List phone number jids and group jids explicitly; `{ open: true }` lets anyone write, with `resolveInvoker` as the only gate.
-4. **An approval URL** into the chamvi UI, and an owner principal that can answer there. Approvals are answered in the UI only.
+4. **An approval URL** into the chamvi UI, and an owner principal that can answer there. Approvals are answered in the UI, or with `answers` by a reply in a direct chat (see [Answers in the chat](/reference/chat#answers-in-the-chat)): a swipe reply answers the approval it quotes, a plain reply only when exactly one approval is open in that chat; a swipe reply to any other message, to an approval that is no longer open, or whose quoted id WhatsApp does not carry, is an ordinary message.
 5. **Memory**, if the agent uses `conversation: true`: a store with conversations (PostgreSQL through `@chamvi/store-db` for restart-durable memory) and a `conversations.authorize` policy. A group is one memory (`group:<group jid>`), shared by its members.
 6. **Trust.** Runs are tainted by default: tools marked `guardWhenTainted` need approval. Replies to the source chat are not gated; do not set a `defaultAddress` unless that chat may receive whatever a tainted run produces.
 
@@ -84,6 +84,7 @@ const WHATSAPP_SHUTDOWN_TIMEOUT_MS: 30_000;
 | `resolveInvoker(identity)` | Required. The invoker of an allowed message's runs; `undefined` denies the message |
 | `state` | Required. The Chat SDK `StateAdapter` of the `Chat` |
 | `approvalUrl(ref)` | Required. The approval link, `ref = { runId, approvalId, agent }` (ids only) |
+| `answers` | `{ model?, timeoutMs? }`: approvals answered by a direct-chat reply (see above); off by default |
 | `onPairing({ qr })` | Required. Gets the QR reference to render while the account is not paired; never a log or `onError` |
 | `onStatus(status)` | Called on every status change; a throw is reported, the change stands |
 | `name`, `untrusted`, `timeoutMs` | As for [`chatChannel()`](/reference/chat#chatchannel) |

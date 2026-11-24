@@ -13,7 +13,12 @@ import {
     ValidationError,
 } from '@chamvi/core';
 import type { ChannelMessage } from '@chamvi/core';
-import { CHAT_TEXT_MAX_CHARS } from '@chamvi/chat';
+import { 
+    CHAT_ANSWER_HINT, 
+    CHAT_ANSWER_HINT_PLAIN, 
+    CHAT_ANSWER_TIMEOUT_MS, 
+    CHAT_TEXT_MAX_CHARS, 
+} from '@chamvi/chat';
 import type { ChatApprovalRef } from '@chamvi/chat';
 import { renderChatMessage } from '../../../src/outbound/helpers.ts';
 
@@ -251,5 +256,168 @@ describe('renderChatMessage({ maxTextChars })', () => {
         expect(render).toThrow(/of 2000/);
         // the same approval fits the default bound
         expect(() => renderChatMessage(approval({ options }), { approvalUrl: URL_OF })).not.toThrow();
+    });
+});
+
+describe('renderChatMessage({ answers, direct })', () => {
+    const answers = { timeoutMs: CHAT_ANSWER_TIMEOUT_MS };
+
+    it('renders the reply hint without approvalUrl for an approval without options', () => {
+        expect(CHAT_ANSWER_HINT).toBe('Reply to this message to approve or deny.');
+        expect(renderChatMessage(approval(), {
+            answers, 
+            direct: true, 
+            quotes: true, 
+        })).toBe([
+            'Deploy to prod?',
+            'Release v1.2.0.',
+            `Expires: ${EXPIRES.toISOString()}\nReply to this message to approve or deny.`,
+        ].join('\n\n'));
+        // no expiry: the hint alone
+        expect(renderChatMessage(approval({ expiresAt: undefined }), {
+            answers, 
+            direct: true, 
+            quotes: true, 
+        }))
+            .toBe('Deploy to prod?\n\nRelease v1.2.0.\n\nReply to this message to approve or deny.');
+    });
+
+    it('renders the plain-message hint on a platform without quote matching', () => {
+        expect(CHAT_ANSWER_HINT_PLAIN).toBe('Send a new message here (not a reply) to approve or deny.');
+        expect(renderChatMessage(approval({ expiresAt: undefined }), { answers, direct: true }))
+            .toBe('Deploy to prod?\n\nRelease v1.2.0.\n\nSend a new message here (not a reply) to approve or deny.');
+    });
+
+    it('puts the hint before the link when approvalUrl is set too', () => {
+        expect(renderChatMessage(approval(), {
+            answers,
+            direct: true,
+            quotes: true,
+            approvalUrl: URL_OF,
+        })).toBe([
+            'Deploy to prod?',
+            'Release v1.2.0.',
+            [
+                `Expires: ${EXPIRES.toISOString()}`,
+                'Reply to this message to approve or deny.',
+                'Approve or deny: https://chamvi.example/ui/approvals?run=run-1&approval=0:call-1:0',
+            ].join('\n'),
+        ].join('\n\n'));
+    });
+
+    it('never cuts the prose: an approval that does not fit is a ValidationError', () => {
+        const render = () => renderChatMessage(approval({ body: 'b'.repeat(5000) }), {
+            answers,
+            direct: true,
+            quotes: true,
+            approvalUrl: URL_OF,
+        });
+
+        expect(render).toThrow(ValidationError);
+        expect(render).not.toThrow(/cut/);
+
+        const bounded = () => renderChatMessage(approval({ body: 'b'.repeat(2000) }), {
+            answers,
+            direct: true,
+            quotes: true,
+            maxTextChars: 2000,
+        });
+
+        expect(bounded).toThrow(ValidationError);
+        expect(bounded).toThrow(/2000/);
+
+        // the same prose fits the default bound uncut
+        const text = renderChatMessage(approval({ body: 'b'.repeat(2000) }), {
+            answers, 
+            direct: true, 
+            quotes: true, 
+        });
+
+        expect(text).toContain('b'.repeat(2000));
+        expect(text).not.toMatch(/cut/);
+    });
+
+    it('still requires approvalUrl for an approval with options, and renders no hint for one', () => {
+        const options = [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }];
+        const render = () => renderChatMessage(approval({ options }), {
+            answers, 
+            direct: true, 
+            quotes: true, 
+        });
+
+        expect(render).toThrow(InvalidAgentDefinitionError);
+        expect(render).toThrow(/approvalUrl/);
+
+        const text = renderChatMessage(approval({ options }), {
+            answers,
+            direct: true,
+            quotes: true,
+            approvalUrl: URL_OF,
+        });
+
+        expect(text).not.toContain(CHAT_ANSWER_HINT);
+        expect(text).toContain('Choose and approve or deny: https://chamvi.example/');
+    });
+
+    it('requires approvalUrl for a generic approval, and renders no hint for one', () => {
+        const generic = approval({ body: 'An outbound operation requires review in the approval inbox.', generic: true });
+        const render = () => renderChatMessage(generic, {
+            answers, 
+            direct: true, 
+            quotes: true, 
+        });
+
+        expect(render).toThrow(InvalidAgentDefinitionError);
+        expect(render).toThrow(/approvalUrl/);
+
+        const text = renderChatMessage(generic, {
+            answers,
+            direct: true,
+            quotes: true,
+            approvalUrl: URL_OF,
+        });
+
+        expect(text).not.toContain(CHAT_ANSWER_HINT);
+        expect(text).toContain('Approve or deny: https://chamvi.example/');
+    });
+
+    it('cuts the prose of an approval with options or a generic one as without answers: they are not answered in the chat', () => {
+        const options = [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }];
+
+        for (const message of [
+            approval({ body: 'b'.repeat(5000), options }),
+            approval({ body: 'b'.repeat(5000), generic: true }),
+        ]) {
+            const text = renderChatMessage(message, {
+                answers,
+                direct: true,
+                quotes: true,
+                approvalUrl: URL_OF,
+            });
+
+            expect(text).toBe(renderChatMessage(message, { approvalUrl: URL_OF }));
+            expect(text.length).toBeLessThanOrEqual(CHAT_TEXT_MAX_CHARS);
+            expect(text).not.toContain('b'.repeat(5000));
+            expect(text).toMatch(/approve or deny: https:\/\/chamvi\.example\//i);
+        }
+    });
+    it('renders an approval to a group as without answers: only a direct message answers', () => {
+        for (const direct of [false, undefined]) {
+            const render = () => renderChatMessage(approval(), { answers, ...(direct !== undefined ? { direct } : {}) });
+
+            expect(render).toThrow(InvalidAgentDefinitionError);
+            expect(render).toThrow(/approvalUrl/);
+
+            const long = approval({ body: 'b'.repeat(5000) });
+            const text = renderChatMessage(long, {
+                answers,
+                approvalUrl: URL_OF,
+                ...(direct !== undefined ? { direct } : {}),
+            });
+
+            expect(text).toBe(renderChatMessage(long, { approvalUrl: URL_OF }));
+            expect(text).not.toContain(CHAT_ANSWER_HINT);
+            expect(text).toMatch(/cut/);
+        }
     });
 });

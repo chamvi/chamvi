@@ -150,6 +150,10 @@ export function createTextMessage(input: {
     isMe?: boolean;
     isMention?: boolean;
     attachments?: Message['attachments'];
+    /** the id of the message this one quotes */
+    replyTo?: string;
+    /** when the platform says it was sent; default the epoch */
+    sentAt?: Date;
 }): Message {
     const text = input.text ?? 'hello';
 
@@ -166,8 +170,16 @@ export function createTextMessage(input: {
             isBot: input.isMe === true,
             isMe: input.isMe === true,
         },
-        metadata: { dateSent: new Date(0), edited: false },
+        metadata: { dateSent: input.sentAt ?? new Date(0), edited: false },
         attachments: input.attachments ?? [],
         ...(input.isMention !== undefined ? { isMention: input.isMention } : {}),
+        ...(input.replyTo !== undefined ? {
+            replyTo: createTextMessage({
+                adapter: input.adapter ?? 'fake',
+                thread: input.thread ?? 'chat-1',
+                id: input.replyTo,
+                isMe: true,
+            }),
+        } : {}),
     });
 }

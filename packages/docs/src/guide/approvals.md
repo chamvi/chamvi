@@ -104,5 +104,5 @@ An answer is single use: a second answer of the same wait point throws `InvalidR
 An approval not answered within its `timeoutMs` is denied with the reason `approval timed out`. The engine checks on every poll (`tick()`); `approve()` then returns `{ approved: false, reason: 'approval timed out' }`.
 
 ::: tip Where approvals are answered
-In core you call `engine.approve()` (by approval id) yourself. [`@chamvi/http`](/guide/http) adds `POST /runs/:id/approve` and the MCP tool `approve_run` (both need `chamvi_agent_approve` for the agent; the [`@chamvi/ui`](/guide/ui) inbox and its approval links answer through the endpoint).
+In core you call `engine.approve()` (by approval id) yourself. [`@chamvi/http`](/guide/http) adds `POST /runs/:id/approve` and the MCP tool `approve_run` (both need `chamvi_agent_approve` for the agent; the [`@chamvi/ui`](/guide/ui) inbox and its approval links answer through the endpoint). A [chat channel](/reference/chat#answers-in-the-chat) with `answers` lets the owner answer by replying in a direct chat, under the same permission.
 :::

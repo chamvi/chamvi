@@ -5,14 +5,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { 
-    ChannelMessage, 
-    ChannelSendOptions, 
-    ClockTimer, 
-    IChannel, 
+import type {
+    ChannelMessage,
+    ChannelSendOptions,
+    ClockTimer,
+    IChannel,
 } from '@chamvi/core';
 import type { Adapter } from 'chat';
-import { decodeChatAddress, reportError } from '../channel/helpers.ts';
+import { decodeChatAddress, isDirectChatThread, reportError } from '../channel/helpers.ts';
 import { messageOf, renderChatMessage, requestError } from './helpers.ts';
 import type { ChatSenderOptions } from './types.ts';
 
@@ -46,8 +46,10 @@ export function createChatSender(options: ChatSenderOptions): NonNullable<IChann
 
     return async (message: ChannelMessage, address: string, opts: ChannelSendOptions): Promise<void> => {
         const target = decodeChatAddress(address, names);
-        const text = renderChatMessage(message, options);
         const adapter = adapters.get(target.adapter)!;
+        // an approval is answerable in a direct message only, as intake answers only those; without answers isDM is never asked
+        const direct = !!options.answers && message.kind === 'approval' && isDirectChatThread(adapter, target.threadId);
+        const text = renderChatMessage(message, { ...options, direct });
         // a platform's own send refuses its target here, before anything goes out
         const post = options.prepare ?
             options.prepare({

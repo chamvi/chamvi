@@ -51,6 +51,8 @@ export type ChannelMessage = {
     options?: Omit<ApprovalOption, 'artifacts'>[];
     /** Set (true) for kind `approval` with options of which several may be selected. */
     multiple?: boolean;
+    /** Set for kind `approval` when the body is a generic notification; the request's details stay in the inbox and API. */
+    generic?: true;
 };
 
 export type ChannelSendOptions = {

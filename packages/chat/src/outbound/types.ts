@@ -7,6 +7,7 @@
 
 import type { IClock } from '@chamvi/core';
 import type { Adapter } from 'chat';
+import type { ResolvedChatAnswerOptions } from '../answer/types.ts';
 import type { ChatApprovalRef, ChatPlatformPost, ChatPlatformSend } from '../channel/types.ts';
 
 /** What createChatSender() sends through (internal). */
@@ -15,8 +16,15 @@ export type ChatSenderOptions = {
     name: string;
     /** The adapters an address may name, by their name. */
     adapters: readonly Adapter[];
-    /** The approval link; required to send an approval. */
+    /** The approval link; required to send an approval not answerable in the chat (with options, generic, to a group, or without `answers`). */
     approvalUrl?: (ref: ChatApprovalRef) => string;
+    /**
+     * Set when approvals are answered in the chat: an answerable one (to a
+     * direct message, no options, not generic) gets the hint line and no cut.
+     */
+    answers?: ResolvedChatAnswerOptions;
+    /** The platform matches quoted approvals (`sentMessageId`): picks the hint an answerable approval ends with. */
+    quotes?: boolean;
     /** Bound of one send. */
     timeoutMs: number;
     /** The longest text one send posts (UTF-16 code units). */
@@ -33,4 +41,7 @@ export type ChatSenderOptions = {
 };
 
 /** What renderChatMessage() reads of the options (internal); `maxTextChars` defaults to `CHAT_TEXT_MAX_CHARS`. */
-export type ChatRenderOptions = Pick<ChatSenderOptions, 'approvalUrl'> & Partial<Pick<ChatSenderOptions, 'maxTextChars'>>;
+export type ChatRenderOptions = Pick<ChatSenderOptions, 'answers' | 'approvalUrl' | 'quotes'> & Partial<Pick<ChatSenderOptions, 'maxTextChars'>> & {
+    /** The destination is a direct message (the adapter's `isDM`): only there `answers` makes an approval answerable. */
+    direct?: boolean;
+};

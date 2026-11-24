@@ -137,6 +137,7 @@ export function createWhatsAppChat(options: WhatsAppChatOptions): WhatsAppChatSe
         ...(name !== undefined ? { name } : {}),
         ...(options.untrusted !== undefined ? { untrusted: options.untrusted } : {}),
         ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+        ...(options.answers !== undefined ? { answers: options.answers } : {}),
         account: options.account,
         connect: (ctx) => adapter.connection.connect(ctx),
         disconnect: () => adapter.connection.close(),
@@ -163,6 +164,8 @@ export function createWhatsAppChat(options: WhatsAppChatOptions): WhatsAppChatSe
 
                 return post;
             },
+            // the id prepare sends an approval under, so a reply quoting it answers that approval
+            sentMessageId: ({ key }) => messageIdOf(channel.name, key),
             conversationTarget: (incoming, payload) => {
                 const identity = adapter.identityOf(incoming.message);
 

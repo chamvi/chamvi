@@ -6,7 +6,12 @@
  */
 
 import { ChamviError, InvalidRunStateError } from '@chamvi/core';
-import type { ChannelContext, ChannelRequest, ClockTimer } from '@chamvi/core';
+import type {
+    ChannelContext,
+    ChannelRequest,
+    ClockTimer,
+    IChannel,
+} from '@chamvi/core';
 import { createChatIntake } from '../intake/module.ts';
 import { bindIngress } from '../ingress/module.ts';
 import type { ChatIncoming, IChatReceiver } from '../ingress/types.ts';
@@ -53,6 +58,7 @@ function createReceiver(
     run: ChatRun,
     options: ResolvedChatChannelOptions,
     intake: ChatIntake,
+    out: NonNullable<IChannel['out']>,
 ): IChatReceiver {
     return {
         receive(incoming: ChatIncoming): Promise<void> {
@@ -71,6 +77,7 @@ function createReceiver(
                     context: run.context,
                     signal: run.controller.signal,
                     options,
+                    out,
                 });
             } catch (error) {
                 task = Promise.reject(error);
@@ -185,7 +192,8 @@ function teardown(run: ChatRun, options: ResolvedChatChannelOptions): Promise<vo
  * `out` (createChatSender()) posts to the chat an address names, at least
  * once and only while the channel is started: before `start` finished and
  * from `stop` on it sends nothing (`chat_request`). Approvals go out as a
- * link of `approvalUrl` (required for them), never as buttons.
+ * link of `approvalUrl` (required for them, except one without options
+ * to a direct chat with `answers`, which ends with `CHAT_ANSWER_HINT`), never as buttons.
  *
  * Runs it starts are untrusted unless `untrusted: false`. Only incoming
  * messages reach chamvi: the Chat has no handlers of chamvi's, so an action
@@ -204,6 +212,8 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
         name,
         adapters: resolved.adapters,
         ...(resolved.approvalUrl ? { approvalUrl: resolved.approvalUrl } : {}),
+        ...(resolved.answers ? { answers: resolved.answers } : {}),
+        ...(platform?.sentMessageId ? { quotes: true } : {}),
         timeoutMs: resolved.timeoutMs,
         maxTextChars: resolved.maxTextChars,
         // started, and connected as far as the transport knows
@@ -233,7 +243,7 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
         current = run;
 
         run.body = (async () => {
-            const receiver = createReceiver(run, resolved, intake);
+            const receiver = createReceiver(run, resolved, intake, out);
 
             // bound before the adapters initialize, so their first message has a receiver
             for (const adapter of resolved.adapters) {

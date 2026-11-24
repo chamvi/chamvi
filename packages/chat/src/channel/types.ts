@@ -13,6 +13,7 @@ import type {
 } from '@chamvi/core';
 import type { Invoker } from '@chamvi/store';
 import type { Chat } from 'chat';
+import type { ChatAnswerOptions, ResolvedChatAnswerOptions } from '../answer/types.ts';
 import type { ChatIncoming, ChatIngress } from '../ingress/types.ts';
 import type { ChatSubscriber } from '../subscription/types.ts';
 
@@ -85,10 +86,19 @@ export type ChatChannelOptions = {
     resolveInvoker?: (incoming: ChatIncoming) => Invoker | undefined | Promise<Invoker | undefined>;
     /**
      * The approval link in approval messages (ids only, an absolute http(s)
-     * URL without credentials); required to send an approval, since an
-     * approval is answered in the UI only.
+     * URL without credentials). Required to send an approval with options, a
+     * generic one, one to a group, and without `answers` any approval, since
+     * such an approval is answered in the UI only.
      */
     approvalUrl?: (ref: ChatApprovalRef) => string;
+    /**
+     * Off by default. When set (`{}` for the defaults), an approval without
+     * options sent to a direct chat may be answered by replying to it there,
+     * the reply read by a model; its message ends with `CHAT_ANSWER_HINT` and is never
+     * cut (prose that does not fit `maxTextChars` is a ValidationError).
+     * Needs `resolveInvoker`: a reply answers as the invoker it names.
+     */
+    answers?: ChatAnswerOptions;
     /** Platform-fetched history; only 0 (none) for now. */
     history?: 0;
     /** Bound of one outbound send; default `CHAT_TIMEOUT_MS` (30 s). */
@@ -96,7 +106,8 @@ export type ChatChannelOptions = {
     /**
      * The longest text one send posts, in UTF-16 code units: an integer of 1
      * to `CHAT_TEXT_MAX_CHARS` (the default), e.g. a platform's own message
-     * limit. A longer message is refused, an approval's prose cut to fit.
+     * limit. A longer message is refused, an approval's prose cut to fit
+     * (refused instead for one answerable in the chat with `answers`).
      */
     maxTextChars?: number;
     /** Failures nobody awaits (refused and failed messages, stop); default console.error. */
@@ -122,6 +133,7 @@ export type ResolvedChatChannelOptions = {
     allowMessage: ChatChannelOptions['allowMessage'];
     resolveInvoker?: ChatChannelOptions['resolveInvoker'];
     approvalUrl?: ChatChannelOptions['approvalUrl'];
+    answers?: ResolvedChatAnswerOptions;
     timeoutMs: number;
     maxTextChars: number;
     onError: (error: unknown) => void;
@@ -192,6 +204,13 @@ export interface IChatPlatform {
      * the message text.
      */
     conversationTarget?(incoming: ChatIncoming, payload: ChatPayload): ConversationTarget | undefined;
+    /**
+     * The platform's id of the message the channel sent under `key`
+     * (`ChannelMessage.key`), so a reply quoting it can be matched to that
+     * message (`answers`); undefined when the platform cannot tell. Without
+     * the hook a reply is matched by its chat only.
+     */
+    sentMessageId?(send: { key: string }): string | undefined;
 }
 
 /** What the intake of one message gets besides the message (internal). */
@@ -200,6 +219,8 @@ export type ChatIntakeContext = {
     /** Aborts when the channel stops. */
     signal: AbortSignal;
     options: ResolvedChatChannelOptions;
+    /** The channel's own `out`, for the notices of answers. */
+    out: NonNullable<IChannel['out']>;
 };
 
 /** Accepts one incoming message: resolves once it is durably accepted (internal). */

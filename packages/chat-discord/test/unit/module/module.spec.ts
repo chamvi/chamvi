@@ -546,6 +546,11 @@ describe('discordModule', () => {
         expect(w.connection().resolved.state).toBe('not_configured');
     });
 
+    it('passes answers through to the channel, which checks them', async () => {
+        await expect(world({ patch: { answers: {} } }).harness.setup()).resolves.toBeUndefined();
+        await expect(world({ patch: { answers: { timeoutMs: 0 } } }).harness.setup()).rejects.toThrow(/answers\.timeoutMs/);
+    });
+
     it('migrate mode does nothing', async () => {
         const w = world({
             mode: 'migrate',

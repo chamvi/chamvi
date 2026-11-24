@@ -11,6 +11,7 @@ import {
     ValidationError,
 } from '@chamvi/core';
 import type { ChannelMessage } from '@chamvi/core';
+import { CHAT_ANSWER_HINT, CHAT_ANSWER_HINT_PLAIN } from '../answer/constants.ts';
 import { CHAT_REQUEST_ERROR_CODE, CHAT_TEXT_MAX_CHARS } from '../channel/constants.ts';
 import {
     ERROR_TEXT_MAX_LENGTH,
@@ -109,23 +110,40 @@ function renderPlain(message: ChannelMessage, max: number): string {
     return text;
 }
 
-function renderApproval(message: ChannelMessage, options: ChatRenderOptions, max: number): string {
+/**
+ * The approval link, when `approvalUrl` is set; required for any approval
+ * not answerable in the chat (with options, generic, to a group, or without
+ * `answers`).
+ */
+function renderApprovalLink(message: ChannelMessage & { approvalId: string }, options: ChatRenderOptions, required: boolean): string | undefined {
     if (!options.approvalUrl) {
-        throw new InvalidAgentDefinitionError(
-            'chatChannel: approvalUrl is required to send an approval; it is answered in the chamvi UI only.',
-        );
+        if (required) {
+            throw new InvalidAgentDefinitionError(options.answers ?
+                'chatChannel: approvalUrl is required to send an approval with options, a generic notification or one to a group; it is answered in the chamvi UI only.' :
+                'chatChannel: approvalUrl is required to send an approval; it is answered in the chamvi UI only.');
+        }
+
+        return undefined;
     }
 
-    if (!message.approvalId) {
-        throw new ValidationError('An approval message needs its approvalId.');
-    }
-
-    const link = assertApprovalLink(options.approvalUrl({
+    return assertApprovalLink(options.approvalUrl({
         runId: message.runId,
         approvalId: message.approvalId,
         agent: message.agent,
     }));
+}
+
+function renderApproval(message: ChannelMessage, options: ChatRenderOptions, max: number): string {
+    if (!message.approvalId) {
+        throw new ValidationError('An approval message needs its approvalId.');
+    }
+
     const choices = message.options ?? [];
+    // never answered in the chat: one to a group (intake answers direct
+    // messages only), one with options (the reply has no selection) or a
+    // generic one (the owner would not see what they approve)
+    const answerable = !!options.answers && options.direct === true && choices.length === 0 && message.generic !== true;
+    const link = renderApprovalLink({ ...message, approvalId: message.approvalId }, options, !answerable);
     const tail: string[] = [];
 
     if (choices.length > 0) {
@@ -138,7 +156,8 @@ function renderApproval(message: ChannelMessage, options: ChatRenderOptions, max
 
     tail.push([
         ...(message.expiresAt instanceof Date ? [`Expires: ${message.expiresAt.toISOString()}`] : []),
-        `${choices.length > 0 ? 'Choose and approve or deny' : 'Approve or deny'}: ${link}`,
+        ...(answerable ? [options.quotes ? CHAT_ANSWER_HINT : CHAT_ANSWER_HINT_PLAIN] : []),
+        ...(link ? [`${choices.length > 0 ? 'Choose and approve or deny' : 'Approve or deny'}: ${link}`] : []),
     ].join('\n'));
 
     const structure = tail.join('\n\n');
@@ -160,6 +179,13 @@ function renderApproval(message: ChannelMessage, options: ChatRenderOptions, max
         return `${prose}\n\n${structure}`;
     }
 
+    if (answerable) {
+        // the owner must see what they approve in the chat: an approval answered there is never cut
+        throw new ValidationError(
+            `The approval has ${prose.length + 2 + structure.length} characters; the chat channel sends at most ${max} and an approval answered in the chat only whole.`,
+        );
+    }
+
     const cut = cutProse(prose, budget);
 
     if (cut === undefined) {
@@ -173,11 +199,15 @@ function renderApproval(message: ChannelMessage, options: ChatRenderOptions, max
  * The text one send posts, as is (no markdown conversion), at most
  * `maxTextChars` characters (default `CHAT_TEXT_MAX_CHARS`). A message is its title and body; one
  * above the bound is a ValidationError (never split or cut). An approval is
- * its title and body (cut Unicode-safely when they do not fit, the only cut),
- * the options as `- <id>: <label>` (never a detail), the expiry and the
- * link of `approvalUrl` (ids only, never a token); options, expiry and link
- * that cannot fit are a ValidationError, a missing or invalid `approvalUrl`
- * an InvalidAgentDefinitionError. Nothing else of the run is rendered.
+ * its title and body (cut Unicode-safely when they do not fit, the only cut;
+ * one answerable in the chat (`answers`, a `direct` destination, no options,
+ * not generic) is never cut but refused), the options as `- <id>: <label>`
+ * (never a detail), the expiry, for an answerable one `CHAT_ANSWER_HINT`
+ * (`CHAT_ANSWER_HINT_PLAIN` without `quotes`),
+ * and the link of `approvalUrl` (ids only, never a
+ * token); options, expiry and link that cannot fit are a ValidationError, a
+ * missing `approvalUrl` where one is required or an invalid one an
+ * InvalidAgentDefinitionError. Nothing else of the run is rendered.
  */
 export function renderChatMessage(message: ChannelMessage, options: ChatRenderOptions): string {
     const max = options.maxTextChars ?? CHAT_TEXT_MAX_CHARS;

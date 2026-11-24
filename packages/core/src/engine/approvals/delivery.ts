@@ -73,6 +73,7 @@ export async function deliverApprovalMessage(ctx: ApprovalDeliveryContext, run: 
                 agent: run.agent,
                 title: waiting.title,
                 body: waiting.notification ?? waiting.body ?? '',
+                ...(waiting.notification !== undefined ? { generic: true as const } : {}),
                 ...(waiting.slot !== undefined ? { slot: waiting.slot } : {}),
                 approvalId: waiting.approvalId,
                 expiresAt: waiting.expiresAt,

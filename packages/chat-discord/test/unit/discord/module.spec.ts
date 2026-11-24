@@ -155,6 +155,11 @@ describe('@chamvi/chat-discord', () => {
         expect(setup.channel.name).toBe('discord-ops');
         expect(setup.channel.untrusted).toBe(false);
     });
+
+    it('passes answers through to the channel, which checks them', () => {
+        expect(() => createDiscordChat({ ...baseOptions(), answers: {} })).not.toThrow();
+        expect(() => createDiscordChat({ ...baseOptions(), answers: { timeoutMs: 0 } })).toThrow(/answers\.timeoutMs/);
+    });
 });
 
 const TOKENS = JSON.stringify([{
