@@ -19,9 +19,9 @@ import type {
 /**
  * The approvals a chat reply can answer: the waiting runs (oldest first, at
  * most CHAT_ANSWER_SCAN_MAX scanned) whose approval was sent to this channel
- * and address, has no options, is no trust gate (a generic notification: the
- * owner never saw its arguments in the chat) and has not expired on the
- * engine's clock. `truncated` when more waiting approvals exist than scanned.
+ * and address and delivered there (`notifiedAt`), has no options, is no
+ * trust gate (a generic notification: the owner never saw its arguments in
+ * the chat) and has not expired on the engine's clock. `truncated` when more waiting approvals exist than scanned.
  */
 export async function findOpenChatApprovals(engine: IEngine, scope: ChatApprovalScope): Promise<ChatOpenApprovals> {
     const { data, total } = await engine.runService.find({
@@ -40,6 +40,8 @@ export async function findOpenChatApprovals(engine: IEngine, scope: ChatApproval
             waiting.address === scope.address &&
             waiting.options === undefined &&
             waiting.notification === undefined &&
+            // an approval whose message never reached the chat cannot be answered there
+            waiting.notifiedAt !== undefined &&
             new Date(waiting.expiresAt).getTime() > now;
     });
 
@@ -56,11 +58,11 @@ function findChatApprovalMessageId(run: Run, platform: IChatPlatform): string | 
 }
 
 /**
- * Which open approval a reply answers. A usable quote (a quoted id on a
- * platform with `sentMessageId`) answers the approval whose message it
- * quotes, tells a closed approval when it quotes an approval message no
- * longer open, and is no answer otherwise (it quotes some other message).
- * Without a usable quote, one open approval is answered and several ask the
+ * Which open approval a reply answers. A quote answers the approval whose
+ * message it quotes, tells a closed approval when it quotes an approval
+ * message no longer open, and is no answer otherwise (it quotes some other
+ * message, or the platform has no `sentMessageId` to match it).
+ * Without a quote, one open approval is answered and several ask the
  * sender to quote the one meant. After a `truncated` scan nothing is decided
  * from absence: no auto-pick (a notice whenever one is open) and no closed.
  */
@@ -71,7 +73,12 @@ export function pickChatApproval(open: Run[], input: ChatApprovalPickInput): Cha
         truncated,
     } = input;
 
-    if (quotedId !== undefined && platform?.sentMessageId) {
+    if (quotedId !== undefined) {
+        // a quote the platform cannot match answers nothing: it may quote any other message
+        if (!platform?.sentMessageId) {
+            return undefined;
+        }
+
         const run = open.find((item) => findChatApprovalMessageId(item, platform) === quotedId);
 
         if (run) {

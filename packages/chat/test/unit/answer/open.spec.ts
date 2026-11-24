@@ -315,12 +315,11 @@ describe('pickChatApproval', () => {
         expect(pickChatApproval(open.slice(0, 1), { quotedId: 'm:chatter', platform: quoting })).toBeUndefined();
     });
 
-    it('reads a quote on a platform without sentMessageId as no quote', async () => {
+    it('answers nothing for a quote on a platform without sentMessageId: it may quote any message', async () => {
         const open = await twoOpen();
-        const [first] = open;
 
-        expect(pickChatApproval(open.slice(0, 1), { quotedId: 'm:anything', platform: {} })).toEqual({ run: first });
-        expect(pickChatApproval(open, { quotedId: 'm:anything' })).toEqual({ notice: 'several' });
+        expect(pickChatApproval(open.slice(0, 1), { quotedId: 'm:anything', platform: {} })).toBeUndefined();
+        expect(pickChatApproval(open, { quotedId: 'm:anything' })).toBeUndefined();
     });
 
     it('picks the one open approval for a plain reply', async () => {

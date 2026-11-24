@@ -6,7 +6,7 @@
  */
 
 import { Permission, can } from '@chamvi/access';
-import { ErrorCode } from '@chamvi/core';
+import { ErrorCode, IDEMPOTENCY_TTL_MS } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import type { Invoker, Run } from '@chamvi/store';
 import type { LanguageModel } from 'ai';
@@ -26,11 +26,32 @@ const NOTICE_TEXTS: Record<ChatAnswerNotice, string> = {
     closed: CHAT_ANSWER_NOTICE_CLOSED,
 };
 
-/** The id of the message a reply quotes, when it is a bounded id. */
-function quotedIdOf(incoming: ChatIncoming): string | undefined {
-    const id: unknown = isObject(incoming.message.replyTo) ? incoming.message.replyTo.id : undefined;
+/**
+ * The quote of a reply: none (no `replyTo`), the quoted message's id, or
+ * `false` for a quote that can name no approval (an id that is no bounded
+ * string, or a platform without `sentMessageId` to match it).
+ */
+function quotedIdOf(incoming: ChatIncoming, ctx: ChatIntakeContext): string | false | undefined {
+    const { replyTo } = incoming.message;
 
-    return typeof id === 'string' && id.length > 0 && id.length <= CHAT_ID_MAX_LENGTH && !id.includes('\0') ? id : undefined;
+    if (replyTo === undefined || replyTo === null) {
+        return undefined;
+    }
+
+    const id: unknown = isObject(replyTo) ? replyTo.id : undefined;
+
+    if (typeof id !== 'string' || id.length === 0 || id.length > CHAT_ID_MAX_LENGTH || id.includes('\0')) {
+        return false;
+    }
+
+    return ctx.options.platform?.sentMessageId ? id : false;
+}
+
+/** Whether the reply was sent before its approval reached the chat (a stale or early "yes"). */
+function isChatReplyBeforeApproval(payload: ChatPayload, notifiedAt: Date | undefined): boolean {
+    const { sentAt } = payload.message;
+
+    return sentAt !== undefined && notifiedAt !== undefined && Date.parse(sentAt) < new Date(notifiedAt).getTime();
 }
 
 /**
@@ -109,14 +130,20 @@ function resolveChatAnswerModel(ctx: ChatIntakeContext, run: Run): LanguageModel
 /**
  * Answers an open approval of the reply's chat instead of dispatching the
  * reply (`answers` on). True when the message is handled (an approval
- * answered, or a notice sent): it starts no run. False, so the message is
- * dispatched as usual, for anything uncertain: no `answers`, no direct chat,
- * no invoker, no approval the reply answers, an invoker without
- * `chamvi_agent_approve` for the run's agent (checked before any model call),
- * a model that does not resolve, a reply read as unclear. Several open
- * approvals and an unquoted reply (when the invoker may answer one of them),
- * or a quote of an approval no longer open, get a notice. An approval that settled meanwhile gets the closed notice;
- * any other approve failure rejects (an intake failure).
+ * answered, a reply that already answered one, or a notice sent): it starts
+ * no run. False, so the message is dispatched as usual, for anything
+ * uncertain: no `answers`, no direct chat, no invoker, a quote that can name
+ * no approval, no approval the reply answers, an invoker without
+ * `chamvi_agent_approve` for the run's agent (checked before any model
+ * call), a reply sent before the approval reached the chat, a model that
+ * does not resolve, a reply read as unclear. Several open approvals and an
+ * unquoted reply (when the invoker may answer one of them), or a quote of an
+ * approval no longer open, get a notice. Each reply answers at most once:
+ * a durable claim (`chat-answer:<channel>`, per adapter, thread, author and
+ * message) is taken right before the answer, so a redelivery answers no
+ * later approval; a claim whose answer failed stays taken. An approval that
+ * settled meanwhile gets the closed notice; any other approve failure
+ * rejects (an intake failure).
  */
 export async function answerChatApproval(
     ctx: ChatIntakeContext,
@@ -131,10 +158,16 @@ export async function answerChatApproval(
         return false;
     }
 
+    const quotedId = quotedIdOf(incoming, ctx);
+
+    // a quote that can name no approval is a plain message: it never falls back to the one open
+    if (quotedId === false) {
+        return false;
+    }
+
     const { engine } = context;
     const address = encodeChatAddress({ adapter: payload.adapter, threadId: payload.threadId }, options.adapterNames);
     const open = await findOpenChatApprovals(engine, { channel: options.name, address });
-    const quotedId = quotedIdOf(incoming);
     const pick = pickChatApproval(open.runs, {
         ...(quotedId !== undefined ? { quotedId } : {}),
         ...(options.platform ? { platform: options.platform } : {}),
@@ -159,7 +192,12 @@ export async function answerChatApproval(
 
     const { run } = pick;
 
-    if (run.waiting?.kind !== 'approval' || !await canApproveChatRun(engine, invoker, run)) {
+    // a reply sent before the approval reached the chat answers something else
+    if (
+        run.waiting?.kind !== 'approval' ||
+        isChatReplyBeforeApproval(payload, run.waiting.notifiedAt) ||
+        !await canApproveChatRun(engine, invoker, run)
+    ) {
         return false;
     }
 
@@ -180,6 +218,18 @@ export async function answerChatApproval(
 
     if (decision === 'unclear') {
         return false;
+    }
+
+    // one approval per reply, durably: a redelivery after this answer never answers a later approval
+    const claim = await engine.idempotencyService.claim(
+        `chat-answer:${options.name}`,
+        hashKey([payload.adapter, payload.threadId, payload.message.author.id, payload.message.id]),
+        run.id,
+        IDEMPOTENCY_TTL_MS,
+    );
+
+    if (!claim.created) {
+        return true;
     }
 
     try {

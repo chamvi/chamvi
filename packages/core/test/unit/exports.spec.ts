@@ -512,6 +512,10 @@ describe('public api', () => {
         expect(core.TRIGGER_KEY_MAX_LENGTH).toBe(255);
     });
 
+    it('exports the idempotency claim TTL', () => {
+        expect(core.IDEMPOTENCY_TTL_MS).toBe(7 * 24 * 60 * 60 * 1000);
+    });
+
     it('removes the trigger factories', () => {
         expect(core).not.toHaveProperty('cron');
         expect(core).not.toHaveProperty('http');
