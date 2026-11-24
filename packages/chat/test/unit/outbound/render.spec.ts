@@ -13,7 +13,7 @@ import {
     ValidationError,
 } from '@chamvi/core';
 import type { ChannelMessage } from '@chamvi/core';
-import { CHAT_TEXT_MAX_CHARS } from '@chamvi/chat';
+import { CHAT_ANSWER_HINT, CHAT_ANSWER_TIMEOUT_MS, CHAT_TEXT_MAX_CHARS } from '@chamvi/chat';
 import type { ChatApprovalRef } from '@chamvi/chat';
 import { renderChatMessage } from '../../../src/outbound/helpers.ts';
 
@@ -251,5 +251,64 @@ describe('renderChatMessage({ maxTextChars })', () => {
         expect(render).toThrow(/of 2000/);
         // the same approval fits the default bound
         expect(() => renderChatMessage(approval({ options }), { approvalUrl: URL_OF })).not.toThrow();
+    });
+});
+
+describe('renderChatMessage({ answers })', () => {
+    const answers = { timeoutMs: CHAT_ANSWER_TIMEOUT_MS };
+
+    it('renders the reply hint without approvalUrl for an approval without options', () => {
+        expect(CHAT_ANSWER_HINT).toBe('Reply to this message to approve or deny.');
+        expect(renderChatMessage(approval(), { answers })).toBe([
+            'Deploy to prod?',
+            'Release v1.2.0.',
+            `Expires: ${EXPIRES.toISOString()}\nReply to this message to approve or deny.`,
+        ].join('\n\n'));
+        // no expiry: the hint alone
+        expect(renderChatMessage(approval({ expiresAt: undefined }), { answers }))
+            .toBe('Deploy to prod?\n\nRelease v1.2.0.\n\nReply to this message to approve or deny.');
+    });
+
+    it('puts the hint before the link when approvalUrl is set too', () => {
+        expect(renderChatMessage(approval(), { answers, approvalUrl: URL_OF })).toBe([
+            'Deploy to prod?',
+            'Release v1.2.0.',
+            [
+                `Expires: ${EXPIRES.toISOString()}`,
+                'Reply to this message to approve or deny.',
+                'Approve or deny: https://chamvi.example/ui/approvals?run=run-1&approval=0:call-1:0',
+            ].join('\n'),
+        ].join('\n\n'));
+    });
+
+    it('never cuts the prose: an approval that does not fit is a ValidationError', () => {
+        const render = () => renderChatMessage(approval({ body: 'b'.repeat(5000) }), { answers, approvalUrl: URL_OF });
+
+        expect(render).toThrow(ValidationError);
+        expect(render).not.toThrow(/cut/);
+
+        const bounded = () => renderChatMessage(approval({ body: 'b'.repeat(2000) }), { answers, maxTextChars: 2000 });
+
+        expect(bounded).toThrow(ValidationError);
+        expect(bounded).toThrow(/2000/);
+
+        // the same prose fits the default bound uncut
+        const text = renderChatMessage(approval({ body: 'b'.repeat(2000) }), { answers });
+
+        expect(text).toContain('b'.repeat(2000));
+        expect(text).not.toMatch(/cut/);
+    });
+
+    it('still requires approvalUrl for an approval with options, and renders no hint for one', () => {
+        const options = [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }];
+        const render = () => renderChatMessage(approval({ options }), { answers });
+
+        expect(render).toThrow(InvalidAgentDefinitionError);
+        expect(render).toThrow(/approvalUrl/);
+
+        const text = renderChatMessage(approval({ options }), { answers, approvalUrl: URL_OF });
+
+        expect(text).not.toContain(CHAT_ANSWER_HINT);
+        expect(text).toContain('Choose and approve or deny: https://chamvi.example/');
     });
 });

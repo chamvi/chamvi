@@ -7,6 +7,7 @@
 
 import type { IClock } from '@chamvi/core';
 import type { Adapter } from 'chat';
+import type { ResolvedChatAnswerOptions } from '../answer/types.ts';
 import type { ChatApprovalRef, ChatPlatformPost, ChatPlatformSend } from '../channel/types.ts';
 
 /** What createChatSender() sends through (internal). */
@@ -15,8 +16,10 @@ export type ChatSenderOptions = {
     name: string;
     /** The adapters an address may name, by their name. */
     adapters: readonly Adapter[];
-    /** The approval link; required to send an approval. */
+    /** The approval link; required to send an approval with options, and without `answers` any approval. */
     approvalUrl?: (ref: ChatApprovalRef) => string;
+    /** Set when approvals are answered in the chat: the hint line, no cut. */
+    answers?: ResolvedChatAnswerOptions;
     /** Bound of one send. */
     timeoutMs: number;
     /** The longest text one send posts (UTF-16 code units). */
@@ -33,4 +36,4 @@ export type ChatSenderOptions = {
 };
 
 /** What renderChatMessage() reads of the options (internal); `maxTextChars` defaults to `CHAT_TEXT_MAX_CHARS`. */
-export type ChatRenderOptions = Pick<ChatSenderOptions, 'approvalUrl'> & Partial<Pick<ChatSenderOptions, 'maxTextChars'>>;
+export type ChatRenderOptions = Pick<ChatSenderOptions, 'answers' | 'approvalUrl'> & Partial<Pick<ChatSenderOptions, 'maxTextChars'>>;

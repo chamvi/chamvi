@@ -185,7 +185,8 @@ function teardown(run: ChatRun, options: ResolvedChatChannelOptions): Promise<vo
  * `out` (createChatSender()) posts to the chat an address names, at least
  * once and only while the channel is started: before `start` finished and
  * from `stop` on it sends nothing (`chat_request`). Approvals go out as a
- * link of `approvalUrl` (required for them), never as buttons.
+ * link of `approvalUrl` (required for them, except one without options
+ * with `answers`, which ends with `CHAT_ANSWER_HINT`), never as buttons.
  *
  * Runs it starts are untrusted unless `untrusted: false`. Only incoming
  * messages reach chamvi: the Chat has no handlers of chamvi's, so an action
@@ -204,6 +205,7 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
         name,
         adapters: resolved.adapters,
         ...(resolved.approvalUrl ? { approvalUrl: resolved.approvalUrl } : {}),
+        ...(resolved.answers ? { answers: resolved.answers } : {}),
         timeoutMs: resolved.timeoutMs,
         maxTextChars: resolved.maxTextChars,
         // started, and connected as far as the transport knows

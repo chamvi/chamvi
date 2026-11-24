@@ -12,6 +12,8 @@ import {
     ValidationError,
 } from '@chamvi/core';
 import { isObject } from 'smob';
+import { CHAT_ANSWER_TIMEOUT_MS } from '../answer/constants.ts';
+import type { ResolvedChatAnswerOptions } from '../answer/types.ts';
 import { isChatIngress } from '../ingress/module.ts';
 import type { ChatIngress } from '../ingress/types.ts';
 import type { ChatTarget } from '../subscription/types.ts';
@@ -95,6 +97,34 @@ function assertPlatform(platform: unknown): void {
             throw invalid(`platform.${key} must be a function.`);
         }
     }
+}
+
+/** The answers option with its defaults; undefined when off. Shape only: the model is never resolved here. */
+function resolveAnswers(answers: unknown): ResolvedChatAnswerOptions | undefined {
+    if (answers === undefined) {
+        return undefined;
+    }
+
+    if (!isObject(answers)) {
+        throw invalid('answers must be an object ({} for the defaults).');
+    }
+
+    const { model } = answers;
+
+    if (model !== undefined && !(typeof model === 'string' && model.length > 0) && !isObject(model)) {
+        throw invalid('answers.model must be a non-empty model string or a LanguageModel.');
+    }
+
+    const timeoutMs = answers.timeoutMs ?? CHAT_ANSWER_TIMEOUT_MS;
+
+    if (!isPositiveInteger(timeoutMs) || timeoutMs > TIMER_MAX_MS) {
+        throw invalid(`answers.timeoutMs must be a positive integer of at most ${TIMER_MAX_MS}.`);
+    }
+
+    return {
+        ...(model !== undefined ? { model: model as ResolvedChatAnswerOptions['model'] } : {}),
+        timeoutMs,
+    };
 }
 
 function assertAdapters(options: ChatChannelOptions): ChatIngress[] {
@@ -214,6 +244,7 @@ export function resolveOptions(options: ChatChannelOptions): ResolvedChatChannel
         throw invalid('history must be 0: platform history is not fetched.');
     }
 
+    const answers = resolveAnswers(options.answers);
     const timeoutMs = options.timeoutMs ?? CHAT_TIMEOUT_MS;
 
     if (!isPositiveInteger(timeoutMs) || timeoutMs > TIMER_MAX_MS) {
@@ -254,6 +285,7 @@ export function resolveOptions(options: ChatChannelOptions): ResolvedChatChannel
         allowMessage: options.allowMessage,
         ...(options.resolveInvoker ? { resolveInvoker: options.resolveInvoker } : {}),
         ...(options.approvalUrl ? { approvalUrl: options.approvalUrl } : {}),
+        ...(answers ? { answers } : {}),
         timeoutMs,
         maxTextChars,
         // eslint-disable-next-line no-console

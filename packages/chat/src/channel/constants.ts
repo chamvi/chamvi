@@ -48,4 +48,4 @@ export const CHANNEL_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 export const CHANNEL_NAME_MAX_LENGTH = 64;
 
 /** The hooks of IChatPlatform: a plain-object platform holds no other key. */
-export const PLATFORM_HOOKS = ['online', 'prepare', 'conversationTarget'] as const;
+export const PLATFORM_HOOKS = ['online', 'prepare', 'conversationTarget', 'sentMessageId'] as const;

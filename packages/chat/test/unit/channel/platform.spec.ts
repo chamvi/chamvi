@@ -370,6 +370,13 @@ describe('chatChannel({ platform })', () => {
         expect(() => createIntakeFixture({ agents: () => [], patch: { platform: new FakePlatform() } })).not.toThrow();
     });
 
+    it('takes a plain object with the sentMessageId hook', () => {
+        expect(() => createIntakeFixture({
+            agents: () => [],
+            patch: { platform: { sentMessageId: () => undefined } },
+        })).not.toThrow();
+    });
+
     it('refuses a platform that is no object of functions, or a plain object with another key', () => {
         for (const platform of [
             'whatsapp',
@@ -377,6 +384,7 @@ describe('chatChannel({ platform })', () => {
             { online: true },
             { prepare: 'post' },
             { conversationTarget: {} },
+            { sentMessageId: 'id' },
             { online: () => true, send: () => undefined },
             { conversationtarget: () => undefined },
             Object.assign(Object.create(null) as object, { online: () => true, offline: () => false }),

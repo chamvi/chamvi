@@ -8,6 +8,7 @@
 // The package entry composes the folder barrels.
 // The package entry: one barrel per folder.
 
+export * from './answer/index.ts';
 export * from './channel/index.ts';
 export * from './ingress/index.ts';
 export * from './subscription/index.ts';
