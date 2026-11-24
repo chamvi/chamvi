@@ -17,12 +17,12 @@ export class LimitUses1795552285096 implements MigrationInterface {
                 "scope" character varying(255) COLLATE "C" NOT NULL,
                 "key" character varying(255) COLLATE "C" NOT NULL,
                 "weight" integer NOT NULL,
-                "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL,
+                "created_at" TIMESTAMP WITH TIME ZONE NOT NULL,
                 CONSTRAINT "PK_0cd345b57bc21bf09bf144eecb5" PRIMARY KEY ("id")
             )
         `);
         await queryRunner.query(`
-            CREATE INDEX "IDX_70d3336674588d0f84d81a4b4d" ON "chamvi_limit_uses" ("scope", "expires_at")
+            CREATE INDEX "IDX_27326b86de83e0914819e7dd8a" ON "chamvi_limit_uses" ("scope", "created_at")
         `);
         await queryRunner.query(`
             CREATE UNIQUE INDEX "IDX_8f062f07f82b85612c0d91cd1d" ON "chamvi_limit_uses" ("scope", "key")
@@ -34,7 +34,7 @@ export class LimitUses1795552285096 implements MigrationInterface {
             DROP INDEX "IDX_8f062f07f82b85612c0d91cd1d"
         `);
         await queryRunner.query(`
-            DROP INDEX "IDX_70d3336674588d0f84d81a4b4d"
+            DROP INDEX "IDX_27326b86de83e0914819e7dd8a"
         `);
         await queryRunner.query(`
             DROP TABLE "chamvi_limit_uses"

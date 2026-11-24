@@ -22,13 +22,13 @@ import type { ILimitRepository, LimitUse } from '@chamvi/store';
 import { testUuid } from '../fixture/helpers.ts';
 import type { LimitRepositoryContractInput } from './types.ts';
 
-function useOf(label: string, scope: string, key: string, weight: number, expiresAt: number): LimitUse {
+function useOf(label: string, scope: string, key: string, weight: number, createdAt: number): LimitUse {
     return {
         id: testUuid(label),
         scope,
         key,
         weight,
-        expiresAt: new Date(expiresAt),
+        createdAt: new Date(createdAt),
     };
 }
 
@@ -42,9 +42,9 @@ function keysOf(rows: LimitUse[]): string[] {
 
 /**
  * The storage behaviour of an `ILimitRepository`: uses stored as given,
- * the unique `(scope, key)`, `findMany` by scope and expiry,
- * `removeExpiredBy` and its boundary, copies, and concurrent first saves
- * of one key.
+ * the unique `(scope, key)`, `findMany` by scope and creation time,
+ * `sumWeight` and `removeCreatedBefore` with their boundaries, copies, and
+ * concurrent first saves of one key.
  */
 export function describeLimitRepositoryContract(input: LimitRepositoryContractInput): void {
     describe(`limit use repository contract: ${input.name}`, () => {
@@ -58,7 +58,7 @@ export function describeLimitRepositoryContract(input: LimitRepositoryContractIn
             const saved = await insert(uses, useOf('u1', 'a:send', 'r1:0:c1', 3, 61_000));
 
             expect(saved).toStrictEqual(useOf('u1', 'a:send', 'r1:0:c1', 3, 61_000));
-            expect(saved.expiresAt).toBeInstanceOf(Date);
+            expect(saved.createdAt).toBeInstanceOf(Date);
             expect(await uses.findOneById(testUuid('u1'))).toStrictEqual(saved);
             expect(await uses.findOneBy({ scope: 'a:send', key: 'r1:0:c1' })).toStrictEqual(saved);
         });
@@ -87,58 +87,86 @@ export function describeLimitRepositoryContract(input: LimitRepositoryContractIn
             expect(await uses.findOneBy({ scope: 's', key: 'k' })).toStrictEqual(useOf('u1', 's', 'k', 1, 1_000));
         });
 
-        it('findMany filters by scope and by an expiry after a time, with the total', async () => {
+        it('findMany filters by scope and by a creation time after a time, with the total', async () => {
             await insert(uses, useOf('u1', 's', 'before', 1, 4_999));
             await insert(uses, useOf('u2', 's', 'at', 1, 5_000));
             await insert(uses, useOf('u3', 's', 'after', 2, 5_001));
             await insert(uses, useOf('u4', 's', 'later', 3, 9_000));
             await insert(uses, useOf('u5', 'other', 'later', 4, 9_000));
 
-            const live = await uses.findMany(defineQuery({ filters: and(eq('scope', 's'), gt('expiresAt', new Date(5_000))) }));
+            const recent = await uses.findMany(defineQuery({ filters: and(eq('scope', 's'), gt('createdAt', new Date(5_000))) }));
 
-            expect(keysOf(live.data)).toEqual(['after', 'later']);
-            expect(live.meta.total).toBe(2);
-            expect(live.data.every((row) => row.scope === 's' && row.expiresAt instanceof Date)).toBe(true);
+            expect(keysOf(recent.data)).toEqual(['after', 'later']);
+            expect(recent.meta.total).toBe(2);
+            expect(recent.data.every((row) => row.scope === 's' && row.createdAt instanceof Date)).toBe(true);
 
             const scoped = await uses.findMany(defineQuery({ filters: eq('scope', 's') }));
 
             expect(scoped.meta.total).toBe(4);
         });
 
-        it('removeExpiredBy removes exactly the uses expired at the time and resolves how many', async () => {
+        it('sumWeight sums the weights of the uses of a scope created strictly after a time', async () => {
+            await insert(uses, useOf('u1', 's', 'before', 1, 4_999));
+            await insert(uses, useOf('u2', 's', 'at', 2, 5_000));
+            await insert(uses, useOf('u3', 's', 'after', 3, 5_001));
+            await insert(uses, useOf('u4', 's', 'later', 5, 9_000));
+            await insert(uses, useOf('u5', 'other', 'later', 7, 9_000));
+            await insert(uses, useOf('u6', 's2', 'later', 11, 9_000));
+
+            expect(await uses.sumWeight('s', new Date(5_000))).toBe(8);
+            expect(await uses.sumWeight('s', new Date(4_999))).toBe(10);
+            expect(await uses.sumWeight('s', new Date(0))).toBe(11);
+            expect(await uses.sumWeight('other', new Date(5_000))).toBe(7);
+            expect(await uses.sumWeight('s', new Date(9_000))).toBe(0);
+        });
+
+        it('sumWeight is 0 for a scope without uses and sums weights beyond the integer column', async () => {
+            expect(await uses.sumWeight('s', new Date(0))).toBe(0);
+
+            await insert(uses, useOf('u1', 's', 'a', 2_147_483_647, 1_000));
+            await insert(uses, useOf('u2', 's', 'b', 2_147_483_647, 1_000));
+
+            const sum = await uses.sumWeight('s', new Date(0));
+
+            expect(sum).toBe(4_294_967_294);
+            expect(typeof sum).toBe('number');
+            expect(await uses.sumWeight('S', new Date(0))).toBe(0);
+        });
+
+        it('removeCreatedBefore removes exactly the uses created at or before the time and resolves how many', async () => {
             await insert(uses, useOf('u1', 's', 'before', 1, 4_999));
             await insert(uses, useOf('u2', 'other', 'at', 1, 5_000));
             await insert(uses, useOf('u3', 's', 'after', 1, 5_001));
 
-            expect(await uses.removeExpiredBy(new Date(5_000))).toBe(2);
+            expect(await uses.removeCreatedBefore(new Date(5_000))).toBe(2);
             expect(await uses.findOneBy({ scope: 's', key: 'before' })).toBeNull();
             expect(await uses.findOneBy({ scope: 'other', key: 'at' })).toBeNull();
             expect(await uses.findOneBy({ scope: 's', key: 'after' })).toStrictEqual(useOf('u3', 's', 'after', 1, 5_001));
-            expect(await uses.removeExpiredBy(new Date(5_000))).toBe(0);
+            expect(await uses.removeCreatedBefore(new Date(5_000))).toBe(0);
         });
 
-        it('removeExpiredBy keeps a use a transaction in flight extends past the time', async () => {
+        it('removeCreatedBefore keeps a use a transaction in flight moves past the time', async () => {
             await insert(uses, useOf('u1', 's', 'k', 1, 1_000));
 
             const { promise: locked, resolve: lock } = Promise.withResolvers<void>();
             const { promise: release, resolve: done } = Promise.withResolvers<void>();
-            const extending = uses.transaction(async (repository) => {
+            const moving = uses.transaction(async (repository) => {
                 const read = (await repository.findOneBy({ scope: 's', key: 'k' }))!;
 
                 lock();
                 await release;
-                repository.merge(read, { expiresAt: new Date(9_000) });
+                repository.merge(read, { createdAt: new Date(9_000) });
                 await repository.save(read);
             });
 
             await locked;
 
-            const purge = uses.removeExpiredBy(new Date(5_000));
+            const purge = uses.removeCreatedBefore(new Date(5_000));
 
             // the purge waits for the row the transaction holds before it commits
             await input.untilBlocked();
             done();
-            await extending;
+            await moving;
             expect(await purge).toBe(0);
             expect(await uses.findOneBy({ scope: 's', key: 'k' })).toStrictEqual(useOf('u1', 's', 'k', 1, 9_000));
         });
@@ -147,15 +175,15 @@ export function describeLimitRepositoryContract(input: LimitRepositoryContractIn
             const value = useOf('u1', 's', 'k', 1, 1_000);
 
             await insert(uses, value);
-            value.expiresAt.setTime(9_000);
+            value.createdAt.setTime(9_000);
             value.weight = 7;
 
             const read = (await uses.findOneBy({ scope: 's', key: 'k' }))!;
 
-            expect(read.expiresAt).toEqual(new Date(1_000));
+            expect(read.createdAt).toEqual(new Date(1_000));
             expect(read.weight).toBe(1);
-            read.expiresAt.setTime(9_000);
-            expect((await uses.findOneBy({ scope: 's', key: 'k' }))!.expiresAt).toEqual(new Date(1_000));
+            read.createdAt.setTime(9_000);
+            expect((await uses.findOneBy({ scope: 's', key: 'k' }))!.createdAt).toEqual(new Date(1_000));
         });
 
         it('concurrent first saves of one key: exactly one is stored, the others are EntityConflictError', async () => {

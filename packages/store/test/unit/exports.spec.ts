@@ -137,10 +137,11 @@ describe('public api', () => {
             scope: string;
             key: string;
             weight: number;
-            expiresAt: Date;
+            createdAt: Date;
         }>();
         expectTypeOf<store.ILimitRepository>().toExtend<store.IEntityRepository<store.LimitUse>>();
-        expectTypeOf<store.ILimitRepository['removeExpiredBy']>().toEqualTypeOf<(time: Date) => Promise<number>>();
+        expectTypeOf<store.ILimitRepository['sumWeight']>().toEqualTypeOf<(scope: string, since: Date) => Promise<number>>();
+        expectTypeOf<store.ILimitRepository['removeCreatedBefore']>().toEqualTypeOf<(time: Date) => Promise<number>>();
     });
 
     it('exports the batched operations and the where type of the generic port', () => {

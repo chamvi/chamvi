@@ -5,13 +5,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { LessThanOrEqual } from 'typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
 import type { ILimitRepository, LimitUse } from '@chamvi/store';
 import { LimitUseEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
-import { removeExpiredBy } from '../../entity/helpers/index.ts';
 
-/** Limit uses in `chamvi_limit_uses`, stored as given. */
+/**
+ * Limit uses in `chamvi_limit_uses`, stored as given. `sumWeight` is one
+ * aggregate over the `(scope, created_at)` index.
+ */
 export class DatabaseLimitRepository extends EntityRepositoryAdapter<LimitUse, LimitUseEntity> implements ILimitRepository {
     constructor(source: DataSource | EntityManager) {
         super(source.getRepository(LimitUseEntity), {
@@ -25,11 +28,36 @@ export class DatabaseLimitRepository extends EntityRepositoryAdapter<LimitUse, L
         return new DatabaseLimitRepository(manager) as this;
     }
 
-    async removeExpiredBy(time: Date): Promise<number> {
+    async sumWeight(scope: string, since: Date): Promise<number> {
         if (this.mustQueue()) {
-            return this.transaction((repository) => repository.removeExpiredBy(time));
+            return this.transaction((repository) => repository.sumWeight(scope, since));
         }
 
-        return this.persist(() => removeExpiredBy(this.repository, time), 'removeExpiredBy');
+        const row = await this.persist(() => this.repository
+            .createQueryBuilder('limitUse')
+            .select('COALESCE(SUM(limitUse.weight), 0)', 'sum')
+            .where('limitUse.scope = :scope', { scope })
+            .andWhere('limitUse.createdAt > :since', { since })
+            .getRawOne<{ sum: string | number }>(), 'sumWeight');
+
+        // SUM over an integer column is a bigint, which the driver reads as a string
+        return Number(row?.sum ?? 0);
+    }
+
+    /**
+     * One statement; a row a transaction holds is checked again once that
+     * transaction ended (READ COMMITTED), so a use moved past `time`
+     * meanwhile stays.
+     */
+    async removeCreatedBefore(time: Date): Promise<number> {
+        if (this.mustQueue()) {
+            return this.transaction((repository) => repository.removeCreatedBefore(time));
+        }
+
+        return this.persist(async () => {
+            const result = await this.repository.delete({ createdAt: LessThanOrEqual(time) });
+
+            return result.affected ?? 0;
+        }, 'removeCreatedBefore');
     }
 }

@@ -6,13 +6,12 @@
  */
 
 import type { ILimitRepository, LimitUse } from '@chamvi/store';
-import { removeRowsExpiredBy } from '../../entity/helpers.ts';
 import { MemoryEntityRepository } from '../../entity/module.ts';
 import type { MemoryRepositoryOptions } from '../../entity/types.ts';
 
 /**
  * Limit uses in the registry (entity `limit_use`, key `id`,
- * `(scope, key)` unique), stored as given. `expiresAt` is compared as an
+ * `(scope, key)` unique), stored as given. `createdAt` is compared as an
  * instant in `findMany` filters, as the database's date column.
  */
 export class MemoryLimitRepository extends MemoryEntityRepository<LimitUse> implements ILimitRepository {
@@ -22,11 +21,38 @@ export class MemoryLimitRepository extends MemoryEntityRepository<LimitUse> impl
             registry: options.registry,
             key: ['id'],
             unique: [['scope', 'key']],
-            dates: ['expiresAt'],
+            dates: ['createdAt'],
         });
     }
 
-    async removeExpiredBy(time: Date): Promise<number> {
-        return removeRowsExpiredBy<LimitUse>(this, time);
+    async sumWeight(scope: string, since: Date): Promise<number> {
+        const rows = await this.findManyBy({ scope });
+
+        return rows
+            .filter((row) => row.createdAt.getTime() > since.getTime())
+            .reduce((sum, row) => sum + row.weight, 0);
+    }
+
+    /**
+     * One transaction; each candidate is read again with a single-row read
+     * (locking it), so a use a transaction in flight moves past `time` stays.
+     */
+    async removeCreatedBefore(time: Date): Promise<number> {
+        const isOld = (row: LimitUse) => row.createdAt.getTime() <= time.getTime();
+
+        return this.transaction(async (bound) => {
+            let removed = 0;
+
+            for (const candidate of (await bound.findManyBy({})).filter(isOld)) {
+                const row = await bound.findOneById(candidate.id);
+
+                if (row && isOld(row)) {
+                    await bound.remove(row);
+                    removed += 1;
+                }
+            }
+
+            return removed;
+        });
     }
 }

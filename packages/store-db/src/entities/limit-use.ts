@@ -14,7 +14,7 @@ import {
 import { TableName } from './constants.ts';
 
 @Index(['scope', 'key'], { unique: true })
-@Index(['scope', 'expiresAt'])
+@Index(['scope', 'createdAt'])
 @Entity({ name: TableName.LIMIT_USES })
 export class LimitUseEntity {
     @PrimaryColumn({ type: 'uuid', update: false })
@@ -39,6 +39,7 @@ export class LimitUseEntity {
     @Column({ name: 'weight', type: 'integer' })
     weight!: number;
 
-    @Column({ name: 'expires_at', type: 'timestamp with time zone' })
-    expiresAt!: Date;
+    /** Set by the limit service from its clock, never by the database. */
+    @Column({ name: 'created_at', type: 'timestamp with time zone' })
+    createdAt!: Date;
 }

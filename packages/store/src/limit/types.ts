@@ -21,8 +21,8 @@ export type LimitUse = {
      * as given; the limit service refuses any other value before a write.
      */
     weight: number;
-    /** When the use leaves the window: from this time on it counts as expired. */
-    expiresAt: Date;
+    /** When the use happened: a window counts it while it starts before this time. */
+    createdAt: Date;
 };
 
 /**
@@ -32,9 +32,15 @@ export type LimitUse = {
  */
 export interface ILimitRepository extends IEntityRepository<LimitUse> {
     /**
-     * Delete every use whose `expiresAt` is at or before `time` and
+     * The sum of the weights of the uses of `scope` whose `createdAt` is
+     * strictly after `since`, 0 when there is none.
+     */
+    sumWeight(scope: string, since: Date): Promise<number>;
+
+    /**
+     * Delete every use whose `createdAt` is at or before `time` and
      * resolve how many it deleted. A row a transaction holds is checked
      * once that transaction ended.
      */
-    removeExpiredBy(time: Date): Promise<number>;
+    removeCreatedBefore(time: Date): Promise<number>;
 }
