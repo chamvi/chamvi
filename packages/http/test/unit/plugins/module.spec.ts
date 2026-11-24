@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { HttpRoute } from '@chamvi/http';
+import type { HttpRoute, RateLimitOptions } from '@chamvi/http';
 import type { App, IAppEvent } from 'routup';
 import {
     isOperationalPath,
@@ -277,6 +277,30 @@ describe('rate limit', () => {
         expect((await send(app, '/api/agents', { token: ADMIN_TOKEN })).status).toBe(429);
     });
 
+    it('limits a path of an unlimited prefix route in another case', async () => {
+        const { app } = createTestApp({
+            rateLimit: { max: 1 },
+            routes: [{
+                method: 'GET',
+                path: '/ui',
+                prefix: true,
+                rateLimit: false,
+                handler: async () => ({ status: 200, body: 'ok' }),
+            }],
+        });
+
+        expect((await send(app, '/UI/assets/a.js')).status).toBe(404);
+        expect((await send(app, '/UI/assets/a.js')).status).toBe(429);
+        expect((await send(app, '/ui/assets/a.js')).status).toBe(200);
+    });
+
+    it('takes the proxy setting from the app\'s trustProxy only', () => {
+        // @ts-expect-error the library's own trustProxy is never read: chamvi keys by getRequestIP
+        const options: Partial<RateLimitOptions> = { trustProxy: false };
+
+        expect(options).toBeDefined();
+    });
+
     it('is off with rateLimit: false', async () => {
         const { app } = createTestApp({ rateLimit: false });
 
@@ -368,6 +392,7 @@ describe('route labels', () => {
         expect(await labelsOf({ basePath: '/api', routes: [extra('/ui', true, 'GET')] }, [
             ['GET', '/api/ui'],
             ['GET', '/api/ui/'],
+            ['GET', '/api/ui/assets/app-1.js'],
             ['GET', '/api/UI/assets/app-1.js'],
             ['GET', '/api/uix'],
         ])).toEqual(['/ui/*', '/ui/*', '/ui/*', '/_unmatched', '/_unmatched']);
@@ -392,7 +417,6 @@ describe('route labels', () => {
             ['POST', '/api/channels/webhook/hooked/x/y'],
             ['POST', '/api/channels/other/x'],
         ])).toEqual(['/channels/webhook/*', '/channels/webhook/*', '/channels/webhook/*', '/_unmatched']);
-            ['GET', '/api/ui/assets/app-1.js'],
     });
 
     it('labels the method-less mounts by a fixed label', async () => {

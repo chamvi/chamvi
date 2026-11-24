@@ -29,7 +29,8 @@ import type { UiPage } from '../static/types.ts';
 // #region options
 export type CorsOptions = CorsPluginOptions;
 
-export type RateLimitOptions = RateLimitPluginOptions;
+/** Without the library's `trustProxy`: chamvi keys by `getRequestIP()`, so `HttpAppOptions.trustProxy` is the one proxy setting. */
+export type RateLimitOptions = Omit<RateLimitPluginOptions, 'trustProxy'>;
 
 /** A mounted channel's independent per-client HTTP request limit. */
 export type ChannelRateLimitOptions = {
