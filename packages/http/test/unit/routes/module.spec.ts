@@ -174,7 +174,7 @@ describe('extra routes', () => {
         expect((await send(app, '/limited')).status).toBe(429);
     });
 
-    it('skips the rate limiter whatever the case of the request path (routup matches case-insensitively)', async () => {
+    it('skips the rate limiter for the route path in its own case only, as routup matches it', async () => {
         const { app } = createTestApp({
             basePath: '/api',
             rateLimit: { max: 1 },
@@ -184,10 +184,13 @@ describe('extra routes', () => {
             ],
         });
 
-        expect((await send(app, '/API/Open')).status).toBe(202);
-        expect((await send(app, '/api/OPEN')).status).toBe(202);
-        expect((await send(app, '/api/mixed')).status).toBe(202);
-        expect((await send(app, '/Api/MIXED')).status).toBe(202);
+        for (let i = 0; i < 2; i++) {
+            expect((await send(app, '/api/open')).status).toBe(202);
+            expect((await send(app, '/api/Mixed')).status).toBe(202);
+        }
+
+        expect((await send(app, '/api/mixed')).status).toBe(404);
+        expect((await send(app, '/api/OPEN')).status).toBe(429);
     });
 
     it('hands the raw body bytes', async () => {
@@ -306,24 +309,29 @@ describe('extra routes', () => {
         ...['agents', 'channels', 'runs', 'mcp', 'healthz', 'me', 'readyz', 'schedules']
             .map((segment): [string, HttpRoute[]] => [`the reserved segment ${segment}`, [route({ path: `/${segment}/x` })]]),
         ['the metrics path', [route({ method: 'GET', path: '/metrics' })]],
-        ['a reserved segment in another case', [route({ path: '/AGENTS/x' })]],
-        ['the metrics path in another case', [route({ method: 'GET', path: '/Metrics' })]],
-        ['a duplicate path in another case', [route(), route({ path: '/EXTRA' })]],
     ])('refuses %s at construction', (_name, routes) => {
         expect(() => createTestApp({ metrics: undefined, routes })).toThrow(InvalidAgentDefinitionError);
     });
 
     it.each([
+        ['a reserved segment in another case', [route({ path: '/AGENTS/x' })]],
+        ['the metrics path in another case', [route({ method: 'GET', path: '/Metrics' })]],
+        ['a path differing from another only by case', [route(), route({ path: '/EXTRA' })]],
+    ])('accepts %s: routup matches it as a distinct path', (_name, routes) => {
+        expect(() => createTestApp({ metrics: undefined, routes })).not.toThrow();
+    });
+
+    it.each([
         ['openapi on', { openapi: {} }],
         ['openapi: false', { openapi: false as const }],
-    ])('refuses the openapi paths in any case (%s)', (_name, options) => {
-        for (const path of ['/docs', '/Docs/x', '/openapi.json', '/OpenAPI.JSON', '/openapi.json/x']) {
+    ])('refuses the openapi paths (%s)', (_name, options) => {
+        for (const path of ['/docs', '/docs/x', '/openapi.json', '/openapi.json/x']) {
             expect(() => createTestApp({ ...options, routes: [route({ method: 'GET', path })] }))
                 .toThrow(`Route path "${path}" collides with a built-in route.`);
         }
     });
 
-    it.each(['/openapi.jsonx', '/openapi', '/documents', '/doc'])('accepts %s, no openapi path', (path) => {
+    it.each(['/openapi.jsonx', '/openapi', '/documents', '/doc', '/Docs/x', '/OpenAPI.JSON'])('accepts %s, no openapi path', (path) => {
         expect(() => createTestApp({ routes: [route({ method: 'GET', path })] })).not.toThrow();
     });
 
@@ -379,8 +387,9 @@ describe('prefix routes, headers and byte bodies', () => {
             })],
         });
 
-        expect((await get(app, '/api/UI/Assets/App.JS')).status).toBe(204);
+        expect((await get(app, '/api/ui/Assets/App.JS')).status).toBe(204);
         expect(seen).toBe('/Assets/App.JS');
+        expect((await get(app, '/api/UI/Assets/App.JS')).status).toBe(404);
     });
 
     it('strips a basePath given with a trailing slash', async () => {

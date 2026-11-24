@@ -247,6 +247,14 @@ describe('rate limit', () => {
         }
     });
 
+    it('limits a health path in another case: routup serves it nowhere', async () => {
+        const { app } = createTestApp({ rateLimit: { max: 1 } });
+
+        expect((await send(app, '/HEALTHZ')).status).toBe(404);
+        expect((await send(app, '/HEALTHZ')).status).toBe(429);
+        expect((await send(app, '/healthz')).status).toBe(200);
+    });
+
     it('skips the limiter for every path of an unlimited prefix route', async () => {
         const { app } = createTestApp({
             rateLimit: { max: 1 },
@@ -262,7 +270,7 @@ describe('rate limit', () => {
 
         for (let i = 0; i < 3; i++) {
             expect((await send(app, '/api/ui')).status).toBe(200);
-            expect((await send(app, `/api/UI/assets/a${i}.js`)).status).toBe(200);
+            expect((await send(app, `/api/ui/assets/a${i}.js`)).status).toBe(200);
         }
 
         expect((await send(app, '/api/agents', { token: ADMIN_TOKEN })).status).toBe(200);
@@ -362,19 +370,19 @@ describe('route labels', () => {
             ['GET', '/api/ui/'],
             ['GET', '/api/UI/assets/app-1.js'],
             ['GET', '/api/uix'],
-        ])).toEqual(['/ui/*', '/ui/*', '/ui/*', '/_unmatched']);
+        ])).toEqual(['/ui/*', '/ui/*', '/ui/*', '/_unmatched', '/_unmatched']);
         // a plain route matches its path only
         expect(await labelsOf({ basePath: '/api', routes: [extra('/ui', undefined, 'GET')] }, [['GET', '/api/ui/x']])).toEqual(['/_unmatched']);
     });
 
-    it('labels a path in another case like routup matches it', async () => {
+    it('labels a path in another case /_unmatched: routup matches static segments case-sensitively', async () => {
         expect(await labelsOf({ routes: [extra('/webhooks/github')] }, [
             ['POST', '/Webhooks/GitHub'],
             ['GET', '/RUNS/abc', { token: ADMIN_TOKEN }],
             ['GET', '/HEALTHZ'],
             ['POST', '/authorization/check', { token: ADMIN_TOKEN, body: { permissions: [] } }],
-        ])).toEqual(['/webhooks/github', '/runs/:id', '/healthz', '/authorization/check']);
-        expect(await labelsOf({ basePath: '/api', routes: [extra('/webhooks/github')] }, [['POST', '/API/webhooks/github']])).toEqual(['/webhooks/github']);
+        ])).toEqual(['/_unmatched', '/_unmatched', '/_unmatched', '/authorization/check']);
+        expect(await labelsOf({ basePath: '/api', routes: [extra('/webhooks/github')] }, [['POST', '/api/Webhooks/github']])).toEqual(['/_unmatched']);
     });
 
     it('labels a channel route per channel, its subpaths included', async () => {
@@ -384,6 +392,7 @@ describe('route labels', () => {
             ['POST', '/api/channels/webhook/hooked/x/y'],
             ['POST', '/api/channels/other/x'],
         ])).toEqual(['/channels/webhook/*', '/channels/webhook/*', '/channels/webhook/*', '/_unmatched']);
+            ['GET', '/api/ui/assets/app-1.js'],
     });
 
     it('labels the method-less mounts by a fixed label', async () => {
@@ -451,7 +460,7 @@ describe('route labels', () => {
         await request(app, 'GET', '/api/stats');
         await request(app, 'GET', '/api/Stats');
 
-        expect(recorder.labels).toEqual(['/Stats', '/Stats']);
+        expect(recorder.labels).toEqual(['/_unmatched', '/Stats']);
     });
 
     it('never labels a request by its raw path', async () => {
@@ -466,11 +475,15 @@ describe('route labels', () => {
         expect(labels.some((label) => label.includes('x7'))).toBe(false);
     });
 
-    it('treats operational paths and the stream in any case', () => {
+    it('matches operational paths and the stream in their own case only, like routup', () => {
         const event = (method: string, path: string) => ({ method, path } as IAppEvent);
 
-        expect(isOperationalPath(event('GET', '/HEALTHZ'), '', '/metrics')).toBe(true);
-        expect(isOperationalPath(event('GET', '/Api/Metrics'), '/api', '/metrics')).toBe(true);
-        expect(isStreamRequest(event('GET', '/RUNS/abc/Stream'), '')).toBe(true);
+        expect(isOperationalPath(event('GET', '/healthz'), '', '/metrics')).toBe(true);
+        expect(isOperationalPath(event('GET', '/api/Stats/'), '/api', '/Stats')).toBe(true);
+        expect(isOperationalPath(event('GET', '/HEALTHZ'), '', '/metrics')).toBe(false);
+        expect(isOperationalPath(event('GET', '/Api/metrics'), '/api', '/metrics')).toBe(false);
+        expect(isOperationalPath(event('GET', '/api/stats'), '/api', '/Stats')).toBe(false);
+        expect(isStreamRequest(event('GET', '/runs/abc/stream'), '')).toBe(true);
+        expect(isStreamRequest(event('GET', '/RUNS/abc/Stream'), '')).toBe(false);
     });
 });

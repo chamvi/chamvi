@@ -107,7 +107,7 @@ describe('contributed controllers', () => {
 
     it.each([
         ['/runs'],
-        ['/RUNS/x'],
+        ['/runs/x'],
         ['/me'],
         ['/agents/x'],
         ['/docs'],
@@ -124,11 +124,18 @@ describe('contributed controllers', () => {
         }))).toBe('Controller path "/metrics" collides with a built-in route.');
     });
 
-    it('refuses a custom metrics path, in any case', () => {
+    it('refuses a custom metrics path', () => {
         expect(() => createTestApp({
-            metrics: { metricsPath: '/ops/metrics' },
+            metrics: { metricsPath: '/Ops/Metrics' },
             controllers: [createTestController('/Ops/Metrics')],
         })).toThrow(InvalidAgentDefinitionError);
+    });
+
+    it.each(['/RUNS/x', '/Docs', '/ops/metrics'])('accepts %s, a path routup matches apart from the built-in ones by case', (url) => {
+        expect(() => createTestApp({
+            metrics: { metricsPath: '/Ops/Metrics' },
+            controllers: [createTestController(url, [['GET', '']])],
+        })).not.toThrow();
     });
 
     it('refuses a base path covering the metrics path', () => {
@@ -207,12 +214,13 @@ describe('contributed controllers', () => {
         expect(() => createTestApp({ controllers: [createTestController('/notes', [['GET', '']]), createTestController('/Notes', [['POST', '']])] })).not.toThrow();
     });
 
-    it.each([
-        [['/notes', '/notes'], '/notes'],
-        [['/notes', '/Notes'], '/Notes'],
-    ])('refuses the base paths %j of one controller', (urls, repeated) => {
-        expect(message(() => createTestApp({ controllers: [createTestController(urls, [['GET', '']])] })))
-            .toBe(`Controller path "${repeated}" is listed twice.`);
+    it('refuses a base path listed twice by one controller', () => {
+        expect(message(() => createTestApp({ controllers: [createTestController(['/notes', '/notes'], [['GET', '']])] })))
+            .toBe('Controller path "/notes" is listed twice.');
+    });
+
+    it('accepts base paths of one controller differing only by case: routup matches them apart', () => {
+        expect(() => createTestApp({ controllers: [createTestController(['/notes', '/Notes'], [['GET', '']])] })).not.toThrow();
     });
 
     it('refuses a registration failure of any kind with the cause\'s message', () => {
@@ -231,7 +239,7 @@ describe('contributed controllers', () => {
     it('answers a route repeated under other parameter names from the first controller', async () => {
         const { app } = createTestApp({
             controllers: [
-                createTestController('/Notes', [['GET', '/:id']]),
+                createTestController('/notes', [['GET', '/:id']]),
                 createTestController('/notes', [['GET', '/:noteId/']]),
             ],
         });
@@ -239,6 +247,19 @@ describe('contributed controllers', () => {
 
         expect(response.status).toBe(200);
         expect(await response.json()).toEqual({ method: 'GET', path: '/:id' });
+    });
+
+    it('answers a base path in another case from its own controller only', async () => {
+        const { app } = createTestApp({
+            controllers: [
+                createTestController('/Notes', [['GET', '/:id']]),
+                createTestController('/notes', [['GET', '/:noteId/']]),
+            ],
+        });
+
+        expect(await (await call(app, 'GET', '/notes/7')).json()).toEqual({ method: 'GET', path: '/:noteId/' });
+        expect(await (await call(app, 'GET', '/Notes/7')).json()).toEqual({ method: 'GET', path: '/:id' });
+        expect((await call(app, 'GET', '/NOTES/7')).status).toBe(404);
     });
 
     it('accepts one path under two methods', () => {
@@ -253,7 +274,6 @@ describe('contributed controllers', () => {
     describe('beside an HttpRoute', () => {
         it.each([
             ['equal to the base path', 'GET', '/notes'],
-            ['equal to the base path, in another case', 'GET', '/Notes'],
             ['below the base path', 'GET', '/notes/x'],
             ['below the base path, under another method', 'POST', '/notes/hook'],
         ])('refuses a route %s', (_name, method, path) => {
@@ -286,7 +306,6 @@ describe('contributed controllers', () => {
 
         it.each([
             ['above the base path', '/ui'],
-            ['above the base path, under another method', '/UI'],
         ])('refuses a prefix route %s', (_name, path) => {
             expect(message(() => createTestApp({
                 routes: [route({
@@ -301,8 +320,8 @@ describe('contributed controllers', () => {
         it('refuses a prefix route equal to the base path', () => {
             expect(message(() => createTestApp({
                 routes: [route({ path: '/ui', prefix: true })],
-                controllers: [createTestController('/UI', [['GET', '']])],
-            }))).toBe('Route "GET /ui" lies under the controller path "/UI".');
+                controllers: [createTestController('/ui', [['GET', '']])],
+            }))).toBe('Route "GET /ui" lies under the controller path "/ui".');
         });
 
         it.each([
@@ -311,6 +330,8 @@ describe('contributed controllers', () => {
             ['a route above the base path', '/ui', false],
             ['a route ending in the base path', '/b/notes', false],
             ['a prefix route ending in the base path', '/b/notes', true],
+            ['a route equal to the base path in another case', '/Notes', false],
+            ['a prefix route above the base path in another case', '/UI', true],
         ])('accepts %s', (_name, path, prefix) => {
             expect(() => createTestApp({
                 routes: [route({ path, ...(prefix && { prefix: true }) })],

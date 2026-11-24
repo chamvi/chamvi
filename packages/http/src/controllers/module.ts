@@ -30,28 +30,27 @@ export function validateControllers(options: HttpAppOptions, routes: HttpRoute[]
         throw new InvalidAgentDefinitionError('controllers must be an array of controller instances.');
     }
 
-    const metricsPath = readMetricsPath(options)?.toLowerCase();
+    const metricsPath = readMetricsPath(options);
 
     for (const controller of options.controllers) {
         const bases = readBasePaths(readControllerMeta(controller));
         const listed = new Set<string>();
 
         for (const base of bases) {
-            // routup matches paths case-insensitively
-            const path = base.toLowerCase();
-            const segment = path.split('/')[1] ?? '';
+            // routup matches static segments case-sensitively: paths differing only by case are distinct
+            const segment = base.split('/')[1] ?? '';
 
-            if (listed.has(path)) {
+            if (listed.has(base)) {
                 throw new InvalidAgentDefinitionError(`Controller path "${base}" is listed twice.`);
             }
 
-            listed.add(path);
+            listed.add(base);
 
-            if (RESERVED_ROUTE_SEGMENTS.includes(segment) || path === metricsPath) {
+            if (RESERVED_ROUTE_SEGMENTS.includes(segment) || base === metricsPath) {
                 throw new InvalidAgentDefinitionError(`Controller path "${base}" collides with a built-in route.`);
             }
 
-            if (metricsPath !== undefined && isAtOrUnder(metricsPath, path)) {
+            if (metricsPath !== undefined && isAtOrUnder(metricsPath, base)) {
                 throw new InvalidAgentDefinitionError(`Controller path "${base}" covers the metrics path.`);
             }
 
@@ -87,19 +86,15 @@ export function registerControllers(app: App, ctx: HttpContext): void {
  * Controllers are mounted before the extra routes and every path both
  * could answer lies at or under one of their static paths: an extra route
  * at or under `base`, or a prefix route at or above it, is refused, for
- * any method (compared case-insensitively, as routup matches).
+ * any method (compared case-sensitively, as routup matches).
  */
 function assertApart(base: string, routes: HttpRoute[]): void {
-    const path = base.toLowerCase();
-
     for (const route of routes) {
-        const other = route.path.toLowerCase();
-
-        if (isAtOrUnder(other, path)) {
+        if (isAtOrUnder(route.path, base)) {
             throw new InvalidAgentDefinitionError(`Route "${route.method} ${route.path}" lies under the controller path "${base}".`);
         }
 
-        if (route.prefix && isAtOrUnder(path, other)) {
+        if (route.prefix && isAtOrUnder(base, route.path)) {
             throw new InvalidAgentDefinitionError(`Controller path "${base}" lies under the prefix route "${route.path}".`);
         }
     }
