@@ -10,6 +10,7 @@ import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { mockModel } from '../../utils/mock-model.ts';
 import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import { searchTool } from '../../utils/limits.ts';
 import type { TestServiceSet, TestServices } from '../../utils/engine.ts';
 
 const model = mockModel([]);
@@ -17,6 +18,7 @@ const limited = defineModelAgent({
     name: 'limited',
     model,
     instructions: 'x',
+    tools: { search: searchTool([]) },
     limits: { search: { max: 1, windowMs: 1_000 } },
 });
 
@@ -54,10 +56,10 @@ describe('limits need the limit service', () => {
 
     it('takes an agent with empty limits without a limit service', () => {
         const agent = defineModelAgent({
-            name: 'open', 
-            model, 
-            instructions: 'x', 
-            limits: {}, 
+            name: 'open',
+            model,
+            instructions: 'x',
+            limits: {},
         });
 
         expect(() => createTestEngine({ services: servicesWithoutLimits(), agents: [agent] })).not.toThrow();
@@ -73,9 +75,9 @@ describe('limits need the limit service', () => {
             kind: 'model',
             name: 'hand',
             definition: {
-                ...limited.definition, 
-                name: 'hand', 
-                limits: { search: { max: 0, windowMs: 1 } }, 
+                ...limited.definition,
+                name: 'hand',
+                limits: { search: { max: 0, windowMs: 1 } },
             },
         } as Agent;
 

@@ -24,7 +24,12 @@ import type {
     ModelRef,
 } from '@chamvi/core';
 import { ControllableClock, approvalModel, textModel } from '@chamvi/test-kit';
-import { customProvider, generateText, jsonSchema } from 'ai';
+import {
+    customProvider,
+    generateText,
+    jsonSchema,
+    tool,
+} from 'ai';
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
 import {
@@ -158,6 +163,7 @@ describe('engineModule', () => {
             name: 'triage',
             model: textModel(),
             instructions: 'x',
+            tools: { search: tool({ inputSchema: jsonSchema({ type: 'object' }), execute: async () => 'ok' }) },
             limits: { search: { max: 1, windowMs: 1_000 } },
         });
         const { harness } = build({ mode: 'job', agents: [agent] });

@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { ToolSet } from 'ai';
 import { isObject } from 'smob';
 import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
 import { APPROVAL_TIMEOUT_MAX_MS } from '../approval/constants.ts';
@@ -100,5 +101,29 @@ export function assertAgentLimits(limits: unknown): asserts limits is AgentLimit
 export function assertLimitKey(name: string, value: unknown): asserts value is string {
     if (typeof value !== 'string' || value.length > LIMIT_KEY_MAX_LENGTH || value.includes('\0')) {
         throw new ValidationError(`A limit ${name} must be a string of at most ${LIMIT_KEY_MAX_LENGTH} characters without NUL.`);
+    }
+}
+
+/** A call's weight: a safe integer of at least 1 (ValidationError naming the tool, nothing is counted). */
+export function assertLimitWeight(name: string, weight: unknown): asserts weight is number {
+    if (!isPositiveSafeInteger(weight)) {
+        throw new ValidationError(`The limit weight of tool "${name}" must be an integer of at least 1.`);
+    }
+}
+
+/**
+ * Refuses a `limits` key that names no tool of `tools` (InvalidAgentDefinitionError):
+ * a misspelled name would leave the tool silently unlimited. `tools`
+ * undefined (a factory, state or skills add tools later) checks nothing.
+ */
+export function assertLimitedTools(agent: string, limits: AgentLimits | undefined, tools: ToolSet | undefined): void {
+    if (!limits || !tools) {
+        return;
+    }
+
+    for (const name of Object.keys(limits)) {
+        if (!Object.hasOwn(tools, name)) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent}" limits tool "${name}", which it does not have.`);
+        }
     }
 }

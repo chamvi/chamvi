@@ -50,16 +50,32 @@ describe('LimitService', () => {
         expect(await limits.used('a:other')).toBe(7);
     });
 
+    it('counted() tells a stored use of the scope and key, expired or not', async () => {
+        expect(await limits.counted('a:search', 'r1:0:c1')).toBe(false);
+
+        await limits.record('a:search', 'r1:0:c1', 1, 1_000);
+
+        expect(await limits.counted('a:search', 'r1:0:c1')).toBe(true);
+        expect(await limits.counted('a:other', 'r1:0:c1')).toBe(false);
+        expect(await limits.counted('a:search', 'r1:0:c2')).toBe(false);
+
+        clock.advance(1_000);
+
+        expect(await limits.used('a:search')).toBe(0);
+        expect(await limits.counted('a:search', 'r1:0:c1')).toBe(true);
+        await expect(limits.counted('a:search', 'k'.repeat(256))).rejects.toThrow(ValidationError);
+    });
+
     it('record() stores a uuid row expiring at exactly now + windowMs', async () => {
         await limits.record('a:search', 'r1:0:c1', 2, 1_000);
 
         const row = await repository.findOneBy({ scope: 'a:search', key: 'r1:0:c1' });
 
         expect(row).toMatchObject({
-            scope: 'a:search', 
-            key: 'r1:0:c1', 
-            weight: 2, 
-            expiresAt: new Date(11_000), 
+            scope: 'a:search',
+            key: 'r1:0:c1',
+            weight: 2,
+            expiresAt: new Date(11_000),
         });
         expect(row!.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-/);
     });

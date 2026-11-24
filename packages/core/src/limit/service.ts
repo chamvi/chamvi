@@ -43,6 +43,13 @@ export class LimitService implements ILimitService {
         return data.reduce((sum, use) => sum + use.weight, 0);
     }
 
+    async counted(scope: string, key: string): Promise<boolean> {
+        assertLimitKey('scope', scope);
+        assertLimitKey('key', key);
+
+        return await this.repository.findOneBy({ scope, key }) !== null;
+    }
+
     async record(scope: string, key: string, weight: number, windowMs: number): Promise<void> {
         assertLimitKey('scope', scope);
         assertLimitKey('key', key);

@@ -14,6 +14,7 @@ import {
     defineModelAgent,
     defineSimpleAgent,
 } from '@chamvi/core';
+import { jsonSchema, tool } from 'ai';
 import type { LanguageModel } from 'ai';
 import { ControllableClock, createTestEngine, testUuid } from '@chamvi/test-kit';
 
@@ -107,6 +108,7 @@ describe('createTestEngine', () => {
             name: 'limited',
             model: {} as LanguageModel,
             instructions: 'x',
+            tools: { search: tool({ inputSchema: jsonSchema({ type: 'object' }), execute: async () => 'ok' }) },
             limits: { search: { max: 1, windowMs: 1_000 } },
         });
         const engine = createTestEngine({ agents: [agent], clock });

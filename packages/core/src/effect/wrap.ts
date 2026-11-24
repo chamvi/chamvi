@@ -10,6 +10,7 @@ import { isObject } from 'smob';
 import { FatalToolError, ToolNotAllowedError } from '../errors/index.ts';
 import type { ToolContext, ToolTrust } from '../tool/types.ts';
 import { hasToolContext } from '../tool/helpers.ts';
+import { bindToolLimits } from '../limit/module.ts';
 import { assertToolTrust } from '../trust/asserts.ts';
 import { assertTrust, gateOutbound, markUntrusted } from '../trust/module.ts';
 import { SUSPENDED_RESULT } from '../approval/constants.ts';
@@ -17,11 +18,11 @@ import { SuspendSignal } from '../approval/request.ts';
 import { EFFECT, EFFECT_HOOKS } from './constants.ts';
 import { assertExecutionActive, currentToolCall, runToolCall } from './frame.ts';
 import { stableHash, validateToolInput } from './helpers.ts';
-import type { 
-    EffectHooks, 
-    IEffectService, 
-    ToolCallFrame, 
-    WrapToolsOptions,  
+import type {
+    EffectHooks,
+    IEffectService,
+    ToolCallFrame,
+    WrapToolsOptions,
 } from './types.ts';
 
 type Execute = (input: unknown, options: any) => unknown;
@@ -106,6 +107,9 @@ function toolCallIdOf(options: unknown): string {
  * with a placeholder, whatever the tool did with the signal. A chamvi tool
  * (contextSchema toolContextSchema) whose own `trust` is malformed throws
  * InvalidAgentDefinitionError; a third-party tool's `trust` field is ignored.
+ * A limited tool (`limit`, `limits`) checks its limit after `before` and
+ * right before it executes, for an effect tool after the stored-result
+ * lookup and `alreadyApplied` (bindToolLimits, enforceToolLimit).
  */
 export function wrapToolsForRun(
     tools: ToolSet,
@@ -124,10 +128,12 @@ export function wrapToolsForRun(
     const wrapped: ToolSet = {};
     // Public ToolContext is mutable; trust authority belongs to the original execution.
     const execution = { run: ctx.run };
+    const limits = bindToolLimits(tools, ctx, options.limits);
 
     for (const [name, def] of Object.entries(tools)) {
         const effectHooks = (def as { [EFFECT_HOOKS]?: EffectHooks })[EFFECT_HOOKS];
         const execute = def.execute as Execute | undefined;
+        const limited = limits.get(name);
 
         if (!execute) {
             wrapped[name] = def;
@@ -311,7 +317,7 @@ export function wrapToolsForRun(
         };
 
         if (!(EFFECT in def)) {
-            if (!classified && !hooks.beforeToolExecution && !hooks.afterToolExecution) {
+            if (!classified && !limited && !hooks.beforeToolExecution && !hooks.afterToolExecution) {
                 const passThrough = (input: unknown, callOptions: unknown) => {
                     const result = execute.call(def, input, callOptions);
 
@@ -363,6 +369,7 @@ export function wrapToolsForRun(
 
                         const final = await before(input, callOptions);
 
+                        await limited?.(final);
                         markStreaming();
 
                         const iterable = readIterable(execute.call(def, final, callOptions) as AsyncIterable<unknown>);
@@ -400,6 +407,9 @@ export function wrapToolsForRun(
                     await check();
 
                     const final = await before(input, callOptions);
+
+                    await limited?.(final);
+
                     let result: unknown = await readResult(() => execute.call(def, final, callOptions));
 
                     // a streaming result of a plain function: its final value
@@ -437,6 +447,9 @@ export function wrapToolsForRun(
 
                 return remote;
             }
+
+            // counted once, right before the effect applies: never on a recorded or found one
+            await limited?.(input);
 
             // streaming tools yield; the effect's result is the last value
             let result: unknown = await readResult(() => execute.call(def, input, callOptions));

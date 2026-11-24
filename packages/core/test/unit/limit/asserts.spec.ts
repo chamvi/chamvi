@@ -19,6 +19,7 @@ import {
 } from '@chamvi/core';
 import type { AgentLimits, ToolLimit } from '@chamvi/core';
 import { assertAgentLimits, assertToolLimit } from '../../../src/limit/asserts.ts';
+import { searchTool } from '../../utils/limits.ts';
 
 const model = {} as LanguageModel;
 const valid: ToolLimit = { max: 5, windowMs: 60_000 };
@@ -134,23 +135,24 @@ describe('limit on the tool and agent definitions', () => {
         const limits: AgentLimits = { search: { ...valid, onExceed: 'deny' }, fetch: false };
 
         expect(defineModelAgent({
-            name: 'a', 
-            model, 
-            instructions: 'x', 
-            limits, 
+            name: 'a',
+            model,
+            instructions: 'x',
+            tools: { search: searchTool([]), fetch: searchTool([]) },
+            limits,
         }).definition.limits).toEqual(limits);
         expect(() => defineModelAgent({
-            name: 'a', 
-            model, 
-            instructions: 'x', 
-            limits: { search: { max: 1, windowMs: 0 } }, 
+            name: 'a',
+            model,
+            instructions: 'x',
+            limits: { search: { max: 1, windowMs: 0 } },
         }))
             .toThrow('tool "search"');
         expect(() => defineModelAgent({
-            name: 'a', 
-            model, 
-            instructions: 'x', 
-            limits: 5 as unknown as AgentLimits, 
+            name: 'a',
+            model,
+            instructions: 'x',
+            limits: 5 as unknown as AgentLimits,
         })).toThrow(InvalidAgentDefinitionError);
     });
 

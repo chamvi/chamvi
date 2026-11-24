@@ -7,6 +7,8 @@
 
 import type { ILimitRepository } from '@chamvi/store';
 import type { IClock } from '../clock/index.ts';
+import type { IEngine } from '../engine/types.ts';
+import type { ILockService } from '../lock/types.ts';
 import type { StateSchema } from '../state/types.ts';
 import type { ToolContext } from '../tool/types.ts';
 
@@ -51,6 +53,12 @@ export interface ILimitService {
     used(scope: string): Promise<number>;
 
     /**
+     * Whether a use of `scope` under `key` is stored, expired or not (one
+     * read): the call was counted, a replay of it is not checked again.
+     */
+    counted(scope: string, key: string): Promise<boolean>;
+
+    /**
      * Counts a use of `scope` under `key` until now + `windowMs`, unless a use
      * of that `(scope, key)` is stored already (the call was counted).
      */
@@ -59,3 +67,34 @@ export interface ILimitService {
     /** Deletes the uses expired at `now` (default: the clock's time); resolves how many. */
     purgeExpired(now?: Date): Promise<number>;
 }
+
+/** What wrapToolsForRun needs to enforce tool limits (internal). */
+export type ToolLimitOptions = {
+    /** The agent's `limits`: each entry replaces the tool's own limit, false turns it off. */
+    agent?: AgentLimits;
+    /** Where the uses, the lock and the time come from, and the source channel of the approval. */
+    engine: Pick<IEngine, 'limitService' | 'lockService' | 'clock' | 'getChannel'>;
+};
+
+/** One limit check of a tool call (internal): see enforceToolLimit(). */
+export type EnforceToolLimitInput = {
+    name: string;
+    limit: ToolLimit;
+    /** `<agent>:<bucket ?? name>`, hashed when longer than the store column. */
+    scope: string;
+    /** The final input of the call, after the agent's beforeToolExecution hook. */
+    final: unknown;
+    ctx: ToolContext;
+    /** `<runId>:<stepIndex>:<stableHash(toolCallId)>`: the call's use within the scope. */
+    key: string;
+    service: ILimitService;
+    locks: ILockService;
+    clock: IClock;
+    /** The run's source channel and address when that channel has `out`: the approval is delivered there. */
+    source?: { channel: string; address: string };
+    /** Aborts a wait for the scope's lock. */
+    signal?: AbortSignal;
+};
+
+/** Checks one call of a limited tool on its final input (internal). */
+export type ToolLimitCheck = (final: unknown) => Promise<void>;

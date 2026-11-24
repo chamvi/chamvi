@@ -10,7 +10,7 @@ import { assertAgentKind, assertRemoteAgent, conversationKey } from '../../agent
 import { assertConcurrencyMaxRuns } from '../../channel/concurrency.ts';
 import { assertDispatchRoles } from '../../dispatch/helpers/index.ts';
 import { InvalidAgentDefinitionError } from '../../errors/index.ts';
-import { assertAgentLimits } from '../../limit/asserts.ts';
+import { assertAgentLimits, assertLimitedTools } from '../../limit/asserts.ts';
 import { checkAgentModel } from '../../model/module.ts';
 import type { ModelContext } from '../../model/types.ts';
 import { agentCancelReason } from './helpers.ts';
@@ -299,15 +299,25 @@ export class EngineRegistry implements IEngineRegistry {
     }
 
     /**
-     * A model agent's `limits` pass defineModelAgent()'s check again (a
-     * hand-built one skipped it), and non-empty ones need a limit service.
+     * A model agent's `limits` pass defineModelAgent()'s checks again (a
+     * hand-built one skipped them), and ones that are not all false need a
+     * limit service.
      */
     protected assertLimits(agent: ModelAgent): void {
-        const { limits } = agent.definition;
+        const {
+            limits,
+            tools,
+            state,
+            skills,
+        } = agent.definition;
 
         assertAgentLimits(limits);
+        // factories, state and skills can add tools: their names are checked once assembled
+        assertLimitedTools(agent.name, limits, typeof tools === 'function' || state || skills?.length ? undefined : tools ?? {});
 
-        if (limits && Object.keys(limits).length > 0 && !this.ctx.limitService) {
+        const limited = Object.values(limits ?? {}).some((limit) => limit !== false);
+
+        if (limited && !this.ctx.limitService) {
             throw new InvalidAgentDefinitionError(`Agent "${agent.name}" declares limits but the engine has no limit service.`);
         }
     }

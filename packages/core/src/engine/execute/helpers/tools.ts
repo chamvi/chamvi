@@ -13,6 +13,7 @@ import { bindDispatchTools } from '../../../dispatch/bind.ts';
 import { assertNoDispatchCollision, assertOwnDispatchRoles } from '../../../dispatch/helpers/index.ts';
 import { wrapToolsForRun } from '../../../effect/wrap.ts';
 import { ToolNotAllowedError } from '../../../errors/index.ts';
+import { assertLimitedTools } from '../../../limit/asserts.ts';
 import type { RunContext } from '../../../run/types.ts';
 import { createStateTools } from '../../../state/tools.ts';
 import { hasToolContext } from '../../../tool/helpers.ts';
@@ -75,6 +76,7 @@ export async function assembleTools(
     if (!userTools && !schema && !Object.keys(ctx.skills?.tools ?? {}).length) {
         ctx.skills?.checkTools({});
         assertAgentTrust(ctx.agent.definition.trust, {});
+        assertLimitedTools(ctx.agent.name, ctx.agent.definition.limits, {});
 
         if (agentToolsContext) {
             assertToolsContext(ctx.agent.name, {}, agentToolsContext);
@@ -107,6 +109,10 @@ export async function assembleTools(
 
     const toolsContext: Record<string, unknown> = {};
     const ended = () => gate.ended;
+    const limits = {
+        agent: ctx.agent.definition.limits,
+        engine: ctx.engine,
+    };
 
     for (const [name, tool] of Object.entries(tools)) {
         if (hasToolContext(tool)) {
@@ -127,6 +133,7 @@ export async function assembleTools(
             tools: wrapToolsForRun(tools, toolContext, ctx.effectService, {
                 hooks,
                 trust: ctx.agent.definition.trust,
+                limits,
                 onSuspend,
                 stepIndex,
                 ended,
@@ -145,6 +152,7 @@ export async function assembleTools(
             allow,
             hooks,
             trust: ctx.agent.definition.trust,
+            limits,
             onSuspend,
             stepIndex,
             ended,

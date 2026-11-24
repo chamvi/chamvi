@@ -123,6 +123,7 @@ describe('public api', () => {
         expectTypeOf<core.LimitService['record']>()
             .toEqualTypeOf<(scope: string, key: string, weight: number, windowMs: number) => Promise<void>>();
         expectTypeOf<core.LimitService['purgeExpired']>().toEqualTypeOf<(now?: Date) => Promise<number>>();
+        expectTypeOf<core.LimitService['counted']>().toEqualTypeOf<(scope: string, key: string) => Promise<boolean>>();
         expectTypeOf<core.AgentLimits>().toEqualTypeOf<Record<string, core.ToolLimit | false>>();
         expectTypeOf<core.ToolLimit['onExceed']>().toEqualTypeOf<'approve' | 'deny' | undefined>();
         expectTypeOf<core.ModelAgentDefinition['limits']>().toEqualTypeOf<core.AgentLimits | undefined>();
@@ -132,7 +133,14 @@ describe('public api', () => {
         expect(core.LIMIT_LOCK_RETRY_MS).toBe(100);
 
         // the validation stays internal, the port and the memory repository live in @chamvi/store and @chamvi/store-memory
-        for (const name of ['assertToolLimit', 'assertAgentLimits', 'MemoryLimitRepository', 'ILimitRepository']) {
+        for (const name of [
+            'assertToolLimit',
+            'assertAgentLimits',
+            'enforceToolLimit',
+            'bindToolLimits',
+            'MemoryLimitRepository',
+            'ILimitRepository',
+        ]) {
             expect(core).not.toHaveProperty(name);
         }
     });

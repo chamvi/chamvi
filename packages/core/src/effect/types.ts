@@ -10,6 +10,7 @@ import type { IEffectRepository } from '@chamvi/store';
 import type { AgentHooks } from '../agent/types.ts';
 import type { IRunArtifacts } from '../artifact/types.ts';
 import type { CallSuspendRequest } from '../engine/execute/types.ts';
+import type { ToolLimitOptions } from '../limit/types.ts';
 import type { StateSchema } from '../state/types.ts';
 import type { AgentTrust, ToolContext } from '../tool/types.ts';
 import type { EFFECT, EFFECT_HOOKS } from './constants.ts';
@@ -65,6 +66,11 @@ export type ToolCallFrame = {
 
 export type WrapToolsOptions = {
     trust?: AgentTrust;
+    /**
+     * The agent's limits and the engine they are enforced with; a limited
+     * tool without them fails the wrap (InvalidAgentDefinitionError).
+     */
+    limits?: ToolLimitOptions;
     /**
      * Re-checks every call: a refused one throws ToolNotAllowedError, a
      * rejecting one FatalToolError (the run fails).
