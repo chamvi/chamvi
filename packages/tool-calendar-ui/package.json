@@ -52,7 +52,7 @@
         "@chamvi/http-kit": "^0.10.0",
         "@chamvi/ui-kit": "^0.10.0",
         "vite": "^8.3.8",
-        "vue": "^3.5.45",
+        "vue": "^3.5.46",
         "vue-tsc": "^3.3.14"
     },
     "peerDependencies": {

@@ -60,7 +60,7 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
-        "hapic": "^3.0.2",
+        "hapic": "^3.1.0",
         "mdream": "^2.2.0",
         "smob": "^1.6.2"
     },
@@ -68,7 +68,7 @@
         "@chamvi/core": "^0.10.0",
         "@chamvi/http": "^0.10.0",
         "@chamvi/test-kit": "^0.10.0",
-        "ai": "^7.0.173"
+        "ai": "^7.0.181"
     },
     "peerDependencies": {
         "@chamvi/core": "^0.10.0",
