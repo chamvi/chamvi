@@ -232,9 +232,9 @@ describe('the services of the store step', () => {
         expect((await runs.update('r1', { status: 'running' })).updatedAt).toEqual(new Date(clock.now()));
         await expect(container.resolve(AppToken.LOCK_SERVICE).acquire('k', 'a', 10)).resolves.toBeTypeOf('number');
         expect(await repositories.lock.findOneBy({ key: 'k' })).toMatchObject({ owner: 'a' });
-        await container.resolve(AppToken.LIMIT_SERVICE).record('a:search', 'r1:0:c1', 1, 1_000);
+        await container.resolve(AppToken.LIMIT_SERVICE).record('a:search', 'r1:0:c1', 1);
         expect(await repositories.limit.findOneBy({ scope: 'a:search', key: 'r1:0:c1' }))
-            .toMatchObject({ expiresAt: new Date(clock.now() + 1_000) });
+            .toMatchObject({ createdAt: new Date(clock.now()) });
 
         // optional aggregates it does not register stay absent, with their services
         expect(container.has(AppToken.CONNECTION_REPOSITORY)).toBe(false);

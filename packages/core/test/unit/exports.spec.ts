@@ -119,9 +119,9 @@ describe('public api', () => {
         expectTypeOf<core.EngineOptions['limitService']>().toEqualTypeOf<core.ILimitService | undefined>();
         expectTypeOf<core.IEngine['limitService']>().toEqualTypeOf<core.ILimitService | undefined>();
         expectTypeOf<core.LimitServiceContext['repository']>().toEqualTypeOf<ILimitRepository>();
-        expectTypeOf<core.LimitService['used']>().toEqualTypeOf<(scope: string) => Promise<number>>();
+        expectTypeOf<core.LimitService['used']>().toEqualTypeOf<(scope: string, windowMs: number) => Promise<number>>();
         expectTypeOf<core.LimitService['record']>()
-            .toEqualTypeOf<(scope: string, key: string, weight: number, windowMs: number) => Promise<void>>();
+            .toEqualTypeOf<(scope: string, key: string, weight: number) => Promise<void>>();
         expectTypeOf<core.LimitService['purgeExpired']>().toEqualTypeOf<(now?: Date) => Promise<number>>();
         expectTypeOf<core.AgentLimits>().toEqualTypeOf<Record<string, core.ToolLimit | false>>();
         expectTypeOf<core.ToolLimit['onExceed']>().toEqualTypeOf<'approve' | 'deny' | undefined>();

@@ -5,24 +5,20 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import {
-    and,
-    defineQuery,
-    eq,
-    gt,
-} from '@rapiq/core';
 import { uuidv7 } from 'uuidv7';
 import { EntityConflictError } from '@chamvi/store';
 import type { ILimitRepository } from '@chamvi/store';
 import type { IClock } from '../clock/index.ts';
-import { assertLimitKey, assertLimitUse } from './asserts.ts';
+import { assertLimitKey, assertLimitUseWeight, assertLimitWindow } from './asserts.ts';
+import { LIMIT_RETENTION_MS } from './constants.ts';
 import type { ILimitService, LimitServiceContext } from './types.ts';
 
 /**
  * The counted uses of tool limits over an `ILimitRepository`: one row per
- * `(scope, key)`, inserted if absent. A use recorded at T with `windowMs`
- * expires at exactly `T + windowMs`. A scope or key the store column
- * cannot hold (over 255 characters, NUL) is a ValidationError.
+ * `(scope, key)`, inserted if absent, stamped with the clock's time. A use
+ * created at T counts in a window of `windowMs` until exactly
+ * `T + windowMs`. A scope or key the store column cannot hold (over 255
+ * characters, NUL) is a ValidationError.
  */
 export class LimitService implements ILimitService {
     protected repository: ILimitRepository;
@@ -34,19 +30,17 @@ export class LimitService implements ILimitService {
         this.clock = ctx.clock;
     }
 
-    async used(scope: string): Promise<number> {
+    async used(scope: string, windowMs: number): Promise<number> {
         assertLimitKey('scope', scope);
+        assertLimitWindow(windowMs);
 
-        const filters = and(eq('scope', scope), gt('expiresAt', new Date(this.clock.now())));
-        const { data } = await this.repository.findMany(defineQuery({ filters }));
-
-        return data.reduce((sum, use) => sum + use.weight, 0);
+        return this.repository.sumWeight(scope, new Date(this.clock.now() - windowMs));
     }
 
-    async record(scope: string, key: string, weight: number, windowMs: number): Promise<void> {
+    async record(scope: string, key: string, weight: number): Promise<void> {
         assertLimitKey('scope', scope);
         assertLimitKey('key', key);
-        assertLimitUse(weight, windowMs);
+        assertLimitUseWeight(weight);
 
         try {
             await this.repository.transaction(async (repository) => {
@@ -55,7 +49,7 @@ export class LimitService implements ILimitService {
                     scope,
                     key,
                     weight,
-                    expiresAt: new Date(this.clock.now() + windowMs),
+                    createdAt: new Date(this.clock.now()),
                 }));
             });
         } catch (error) {
@@ -67,6 +61,8 @@ export class LimitService implements ILimitService {
     }
 
     async purgeExpired(now: Date = new Date(this.clock.now())): Promise<number> {
-        return this.repository.transaction((repository) => repository.removeExpiredBy(now));
+        const before = new Date(now.getTime() - LIMIT_RETENTION_MS);
+
+        return this.repository.transaction((repository) => repository.removeCreatedBefore(before));
     }
 }

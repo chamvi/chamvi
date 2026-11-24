@@ -54,12 +54,12 @@ describe('tool limits: counting', () => {
 
         expect(run?.status).toBe('completed');
         expect(log).toEqual(['a']);
-        expect(await ctx.store.limitService.used('limited:search')).toBe(1);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(1);
         expect(ctx.notifier.calls).toEqual([]);
 
         // the counted call is known under its key; a second record of it is no second use
-        await ctx.store.limitService.record('limited:search', `${runId}:0:${stableHash('c1')}`, 1, HOUR);
-        expect(await ctx.store.limitService.used('limited:search')).toBe(1);
+        await ctx.store.limitService.record('limited:search', `${runId}:0:${stableHash('c1')}`, 1);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(1);
     });
 
     it('releases the lock of the scope after the check', async () => {
@@ -85,7 +85,7 @@ describe('tool limits: counting', () => {
         });
 
         await dispatchLimited(ctx);
-        expect(await ctx.store.limitService.used('limited:search')).toBe(3);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(3);
     });
 
     it.each([0, 1.5, -1, NaN, '2', 2 ** 31])('refuses the weight %s as a tool error and counts nothing', async (weight) => {
@@ -105,7 +105,7 @@ describe('tool limits: counting', () => {
         expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
         expect(log).toEqual([]);
         expect(promptOf(ctx, 1)).toContain('The limit weight of tool \\"search\\" must be an integer from 1 to 2147483647.');
-        expect(await ctx.store.limitService.used('limited:search')).toBe(0);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(0);
     });
 
     it('a call that throws after being counted stays counted', async () => {
@@ -118,7 +118,7 @@ describe('tool limits: counting', () => {
         await dispatchLimited(ctx);
         expect(log).toEqual(['a']);
         expect(promptOf(ctx, 1)).toContain('search a failed');
-        expect(await ctx.store.limitService.used('limited:search')).toBe(1);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(1);
     });
 
     it('a bucket shared by two tools counts both', async () => {
@@ -137,7 +137,7 @@ describe('tool limits: counting', () => {
         });
         const runId = await dispatchLimited(ctx);
 
-        expect(await ctx.store.limitService.used('limited:mail')).toBe(2);
+        expect(await ctx.store.limitService.used('limited:mail', HOUR)).toBe(2);
         expect((await ctx.store.runService.findOne(runId))?.status).toBe('waiting');
         expect(ctx.notifier.calls[0]?.title).toBe('Limit reached for read: 2 of 2 used in the last 1h. Allow this call?');
     });
@@ -153,7 +153,7 @@ describe('tool limits: counting', () => {
         expect(log).toHaveLength(1);
         expect((await ctx.store.runService.findOne(runId))?.status).toBe('waiting');
         expect(ctx.notifier.calls).toHaveLength(1);
-        expect(await ctx.store.limitService.used('limited:search')).toBe(1);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(1);
     });
 
     it('a recorded effect replay neither counts nor asks', async () => {
@@ -171,7 +171,7 @@ describe('tool limits: counting', () => {
         expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
         expect(log).toEqual(['ann']);
         expect(ctx.notifier.calls).toEqual([]);
-        expect(await ctx.store.limitService.used('limited:send')).toBe(1);
+        expect(await ctx.store.limitService.used('limited:send', HOUR)).toBe(1);
     });
 
     it('an effect alreadyApplied found neither counts nor asks', async () => {
@@ -183,7 +183,7 @@ describe('tool limits: counting', () => {
 
         await dispatchLimited(ctx);
         expect(log).toEqual([]);
-        expect(await ctx.store.limitService.used('limited:send')).toBe(0);
+        expect(await ctx.store.limitService.used('limited:send', HOUR)).toBe(0);
     });
 
     it('parallel identical effect calls in one step are counted once', async () => {
@@ -195,7 +195,7 @@ describe('tool limits: counting', () => {
 
         await dispatchLimited(ctx);
         expect(log).toEqual(['ann']);
-        expect(await ctx.store.limitService.used('limited:send')).toBe(1);
+        expect(await ctx.store.limitService.used('limited:send', HOUR)).toBe(1);
     });
 
     it('a call counts again once the window passed', async () => {
@@ -250,7 +250,7 @@ describe('tool limits: counting', () => {
         });
 
         await dispatchLimited(ctx);
-        expect(await ctx.store.limitService.used(`limited:#${stableHash(name)}`)).toBe(1);
+        expect(await ctx.store.limitService.used(`limited:#${stableHash(name)}`, HOUR)).toBe(1);
     });
 });
 
@@ -273,7 +273,7 @@ describe('tool limits: deny', () => {
         expect(log).toEqual(['a']);
         expect(ctx.notifier.calls).toEqual([]);
         expect(promptOf(ctx, 2)).toContain('Over the limit of search: 1 of 1 used in the last 90m.');
-        expect(await ctx.store.limitService.used('limited:search')).toBe(1);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(1);
     });
 
     it('gives up on a lock held past its TTL with a tool error', async () => {

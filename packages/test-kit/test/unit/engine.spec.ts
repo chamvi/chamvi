@@ -115,10 +115,10 @@ describe('createTestEngine', () => {
         const limits = engine.limitService!;
 
         expect(limits).toBeDefined();
-        await limits.record('limited:search', 'r:0:c', 2, 1_000);
-        expect(await limits.used('limited:search')).toBe(2);
+        await limits.record('limited:search', 'r:0:c', 2);
+        expect(await limits.used('limited:search', 1_000)).toBe(2);
         clock.advance(1_000);
-        expect(await limits.used('limited:search')).toBe(0);
+        expect(await limits.used('limited:search', 1_000)).toBe(0);
     });
 
     it('builds a replica on the services of another engine', async () => {

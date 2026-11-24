@@ -5,6 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { APPROVAL_TIMEOUT_MAX_MS } from '../approval/constants.ts';
+
 /** How long the store lock `limit:<scope>` of one limit check is held at most. */
 export const LIMIT_LOCK_TTL_MS = 10_000;
 
@@ -19,3 +21,9 @@ export const LIMIT_APPROVAL_NOTIFICATION = 'A tool call over its limit requires 
 
 /** The largest `max` of a limit and the largest weight of one call (2^31 - 1). */
 export const LIMIT_WEIGHT_MAX = 2_147_483_647;
+
+/**
+ * How long a limit use is kept after its creation: the longest window a
+ * limit accepts, so a purge never deletes a use a window still counts.
+ */
+export const LIMIT_RETENTION_MS = APPROVAL_TIMEOUT_MAX_MS;

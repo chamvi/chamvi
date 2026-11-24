@@ -54,7 +54,7 @@ export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<vo
     const marker = limitMarkerKey(scope, key);
 
     // counted before (a replay after the tool's own approve(), a retried step): never checked again,
-    // also once the purge deleted the expired use
+    // also once its use left the window or the purge deleted it
     if (await frame.effects.findOne(marker)) {
         return;
     }
@@ -77,7 +77,7 @@ export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<vo
 
     // the use first, then the marker: a crash in between records the use again, insert-if-absent
     const count = async () => {
-        await service.record(scope, key, weight, limit.windowMs);
+        await service.record(scope, key, weight);
         await frame.effects.save(marker, true);
     };
 
@@ -88,7 +88,7 @@ export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<vo
     }
 
     const used = await withLimitLock(locks, clock, scope, async () => {
-        const current = await service.used(scope);
+        const current = await service.used(scope, limit.windowMs);
 
         if (current + weight > limit.max) {
             return current;

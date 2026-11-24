@@ -116,7 +116,7 @@ describe('tool limits: resolution', () => {
         await dispatchLimited(ctx);
         expect(log).toEqual(['a', 'b']);
         expect(ctx.notifier.calls).toEqual([]);
-        expect(await ctx.store.limitService.used('limited:search')).toBe(0);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(0);
     });
 
     it('the agent\'s entry replaces the tool\'s own limit whole', async () => {
@@ -134,8 +134,8 @@ describe('tool limits: resolution', () => {
 
         await dispatchLimited(ctx);
         expect(ctx.notifier.calls).toEqual([]);
-        expect(await ctx.store.limitService.used('limited:search')).toBe(2);
-        expect(await ctx.store.limitService.used('limited:web')).toBe(0);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(2);
+        expect(await ctx.store.limitService.used('limited:web', HOUR)).toBe(0);
     });
 
     it('a third-party tool\'s own limit field is ignored, the agent\'s entry applies', async () => {
@@ -152,8 +152,8 @@ describe('tool limits: resolution', () => {
 
         await dispatchLimited(ctx);
         expect(ctx.notifier.calls).toEqual([]);
-        expect(await ctx.store.limitService.used('limited:other')).toBe(0);
-        expect(await ctx.store.limitService.used('limited:named')).toBe(1);
+        expect(await ctx.store.limitService.used('limited:other', HOUR)).toBe(0);
+        expect(await ctx.store.limitService.used('limited:named', HOUR)).toBe(1);
     });
 
     it.each(Object.entries(misconfigured()))('a tools factory with %s fails the run', async (_name, item) => {

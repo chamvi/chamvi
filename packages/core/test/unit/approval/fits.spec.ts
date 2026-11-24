@@ -151,6 +151,6 @@ describe('approval fits', () => {
         expect(log).toEqual(['a']);
         expect(sent).toEqual([]);
         expect(promptOf(ctx, 2)).toContain('The approval does not fit 5 characters.');
-        expect(await ctx.store.limitService.used('limited:search')).toBe(1);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(1);
     });
 });

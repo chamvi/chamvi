@@ -148,7 +148,7 @@ describe('tool limits: approval', () => {
         expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
         expect(log).toEqual(['a', 'b']);
         expect(ctx.notifier.calls).toHaveLength(1);
-        expect(await ctx.store.limitService.used('limited:search')).toBe(2);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(2);
     });
 
     it('a denied call is a tool error and counts nothing', async () => {
@@ -163,7 +163,7 @@ describe('tool limits: approval', () => {
         expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
         expect(log).toEqual(['a']);
         expect(promptOf(ctx, 2)).toContain('Over the limit of search and not approved.');
-        expect(await ctx.store.limitService.used('limited:search')).toBe(1);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(1);
     });
 
     it('a denied call resumed after the window drained does not run and counts nothing', async () => {
@@ -175,14 +175,14 @@ describe('tool limits: approval', () => {
         const runId = await dispatchLimited(ctx);
 
         ctx.clock.advance(HOUR);
-        expect(await ctx.store.limitService.used('limited:search')).toBe(0);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(0);
         await answerLimited(ctx, false);
 
         expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
         expect(log).toEqual(['a']);
         expect(ctx.notifier.calls).toHaveLength(1);
         expect(promptOf(ctx, 2)).toContain('Over the limit of search and not approved.');
-        expect(await ctx.store.limitService.used('limited:search')).toBe(0);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(0);
     });
 
     it('an approved call resumed after the window drained runs once and counts once', async () => {
@@ -199,10 +199,10 @@ describe('tool limits: approval', () => {
         expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
         expect(log).toEqual(['a', 'b']);
         expect(ctx.notifier.calls).toHaveLength(1);
-        expect(await ctx.store.limitService.used('limited:search')).toBe(1);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(1);
     });
 
-    it('a counted call resumed after its use expired and was purged is not checked again', async () => {
+    it('a counted call resumed after its use left the window is not checked again', async () => {
         const log: string[] = [];
         const ctx = setup({
             tools: { search: searchTool(log, { max: 1, windowMs: 60_000 }, { approve: true }) },
@@ -213,14 +213,13 @@ describe('tool limits: approval', () => {
         expect(ctx.notifier.calls.map((c) => c.title)).toEqual(['Search a?']);
 
         ctx.clock.advance(120_000);
-        await ctx.store.limitService.purgeExpired();
-        await ctx.store.limitService.record('limited:search', 'other-run:0:x', 1, HOUR);
+        await ctx.store.limitService.record('limited:search', 'other-run:0:x', 1);
         await answerLimited(ctx, true);
 
         expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
         expect(log).toEqual(['a', 'a']);
         expect(ctx.notifier.calls).toHaveLength(1);
-        expect(await ctx.store.limitService.used('limited:search')).toBe(1);
+        expect(await ctx.store.limitService.used('limited:search', 60_000)).toBe(1);
     });
 
     it('a weight larger than max always asks', async () => {
@@ -243,7 +242,7 @@ describe('tool limits: approval', () => {
 
         await answerLimited(ctx, true);
         expect(log).toEqual(['a']);
-        expect(await ctx.store.limitService.used('limited:search')).toBe(3);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(3);
     });
 
     it('a call resumed after the window drained runs without a second ask, counts once and keeps its own approve() ids', async () => {
@@ -261,7 +260,7 @@ describe('tool limits: approval', () => {
 
         // the replayed first call was counted already: no limit approval, no second count
         expect(log).toEqual(['a', 'a']);
-        expect(await ctx.store.limitService.used('limited:search')).toBe(1);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(1);
         expect(ctx.notifier.calls.map((c) => c.title)).toEqual(['Search a?', TITLE]);
 
         ctx.clock.advance(HOUR);
@@ -275,7 +274,7 @@ describe('tool limits: approval', () => {
         expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
         expect(log).toEqual(['a', 'a', 'b', 'b']);
         expect(ctx.notifier.calls).toHaveLength(3);
-        expect(await ctx.store.limitService.used('limited:search')).toBe(1);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(1);
     });
 
     it('a call resumed within the window takes the recorded decision', async () => {
@@ -296,7 +295,7 @@ describe('tool limits: approval', () => {
 
         expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
         expect(ctx.notifier.calls).toHaveLength(3);
-        expect(await ctx.store.limitService.used('limited:search')).toBe(2);
+        expect(await ctx.store.limitService.used('limited:search', HOUR)).toBe(2);
     });
 
     it('parallel identical effect calls over the limit ask once and count once', async () => {
@@ -316,6 +315,6 @@ describe('tool limits: approval', () => {
         expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
         expect(ctx.notifier.calls).toHaveLength(1);
         expect(log).toEqual(['ann', 'bob']);
-        expect(await ctx.store.limitService.used('limited:send')).toBe(2);
+        expect(await ctx.store.limitService.used('limited:send', HOUR)).toBe(2);
     });
 });

@@ -46,7 +46,7 @@ export type AgentLimits = Record<string, ToolLimit | false>;
 
 export type LimitServiceContext = {
     repository: ILimitRepository;
-    /** Read for each use and each count: a use expires at exactly its record time + window. */
+    /** Read for each use and each count: a use leaves a window at exactly its creation time + the window. */
     clock: IClock;
 };
 
@@ -55,16 +55,19 @@ export type LimitServiceContext = {
  * for the service: the engine takes this type.
  */
 export interface ILimitService {
-    /** The summed weight of the unexpired uses of `scope`; one read. */
-    used(scope: string): Promise<number>;
+    /** The summed weight of the uses of `scope` created in the last `windowMs` before now; one read. */
+    used(scope: string, windowMs: number): Promise<number>;
 
     /**
-     * Counts a use of `scope` under `key` until now + `windowMs`, unless a use
-     * of that `(scope, key)` is stored already (the call was counted).
+     * Counts a use of `scope` under `key` created now, unless a use of that
+     * `(scope, key)` is stored already (the call was counted).
      */
-    record(scope: string, key: string, weight: number, windowMs: number): Promise<void>;
+    record(scope: string, key: string, weight: number): Promise<void>;
 
-    /** Deletes the uses expired at `now` (default: the clock's time); resolves how many. */
+    /**
+     * Deletes the uses no window counts at `now` (default: the clock's time):
+     * those created at or before `now` minus the longest window; resolves how many.
+     */
     purgeExpired(now?: Date): Promise<number>;
 }
 
