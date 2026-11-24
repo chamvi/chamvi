@@ -197,7 +197,20 @@ export async function removeRowsExpiredBy<T extends EntityRecord & { id: string;
     repository: IEntityRepository<T>,
     time: Date,
 ): Promise<number> {
-    const isExpired = (row: T) => row.expiresAt.getTime() <= time.getTime();
+    return removeRowsDatedBy(repository, 'expiresAt', time);
+}
+
+/**
+ * Remove every row whose date `field` is at or before `time`, in one
+ * transaction, and resolve how many were removed; a row a transaction in
+ * flight moves past `time` stays (see removeRowsExpiredBy()).
+ */
+export async function removeRowsDatedBy<K extends string, T extends EntityRecord & { id: string } & Record<K, Date>>(
+    repository: IEntityRepository<T>,
+    field: K,
+    time: Date,
+): Promise<number> {
+    const isExpired = (row: T) => row[field].getTime() <= time.getTime();
 
     return repository.transaction(async (bound) => {
         let removed = 0;

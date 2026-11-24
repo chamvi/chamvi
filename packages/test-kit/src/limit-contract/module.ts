@@ -164,8 +164,14 @@ export function describeLimitRepositoryContract(input: LimitRepositoryContractIn
             const purge = uses.removeCreatedBefore(new Date(5_000));
 
             // the purge waits for the row the transaction holds before it commits
-            await input.untilBlocked();
-            done();
+            try {
+                await input.untilBlocked();
+            } finally {
+                // never leave the held row locked: a later test's truncate would wait on it
+                done();
+                await Promise.allSettled([moving, purge]);
+            }
+
             await moving;
             expect(await purge).toBe(0);
             expect(await uses.findOneBy({ scope: 's', key: 'k' })).toStrictEqual(useOf('u1', 's', 'k', 1, 9_000));

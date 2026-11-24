@@ -6,6 +6,7 @@
  */
 
 import type { ILimitRepository, LimitUse } from '@chamvi/store';
+import { removeRowsDatedBy } from '../../entity/helpers.ts';
 import { MemoryEntityRepository } from '../../entity/module.ts';
 import type { MemoryRepositoryOptions } from '../../entity/types.ts';
 
@@ -33,26 +34,8 @@ export class MemoryLimitRepository extends MemoryEntityRepository<LimitUse> impl
             .reduce((sum, row) => sum + row.weight, 0);
     }
 
-    /**
-     * One transaction; each candidate is read again with a single-row read
-     * (locking it), so a use a transaction in flight moves past `time` stays.
-     */
+    /** One transaction; a use a transaction in flight moves past `time` stays. */
     async removeCreatedBefore(time: Date): Promise<number> {
-        const isOld = (row: LimitUse) => row.createdAt.getTime() <= time.getTime();
-
-        return this.transaction(async (bound) => {
-            let removed = 0;
-
-            for (const candidate of (await bound.findManyBy({})).filter(isOld)) {
-                const row = await bound.findOneById(candidate.id);
-
-                if (row && isOld(row)) {
-                    await bound.remove(row);
-                    removed += 1;
-                }
-            }
-
-            return removed;
-        });
+        return removeRowsDatedBy<'createdAt', LimitUse>(this, 'createdAt', time);
     }
 }
