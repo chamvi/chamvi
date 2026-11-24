@@ -130,7 +130,6 @@ function toErrorBody(cause: unknown): ErrorBody | undefined {
         return storage;
     }
 
-    // before validup: isValidupError duck-types any error carrying issues
     if (isHTTPError(cause) && !isBareAppError(cause)) {
         return withIssues({
             status: cause.status,
