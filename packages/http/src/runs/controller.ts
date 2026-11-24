@@ -20,12 +20,13 @@ import {
     DStatus,
     DTags,
 } from '@routup/decorators';
+import { setResponseHeaderAttachment } from 'routup';
 import type { IAppEvent } from 'routup';
 import { useHttpContext } from '../app/helpers/index.ts';
 import { usePrincipal } from '../auth/helpers/index.ts';
 import { DQuerySchema } from '../decorators/index.ts';
 import { ForceLoggedInMiddleware, JsonBodyMiddleware, RequiredJsonBodyMiddleware } from '../middleware/index.ts';
-import { contentDisposition, toBody } from './helpers/index.ts';
+import { toBody } from './helpers/index.ts';
 import { streamRun } from './stream/module.ts';
 import type {
     ApproveBody,
@@ -121,12 +122,15 @@ export class RunController {
         @DContext() event: IAppEvent,
     ): Promise<Response> {
         const { artifact, data } = await this.service.artifact(id, artifactId, await usePrincipal(event));
+
+        // set first: the attachment helper derives a content-type from the filename only when none is set
+        event.response.headers.set('content-type', artifact.mediaType);
+        setResponseHeaderAttachment(event, artifact.filename);
+
         // from the response headers, so CORS and RateLimit-* survive
         const headers = new Headers(event.response.headers);
 
-        headers.set('content-type', artifact.mediaType);
         headers.set('content-length', String(data.byteLength));
-        headers.set('content-disposition', contentDisposition(artifact.filename));
         // a stored text/html or image/svg+xml must never render as a page of this origin
         headers.set('x-content-type-options', 'nosniff');
         headers.set('cache-control', 'private, no-store');

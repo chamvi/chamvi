@@ -62,7 +62,7 @@ An agent without `http.on()` answers 404 on REST and gets no MCP tool; the engin
 
 <<< @/snippets/http.ts#attachments
 
-`GET /runs/:id/artifacts` lists the run's artifacts (attachments and files its tools stored, see [Files](/guide/agents#files)) as metadata. `GET /runs/:id/artifacts/:artifactId` answers the bytes with the stored media type as `content-type`, `content-length`, `content-disposition: attachment` (with `filename` and an RFC 5987 `filename*` when the artifact has a filename), `x-content-type-options: nosniff` and `cache-control: private, no-store`, so a stored HTML or SVG file is downloaded, never rendered in the API's origin. Both follow the run read rule (404 for an unknown run before 403); an unknown artifact, or one of another run, is 404 `artifact_not_found`.
+`GET /runs/:id/artifacts` lists the run's artifacts (attachments and files its tools stored, see [Files](/guide/agents#files)) as metadata. `GET /runs/:id/artifacts/:artifactId` answers the bytes with the stored media type as `content-type`, `content-length`, `content-disposition: attachment` (with `filename` when the artifact has one, plus an RFC 5987 `filename*` for a non-ASCII name), `x-content-type-options: nosniff` and `cache-control: private, no-store`, so a stored HTML or SVG file is downloaded, never rendered in the API's origin. Both follow the run read rule (404 for an unknown run before 403); an unknown artifact, or one of another run, is 404 `artifact_not_found`.
 
 ## Following a run
 
