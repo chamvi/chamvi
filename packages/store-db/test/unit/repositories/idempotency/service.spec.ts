@@ -193,6 +193,32 @@ describePostgres('idempotency service on postgres', () => {
         expect(await keys.claim('s', 'k', testUuid('r3'), 1_000)).toEqual({ created: false, runId: testUuid('r2') });
     });
 
+    it('findOne returns an unexpired claim and undefined for an expired or missing one', async () => {
+        await keys.claim('s', 'k', testUuid('r1'), 1_000);
+
+        expect(await keys.findOne('s', 'k')).toEqual({ created: false, runId: testUuid('r1') });
+        expect(await keys.findOne('s', 'other')).toBeUndefined();
+        clock.advance(1_000);
+        expect(await keys.findOne('s', 'k')).toBeUndefined();
+    });
+
+    it('release expires only the given run\'s claim; the next claim takes it over', async () => {
+        await keys.claim('s', 'k', testUuid('r1'), 1_000);
+
+        await keys.release('s', 'k', testUuid('r2'));
+        await keys.release('s', 'missing', testUuid('r1'));
+        expect(await keys.findOne('s', 'k')).toEqual({ created: false, runId: testUuid('r1') });
+        expect(await repository.findOneBy({ scope: 's', key: 'missing' })).toBeNull();
+
+        clock.advance(10);
+        await keys.release('s', 'k', testUuid('r1'));
+
+        expect(await keys.findOne('s', 'k')).toBeUndefined();
+        expect(await repository.findOneBy({ scope: 's', key: 'k' })).toMatchObject({ runId: testUuid('r1'), expiresAt: new Date(10_010) });
+        expect(await keys.claim('s', 'k', testUuid('r3'), 1_000)).toEqual({ created: true, runId: testUuid('r3') });
+        expect(await keys.findOne('s', 'k')).toEqual({ created: false, runId: testUuid('r3') });
+    });
+
     it('takes a scope that carries an encoded invoker (up to 1024 characters)', async () => {
         // <agent>:<source>:<kind>:<id> with a 255-character subject, every character encoded
         const scope = `${'a'.repeat(64)}:webhook:user:${encodeURIComponent('é'.repeat(150))}`;

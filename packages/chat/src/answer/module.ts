@@ -132,10 +132,10 @@ function chatAnswerClaimOf(ctx: ChatIntakeContext, payload: ChatPayload): { scop
 }
 
 /**
- * Whether the approval's message, rendered now with the channel's options
- * to this direct chat, is whole (answerable, never cut): one that would not
- * fit was, or would be, sent cut (e.g. while `answers` was off), so the
- * owner may never have seen what they approve.
+ * Whether the approval's message, rendered now with the channel's current
+ * options to this direct chat, is whole (answerable, never cut). Only today's
+ * options are known: an approval sent cut under a lower `maxTextChars` or
+ * with `approvalUrl` set may render whole after those change.
  */
 function isChatApprovalWhole(ctx: ChatIntakeContext, run: Run, waiting: ApprovalWaitPoint): boolean {
     try {
@@ -276,8 +276,9 @@ async function planChatAnswer(
  * is taken right before the answer, and a reply whose claim is held is
  * handled before the scan, so a redelivery answers no later approval and
  * starts no run. An approval that settled meanwhile gets the closed notice;
- * any other approve failure releases the claim (so a redelivery may answer)
- * and rejects (an intake failure).
+ * any other approve failure releases the claim (so a redelivery may answer;
+ * a failed release is reported and leaves the reply consumed) and rejects
+ * (an intake failure).
  */
 export async function answerChatApproval(
     ctx: ChatIntakeContext,

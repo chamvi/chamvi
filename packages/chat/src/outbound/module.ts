@@ -47,8 +47,9 @@ export function createChatSender(options: ChatSenderOptions): NonNullable<IChann
     return async (message: ChannelMessage, address: string, opts: ChannelSendOptions): Promise<void> => {
         const target = decodeChatAddress(address, names);
         const adapter = adapters.get(target.adapter)!;
-        // an approval is answerable in a direct message only, as intake answers only those
-        const text = renderChatMessage(message, { ...options, direct: isDirectChatThread(adapter, target.threadId) });
+        // an approval is answerable in a direct message only, as intake answers only those; without answers isDM is never asked
+        const direct = !!options.answers && message.kind === 'approval' && isDirectChatThread(adapter, target.threadId);
+        const text = renderChatMessage(message, { ...options, direct });
         // a platform's own send refuses its target here, before anything goes out
         const post = options.prepare ?
             options.prepare({

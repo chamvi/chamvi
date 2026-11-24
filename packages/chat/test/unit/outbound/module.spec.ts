@@ -209,6 +209,31 @@ describe('createChatSender', () => {
         expect(group).toContain('Approve or deny: https://chamvi.test/approvals/run-1');
     });
 
+    it('never asks isDM without answers, nor for a plain message', async () => {
+        const plain = setup({ approvalUrl: ({ runId }) => `https://chamvi.test/approvals/${runId}` });
+        const asked: string[] = [];
+
+        plain.adapter.isDirect = (threadId) => {
+            asked.push(threadId);
+
+            return true;
+        };
+        await plain.out(message({
+            kind: 'approval',
+            title: 'Deploy?',
+            approvalId: '0:call-1:0',
+        }), SOURCE, opts());
+        await plain.out(message(), SOURCE, opts());
+
+        const answering = setup({ answers: { timeoutMs: 1_000 } });
+
+        answering.adapter.isDirect = plain.adapter.isDirect;
+        await answering.out(message(), SOURCE, opts());
+
+        expect(asked).toEqual([]);
+        expect(plain.adapter.posts).toHaveLength(2);
+    });
+
     it('requires approvalUrl for an approval to a group even with answers', async () => {
         const ctx = setup({ answers: { timeoutMs: 1_000 } });
 
