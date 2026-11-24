@@ -19,7 +19,12 @@ import type {
     Logger,
     StateAdapter,
 } from 'chat';
-import type { ChatApprovalRef, ChatChannel, ChatIngress } from '@chamvi/chat';
+import type {
+    ChatAnswerOptions,
+    ChatApprovalRef,
+    ChatChannel,
+    ChatIngress,
+} from '@chamvi/chat';
 
 /** Who may start runs: Discord ids (snowflakes) only, never names. */
 export type DiscordPolicy = {
@@ -204,7 +209,7 @@ export type DiscordChatOptions = {
     resolveInvoker: (identity: DiscordIdentity) => Invoker | undefined | Promise<Invoker | undefined>;
     /** The Chat SDK state adapter of the Chat. */
     state: StateAdapter;
-    /** The approval link (ids only); approvals are answered in the UI. */
+    /** The approval link (ids only); approvals are answered in the UI, or in a direct message with `answers`. */
     approvalUrl: (ref: ChatApprovalRef) => string;
     /** Default `chat`. */
     name?: string;
@@ -212,6 +217,11 @@ export type DiscordChatOptions = {
     untrusted?: boolean;
     /** Bound of one send; default `CHAT_TIMEOUT_MS`. */
     timeoutMs?: number;
+    /**
+     * Answers to approvals in a direct message (see chatChannel's `answers`); off by default.
+     * Discord assigns message ids, so a quote never answers: a plain reply answers the one open approval.
+     */
+    answers?: ChatAnswerOptions;
     /** The connector's clock (login retry backoff, shutdown bound); default the engine's. */
     clock?: IClock;
     /** Failures nobody awaits; default console.error. Never gets the token. */

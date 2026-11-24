@@ -334,6 +334,8 @@ export function createDiscordChat(options: DiscordChatOptions): DiscordChatSetup
         ...(name !== undefined ? { name } : {}),
         ...(options.untrusted !== undefined ? { untrusted: options.untrusted } : {}),
         ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+        // no sentMessageId: Discord assigns message ids, so a quote never answers; a plain reply answers the one open approval
+        ...(options.answers !== undefined ? { answers: options.answers } : {}),
         account: options.account,
         maxTextChars: DISCORD_TEXT_MAX_CHARS,
         connect: (ctx) => connection.connect({ signal: ctx.signal, clock: options.clock ?? ctx.clock }),
