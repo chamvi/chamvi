@@ -64,7 +64,7 @@ Every repository port has a suite of its own in `@chamvi/test-kit` (`describeRun
 
 ## Register it with an app
 
-Give `@chamvi/app` a module named `ModuleName.STORE` that registers each repository under its token (`AppToken.RUN_REPOSITORY`, `STEP_REPOSITORY`, `CHECKPOINT_REPOSITORY`, `EFFECT_REPOSITORY`, `ARTIFACT_REPOSITORY`, `STATE_REPOSITORY`, `STATE_DOCUMENT_REPOSITORY`, `LOCK_REPOSITORY`, `IDEMPOTENCY_REPOSITORY`, `AGENT_REVISION_REPOSITORY`; `CONNECTION_REPOSITORY` and `CONVERSATION_REPOSITORY` optional) and, if it likes, `STORE_KIND`. Listed in `createApp({ modules })`, it replaces the built-in store module; the app builds every service from the registered repositories in the same setup step. A missing required token fails the setup with `InvalidAgentDefinitionError` naming it.
+Give `@chamvi/app` a module named `ModuleName.STORE` that registers each repository under its token (`AppToken.RUN_REPOSITORY`, `STEP_REPOSITORY`, `CHECKPOINT_REPOSITORY`, `EFFECT_REPOSITORY`, `ARTIFACT_REPOSITORY`, `STATE_REPOSITORY`, `STATE_DOCUMENT_REPOSITORY`, `LOCK_REPOSITORY`, `IDEMPOTENCY_REPOSITORY`, `LIMIT_REPOSITORY`, `AGENT_REVISION_REPOSITORY`; `CONNECTION_REPOSITORY` and `CONVERSATION_REPOSITORY` optional) and, if it likes, `STORE_KIND`. Listed in `createApp({ modules })`, it replaces the built-in store module; the app builds every service from the registered repositories in the same setup step. A missing required token fails the setup with `InvalidAgentDefinitionError` naming it.
 
 ## Time in tests
 

@@ -66,7 +66,7 @@ SQLite (an app's database only): every use of a better-sqlite3 data source (tran
 |------|---------|
 | `entity/` | `EntityRepositoryAdapter` (`module.ts`) over its layers (`adapter/`: storage, rows, upsert), lock modes, marks, field rename, uuid and date handling, chunking, constraint mapping (`helpers/`, the better-sqlite3 queue in `helpers/serialize/`) |
 | `entities/` | One TypeORM entity per table; `TableName` and the jsonb transformers (`constants.ts`), `toJsonParameter()` (`helpers.ts`) |
-| `repositories/<aggregate>/` (`run`, `step`, `checkpoint`, `effect`, `artifact`, `state`, `lock`, `idempotency`, `agent-revision`, `connection`, `conversation`) | The `Database*Repository` of each port (children in the same folder; `connection/fence.ts`) |
+| `repositories/<aggregate>/` (`run`, `step`, `checkpoint`, `effect`, `artifact`, `state`, `lock`, `idempotency`, `limit`, `agent-revision`, `connection`, `conversation`) | The `Database*Repository` of each port (children in the same folder; `connection/fence.ts`) |
 | `schema/` | `migrateStore()`, `pendingMigrations()`, `assertStoreNotLegacy()`, `STORE_ENTITIES`, `STORE_MIGRATIONS`, `MIGRATION_LOCK_NAME` |
 | `migrations/` | The baseline, the 0.9 bundle and the lock tokens above (generated, the backfills hand-edited) |
 | `database/` | An app's database: `buildDatabaseOptions` (no I/O, UTC pinned), `connectDatabase`, `synchronizeDatabase`, `closeDatabase`, `migrateDatabase`, `pendingDatabaseMigrations`, `findUntypedColumns`, `queueDataSource` |

@@ -137,7 +137,7 @@ Every variable is read once per lifecycle. An empty string counts as unset, inte
 | `CHAMVI_LOG_LEVEL` | config | `error`, `warn`, `info`, `debug` | `info` |
 | `DATABASE_URL` | store | `postgres://...` | unset: memory repositories (warned outside `--dev`); required for `migrate` and any multi-replica or CronJob deployment |
 | `CHAMVI_MIGRATE` | store | bool | `true` (`start` and `run-job` migrate, advisory-locked) |
-| `CHAMVI_PURGE_INTERVAL_MS` | store | int, `0` disables | `3600000` (the lock and idempotency services' `purgeExpired()`) |
+| `CHAMVI_PURGE_INTERVAL_MS` | store | int, `0` disables | `3600000` (the lock, idempotency and limit services' `purgeExpired()`) |
 | `CHAMVI_MAX_CONCURRENT_RUNS` | engine | int >= 1 | `4` |
 | `CHAMVI_SCHEDULER` | scheduler | bool | `true`; `false` starts no in-process cron (CronJob mode; `cron.on()` subscriptions still validate) |
 | `CHAMVI_READINESS_DELAY_MS` | http shutdown | int | `0` |

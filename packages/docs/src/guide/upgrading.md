@@ -6,6 +6,10 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 
 chamvi moves to routup 6.5 and authup 1.0.0-beta.77. An app that pinned `ioredis` for the `ERESOLVE` described under 0.9 can drop the `overrides` entry: `@authup/server-adapter-kit` no longer peers `ioredis`. When the `authup()` authenticator cannot reach authup (introspection, the verifier's token, the JWKs), a request answers 503 instead of 401, so the dashboard no longer signs out during an authup outage.
 
+### Tool limits
+
+Per-tool rate limits ([Limits](/guide/tools#limits)): `limit` on a tool, `limits` on an agent, the `limitService` of the engine and `AppToken.LIMIT_REPOSITORY`/`LIMIT_SERVICE`. One store migration, `LimitUses1795552285096`, adds the table `chamvi_limit_uses` and runs like any other (`CHAMVI_MIGRATE`, `chamvi migrate`). A custom store module must register `AppToken.LIMIT_REPOSITORY` (an `ILimitRepository`, proven by `describeLimitRepositoryContract()` of `@chamvi/test-kit`); the app builds the `LimitService` from it and purges it with the lock and idempotency services. An engine built by hand passes `limitService` only when an agent declares limits.
+
 ### Breaking changes
 
 | Change | Before | Replacement |
