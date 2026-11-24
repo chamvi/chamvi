@@ -50,6 +50,18 @@ describe('LimitService', () => {
         expect(await limits.used('a:other')).toBe(7);
     });
 
+    it('record() refuses a weight or window the store cannot hold, writing nothing', async () => {
+        for (const weight of [0, -1, 0.5, NaN, 2 ** 31]) {
+            await expect(limits.record('a:search', 'r1:0:c1', weight, 1_000)).rejects.toBeInstanceOf(ValidationError);
+        }
+
+        for (const windowMs of [0, 1.5, 2 ** 31]) {
+            await expect(limits.record('a:search', 'r1:0:c1', 1, windowMs)).rejects.toBeInstanceOf(ValidationError);
+        }
+
+        expect(await limits.used('a:search')).toBe(0);
+    });
+
     it('record() stores a uuid row expiring at exactly now + windowMs', async () => {
         await limits.record('a:search', 'r1:0:c1', 2, 1_000);
 

@@ -132,3 +132,18 @@ export function assertLimitedTools(agent: string, limits: AgentLimits | undefine
         }
     }
 }
+
+/**
+ * Refuses what a limit use cannot store (ValidationError): a weight that is
+ * no integer from 1 to LIMIT_WEIGHT_MAX (the database column is an
+ * `integer`), a window that is no integer from 1 to APPROVAL_TIMEOUT_MAX_MS.
+ */
+export function assertLimitUse(weight: unknown, windowMs: unknown): void {
+    if (!isLimitAmount(weight)) {
+        throw new ValidationError(`A limit use's weight must be an integer from 1 to ${LIMIT_WEIGHT_MAX}.`);
+    }
+
+    if (!isPositiveSafeInteger(windowMs) || windowMs > APPROVAL_TIMEOUT_MAX_MS) {
+        throw new ValidationError(`A limit use's windowMs must be an integer from 1 to ${APPROVAL_TIMEOUT_MAX_MS}.`);
+    }
+}

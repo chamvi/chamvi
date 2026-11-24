@@ -15,7 +15,7 @@ import { uuidv7 } from 'uuidv7';
 import { EntityConflictError } from '@chamvi/store';
 import type { ILimitRepository } from '@chamvi/store';
 import type { IClock } from '../clock/index.ts';
-import { assertLimitKey } from './asserts.ts';
+import { assertLimitKey, assertLimitUse } from './asserts.ts';
 import type { ILimitService, LimitServiceContext } from './types.ts';
 
 /**
@@ -46,6 +46,7 @@ export class LimitService implements ILimitService {
     async record(scope: string, key: string, weight: number, windowMs: number): Promise<void> {
         assertLimitKey('scope', scope);
         assertLimitKey('key', key);
+        assertLimitUse(weight, windowMs);
 
         try {
             await this.repository.transaction(async (repository) => {
