@@ -21,6 +21,7 @@ export * from './git-fixture/index.ts';
 export * from './github-fake/index.ts';
 export * from './idempotency-contract/index.ts';
 export * from './knowledge-contract/index.ts';
+export * from './limit-contract/index.ts';
 export * from './lock-contract/index.ts';
 export * from './model/index.ts';
 export * from './skill-runtime/index.ts';

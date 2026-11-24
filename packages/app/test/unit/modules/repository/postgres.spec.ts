@@ -31,6 +31,7 @@ import {
     DatabaseConversationRepository,
     DatabaseEffectRepository,
     DatabaseIdempotencyRepository,
+    DatabaseLimitRepository,
     DatabaseLockRepository,
     DatabaseRunRepository,
     DatabaseStateDocumentRepository,
@@ -250,6 +251,7 @@ describePostgres('storeModule on Postgres', () => {
         expect(container.resolve(AppToken.STATE_DOCUMENT_REPOSITORY)).toBeInstanceOf(DatabaseStateDocumentRepository);
         expect(container.resolve(AppToken.LOCK_REPOSITORY)).toBeInstanceOf(DatabaseLockRepository);
         expect(container.resolve(AppToken.IDEMPOTENCY_REPOSITORY)).toBeInstanceOf(DatabaseIdempotencyRepository);
+        expect(container.resolve(AppToken.LIMIT_REPOSITORY)).toBeInstanceOf(DatabaseLimitRepository);
         expect(container.resolve(AppToken.AGENT_REVISION_REPOSITORY)).toBeInstanceOf(DatabaseAgentRevisionRepository);
         expect(container.resolve(AppToken.CONNECTION_REPOSITORY)).toBeInstanceOf(DatabaseConnectionRepository);
         expect(container.resolve(AppToken.CONVERSATION_REPOSITORY)).toBeInstanceOf(DatabaseConversationRepository);

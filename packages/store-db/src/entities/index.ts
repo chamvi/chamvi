@@ -16,6 +16,7 @@ export * from './doc.ts';
 export * from './effect.ts';
 export * from './idempotency-key.ts';
 export * from './kv.ts';
+export * from './limit-use.ts';
 export * from './lock.ts';
 export * from './lock-token.ts';
 export * from './run.ts';

@@ -39,6 +39,7 @@ import type {
     IConversationRepository,
     IEffectRepository,
     IIdempotencyRepository,
+    ILimitRepository,
     ILockRepository,
     IRunRepository,
     IStateDocumentRepository,
@@ -252,6 +253,8 @@ export type AppTokens = {
     IDEMPOTENCY_REPOSITORY: IIdempotencyRepository;
     /** Dispatch idempotency keys over `IDEMPOTENCY_REPOSITORY`, on the app clock; the engine module passes it to the engine. */
     IDEMPOTENCY_SERVICE: IIdempotencyService;
+    /** The limit use repository the store module registers (memory, database or a replacing module's). */
+    LIMIT_REPOSITORY: ILimitRepository;
     /** The agent revision repository the store module registers (memory, database or a replacing module's). */
     AGENT_REVISION_REPOSITORY: IAgentRevisionRepository;
     /** The revision markers of folder agents over `AGENT_REVISION_REPOSITORY`; the engine module passes it to the engine. */

@@ -19,6 +19,7 @@ export * from './repositories/connection/index.ts';
 export * from './repositories/conversation/index.ts';
 export * from './repositories/effect/index.ts';
 export * from './repositories/idempotency/index.ts';
+export * from './repositories/limit/index.ts';
 export * from './repositories/lock/index.ts';
 export * from './repositories/run/index.ts';
 export * from './repositories/state/index.ts';

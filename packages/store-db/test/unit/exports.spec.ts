@@ -17,6 +17,7 @@ describe('public api', () => {
         'DatabaseStepRepository',
         'DatabaseCheckpointRepository',
         'DatabaseIdempotencyRepository',
+        'DatabaseLimitRepository',
         'DatabaseLockRepository',
         'DatabaseEffectRepository',
         'DatabaseStateRepository',
@@ -68,10 +69,10 @@ describe('public api', () => {
 
     it('exports the entities, migrations and lock name', () => {
         expect(pkg.STORE_ENTITIES).toBeInstanceOf(Array);
-        expect(pkg.STORE_ENTITIES).toHaveLength(18);
+        expect(pkg.STORE_ENTITIES).toHaveLength(19);
         expect(pkg.STORE_MIGRATIONS).toBeInstanceOf(Array);
-        expect(pkg.STORE_MIGRATIONS).toHaveLength(3);
-        expect(pkg.STORE_MIGRATIONS.at(-1)?.name).toBe('LockTokens1795093873329');
+        expect(pkg.STORE_MIGRATIONS).toHaveLength(4);
+        expect(pkg.STORE_MIGRATIONS.at(-1)?.name).toBe('LimitUses1795552285096');
         expect(pkg.MIGRATION_LOCK_NAME).toBe('chamvi:migrations');
         expect(pkg.STORE_LEGACY_SCHEMA_CODE).toBe('store_legacy_schema');
         expect(pkg.DatabaseErrorCode).toEqual({
@@ -101,6 +102,7 @@ describe('public api', () => {
             pkg.DatabaseStateDocumentRepository,
             pkg.DatabaseLockRepository,
             pkg.DatabaseIdempotencyRepository,
+            pkg.DatabaseLimitRepository,
             pkg.DatabaseAgentRevisionRepository,
             pkg.DatabaseConnectionRepository,
             pkg.DatabaseConnectionEntryRepository,
