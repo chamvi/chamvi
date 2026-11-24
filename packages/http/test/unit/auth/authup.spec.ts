@@ -461,6 +461,23 @@ describe('authup', () => {
         await expect(setup().authenticate(request('Bearer bad'))).rejects.toMatchObject({ status: 401 });
     });
 
+    it.each([['upstream_error'], ['upstream_timeout']])('answers 503 when the verifier reports authup unreachable (%s)', async (code) => {
+        const unreachable: AuthupOptions = {
+            verifier: {
+                verify: async () => {
+                    throw Object.assign(new Error('authup is unreachable.'), { code });
+                },
+            },
+            catalog: async () => CATALOG,
+            realm: async () => REALM,
+        };
+
+        await expect(authup(unreachable)(request('Bearer good'))).rejects.toMatchObject({
+            status: 503,
+            message: 'The access token could not be verified: authup is unreachable.',
+        });
+    });
+
     it('rejects a malformed header with 401', async () => {
         await expect(setup().authenticate(request('Bearer'))).rejects.toMatchObject({ status: 401 });
     });

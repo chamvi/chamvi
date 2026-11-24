@@ -55,11 +55,11 @@ function validateRoutes(options: HttpAppOptions): HttpRoute[] {
             throw new InvalidAgentDefinitionError(`Route path "${route.path}" must be a static path starting with "/".`);
         }
 
-        // routup matches paths case-insensitively
-        const path = route.path.toLowerCase();
+        // routup matches static segments case-sensitively: paths differing only by case are distinct routes
+        const { path } = route;
         const segment = path.split('/')[1] ?? '';
 
-        if (RESERVED_ROUTE_SEGMENTS.includes(segment) || path === metricsPath?.toLowerCase()) {
+        if (RESERVED_ROUTE_SEGMENTS.includes(segment) || path === metricsPath) {
             throw new InvalidAgentDefinitionError(`Route path "${route.path}" collides with a built-in route.`);
         }
 
@@ -71,7 +71,7 @@ function validateRoutes(options: HttpAppOptions): HttpRoute[] {
 
         seen.add(key);
 
-        if (route.prefix && metricsPath !== undefined && isAtOrUnder(metricsPath.toLowerCase(), path)) {
+        if (route.prefix && metricsPath !== undefined && isAtOrUnder(metricsPath, path)) {
             throw new InvalidAgentDefinitionError(`Prefix route "${route.path}" covers the metrics path.`);
         }
     }
@@ -81,12 +81,12 @@ function validateRoutes(options: HttpAppOptions): HttpRoute[] {
             continue;
         }
 
-        const prefix = prefixRoute.path.toLowerCase();
+        const prefix = prefixRoute.path;
         // a nested prefix route is fine: registerRoutes serves the most specific first
         const covered = routes.find((other) => other !== prefixRoute &&
             other.method === prefixRoute.method &&
-            (!other.prefix || other.path.toLowerCase() === prefix) &&
-            isAtOrUnder(other.path.toLowerCase(), prefix));
+            (!other.prefix || other.path === prefix) &&
+            isAtOrUnder(other.path, prefix));
 
         if (covered) {
             throw new InvalidAgentDefinitionError(`Route "${covered.method} ${covered.path}" lies under the prefix route "${prefixRoute.path}".`);

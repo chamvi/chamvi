@@ -74,7 +74,7 @@ describe('uiRoutes and a registered page', () => {
         expect(await deep.text()).toContain(MARK);
     });
 
-    it.each(['/ui/ext/unknown', '/ui/ext/unknown/deep', '/ui/ext', '/ui/%65xt/unknown', '/UI/EXT/unknown'])(
+    it.each(['/ui/ext/unknown', '/ui/ext/unknown/deep', '/ui/ext', '/ui/%65xt/unknown', '/ui/EXT/unknown'])(
         'answers 404 for %s, never the dashboard fallback',
         async (path) => {
             const { app } = createUiTestApp({ routes: [...dashboard(), ...page('/ui')] });
@@ -84,6 +84,14 @@ describe('uiRoutes and a registered page', () => {
             expect(response.headers.get('content-security-policy')).toContain("default-src 'self'");
         },
     );
+
+    it('answers the app 404 for /UI/EXT/unknown: routup matches the ui base path case-sensitively', async () => {
+        const { app } = createUiTestApp({ routes: [...dashboard(), ...page('/ui')] });
+        const response = await get(app, '/UI/EXT/unknown');
+
+        expect(response.status).toBe(404);
+        expect(response.headers.get('content-security-policy')).toBeNull();
+    });
 
     it('keeps a dashboard route that only starts with ext', async () => {
         const { app } = createUiTestApp({ routes: dashboard() });

@@ -61,7 +61,7 @@
         "@chamvi/store": "^0.10.0",
         "@chamvi/store-memory": "^0.10.0",
         "@chamvi/test-kit": "^0.10.0",
-        "ai": "^7.0.173",
+        "ai": "^7.0.181",
         "chat": "^4.45.0",
         "zod": "^4.6.7"
     },

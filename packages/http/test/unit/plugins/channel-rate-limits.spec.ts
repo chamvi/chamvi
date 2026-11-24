@@ -117,13 +117,21 @@ describe('channel rate limits', () => {
         expect((await send(app, '/channels/github')).status).toBe(202);
     });
 
-    it('matches case, trailing slash and nested paths under a normalized basePath', async () => {
+    it('matches trailing slash and nested paths under a normalized basePath', async () => {
         const app = createApp({ basePath: '/api/', channelRateLimits: { github: { max: 2 } } });
 
-        expect((await send(app, '/API/CHANNELS/GITHUB/')).status).toBe(202);
+        expect((await send(app, '/api/channels/github/')).status).toBe(202);
         expect((await send(app, '/api/channels/github/a/b')).status).toBe(202);
         expect((await send(app, '/api/channels/github')).status).toBe(429);
         expect((await send(app, '/api/agents', { method: 'GET' })).status).toBe(200);
+    });
+
+    it('selects no channel policy for a path in another case: routup matches it nowhere', async () => {
+        const app = createApp({ basePath: '/api', channelRateLimits: { github: false } });
+
+        expect((await send(app, '/api/CHANNELS/GITHUB')).status).toBe(404);
+        expect((await send(app, '/api/Channels/github')).status).toBe(429);
+        expect((await send(app, '/api/channels/github')).status).toBe(202);
     });
 
     it.each(['/channels/github-extra', '/channels/unknown', '/channels/githubx/nested'])(

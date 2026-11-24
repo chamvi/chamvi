@@ -19,15 +19,14 @@ export function readMetricsPath(options: HttpAppOptions): string | undefined {
 }
 
 /**
- * `event.path` without the `basePath` prefix and trailing slashes,
- * lower-cased: routup matches paths case-insensitively, so every check
+ * `event.path` without the `basePath` prefix and trailing slashes, case
+ * kept: routup matches static segments case-sensitively, so every check
  * against a route path must too.
  */
 export function routePath(event: IAppEvent, basePath: string): string {
-    const path = event.path.toLowerCase();
-    const base = basePath.toLowerCase();
-    const relative = base && (path === base || path.startsWith(`${base}/`)) ?
-        path.slice(base.length) :
+    const { path } = event;
+    const relative = basePath && (path === basePath || path.startsWith(`${basePath}/`)) ?
+        path.slice(basePath.length) :
         path;
 
     return relative.replace(/\/+$/, '') || '/';
@@ -42,14 +41,12 @@ export function isStreamRequest(event: IAppEvent, basePath: string): boolean {
 export function isOperationalPath(event: IAppEvent, basePath: string, metricsPath: string): boolean {
     const path = routePath(event, basePath);
 
-    return path === '/healthz' || path === '/readyz' || path === metricsPath.toLowerCase();
+    return path === '/healthz' || path === '/readyz' || path === metricsPath;
 }
 
-/** The route's path, or with `prefix` also anything below `path/` (both lower-cased). */
+/** The route's path, or with `prefix` also anything below `path/`. */
 function matchesRoute(route: HttpRoute, path: string): boolean {
-    const own = route.path.toLowerCase();
-
-    return path === own || (route.prefix === true && path.startsWith(`${own}/`));
+    return path === route.path || (route.prefix === true && path.startsWith(`${route.path}/`));
 }
 
 /** The matching route `registerRoutes` serves: every match is a prefix of `path`, so the longest is the most specific. */
@@ -86,7 +83,7 @@ function mountLabel(path: string): string {
 export function routeLabel(event: IAppEvent, basePath: string, metricsPath: string): string {
     const path = routePath(event, basePath);
 
-    if (path === metricsPath.toLowerCase()) {
+    if (path === metricsPath) {
         return metricsPath;
     }
 

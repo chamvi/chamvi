@@ -51,10 +51,9 @@ export function matchesChannel(event: IAppEvent, basePath: string, name: string)
         return false;
     }
 
-    const base = basePath.toLowerCase();
-    const path = event.path.toLowerCase();
+    const { path } = event;
 
-    if (base && path !== base && !path.startsWith(`${base}/`)) {
+    if (basePath && path !== basePath && !path.startsWith(`${basePath}/`)) {
         return false;
     }
 
