@@ -138,6 +138,16 @@ describe('authup with an owner client', () => {
         expect(await can(principal, Permission.RUN_READ)).toBe(false);
     });
 
+    it('keeps a user grant of the owner client through a token issued to no client, as authup does', async () => {
+        const principal = await principalFor({
+            grants: [grant(Permission.RUN_READ, OWNED_A)],
+            client: async () => CLIENT_A,
+            data: { client_id: undefined },
+        });
+
+        expect(await can(principal, Permission.RUN_READ)).toBe(true);
+    });
+
     it('keeps the owner client grants of a client identity', async () => {
         const principal = await principalFor({
             grants: [grant(Permission.RUN_READ, OWNED_A)],

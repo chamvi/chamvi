@@ -40,14 +40,16 @@ const keyOf = (binding: PermissionPolicyBinding): string => buildPermissionKey({
  * check reaches); the grants of a definition it leaves out go with it
  * (upstream checks a binding per definition namespace, so no kept
  * definition reads them). A user's grant of a definition owned by a client
- * other than the token's is dropped first, as authup itself does (#3606); a
- * client identity is not narrowed. Throws `AuthorizationCatalogStaleError` when a
+ * other than the token's is dropped first, as authup itself does (#3606; a
+ * token issued to no client keeps them); a client identity is not narrowed. Throws `AuthorizationCatalogStaleError` when a
  * grant names a definition or policy the catalog lacks.
  */
 export async function buildPrincipalSnapshot(input: SnapshotInput): Promise<AuthorizationSnapshot> {
     const snapshot = await buildAuthorizationSnapshot({ catalog: input.catalog, grants: input.grants });
     const tokenClient = input.tokenClient ?? null;
+    // as authup: a user's grant owned by a client applies through a token of that client or of none
     const grants = (snapshot.grants ?? []).filter((grant) => input.subjectKind !== 'user' ||
+        tokenClient === null ||
         (grant.permission.clientId ?? null) === null ||
         grant.permission.clientId === tokenClient);
     const granted = new Set(grants.map(keyOf));
