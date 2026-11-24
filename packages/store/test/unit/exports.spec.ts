@@ -131,6 +131,18 @@ describe('public api', () => {
         expectTypeOf<store.IIdempotencyRepository['removeExpiredBy']>().toEqualTypeOf<(time: Date) => Promise<number>>();
     });
 
+    it('exports the port of limit uses over the generic entity port', () => {
+        expectTypeOf<store.LimitUse>().toEqualTypeOf<{
+            id: string;
+            scope: string;
+            key: string;
+            weight: number;
+            expiresAt: Date;
+        }>();
+        expectTypeOf<store.ILimitRepository>().toExtend<store.IEntityRepository<store.LimitUse>>();
+        expectTypeOf<store.ILimitRepository['removeExpiredBy']>().toEqualTypeOf<(time: Date) => Promise<number>>();
+    });
+
     it('exports the batched operations and the where type of the generic port', () => {
         type Row = { id: string; n: number };
 

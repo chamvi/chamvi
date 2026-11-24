@@ -37,6 +37,7 @@ describe('public api', () => {
         'describeEntityRepositoryContract',
         'describeIdempotencyRepositoryContract',
         'describeKnowledgeRepositoryContract',
+        'describeLimitRepositoryContract',
         'describeLockRepositoryContract',
         'describeRunRepositoryContract',
         'describeStateRepositoryContract',
@@ -57,6 +58,7 @@ describe('public api', () => {
     it('requires the purge ordering hook of the lock and idempotency port suites', () => {
         expectTypeOf<kit.LockRepositoryContractInput['untilBlocked']>().toEqualTypeOf<() => Promise<void>>();
         expectTypeOf<kit.IdempotencyRepositoryContractInput['untilBlocked']>().toEqualTypeOf<() => Promise<void>>();
+        expectTypeOf<kit.LimitRepositoryContractInput['untilBlocked']>().toEqualTypeOf<() => Promise<void>>();
         expectTypeOf<kit.ConnectionRepositoryContractInput['untilBlocked']>().toEqualTypeOf<() => Promise<void>>();
         expectTypeOf<kit.ConnectionRepositoryContractStore['locks']>().toEqualTypeOf<ILockRepository>();
         expectTypeOf<kit.ConversationRepositoryContractInput['untilBlocked']>().toEqualTypeOf<() => Promise<void>>();

@@ -24,6 +24,7 @@ describe('public api', () => {
             'MemoryEffectRepository',
             'MemoryEntityRepository',
             'MemoryIdempotencyRepository',
+            'MemoryLimitRepository',
             'MemoryLockRepository',
             'MemoryRegistry',
             'MemoryRunRepository',

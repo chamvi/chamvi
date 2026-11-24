@@ -15,6 +15,7 @@ export * from './effect/index.ts';
 export * from './entity/index.ts';
 export * from './error/index.ts';
 export * from './idempotency/index.ts';
+export * from './limit/index.ts';
 export * from './lock/index.ts';
 export * from './run/index.ts';
 export * from './state/index.ts';
