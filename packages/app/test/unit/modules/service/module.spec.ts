@@ -14,6 +14,7 @@ import {
     EffectService,
     IdempotencyService,
     InvalidAgentDefinitionError,
+    LimitService,
     LockService,
     RunService,
     StateService,
@@ -27,6 +28,7 @@ import {
     MemoryConversationRepository,
     MemoryEffectRepository,
     MemoryIdempotencyRepository,
+    MemoryLimitRepository,
     MemoryLockRepository,
     MemoryRegistry,
     MemoryRunRepository,
@@ -73,6 +75,7 @@ function thirdPartyRepositories() {
         stateDocument: new MemoryStateDocumentRepository({ registry }),
         lock: new MemoryLockRepository({ registry }),
         idempotency: new MemoryIdempotencyRepository({ registry }),
+        limit: new MemoryLimitRepository({ registry }),
         agentRevision: new MemoryAgentRevisionRepository({ registry }),
     };
 }
@@ -103,6 +106,7 @@ function replacingStoreModule(repositories: ThirdParty, skip: (keyof typeof AppT
             register('STATE_DOCUMENT_REPOSITORY', repositories.stateDocument);
             register('LOCK_REPOSITORY', repositories.lock);
             register('IDEMPOTENCY_REPOSITORY', repositories.idempotency);
+            register('LIMIT_REPOSITORY', repositories.limit);
             register('AGENT_REVISION_REPOSITORY', repositories.agentRevision);
 
             return Promise.resolve();
@@ -161,6 +165,7 @@ describe('the services of the store step', () => {
         expect(container.resolve(AppToken.STATE_DOCUMENT_REPOSITORY)).toBeInstanceOf(MemoryStateDocumentRepository);
         expect(container.resolve(AppToken.LOCK_REPOSITORY)).toBeInstanceOf(MemoryLockRepository);
         expect(container.resolve(AppToken.IDEMPOTENCY_REPOSITORY)).toBeInstanceOf(MemoryIdempotencyRepository);
+        expect(container.resolve(AppToken.LIMIT_REPOSITORY)).toBeInstanceOf(MemoryLimitRepository);
         expect(container.resolve(AppToken.AGENT_REVISION_REPOSITORY)).toBeInstanceOf(MemoryAgentRevisionRepository);
         expect(container.resolve(AppToken.CONNECTION_REPOSITORY)).toBeInstanceOf(MemoryConnectionRepository);
         expect(container.resolve(AppToken.CONVERSATION_REPOSITORY)).toBeInstanceOf(MemoryConversationRepository);
@@ -173,6 +178,7 @@ describe('the services of the store step', () => {
         expect(container.resolve(AppToken.STATE_SERVICE)).toBeInstanceOf(StateService);
         expect(container.resolve(AppToken.LOCK_SERVICE)).toBeInstanceOf(LockService);
         expect(container.resolve(AppToken.IDEMPOTENCY_SERVICE)).toBeInstanceOf(IdempotencyService);
+        expect(container.resolve(AppToken.LIMIT_SERVICE)).toBeInstanceOf(LimitService);
         expect(container.resolve(AppToken.AGENT_REVISION_SERVICE)).toBeInstanceOf(AgentRevisionService);
         expect(container.resolve(AppToken.CONNECTION_SERVICE)).toBeInstanceOf(ConnectionService);
         expect(container.resolve(AppToken.CONVERSATION_SERVICE)).toBeInstanceOf(ConversationService);
@@ -194,6 +200,7 @@ describe('the services of the store step', () => {
         expect(container.resolve(AppToken.STATE_DOCUMENT_REPOSITORY)).toBe(repositories.stateDocument);
         expect(container.resolve(AppToken.LOCK_REPOSITORY)).toBe(repositories.lock);
         expect(container.resolve(AppToken.IDEMPOTENCY_REPOSITORY)).toBe(repositories.idempotency);
+        expect(container.resolve(AppToken.LIMIT_REPOSITORY)).toBe(repositories.limit);
         expect(container.resolve(AppToken.AGENT_REVISION_REPOSITORY)).toBe(repositories.agentRevision);
         // no built-in store ran: no kind, no data source
         expect(container.has(AppToken.STORE_KIND)).toBe(false);
@@ -225,6 +232,9 @@ describe('the services of the store step', () => {
         expect((await runs.update('r1', { status: 'running' })).updatedAt).toEqual(new Date(clock.now()));
         await expect(container.resolve(AppToken.LOCK_SERVICE).acquire('k', 'a', 10)).resolves.toBeTypeOf('number');
         expect(await repositories.lock.findOneBy({ key: 'k' })).toMatchObject({ owner: 'a' });
+        await container.resolve(AppToken.LIMIT_SERVICE).record('a:search', 'r1:0:c1', 1, 1_000);
+        expect(await repositories.limit.findOneBy({ scope: 'a:search', key: 'r1:0:c1' }))
+            .toMatchObject({ expiresAt: new Date(clock.now() + 1_000) });
 
         // optional aggregates it does not register stay absent, with their services
         expect(container.has(AppToken.CONNECTION_REPOSITORY)).toBe(false);
@@ -240,6 +250,7 @@ describe('the services of the store step', () => {
         [['RUN_REPOSITORY'], 'RUN_REPOSITORY'],
         [['CHECKPOINT_REPOSITORY', 'STATE_DOCUMENT_REPOSITORY'], 'CHECKPOINT_REPOSITORY, STATE_DOCUMENT_REPOSITORY'],
         [['IDEMPOTENCY_REPOSITORY'], 'IDEMPOTENCY_REPOSITORY'],
+        [['LIMIT_REPOSITORY'], 'LIMIT_REPOSITORY'],
         [['AGENT_REVISION_REPOSITORY'], 'AGENT_REVISION_REPOSITORY'],
     ] as const)('a module replacing the store module without %j fails the setup naming it', async (skip, named) => {
         const repositories = thirdPartyRepositories();
@@ -359,7 +370,8 @@ describe('the services of the store step', () => {
 
         calls[0]!.resolve(1);
         await flush();
-        expect(logger.entries.find((entry) => entry.level === 'debug')).toMatchObject({ results: [1, 0] });
+        // the lock, idempotency and limit services purge in that order
+        expect(logger.entries.find((entry) => entry.level === 'debug')).toMatchObject({ results: [1, 0, 0] });
 
         clock.advance(DEFAULT_PURGE_INTERVAL_MS);
         expect(calls).toHaveLength(2);

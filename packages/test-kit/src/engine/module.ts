@@ -15,6 +15,7 @@ import {
     Engine,
     IdempotencyService,
     InvalidAgentDefinitionError,
+    LimitService,
     LockService,
     RunService,
     StateService,
@@ -29,6 +30,7 @@ import {
     MemoryConversationRepository,
     MemoryEffectRepository,
     MemoryIdempotencyRepository,
+    MemoryLimitRepository,
     MemoryLockRepository,
     MemoryRegistry,
     MemoryRunRepository,
@@ -45,7 +47,8 @@ import type { TestEngineOptions } from './types.ts';
  * `engine.checkpointService`, ...). Its connection service
  * (`engine.connectionService`) is on the same registry, so its fence reads
  * the leases of `engine.lockService`; its conversation service
- * (`engine.conversationService`) too, so its rows reference the runs there.
+ * (`engine.conversationService`) too, so its rows reference the runs there;
+ * and its limit service (`engine.limitService`), so agents with `limits` register.
  * `replicaOf` builds a replica of another engine.
  */
 export function createTestEngine(options: TestEngineOptions): Engine {
@@ -80,6 +83,7 @@ export function createTestEngine(options: TestEngineOptions): Engine {
             idempotencyService: replicaOf.idempotencyService,
             ...(replicaOf.connectionService && { connectionService: replicaOf.connectionService }),
             ...(replicaOf.conversationService && { conversationService: replicaOf.conversationService }),
+            ...(replicaOf.limitService && { limitService: replicaOf.limitService }),
         });
     }
 
@@ -105,5 +109,6 @@ export function createTestEngine(options: TestEngineOptions): Engine {
         idempotencyService: new IdempotencyService({ repository: new MemoryIdempotencyRepository({ registry }), clock }),
         connectionService: new ConnectionService({ repository: new MemoryConnectionRepository({ registry }), clock }),
         conversationService: wrap ? wrap(conversationService) : conversationService,
+        limitService: new LimitService({ repository: new MemoryLimitRepository({ registry }), clock }),
     });
 }

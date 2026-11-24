@@ -5,11 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Agent, RemoteAgent } from '../../agent/types.ts';
+import type { Agent, ModelAgent, RemoteAgent } from '../../agent/types.ts';
 import { assertAgentKind, assertRemoteAgent, conversationKey } from '../../agent/asserts.ts';
 import { assertConcurrencyMaxRuns } from '../../channel/concurrency.ts';
 import { assertDispatchRoles } from '../../dispatch/helpers/index.ts';
 import { InvalidAgentDefinitionError } from '../../errors/index.ts';
+import { assertAgentLimits } from '../../limit/asserts.ts';
 import { checkAgentModel } from '../../model/module.ts';
 import type { ModelContext } from '../../model/types.ts';
 import { agentCancelReason } from './helpers.ts';
@@ -261,7 +262,8 @@ export class EngineRegistry implements IEngineRegistry {
 
     /**
      * Refuses an agent the engine cannot run: one whose kind is unknown or
-     * disagrees with its definition, or one subscribing to a channel it does not have.
+     * disagrees with its definition, one subscribing to a channel it does not have,
+     * or one with `limits` on an engine without a limit service.
      * `commit: false` (checkAgent()) keeps the skill check free of state changes.
      */
     assertRegistrable(agent: Agent, options: { commit?: boolean } = {}): void {
@@ -270,6 +272,7 @@ export class EngineRegistry implements IEngineRegistry {
 
         if (agent.kind === 'model') {
             checkAgentModel(agent, { model: this.ctx.model, models: this.ctx.models });
+            this.assertLimits(agent);
         }
 
         if (agent.kind === 'remote') {
@@ -293,6 +296,20 @@ export class EngineRegistry implements IEngineRegistry {
         }
 
         this.ctx.skills.checkAgent(agent, options);
+    }
+
+    /**
+     * A model agent's `limits` pass defineModelAgent()'s check again (a
+     * hand-built one skipped it), and non-empty ones need a limit service.
+     */
+    protected assertLimits(agent: ModelAgent): void {
+        const { limits } = agent.definition;
+
+        assertAgentLimits(limits);
+
+        if (limits && Object.keys(limits).length > 0 && !this.ctx.limitService) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent.name}" declares limits but the engine has no limit service.`);
+        }
     }
 
     /**

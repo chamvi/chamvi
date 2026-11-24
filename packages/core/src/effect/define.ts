@@ -6,6 +6,7 @@
  */
 
 import type { Tool, ToolExecuteFunction, ToolExecutionOptions } from 'ai';
+import type { ToolLimit } from '../limit/types.ts';
 import type { StateSchema } from '../state/types.ts';
 import { defineTool } from '../tool/define.ts';
 import type { ToolContext, ToolTrust } from '../tool/types.ts';
@@ -25,6 +26,8 @@ export function defineEffectTool<I, O, S extends StateSchema = StateSchema>(def:
     execute: ToolExecuteFunction<I, O, ToolContext<S>>;
     contextSchema?: never;
     trust?: ToolTrust<I, S>;
+    /** The default rate limit of the tool; the agent's `limits` entry replaces it. */
+    limit?: ToolLimit<I, S>;
     /**
      * Default: `${ctx.run.runId}:${toolName}:${stableHash(input)}`.
      * `options` are the AI SDK call options (`toolCallId`, `messages`), e.g. to key by model step.

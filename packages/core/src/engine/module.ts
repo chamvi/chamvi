@@ -37,6 +37,7 @@ import type { IEffectService } from '../effect/types.ts';
 import type { IAgentRevisionService } from '../agent-revision/types.ts';
 import type { IConnectionService } from '../connection/types.ts';
 import type { IIdempotencyService } from '../idempotency/types.ts';
+import type { ILimitService } from '../limit/types.ts';
 import type { ILockService } from '../lock/types.ts';
 import type { IRunService } from '../run/types.ts';
 import type { IStateService } from '../state/types.ts';
@@ -47,6 +48,7 @@ import { EngineCancel } from './cancel/module.ts';
 import type { IEngineCancel } from './cancel/types.ts';
 import {
     createEngineConversations,
+    engineServicesOf,
     provideEngineContextValue,
     subscribeEngineEvent,
     toEngineChannelMap,
@@ -110,6 +112,9 @@ export class Engine implements IEngine {
 
     /** Connections over the connection repository, when the store keeps them (unused by the engine). */
     readonly connectionService: IConnectionService | undefined;
+
+    /** The counted uses of tool limits, when the engine has them (agents with `limits` need it). */
+    readonly limitService: ILimitService | undefined;
 
     /** Conversations over the conversation repository, when the store keeps them (the conversation capability needs it). */
     readonly conversationService: IConversationService | undefined;
@@ -199,6 +204,7 @@ export class Engine implements IEngine {
         this.lockService = opts.lockService;
         this.idempotencyService = opts.idempotencyService;
         this.connectionService = opts.connectionService;
+        this.limitService = opts.limitService;
         this.conversationService = opts.conversationService;
         this.conversations = createEngineConversations(opts);
         this.channels = toEngineChannelMap(opts.channels ?? []);
@@ -207,17 +213,7 @@ export class Engine implements IEngine {
         this.model = opts.model;
         this.models = opts.models;
         this.context = createEngineContext({
-            runService: this.runService,
-            stepService: this.stepService,
-            checkpointService: this.checkpointService,
-            effectService: this.effectService,
-            artifactService: this.artifactService,
-            stateService: this.stateService,
-            agentRevisionService: this.agentRevisionService,
-            lockService: this.lockService,
-            idempotencyService: this.idempotencyService,
-            connectionService: this.connectionService,
-            conversationService: this.conversationService,
+            ...engineServicesOf(this),
             peers: this.peers,
             clock: this.clock,
             owner: opts.owner ?? `${hostname()}-${pid}`,

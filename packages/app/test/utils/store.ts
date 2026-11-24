@@ -15,6 +15,7 @@ import {
     EffectService,
     Engine,
     IdempotencyService,
+    LimitService,
     LockService,
     ModuleName,
     RunService,
@@ -35,6 +36,7 @@ import {
     MemoryConversationRepository,
     MemoryEffectRepository,
     MemoryIdempotencyRepository,
+    MemoryLimitRepository,
     MemoryLockRepository,
     MemoryRegistry,
     MemoryRunRepository,
@@ -61,6 +63,7 @@ export function createTestStore(options: { clock?: IClock } = {}) {
     const stateDocumentRepository = new MemoryStateDocumentRepository({ registry });
     const lockRepository = new MemoryLockRepository({ registry });
     const idempotencyRepository = new MemoryIdempotencyRepository({ registry });
+    const limitRepository = new MemoryLimitRepository({ registry });
     const agentRevisionRepository = new MemoryAgentRevisionRepository({ registry });
     const connectionRepository = new MemoryConnectionRepository({ registry });
     const conversationRepository = new MemoryConversationRepository({ registry });
@@ -76,6 +79,7 @@ export function createTestStore(options: { clock?: IClock } = {}) {
         stateDocumentRepository,
         lockRepository,
         idempotencyRepository,
+        limitRepository,
         agentRevisionRepository,
         connectionRepository,
         conversationRepository,
@@ -87,6 +91,7 @@ export function createTestStore(options: { clock?: IClock } = {}) {
         stateService: new StateService({ repository: stateRepository, documentRepository: stateDocumentRepository }),
         lockService: new LockService({ repository: lockRepository, clock }),
         idempotencyService: new IdempotencyService({ repository: idempotencyRepository, clock }),
+        limitService: new LimitService({ repository: limitRepository, clock }),
         agentRevisionService: new AgentRevisionService({ repository: agentRevisionRepository }),
         connectionService: new ConnectionService({ repository: connectionRepository, clock }),
         conversationService: new ConversationService({ repository: conversationRepository, clock }),
@@ -119,6 +124,7 @@ export function storeModuleOf(store: Omit<TestStore, 'connectionRepository' | 'c
             container.register(AppToken.STATE_DOCUMENT_REPOSITORY, { useValue: store.stateDocumentRepository });
             container.register(AppToken.LOCK_REPOSITORY, { useValue: store.lockRepository });
             container.register(AppToken.IDEMPOTENCY_REPOSITORY, { useValue: store.idempotencyRepository });
+            container.register(AppToken.LIMIT_REPOSITORY, { useValue: store.limitRepository });
             container.register(AppToken.AGENT_REVISION_REPOSITORY, { useValue: store.agentRevisionRepository });
 
             if (store.connectionRepository) {
@@ -136,7 +142,7 @@ export function storeModuleOf(store: Omit<TestStore, 'connectionRepository' | 'c
 
 /** The services of an engine over a test store (each by its own name). */
 type EngineServices = 'runService' | 'stepService' | 'checkpointService' | 'effectService' | 'artifactService' | 'stateService' |
-    'lockService' | 'idempotencyService' | 'agentRevisionService' | 'connectionService' | 'conversationService';
+    'lockService' | 'idempotencyService' | 'agentRevisionService' | 'connectionService' | 'conversationService' | 'limitService';
 
 /**
  * An engine over a test store and its services, as another replica of the
@@ -154,6 +160,7 @@ export function engineOver(store: TestStore, options: Omit<EngineOptions, Engine
         stateService: store.stateService,
         lockService: store.lockService,
         idempotencyService: store.idempotencyService,
+        limitService: store.limitService,
         agentRevisionService: store.agentRevisionService,
         connectionService: store.connectionService,
         conversationService: store.conversationService,

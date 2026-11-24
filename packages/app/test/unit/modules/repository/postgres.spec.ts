@@ -432,12 +432,14 @@ describePostgres('storeModule on Postgres', () => {
         await harness.setup();
 
         await harness.container.resolve(AppToken.LOCK_SERVICE).acquire('lock', 'owner', 1000);
+        await harness.container.resolve(AppToken.LIMIT_SERVICE).record('a:search', 'r1:0:c1', 1, 1000);
+        await harness.container.resolve(AppToken.LIMIT_SERVICE).record('a:search', 'r1:0:c2', 1, 1000);
         await runHooks(harness.container, 'started');
         clock.advance(DEFAULT_PURGE_INTERVAL_MS);
 
-        // the lock service's purge, then the idempotency service's
+        // the lock service's purge, then the idempotency service's, then the limit service's
         await vi.waitFor(() => {
-            expect(logger.entries.find((entry) => entry.level === 'debug')).toMatchObject({ results: [1, 0] });
+            expect(logger.entries.find((entry) => entry.level === 'debug')).toMatchObject({ results: [1, 0, 2] });
         });
 
         await runHooks(harness.container, 'stopping');

@@ -11,8 +11,10 @@ import {
     InvalidAgentDefinitionError,
     LeaseLostError,
     RunNotFoundError,
+    defineModelAgent,
     defineSimpleAgent,
 } from '@chamvi/core';
+import type { LanguageModel } from 'ai';
 import { ControllableClock, createTestEngine, testUuid } from '@chamvi/test-kit';
 
 describe('createTestEngine', () => {
@@ -99,6 +101,24 @@ describe('createTestEngine', () => {
             .rejects.toBeInstanceOf(RunNotFoundError);
     });
 
+    it('carries a limit service on its storage and clock, so agents with limits register', async () => {
+        const clock = new ControllableClock(new Date(5_000));
+        const agent = defineModelAgent({
+            name: 'limited',
+            model: {} as LanguageModel,
+            instructions: 'x',
+            limits: { search: { max: 1, windowMs: 1_000 } },
+        });
+        const engine = createTestEngine({ agents: [agent], clock });
+        const limits = engine.limitService!;
+
+        expect(limits).toBeDefined();
+        await limits.record('limited:search', 'r:0:c', 2, 1_000);
+        expect(await limits.used('limited:search')).toBe(2);
+        clock.advance(1_000);
+        expect(await limits.used('limited:search')).toBe(0);
+    });
+
     it('builds a replica on the services of another engine', async () => {
         const clock = new ControllableClock(new Date(5_000));
         const first = createTestEngine({ agents: [], clock });
@@ -119,6 +139,7 @@ describe('createTestEngine', () => {
         expect(replica.idempotencyService).toBe(first.idempotencyService);
         expect(replica.connectionService).toBe(first.connectionService);
         expect(replica.conversationService).toBe(first.conversationService);
+        expect(replica.limitService).toBe(first.limitService);
         expect(replica.clock).toBe(clock);
         expect(() => createTestEngine({
             agents: [],

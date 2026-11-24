@@ -13,6 +13,7 @@ import {
     MemoryConversationRepository,
     MemoryEffectRepository,
     MemoryIdempotencyRepository,
+    MemoryLimitRepository,
     MemoryLockRepository,
     MemoryRegistry,
     MemoryRunRepository,
@@ -38,6 +39,8 @@ import { Engine } from '../../src/engine/index.ts';
 import type { EngineOptions, IEngine } from '../../src/engine/index.ts';
 import type { IIdempotencyService, IdempotencyServiceContext  } from '../../src/idempotency/index.ts';
 import { IdempotencyService } from '../../src/idempotency/index.ts';
+import type { ILimitService, LimitServiceContext } from '../../src/limit/index.ts';
+import { LimitService } from '../../src/limit/index.ts';
 import type { ILockService, LockServiceContext  } from '../../src/lock/index.ts';
 import { LockService } from '../../src/lock/index.ts';
 import type { IRunService, RunServiceContext  } from '../../src/run/index.ts';
@@ -51,7 +54,7 @@ import { StepService } from '../../src/step/index.ts';
 export type TestServices = Pick<
     EngineOptions,
     'runService' | 'stepService' | 'checkpointService' | 'effectService' | 'artifactService' | 'stateService' |
-    'agentRevisionService' | 'lockService' | 'idempotencyService' | 'connectionService' | 'conversationService'
+    'agentRevisionService' | 'lockService' | 'idempotencyService' | 'connectionService' | 'conversationService' | 'limitService'
 >;
 
 /**
@@ -62,6 +65,7 @@ export type TestServices = Pick<
 export type TestServiceSet = TestServices & {
     connectionService: IConnectionService;
     conversationService: IConversationService;
+    limitService: ILimitService;
 };
 
 export type TestServicesOptions = {
@@ -88,6 +92,8 @@ export type TestServicesOptions = {
     connectionService?: (ctx: ConnectionServiceContext) => IConnectionService;
     /** Builds the conversation service, e.g. a subclass that injects a fault. */
     conversationService?: (ctx: ConversationServiceContext) => IConversationService;
+    /** Builds the limit service, e.g. a subclass that injects a fault. */
+    limitService?: (ctx: LimitServiceContext) => ILimitService;
 };
 
 export function createTestServices(options: TestServicesOptions = {}): TestServiceSet {
@@ -108,6 +114,7 @@ export function createTestServices(options: TestServicesOptions = {}): TestServi
     const idempotency: IdempotencyServiceContext = { repository: new MemoryIdempotencyRepository({ registry }), clock };
     const connection: ConnectionServiceContext = { repository: new MemoryConnectionRepository({ registry }), clock };
     const conversation: ConversationServiceContext = { repository: new MemoryConversationRepository({ registry }), clock };
+    const limit: LimitServiceContext = { repository: new MemoryLimitRepository({ registry }), clock };
 
     return {
         runService: options.runService?.(run) ?? new RunService(run),
@@ -121,6 +128,7 @@ export function createTestServices(options: TestServicesOptions = {}): TestServi
         idempotencyService: options.idempotencyService?.(idempotency) ?? new IdempotencyService(idempotency),
         connectionService: options.connectionService?.(connection) ?? new ConnectionService(connection),
         conversationService: options.conversationService?.(conversation) ?? new ConversationService(conversation),
+        limitService: options.limitService?.(limit) ?? new LimitService(limit),
     };
 }
 
@@ -146,6 +154,7 @@ export function servicesOf(source: TestServices): TestServices {
         idempotencyService: source.idempotencyService,
         ...(source.connectionService && { connectionService: source.connectionService }),
         ...(source.conversationService && { conversationService: source.conversationService }),
+        ...(source.limitService && { limitService: source.limitService }),
     };
 }
 

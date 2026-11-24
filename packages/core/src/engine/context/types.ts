@@ -17,6 +17,7 @@ import type { ContextKey } from '../../context/types.ts';
 import type { IConversationService } from '../../conversation/types.ts';
 import type { IEffectService } from '../../effect/types.ts';
 import type { IIdempotencyService } from '../../idempotency/types.ts';
+import type { ILimitService } from '../../limit/types.ts';
 import type { ILockService } from '../../lock/types.ts';
 import type { IPeerResolver } from '../../peer/types.ts';
 import type { IRunService } from '../../run/types.ts';
@@ -50,6 +51,7 @@ export type EngineContextInput = {
     lockService: ILockService;
     idempotencyService: IIdempotencyService;
     connectionService: IConnectionService | undefined;
+    limitService: ILimitService | undefined;
     conversationService: IConversationService | undefined;
     peers: IPeerResolver | undefined;
     clock: IClock;
@@ -65,6 +67,13 @@ export type EngineContextInput = {
     /** The registered channel of that name. */
     getChannel(name: string): IChannel | undefined;
 };
+
+/** The services of an engine, each by its own name (internal). */
+export type EngineServices = Pick<
+    EngineContextInput,
+    'runService' | 'stepService' | 'checkpointService' | 'effectService' | 'artifactService' | 'stateService' |
+    'agentRevisionService' | 'lockService' | 'idempotencyService' | 'connectionService' | 'conversationService' | 'limitService'
+>;
 
 /**
  * What the parts of the engine share (internal): the services and settings,

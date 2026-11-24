@@ -19,10 +19,11 @@ import type {
     SimpleAgentDefinition,
 } from './types.ts';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
+import { assertAgentLimits } from '../limit/asserts.ts';
 import { hasToolContext } from '../tool/helpers.ts';
 
 /** Fields a simple agent does not take. */
-const SIMPLE_AGENT_REFUSED = ['model', 'instructions', 'skills', 'output', 'conversation', 'toolsContext'] as const;
+const SIMPLE_AGENT_REFUSED = ['model', 'instructions', 'skills', 'output', 'conversation', 'toolsContext', 'limits'] as const;
 
 /** Fields a remote agent does not take: what runs here is a stand-in, the peer executes the agent. */
 const REMOTE_AGENT_REFUSED = [
@@ -38,6 +39,7 @@ const REMOTE_AGENT_REFUSED = [
     'budget',
     'conversation',
     'toolsContext',
+    'limits',
 ] as const;
 
 /** Whether `value` follows the agent-name rule (also peer and role names). */
@@ -119,11 +121,16 @@ export function assertSimpleAgent(def: SimpleAgentDefinition): void {
     }
 }
 
-/** A model agent declares no `run`: that is a simple agent (InvalidAgentDefinitionError). */
+/**
+ * A model agent declares no `run` (that is a simple agent) and valid
+ * `limits` (InvalidAgentDefinitionError).
+ */
 export function assertModelAgent(def: ModelAgentDefinition): void {
     if ((def as { run?: unknown }).run !== undefined) {
         throw new InvalidAgentDefinitionError(`Agent "${def.name}": "run" is not allowed on a model agent; build a simple agent with defineSimpleAgent().`);
     }
+
+    assertAgentLimits(def.limits);
 }
 
 /**

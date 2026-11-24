@@ -98,6 +98,7 @@ export class EngineModule implements IModule {
             stateService: container.resolve(AppToken.STATE_SERVICE),
             lockService: container.resolve(AppToken.LOCK_SERVICE),
             idempotencyService: container.resolve(AppToken.IDEMPOTENCY_SERVICE),
+            limitService: container.resolve(AppToken.LIMIT_SERVICE),
             agentRevisionService: container.resolve(AppToken.AGENT_REVISION_SERVICE),
             // optional: a store without connections registers no connection service
             ...(container.has(AppToken.CONNECTION_SERVICE) && { connectionService: container.resolve(AppToken.CONNECTION_SERVICE) }),

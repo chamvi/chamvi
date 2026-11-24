@@ -194,6 +194,7 @@ describe('public api', () => {
             'KEYRING',
             'LIFECYCLE_HOOKS',
             'LIMIT_REPOSITORY',
+            'LIMIT_SERVICE',
             'LOCK_REPOSITORY',
             'LOCK_SERVICE',
             'LOGGER',

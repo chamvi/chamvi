@@ -89,7 +89,8 @@ export type PutAgentOptions = {
 /** What EngineRegistry needs from the engine (internal). */
 export type EngineRegistryContext = Pick<
     EngineContext,
-    'agentRevisionService' | 'lockService' | 'runService' | 'clock' | 'claimTtlMs' | 'onError' | 'emit' | 'getChannel' | 'peers'
+    'agentRevisionService' | 'lockService' | 'runService' | 'clock' | 'claimTtlMs' | 'onError' | 'emit' | 'getChannel' | 'peers' |
+    'limitService'
 > & {
     /** The default model of agents without one. */
     model?: ModelRef;

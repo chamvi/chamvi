@@ -10,7 +10,8 @@ import type { EngineOptions, IConversationService, IEngine } from '@chamvi/core'
 export type TestEngineOptions = Omit<
     EngineOptions,
     'runService' | 'stepService' | 'checkpointService' | 'effectService' | 'artifactService' | 'stateService' |
-    'agentRevisionService' | 'lockService' | 'idempotencyService' | 'connectionService' | 'conversationService'
+    'agentRevisionService' | 'lockService' | 'idempotencyService' | 'connectionService' | 'conversationService' |
+    'limitService'
 > & {
     /**
      * Another engine to be a replica of: the new engine runs on every one

@@ -153,6 +153,23 @@ describe('engineModule', () => {
         expect(run?.output).toBe('triaged');
     });
 
+    it('passes the limit service to the engine, so an agent with limits registers', async () => {
+        const agent = defineModelAgent({
+            name: 'triage',
+            model: textModel(),
+            instructions: 'x',
+            limits: { search: { max: 1, windowMs: 1_000 } },
+        });
+        const { harness } = build({ mode: 'job', agents: [agent] });
+
+        await harness.setup();
+
+        const engine = harness.container.resolve(AppToken.ENGINE);
+
+        expect(engine.limitService).toBe(harness.container.resolve(AppToken.LIMIT_SERVICE));
+        expect(engine.getAgent('triage')).toBe(agent);
+    });
+
     it('job mode builds but does not start', async () => {
         const { harness } = build({ mode: 'job', agents: [agentWith(textModel())] });
 
