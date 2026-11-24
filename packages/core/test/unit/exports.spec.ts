@@ -123,7 +123,6 @@ describe('public api', () => {
         expectTypeOf<core.LimitService['record']>()
             .toEqualTypeOf<(scope: string, key: string, weight: number, windowMs: number) => Promise<void>>();
         expectTypeOf<core.LimitService['purgeExpired']>().toEqualTypeOf<(now?: Date) => Promise<number>>();
-        expectTypeOf<core.LimitService['counted']>().toEqualTypeOf<(scope: string, key: string) => Promise<boolean>>();
         expectTypeOf<core.AgentLimits>().toEqualTypeOf<Record<string, core.ToolLimit | false>>();
         expectTypeOf<core.ToolLimit['onExceed']>().toEqualTypeOf<'approve' | 'deny' | undefined>();
         expectTypeOf<core.ModelAgentDefinition['limits']>().toEqualTypeOf<core.AgentLimits | undefined>();

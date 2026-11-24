@@ -53,12 +53,6 @@ export interface ILimitService {
     used(scope: string): Promise<number>;
 
     /**
-     * Whether a use of `scope` under `key` is stored, expired or not (one
-     * read): the call was counted, a replay of it is not checked again.
-     */
-    counted(scope: string, key: string): Promise<boolean>;
-
-    /**
      * Counts a use of `scope` under `key` until now + `windowMs`, unless a use
      * of that `(scope, key)` is stored already (the call was counted).
      */

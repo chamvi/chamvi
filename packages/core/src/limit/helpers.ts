@@ -97,3 +97,8 @@ export function withLimitLock<T>(locks: ILockService, clock: IClock, scope: stri
 
     return current;
 }
+
+/** The effect key marking a call counted against its scope: `limit:<scope>:<key>`. */
+export function limitMarkerKey(scope: string, key: string): string {
+    return `limit:${scope}:${key}`;
+}

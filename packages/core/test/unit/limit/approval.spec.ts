@@ -166,6 +166,27 @@ describe('tool limits: approval', () => {
         expect(await ctx.store.limitService.used('limited:search')).toBe(1);
     });
 
+    it('a counted call resumed after its use expired and was purged is not checked again', async () => {
+        const log: string[] = [];
+        const ctx = setup({
+            tools: { search: searchTool(log, { max: 1, windowMs: 60_000 }, { approve: true }) },
+            responses: [turn(call('search', { q: 'a' }, 'c1')), text('done')],
+        });
+        const runId = await dispatchLimited(ctx);
+
+        expect(ctx.notifier.calls.map((c) => c.title)).toEqual(['Search a?']);
+
+        ctx.clock.advance(120_000);
+        await ctx.store.limitService.purgeExpired();
+        await ctx.store.limitService.record('limited:search', 'other-run:0:x', 1, HOUR);
+        await answerLimited(ctx, true);
+
+        expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
+        expect(log).toEqual(['a', 'a']);
+        expect(ctx.notifier.calls).toHaveLength(1);
+        expect(await ctx.store.limitService.used('limited:search')).toBe(1);
+    });
+
     it('a weight larger than max always asks', async () => {
         const log: string[] = [];
         const ctx = setup({

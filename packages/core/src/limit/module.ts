@@ -18,6 +18,7 @@ import { assertLimitWeight, assertLimitedTools, assertToolLimit } from './assert
 import {
     formatLimitWindow,
     limitKeyOf,
+    limitMarkerKey,
     limitScopeOf,
     withLimitLock,
 } from './helpers.ts';
@@ -29,10 +30,12 @@ import type {
 } from './types.ts';
 
 /**
- * The limit check of one call, right before it executes: the weight
- * (`limit.weight`, default 1; else a ValidationError, nothing counted),
- * then a recorded decision of the call's limit approval stands whatever
- * the count is now (denied throws, approved records), else under the lock `limit:<scope>` a call counted already passes, and
+ * The limit check of one call, right before it executes: a call counted
+ * before (its marker `limit:<scope>:<key>` in the run's effects) passes;
+ * a recorded decision of the call's limit approval stands whatever the
+ * count is now (denied throws); then the weight (`limit.weight`, default
+ * 1; else a ValidationError, nothing counted); an approved call counts,
+ * else under the lock `limit:<scope>`
  * `used + weight <= max` records the use and passes. Over the limit, after
  * the lock is released: `deny` throws ToolDeniedError, `approve` asks for
  * an unordered bound approval (bound to the scope, the tool and the final
@@ -53,9 +56,14 @@ export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<vo
         source,
         signal,
     } = input;
-    const weight = limit.weight ? await limit.weight(final, ctx) : 1;
+    const frame = currentToolCall()!;
+    const marker = limitMarkerKey(scope, key);
 
-    assertLimitWeight(name, weight);
+    // counted before (a replay after the tool's own approve(), a retried step): never checked again,
+    // also once the purge deleted the expired use
+    if (await frame.effects.findOne(marker)) {
+        return;
+    }
 
     const binding = stableHash({
         limit: scope,
@@ -63,31 +71,36 @@ export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<vo
         input: final,
     });
     // an answered limit approval stands, whatever the count is now (a drained window included)
-    const frame = currentToolCall()!;
     const recorded = await frame.effects.findOne(approvalDecisionKey(frame.runId, unorderedApprovalId(frame, binding)));
 
-    if (recorded) {
-        if (!toApprovalDecision(recorded.result).approved) {
-            throw new ToolDeniedError(`Over the limit of ${name} and not approved.`);
-        }
+    if (recorded && !toApprovalDecision(recorded.result).approved) {
+        throw new ToolDeniedError(`Over the limit of ${name} and not approved.`);
+    }
 
+    const weight = limit.weight ? await limit.weight(final, ctx) : 1;
+
+    assertLimitWeight(name, weight);
+
+    // the use first, then the marker: a crash in between records the use again, insert-if-absent
+    const count = async () => {
         await service.record(scope, key, weight, limit.windowMs);
+        await frame.effects.save(marker, true);
+    };
+
+    if (recorded) {
+        await count();
 
         return;
     }
 
     const used = await withLimitLock(locks, clock, scope, async () => {
-        if (await service.counted(scope, key)) {
-            return undefined;
-        }
-
         const current = await service.used(scope);
 
         if (current + weight > limit.max) {
             return current;
         }
 
-        await service.record(scope, key, weight, limit.windowMs);
+        await count();
 
         return undefined;
     }, signal);
@@ -114,7 +127,7 @@ export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<vo
         throw new ToolDeniedError(`Over the limit of ${name} and not approved.`);
     }
 
-    await service.record(scope, key, weight, limit.windowMs);
+    await count();
 }
 
 /** The tool's own limit (a chamvi tool's only), replaced whole by the agent's entry; false turns it off. */
@@ -149,10 +162,14 @@ export function bindToolLimits(tools: ToolSet, ctx: ToolContext, options?: ToolL
     assertLimitedTools(run.agent, options?.agent, tools);
 
     for (const [name, def] of Object.entries(tools)) {
-        const limit = def.execute ? resolveToolLimit(name, def, options) : undefined;
+        const limit = resolveToolLimit(name, def, options);
 
         if (!limit) {
             continue;
+        }
+
+        if (!def.execute) {
+            throw new InvalidAgentDefinitionError(`The limit of ${name} needs a tool with execute.`);
         }
 
         const engine = options?.engine;

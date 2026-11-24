@@ -131,6 +131,21 @@ describe('tool limits: resolution', () => {
         expect(run?.error?.message).toContain('bucket "mail"');
     });
 
+    it('fails the run for a limit on a tool without execute', async () => {
+        const ctx = setup({
+            tools: {
+                search: searchTool([]),
+                manual: tool({ inputSchema: z.object({ q: z.string() }) }),
+            },
+            limits: { manual: { max: 1, windowMs: HOUR } },
+            responses: [turn(call('search', { q: 'a' })), text('done')],
+        });
+        const run = await failedRun(ctx);
+
+        expect(run?.status).toBe('failed');
+        expect(run?.error).toMatchObject({ code: 'invalid_agent_definition', message: 'The limit of manual needs a tool with execute.' });
+    });
+
     it('fails the run for a hand-built chamvi tool with a malformed limit', async () => {
         const hand = tool({
             inputSchema: z.object({ q: z.string() }),
