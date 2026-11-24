@@ -44,6 +44,8 @@ export type ChatAnswerClassifyInput = {
     timeoutMs: number;
     clock: IClock;
     signal: AbortSignal;
+    /** Gets each failure once (a model error, invalid output, the timeout); never an unclear decision. */
+    onError?: (error: unknown) => void;
 };
 
 /** Where a chat reply came from, to find the approvals open there (internal). */
@@ -57,8 +59,6 @@ export type ChatApprovalPickInput = {
     /** The platform id of the message the reply quotes, if any. */
     quotedId?: string;
     platform?: IChatPlatform;
-    /** Whether a message id is one of the approval messages this channel sent. */
-    isApprovalMessage?: (messageId: string) => boolean;
     /** The scan was cut (`ChatOpenApprovals.truncated`): an approval open here may be missing from the list. */
     truncated?: boolean;
 };
@@ -71,15 +71,6 @@ export type ChatOpenApprovals = {
     truncated: boolean;
 };
 
-/** The approval a reply answers, a notice for the sender, or undefined: not an answer (internal). */
-export type ChatApprovalPick = { run: Run } | { notice: 'several' | 'closed' } | undefined;
+/** The approval a reply answers, the notice of several open ones, or undefined: not an answer (internal). */
+export type ChatApprovalPick = { run: Run } | { notice: 'several' } | undefined;
 
-/**
- * The platform ids of the approval messages a channel sent, the most recent
- * CHAT_ANSWER_RECORD_MAX (internal): tells a reply quoting an approval that
- * is no longer open from a quote of any other message.
- */
-export interface IChatApprovalRecord {
-    add(messageId: string): void;
-    has(messageId: string): boolean;
-}

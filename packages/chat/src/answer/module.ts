@@ -6,7 +6,7 @@
  */
 
 import { Permission, can } from '@chamvi/access';
-import { ErrorCode, IDEMPOTENCY_TTL_MS } from '@chamvi/core';
+import { ErrorCode } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import type { Invoker, Run } from '@chamvi/store';
 import type { LanguageModel } from 'ai';
@@ -16,8 +16,9 @@ import type { ChatIntakeContext, ChatPayload } from '../channel/types.ts';
 import type { ChatIncoming } from '../ingress/types.ts';
 import { CHAT_ID_MAX_LENGTH } from '../intake/constants.ts';
 import { classifyChatAnswer } from './classify.ts';
-import { CHAT_ANSWER_NOTICE_CLOSED, CHAT_ANSWER_NOTICE_SEVERAL } from './constants.ts';
+import { CHAT_ANSWER_CLAIM_TTL_MS, CHAT_ANSWER_NOTICE_CLOSED, CHAT_ANSWER_NOTICE_SEVERAL } from './constants.ts';
 import { findOpenChatApprovals, pickChatApproval } from './open.ts';
+import type { ChatAnswerDecision } from './types.ts';
 
 type ChatAnswerNotice = 'several' | 'closed';
 
@@ -121,61 +122,42 @@ async function sendChatAnswerNotice(
     }
 }
 
-/** The model that reads the reply, or undefined when it does not resolve. */
+/** The model that reads the reply, or undefined (reported to `onError`) when it does not resolve. */
 function resolveChatAnswerModel(ctx: ChatIntakeContext, run: Run): LanguageModel | undefined {
     try {
         return ctx.context.engine.resolveModel(ctx.options.answers?.model, run.agent);
-    } catch {
+    } catch (error) {
+        reportError(ctx.options, error);
+
         return undefined;
     }
 }
 
+/** What a reply was read as before its answer: handled already (a notice), not an answer, or the answer to give. */
+type ChatAnswerPlan = boolean | {
+    run: Run;
+    approvalId: string;
+    decision: Exclude<ChatAnswerDecision, 'unclear'>
+};
+
 /**
- * Answers an open approval of the reply's chat instead of dispatching the
- * reply (`answers` on). True when the message is handled (an approval
- * answered, a reply that already answered one, or a notice sent): it starts
- * no run. False, so the message is dispatched as usual, for anything
- * uncertain: no `answers`, no direct chat, no invoker, a quote that can name
- * no approval, no approval the reply answers, an invoker without
- * `chamvi_agent_approve` for the run's agent (checked before any model
- * call), a reply sent before the approval reached the chat or without a
- * send time, a model that does not resolve, a reply read as unclear.
- * Several open approvals and an unquoted reply (when the invoker may answer
- * one of them), or a quote of an approval no longer open, get a notice.
- * Each reply answers at most once: a durable claim (`chat_answer:<channel>`,
- * apart from every dispatch scope; per adapter, thread, author and message)
- * is taken right before the answer, so a redelivery answers no later
- * approval; a claim whose answer failed stays taken. An approval that
- * settled meanwhile gets the closed notice; any other approve failure
- * rejects (an intake failure).
+ * Everything before the answer: the pick, the guards, the classification
+ * and the durable claim. True when handled (a notice sent, or the reply
+ * answered already), false to dispatch it, else the answer to give.
  */
-export async function answerChatApproval(
+async function planChatAnswer(
     ctx: ChatIntakeContext,
-    incoming: ChatIncoming,
     payload: ChatPayload,
-    invoker: Invoker | undefined,
-): Promise<boolean> {
+    invoker: Invoker,
+    quotedId: string | undefined,
+): Promise<ChatAnswerPlan> {
     const { context, options } = ctx;
-    const { answers } = options;
-
-    if (!answers || payload.event !== 'direct' || !invoker) {
-        return false;
-    }
-
-    const quotedId = quotedIdOf(incoming, ctx);
-
-    // a quote that can name no approval is a plain message: it never falls back to the one open
-    if (quotedId === false) {
-        return false;
-    }
-
     const { engine } = context;
     const address = encodeChatAddress({ adapter: payload.adapter, threadId: payload.threadId }, options.adapterNames);
     const open = await findOpenChatApprovals(engine, { channel: options.name, address });
     const pick = pickChatApproval(open.runs, {
         ...(quotedId !== undefined ? { quotedId } : {}),
         ...(options.platform ? { platform: options.platform } : {}),
-        isApprovalMessage: (id) => ctx.approvals.has(id),
         truncated: open.truncated,
     });
 
@@ -185,7 +167,7 @@ export async function answerChatApproval(
 
     if ('notice' in pick) {
         // asking a sender who could answer none of them which one they mean would only swallow their message
-        if (pick.notice === 'several' && !await canApproveSomeChatRun(engine, invoker, open.runs)) {
+        if (!await canApproveSomeChatRun(engine, invoker, open.runs)) {
             return false;
         }
 
@@ -215,9 +197,10 @@ export async function answerChatApproval(
         model,
         title: run.waiting.title,
         text: payload.message.text,
-        timeoutMs: answers.timeoutMs,
+        timeoutMs: options.answers!.timeoutMs,
         clock: engine.clock,
         signal: ctx.signal,
+        onError: (error) => reportError(options, error),
     });
 
     if (decision === 'unclear') {
@@ -229,23 +212,86 @@ export async function answerChatApproval(
         `chat_answer:${options.name}`,
         hashKey([payload.adapter, payload.threadId, payload.message.author.id, payload.message.id]),
         run.id,
-        IDEMPOTENCY_TTL_MS,
+        CHAT_ANSWER_CLAIM_TTL_MS,
     );
 
     if (!claim.created) {
         return true;
     }
 
+    return {
+        run,
+        approvalId: run.waiting.approvalId,
+        decision,
+    };
+}
+
+/**
+ * Answers an open approval of the reply's chat instead of dispatching the
+ * reply (`answers` on). True when the message is handled (an approval
+ * answered, a reply that already answered one, or a notice sent): it starts
+ * no run. False, so the message is dispatched as usual, for anything
+ * uncertain: no `answers`, no direct chat, no invoker, a quote that names
+ * no open approval, no approval the reply answers, an invoker without
+ * `chamvi_agent_approve` for the run's agent (checked before any model
+ * call), a reply sent before the approval reached the chat or without a
+ * send time, a model that does not resolve, a reply read as unclear, and
+ * any failure before the answer (reported to `onError`; the dispatch keeps
+ * its own retry). Several open approvals and an unquoted reply (when the
+ * invoker may answer one of them) get a notice.
+ * Each reply answers at most once: a durable claim (`chat_answer:<channel>`,
+ * apart from every dispatch scope; per adapter, thread, author and message)
+ * is taken right before the answer, so a redelivery answers no later
+ * approval; a claim whose answer failed stays taken. An approval that
+ * settled meanwhile gets the closed notice; any other approve failure
+ * rejects (an intake failure).
+ */
+export async function answerChatApproval(
+    ctx: ChatIntakeContext,
+    incoming: ChatIncoming,
+    payload: ChatPayload,
+    invoker: Invoker | undefined,
+): Promise<boolean> {
+    const { context, options } = ctx;
+
+    if (!options.answers || payload.event !== 'direct' || !invoker) {
+        return false;
+    }
+
+    const quotedId = quotedIdOf(incoming, ctx);
+
+    // a quote that can name no approval is a plain message: it never falls back to the one open
+    if (quotedId === false) {
+        return false;
+    }
+
+    let plan: ChatAnswerPlan;
+
     try {
-        await engine.approve(run.id, {
-            approvalId: run.waiting.approvalId,
-            approved: decision === 'approve',
+        plan = await planChatAnswer(ctx, payload, invoker, quotedId);
+    } catch (error) {
+        // a store failure before the answer must not lose the message: it is dispatched with its retry
+        reportError(options, error);
+
+        return false;
+    }
+
+    if (typeof plan === 'boolean') {
+        return plan;
+    }
+
+    try {
+        await context.engine.approve(plan.run.id, {
+            approvalId: plan.approvalId,
+            approved: plan.decision === 'approve',
             reason: payload.message.text,
             approver: invoker,
         });
     } catch (error) {
         // by code, so another core copy's error counts too
         if (isObject(error) && error.code === ErrorCode.INVALID_RUN_STATE) {
+            const address = encodeChatAddress({ adapter: payload.adapter, threadId: payload.threadId }, options.adapterNames);
+
             await sendChatAnswerNotice(ctx, payload, address, 'closed');
 
             return true;

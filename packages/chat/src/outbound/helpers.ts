@@ -177,8 +177,8 @@ function renderApproval(message: ChannelMessage, options: ChatRenderOptions, max
         return `${prose}\n\n${structure}`;
     }
 
-    if (options.answers) {
-        // the owner must see what they approve: with answers on, never cut
+    if (answerable) {
+        // the owner must see what they approve in the chat: an approval answered there is never cut
         throw new ValidationError(
             `The approval has ${prose.length + 2 + structure.length} characters; the chat channel sends at most ${max} and an approval answered in the chat only whole.`,
         );
@@ -198,7 +198,8 @@ function renderApproval(message: ChannelMessage, options: ChatRenderOptions, max
  * `maxTextChars` characters (default `CHAT_TEXT_MAX_CHARS`). A message is its title and body; one
  * above the bound is a ValidationError (never split or cut). An approval is
  * its title and body (cut Unicode-safely when they do not fit, the only cut;
- * with `answers` never cut but refused), the options as `- <id>: <label>`
+ * one answerable in the chat (`answers`, no options, not generic) is never
+ * cut but refused), the options as `- <id>: <label>`
  * (never a detail), the expiry, with `answers` and no options
  * `CHAT_ANSWER_HINT`, and the link of `approvalUrl` (ids only, never a
  * token); options, expiry and link that cannot fit are a ValidationError, a

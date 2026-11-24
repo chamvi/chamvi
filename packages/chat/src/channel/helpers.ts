@@ -245,6 +245,11 @@ export function resolveOptions(options: ChatChannelOptions): ResolvedChatChannel
     }
 
     const answers = resolveAnswers(options.answers);
+
+    if (answers && !options.resolveInvoker) {
+        throw invalid('answers needs resolveInvoker: a reply answers only as the invoker it names.');
+    }
+
     const timeoutMs = options.timeoutMs ?? CHAT_TIMEOUT_MS;
 
     if (!isPositiveInteger(timeoutMs) || timeoutMs > TIMER_MAX_MS) {

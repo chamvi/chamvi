@@ -324,4 +324,20 @@ describe('renderChatMessage({ answers })', () => {
         expect(text).not.toContain(CHAT_ANSWER_HINT);
         expect(text).toContain('Approve or deny: https://chamvi.example/');
     });
+
+    it('cuts the prose of an approval with options or a generic one as without answers: they are not answered in the chat', () => {
+        const options = [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }];
+
+        for (const message of [
+            approval({ body: 'b'.repeat(5000), options }),
+            approval({ body: 'b'.repeat(5000), generic: true }),
+        ]) {
+            const text = renderChatMessage(message, { answers, approvalUrl: URL_OF });
+
+            expect(text).toBe(renderChatMessage(message, { approvalUrl: URL_OF }));
+            expect(text.length).toBeLessThanOrEqual(CHAT_TEXT_MAX_CHARS);
+            expect(text).not.toContain('b'.repeat(5000));
+            expect(text).toMatch(/approve or deny: https:\/\/chamvi\.example\//i);
+        }
+    });
 });

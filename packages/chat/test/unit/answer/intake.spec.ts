@@ -265,24 +265,75 @@ describe('answering approvals in chat intake', () => {
         expect(await ctx.assistantRuns()).toHaveLength(1);
     });
 
-    it('dispatches when the classifier fails', async () => {
+    it('dispatches when the classifier fails, reporting the failure once', async () => {
         const ctx = await setup({ model: failingModel() });
 
         await ctx.fixture.adapter.deliver(ctx.reply({ id: 'r-1', text: 'yes' }));
 
         expect((await ctx.run(ctx.ids[0]!)).status).toBe('waiting');
         expect(await ctx.assistantRuns()).toHaveLength(1);
+        expect(ctx.fixture.errors).toHaveLength(1);
+    });
+
+    it('dispatches a reply read as unclear without a report', async () => {
+        const ctx = await setup({ model: classifier('unclear') });
+
+        await ctx.fixture.adapter.deliver(ctx.reply({ id: 'r-1', text: 'hm' }));
+
+        expect(await ctx.assistantRuns()).toHaveLength(1);
         expect(ctx.fixture.errors).toEqual([]);
     });
 
-    it('dispatches when the answer model does not resolve', async () => {
+    it('dispatches when the answer model does not resolve, reporting the failure once', async () => {
         const ctx = await setup({ model: 'unknown-provider/some-model' });
 
         await ctx.fixture.adapter.deliver(ctx.reply({ id: 'r-1', text: 'yes' }));
 
         expect((await ctx.run(ctx.ids[0]!)).status).toBe('waiting');
         expect(await ctx.assistantRuns()).toHaveLength(1);
-        expect(ctx.fixture.errors).toEqual([]);
+        expect(ctx.fixture.errors).toEqual([expect.objectContaining({ code: 'invalid_agent_definition' })]);
+    });
+
+    it('reports a failing approval scan and dispatches the message', async () => {
+        const model = classifier('approve');
+        const ctx = await setup({ model });
+        const { runService } = ctx.fixture.engine;
+        const find = runService.find.bind(runService);
+        const failure = new Error('store down');
+
+        runService.find = async (query) => {
+            if (query?.waitKind === 'approval') {
+                throw failure;
+            }
+
+            return find(query);
+        };
+        await ctx.fixture.adapter.deliver(ctx.reply({ id: 'r-1', text: 'yes' }));
+
+        expect(ctx.fixture.errors).toEqual([failure]);
+        expect((await ctx.run(ctx.ids[0]!)).status).toBe('waiting');
+        expect(await ctx.assistantRuns()).toHaveLength(1);
+        expect(model.doGenerateCalls).toHaveLength(0);
+    });
+
+    it('reports a failing claim and dispatches the message', async () => {
+        const ctx = await setup({ model: classifier('approve') });
+        const service = ctx.fixture.engine.idempotencyService;
+        const claim = service.claim.bind(service);
+        const failure = new Error('store down');
+
+        service.claim = async (scope, ...rest) => {
+            if (scope.startsWith('chat_answer:')) {
+                throw failure;
+            }
+
+            return claim(scope, ...rest);
+        };
+        await ctx.fixture.adapter.deliver(ctx.reply({ id: 'r-1', text: 'yes' }));
+
+        expect(ctx.fixture.errors).toEqual([failure]);
+        expect((await ctx.run(ctx.ids[0]!)).status).toBe('waiting');
+        expect(await ctx.assistantRuns()).toHaveLength(1);
     });
 
     it('leaves the approval to a sender without chamvi_agent_approve and asks no model', async () => {
@@ -370,8 +421,12 @@ describe('answering approvals in chat intake', () => {
         expect(ctx.fixture.errors).toEqual([]);
     });
 
-    it('tells a reply quoting an approval already answered that it is closed, under one key per message', async () => {
-        const ctx = await setup({ model: classifier('approve') });
+    it('dispatches a reply quoting an approval already answered and answers nothing', async () => {
+        const model = mockModel([
+            { parts: [{ type: 'text', text: '{"decision":"approve"}' }] },
+            { parts: [{ type: 'text', text: '{"decision":"approve"}' }] },
+        ]);
+        const ctx = await setup({ model });
         const quoted = await ctx.approvalId(ctx.ids[0]!);
 
         await ctx.fixture.adapter.deliver(ctx.reply({
@@ -382,20 +437,15 @@ describe('answering approvals in chat intake', () => {
         await ctx.fixture.engine.idle();
         expect((await ctx.wait(ctx.ids[0]!))?.output).toMatchObject({ approved: true });
 
-        const late = ctx.reply({
+        await ctx.fixture.adapter.deliver(ctx.reply({
             id: 'r-2',
             text: 'yes',
             replyTo: quoted,
-        });
+        }));
 
-        await ctx.fixture.adapter.deliver(late);
-        await ctx.fixture.adapter.deliver(late);
-
-        const key = `answer:${hashKey(['fake', 'fake:chat-1', 'r-2'])}:closed`;
-
-        expect(ctx.notices()).toEqual([CHAT_ANSWER_NOTICE_CLOSED, CHAT_ANSWER_NOTICE_CLOSED]);
-        expect(ctx.keys.filter((item) => item.startsWith('answer:'))).toEqual([key, key]);
-        expect(await ctx.assistantRuns()).toEqual([]);
+        expect(ctx.notices()).toEqual([]);
+        expect(model.doGenerateCalls).toHaveLength(1);
+        expect(await ctx.assistantRuns()).toHaveLength(1);
     });
 
     it('tells closed when the approval settled between the pick and the answer', async () => {

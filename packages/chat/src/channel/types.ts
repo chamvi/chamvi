@@ -13,7 +13,7 @@ import type {
 } from '@chamvi/core';
 import type { Invoker } from '@chamvi/store';
 import type { Chat } from 'chat';
-import type { ChatAnswerOptions, IChatApprovalRecord, ResolvedChatAnswerOptions } from '../answer/types.ts';
+import type { ChatAnswerOptions, ResolvedChatAnswerOptions } from '../answer/types.ts';
 import type { ChatIncoming, ChatIngress } from '../ingress/types.ts';
 import type { ChatSubscriber } from '../subscription/types.ts';
 
@@ -96,6 +96,7 @@ export type ChatChannelOptions = {
      * options may be answered by replying to it in a direct chat, the reply
      * read by a model; its message ends with `CHAT_ANSWER_HINT` and is never
      * cut (prose that does not fit `maxTextChars` is a ValidationError).
+     * Needs `resolveInvoker`: a reply answers as the invoker it names.
      */
     answers?: ChatAnswerOptions;
     /** Platform-fetched history; only 0 (none) for now. */
@@ -106,7 +107,7 @@ export type ChatChannelOptions = {
      * The longest text one send posts, in UTF-16 code units: an integer of 1
      * to `CHAT_TEXT_MAX_CHARS` (the default), e.g. a platform's own message
      * limit. A longer message is refused, an approval's prose cut to fit
-     * (refused too with `answers`).
+     * (refused instead for one answerable in the chat with `answers`).
      */
     maxTextChars?: number;
     /** Failures nobody awaits (refused and failed messages, stop); default console.error. */
@@ -220,8 +221,6 @@ export type ChatIntakeContext = {
     options: ResolvedChatChannelOptions;
     /** The channel's own `out`, for the notices of answers. */
     out: NonNullable<IChannel['out']>;
-    /** The approval messages the channel sent. */
-    approvals: IChatApprovalRecord;
 };
 
 /** Accepts one incoming message: resolves once it is durably accepted (internal). */

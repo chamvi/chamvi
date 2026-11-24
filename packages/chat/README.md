@@ -214,12 +214,15 @@ Approvals (`ctx.channels.findOneOrFail('chat').approve()`) send a text with the 
 
 ## Answers in the chat
 
-`chatChannel({ answers: {} })` (off by default; `{ model?, timeoutMs? }`) lets the sender answer an approval by replying to it in a direct chat. A model reads the reply as approve, deny or unclear, in any language: by default the model of the approval's agent (else the engine's), bounded by `timeoutMs` (default `CHAT_ANSWER_TIMEOUT_MS`, 15 s). It sees only the approval's title and the reply, has no tools, and a failure or timeout counts as unclear. Only a direct message whose invoker holds `chamvi_agent_approve` for the run's agent answers, and only an approval that reached the chat before the reply was sent; the answer goes through `engine.approve()` with that invoker as approver, once per reply.
+`chatChannel({ answers: {} })` (off by default; `{ model?, timeoutMs? }`) lets the sender answer an approval by replying to it in a direct chat. A model reads the reply as approve, deny or unclear, in any language: by default the model of the approval's agent (else the engine's), bounded by `timeoutMs` (default `CHAT_ANSWER_TIMEOUT_MS`, 15 s). It sees only the approval's title and the reply, has no tools, and a model failure or timeout counts as unclear and is reported to `onError`. `answers` needs `resolveInvoker`. Only a direct message whose invoker holds `chamvi_agent_approve` for the run's agent answers, and only an approval that reached the chat before the reply was sent; the answer goes through `engine.approve()` with that invoker as approver, once per reply.
 
-- A reply quoting an approval message answers that approval, when the platform names its sent messages (`IChatPlatform.sentMessageId`); a quote of an approval that is no longer open gets `This approval is no longer open.`, whatever it says. A quote of any other message is an ordinary message.
+- A reply quoting an approval message answers that approval, when the platform names its sent messages (`IChatPlatform.sentMessageId`). A quote that names no open approval (any other message, or an approval no longer open) is an ordinary message.
 - A reply without a quote answers the one open approval of the chat; with several open, the sender is asked to quote the one meant.
-- Anything else (an unclear reply, a group message, a sender without the permission) starts runs as usual.
-- Approvals with options, and trust-gate approvals (`generic`), are not answerable in the chat and still need `approvalUrl`; an answerable approval ends with `Reply to this message to approve or deny.` (`CHAT_ANSWER_HINT`) and needs no link. With `answers`, an approval is never cut: one that does not fit `maxTextChars` is refused.
+- The reply's send time (the platform's clock) must not be before the approval's delivery (the server's clock): clock skew errs towards not answering.
+- A reply taken for an answer whose approval then fails is not retried: send a new message. An approval answered elsewhere meanwhile gets `This approval is no longer open.`
+- While a run that started in a chat (or its conversation) waits on an approval, the same agent's next run there waits behind it (per-chat and per-conversation run concurrency).
+- Anything else (an unclear reply, a group message, a sender without the permission, a store failure before the answer, reported to `onError`) starts runs as usual.
+- Approvals with options, and trust-gate approvals (`generic`), are not answerable in the chat, still need `approvalUrl` and are cut as without `answers`; an answerable approval ends with `Reply to this message to approve or deny.` (`CHAT_ANSWER_HINT`) and needs no link. An answerable approval is never cut: one that does not fit `maxTextChars` is not delivered (a `ValidationError` to `onError`), so tools must keep its title and body within the chat's limit.
 
 ## Memory
 
@@ -232,7 +235,7 @@ Every run a chat channel starts is tainted (`untrusted: true` by default; `false
 ## Limits
 
 - Text only: a message with attachments or without text is refused (reported, no run). No media download.
-- No history (`history: 0`), no message splitting: a message above `maxTextChars` (default `CHAT_TEXT_MAX_CHARS`, 4096 UTF-16 code units) is refused; an approval cuts only its prose (with `answers` it is refused too).
+- No history (`history: 0`), no message splitting: a message above `maxTextChars` (default `CHAT_TEXT_MAX_CHARS`, 4096 UTF-16 code units) is refused; an approval cuts only its prose (one answerable in the chat is refused instead).
 - `ChannelMessage.slot` is ignored: every message is a new chat message.
 - Delivery is at least once: a send is bounded by `timeoutMs` (default `CHAT_TIMEOUT_MS`, 30 s); a send that times out may still be delivered and a retry may send it again. A send while the channel is stopped or draining fails.
 

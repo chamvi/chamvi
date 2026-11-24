@@ -513,17 +513,20 @@ describe('chatChannel options', () => {
         expect(() => chatChannel(options({ account: 42 as unknown as string }))).toThrow(/account/);
     });
 
+    // answers needs an invoker to answer as
+    const resolveInvoker = () => undefined;
+
     it('answers is off by default and resolves with its defaults', () => {
         expect(resolveOptions(options()).answers).toBeUndefined();
         expect(CHAT_ANSWER_TIMEOUT_MS).toBe(15_000);
-        expect(resolveOptions(options({ answers: {} })).answers).toEqual({ timeoutMs: CHAT_ANSWER_TIMEOUT_MS });
-        expect(resolveOptions(options({ answers: { model: 'openai/gpt-5-mini', timeoutMs: 2 ** 31 - 1 } })).answers)
+        expect(resolveOptions(options({ resolveInvoker, answers: {} })).answers).toEqual({ timeoutMs: CHAT_ANSWER_TIMEOUT_MS });
+        expect(resolveOptions(options({ resolveInvoker, answers: { model: 'openai/gpt-5-mini', timeoutMs: 2 ** 31 - 1 } })).answers)
             .toEqual({ model: 'openai/gpt-5-mini', timeoutMs: 2 ** 31 - 1 });
 
         const model = textModel('approve');
 
         // a model object is kept as is, never resolved here
-        expect(resolveOptions(options({ answers: { model } })).answers?.model).toBe(model);
+        expect(resolveOptions(options({ resolveInvoker, answers: { model } })).answers?.model).toBe(model);
     });
 
     it('refuses invalid answers options', () => {
@@ -542,13 +545,20 @@ describe('chatChannel options', () => {
             { model: null },
             { model: true },
         ]) {
-            expect(() => resolveOptions(options({ answers: answers as never })), JSON.stringify(answers))
+            expect(() => resolveOptions(options({ resolveInvoker, answers: answers as never })), JSON.stringify(answers))
                 .toThrow(InvalidAgentDefinitionError);
-            expect(() => resolveOptions(options({ answers: answers as never })), JSON.stringify(answers))
+            expect(() => resolveOptions(options({ resolveInvoker, answers: answers as never })), JSON.stringify(answers))
                 .toThrow(/answers/);
         }
 
-        expect(() => resolveOptions(options({ answers: { timeoutMs: 1 } }))).not.toThrow();
+        expect(() => resolveOptions(options({ resolveInvoker, answers: { timeoutMs: 1 } }))).not.toThrow();
+    });
+
+    it('refuses answers without resolveInvoker: no reply could ever answer', () => {
+        const resolve = () => resolveOptions(options({ answers: {} }));
+
+        expect(resolve).toThrow(InvalidAgentDefinitionError);
+        expect(resolve).toThrow(/answers.*resolveInvoker|resolveInvoker.*answers/);
     });
 
     it('validates the other options', () => {

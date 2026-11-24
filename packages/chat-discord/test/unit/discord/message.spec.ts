@@ -234,4 +234,32 @@ describe('toChatMessage', () => {
         expect(Object.keys(parsed).sort()).toEqual(fields);
         expect(Object.keys(message).sort()).toEqual(fields);
     });
+
+    it('hands a native Discord Reply to intake without replyTo: it answers only as a plain reply', () => {
+        const target = adapter();
+        // a Reply (type 19) to a bot message, with its reference as discord.js and the API carry it
+        const raw = Object.assign(discordMessage({
+            guildId: null,
+            type: 19,
+            content: 'yes',
+            mentions: { users: [], repliedUser: BOT },
+        }), { reference: { messageId: '300000000000000000', channelId: DM_CHANNEL } });
+        const api = {
+            ...toApiMessage(raw),
+            message_reference: { message_id: '300000000000000000', channel_id: DM_CHANNEL },
+            referenced_message: {
+                ...toApiMessage(discordMessage({ guildId: null, id: '300000000000000000' })),
+                author: {
+                    id: BOT,
+                    username: 'chamvi',
+                    global_name: null,
+                    bot: true,
+                },
+            },
+        };
+
+        // the pinned adapter parses no quote; a bump that fills replyTo fails here and needs a matching decision
+        expect(target.parseMessage(api as never).replyTo).toBeUndefined();
+        expect(toChatMessage(target, raw, identity(raw)).replyTo).toBeUndefined();
+    });
 });

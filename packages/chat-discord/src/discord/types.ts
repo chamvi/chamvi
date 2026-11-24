@@ -219,7 +219,7 @@ export type DiscordChatOptions = {
     timeoutMs?: number;
     /**
      * Answers to approvals in a direct message (see chatChannel's `answers`); off by default.
-     * Discord assigns message ids, so a quote never answers: a plain reply answers the one open approval.
+     * Discord has no quote matching: a reply (a native Reply or not) answers only when exactly one approval is open.
      */
     answers?: ChatAnswerOptions;
     /** The connector's clock (login retry backoff, shutdown bound); default the engine's. */

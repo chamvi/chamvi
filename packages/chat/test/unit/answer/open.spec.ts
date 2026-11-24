@@ -283,34 +283,14 @@ describe('pickChatApproval', () => {
         })).toEqual({ run: second });
     });
 
-    it('tells a quote of a closed approval message', async () => {
+    it('answers nothing for a quote that matches no open approval, truncated or not', async () => {
         const open = await twoOpen();
 
+        expect(pickChatApproval(open, { quotedId: 'm:gone', platform: quoting })).toBeUndefined();
         expect(pickChatApproval(open, {
             quotedId: 'm:gone',
             platform: quoting,
-            isApprovalMessage: (id) => id === 'm:gone',
-        })).toEqual({ notice: 'closed' });
-    });
-
-    it('never tells closed after a cut scan: the quoted approval may be open unseen', async () => {
-        const open = await twoOpen();
-
-        expect(pickChatApproval(open, {
-            quotedId: 'm:gone',
-            platform: quoting,
-            isApprovalMessage: () => true,
             truncated: true,
-        })).toBeUndefined();
-    });
-
-    it('passes a quote of some other message through', async () => {
-        const open = await twoOpen();
-
-        expect(pickChatApproval(open, {
-            quotedId: 'm:chatter',
-            platform: quoting,
-            isApprovalMessage: () => false,
         })).toBeUndefined();
         expect(pickChatApproval(open.slice(0, 1), { quotedId: 'm:chatter', platform: quoting })).toBeUndefined();
     });

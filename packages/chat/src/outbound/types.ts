@@ -18,7 +18,7 @@ export type ChatSenderOptions = {
     adapters: readonly Adapter[];
     /** The approval link; required to send an approval with options, and without `answers` any approval. */
     approvalUrl?: (ref: ChatApprovalRef) => string;
-    /** Set when approvals are answered in the chat: the hint line, no cut. */
+    /** Set when approvals are answered in the chat: an answerable one (no options, not generic) gets the hint line and no cut. */
     answers?: ResolvedChatAnswerOptions;
     /** Bound of one send. */
     timeoutMs: number;

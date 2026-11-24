@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export { IDEMPOTENCY_TTL_MS } from './constants.ts';
 export * from './module.ts';
 export { formatRevision } from './registry/helpers.ts';
 export type {

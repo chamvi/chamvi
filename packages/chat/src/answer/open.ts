@@ -60,12 +60,12 @@ function findChatApprovalMessageId(run: Run, platform: IChatPlatform): string | 
 
 /**
  * Which open approval a reply answers. A quote answers the approval whose
- * message it quotes, tells a closed approval when it quotes an approval
- * message no longer open, and is no answer otherwise (it quotes some other
- * message, or the platform has no `sentMessageId` to match it).
- * Without a quote, one open approval is answered and several ask the
- * sender to quote the one meant. After a `truncated` scan nothing is decided
- * from absence: no auto-pick (a notice whenever one is open) and no closed.
+ * message it quotes and is no answer otherwise (it quotes some other
+ * message or an approval no longer open, or the platform has no
+ * `sentMessageId` to match it). Without a quote, one open approval is
+ * answered and several ask the sender to quote the one meant. After a
+ * `truncated` scan nothing is decided from absence: no auto-pick (a notice
+ * whenever one is open).
  */
 export function pickChatApproval(open: Run[], input: ChatApprovalPickInput): ChatApprovalPick {
     const {
@@ -82,11 +82,7 @@ export function pickChatApproval(open: Run[], input: ChatApprovalPickInput): Cha
 
         const run = open.find((item) => findChatApprovalMessageId(item, platform) === quotedId);
 
-        if (run) {
-            return { run };
-        }
-
-        return !truncated && input.isApprovalMessage?.(quotedId) === true ? { notice: 'closed' } : undefined;
+        return run ? { run } : undefined;
     }
 
     if (open.length === 1 && !truncated) {
