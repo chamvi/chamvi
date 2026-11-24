@@ -65,7 +65,7 @@ export function createAuthupRemote(options: AuthupModuleOptions): {
     const realm = options.clientRealm ?? readAuthupRealm(env);
 
     const client = new Client({ baseURL: url });
-    // not createClientTokenCreator: it sends no realm_id, which authup needs to find a client by name
+    // Upstream: authup/authup#3908 (createClientTokenCreator sends no realm_id, which authup needs to find a client by name)
     const creator: TokenCreator = () => client.token.createWithClientCredentials({
         client_id: id,
         client_secret: secret,
