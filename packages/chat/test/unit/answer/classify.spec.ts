@@ -190,8 +190,9 @@ describe('classifyChatAnswer', () => {
 
             return {
                 clear: () => {
-                    cleared(); timer.clear(); 
-                }, 
+                    cleared();
+                    timer.clear();
+                },
             };
         });
 

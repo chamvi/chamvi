@@ -200,6 +200,7 @@ A platform package (such as [`@chamvi/chat-whatsapp`](https://www.npmjs.com/pack
 | `online()` | per send, after `prepare`, only while the channel is started | false refuses the send (`chat_request`, nothing posted); default true |
 | `prepare({ adapter, threadId, text, key })` | per send, after the address decoded and the message rendered, before `online` | a throw refuses the target (its error as is); else the post `(signal) => Promise` the channel calls once, bounded by `timeoutMs` and the send's signal (a failure a `chat_request`); its `signal` aborts at whichever comes first, so the platform can cancel its request; `key` is the message key, so a transport can derive a stable message id. Default the adapter's `postMessage(threadId, { raw: text })` |
 | `conversationTarget(incoming, payload)` | per agent with `conversation`, after `allowMessage`, the text checks and `resolveInvoker` | the conversation identity; undefined refuses that agent (`chat_intake_failed`), a throw fails the message. Default from the payload |
+| `sentMessageId({ key })` | with `answers`, per reply that quotes a message | the platform id of the message sent under `key` (the id `prepare` sends), so a quote matches its approval; without it a quote never answers. Default none |
 
 The channel checks the platform at construction (`InvalidAgentDefinitionError` for one that is no object, a hook that is no function, or a plain object with a key that is no hook). Its socket lifecycle stays with `connect`/`disconnect`, its message policy with `allowMessage`/`resolveInvoker`.
 
@@ -209,7 +210,16 @@ The channel checks the platform at construction (`InvalidAgentDefinitionError` f
 
 A message is accepted once per agent (the idempotency key hashes channel, adapter, thread, sender and message id), so a redelivery starts no second run; a transient store failure is retried twice (1 s, 2 s), then reported as `chat_intake_failed`.
 
-Approvals (`ctx.channels.findOneOrFail('chat').approve()`) send a text with the title, the body (cut to fit), the options and the `approvalUrl` link (`Approve or deny: <link>`, with options `Choose and approve or deny: <link>`); the owner answers in the chamvi UI. The link carries ids only; there are no native buttons, and a reply in the chat does not answer an approval.
+Approvals (`ctx.channels.findOneOrFail('chat').approve()`) send a text with the title, the body (cut to fit), the options and the `approvalUrl` link (`Approve or deny: <link>`, with options `Choose and approve or deny: <link>`); the owner answers in the chamvi UI. The link carries ids only; there are no native buttons. Without `answers`, a reply in the chat does not answer an approval.
+
+## Answers in the chat
+
+`chatChannel({ answers: {} })` (off by default; `{ model?, timeoutMs? }`) lets the sender answer an approval by replying to it in a direct chat. A model reads the reply as approve, deny or unclear, in any language: by default the model of the approval's agent (else the engine's), bounded by `timeoutMs` (default `CHAT_ANSWER_TIMEOUT_MS`, 15 s). It sees only the approval's title and the reply, has no tools, and a failure or timeout counts as unclear. Only a direct message whose invoker holds `chamvi_agent_approve` for the run's agent answers, and only an approval that reached the chat before the reply was sent; the answer goes through `engine.approve()` with that invoker as approver, once per reply.
+
+- A reply quoting an approval message answers that approval, when the platform names its sent messages (`IChatPlatform.sentMessageId`); a quote of an approval that is no longer open gets `This approval is no longer open.`, whatever it says. A quote of any other message is an ordinary message.
+- A reply without a quote answers the one open approval of the chat; with several open, the sender is asked to quote the one meant.
+- Anything else (an unclear reply, a group message, a sender without the permission) starts runs as usual.
+- Approvals with options, and trust-gate approvals (`generic`), are not answerable in the chat and still need `approvalUrl`; an answerable approval ends with `Reply to this message to approve or deny.` (`CHAT_ANSWER_HINT`) and needs no link. With `answers`, an approval is never cut: one that does not fit `maxTextChars` is refused.
 
 ## Memory
 
@@ -222,7 +232,7 @@ Every run a chat channel starts is tainted (`untrusted: true` by default; `false
 ## Limits
 
 - Text only: a message with attachments or without text is refused (reported, no run). No media download.
-- No history (`history: 0`), no message splitting: a message above `maxTextChars` (default `CHAT_TEXT_MAX_CHARS`, 4096 UTF-16 code units) is refused; an approval cuts only its prose.
+- No history (`history: 0`), no message splitting: a message above `maxTextChars` (default `CHAT_TEXT_MAX_CHARS`, 4096 UTF-16 code units) is refused; an approval cuts only its prose (with `answers` it is refused too).
 - `ChannelMessage.slot` is ignored: every message is a new chat message.
 - Delivery is at least once: a send is bounded by `timeoutMs` (default `CHAT_TIMEOUT_MS`, 30 s); a send that times out may still be delivered and a retry may send it again. A send while the channel is stopped or draining fails.
 

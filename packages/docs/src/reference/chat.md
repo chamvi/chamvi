@@ -20,6 +20,8 @@ const CHAT_TIMEOUT_MS: 30_000;            // one send
 const CHAT_BODY_LIMIT_BYTES: 1_048_576;   // one webhook body
 const CHAT_WEBHOOK_TIMEOUT_MS: 30_000;    // waiting for the webhook's messages
 const CHAT_STOP_TIMEOUT_MS: 30_000;       // waiting for messages being accepted at stop
+const CHAT_ANSWER_TIMEOUT_MS: 15_000;     // reading one reply to an approval
+const CHAT_ANSWER_HINT: 'Reply to this message to approve or deny.';
 const CHAT_REQUEST_ERROR_CODE: 'chat_request';
 const CHAT_INTAKE_FAILED_ERROR_CODE: 'chat_intake_failed';
 const CHAT_STOP_TIMEOUT_ERROR_CODE: 'chat_stop_timeout';
@@ -38,7 +40,8 @@ const CHAT_STOP_TIMEOUT_ERROR_CODE: 'chat_stop_timeout';
 | `account` | The conversation account alias; default the adapter's name |
 | `defaultAddress` | An address of `to()`; none by default (an ungated sink for tainted runs) |
 | `connect({ signal, clock })`, `disconnect()` | Called on start (after the `Chat` initialized) and on stop; `connect` must settle once `signal` aborts |
-| `approvalUrl(ref)` | Required to send an approval |
+| `approvalUrl(ref)` | Required to send an approval; with `answers`, only for one with options or a trust-gate notice |
+| `answers` | `{ model?, timeoutMs? }`: approvals answered by a reply in a direct chat ([below](#answers-in-the-chat)); off by default |
 | `history` | Only `0`: no platform history is fetched |
 | `timeoutMs` | One send's bound, default `CHAT_TIMEOUT_MS` |
 | `maxTextChars` | The longest message sent (UTF-16 code units), an integer from 1 to `CHAT_TEXT_MAX_CHARS`, default `CHAT_TEXT_MAX_CHARS` (Discord passes 2000) |
@@ -54,6 +57,7 @@ interface IChatPlatform {
     online?(): boolean;
     prepare?(input: ChatPlatformSend): ChatPlatformPost;
     conversationTarget?(incoming: ChatIncoming, payload: ChatPayload): ConversationTarget | undefined;
+    sentMessageId?(send: { key: string }): string | undefined;
 }
 type ChatPlatformSend = { adapter: string; threadId: string; text: string; key: string };
 type ChatPlatformPost = (signal: AbortSignal) => Promise<unknown>;
@@ -68,10 +72,11 @@ A platform package builds its `Chat`, its wrapped adapter and a `chatChannel()` 
 | `online()` | Per send, after `prepare`, only while the channel is started | False refuses the send (`chat_request`, nothing posted). Default true |
 | `prepare(input)` | Per send, after the address decoded and the message rendered, before `online` | A throw refuses the target (its error reaches the caller as is, nothing goes out); else the post (`ChatPlatformPost`) the channel calls once and waits for, bounded by `timeoutMs` and the send's signal. The post gets a signal that aborts at whichever comes first, so it can cancel its request; a failure is a `chat_request`, a late outcome goes to `onError` (not a rejection with that abort reason). `key` is `ChannelMessage.key`, the same on every retry. Default the adapter's `postMessage(threadId, { raw: text })` |
 | `conversationTarget(incoming, payload)` | Per agent with `conversation`, after `allowMessage`, the text checks and `resolveInvoker` (never for a refused message) | The conversation identity; `undefined` refuses that agent's dispatch (`chat_intake_failed`, the other agents still run), a throw fails the message. Default from the payload, as in [Memory and trust](#memory-and-trust) |
+| `sentMessageId({ key })` | With `answers`, per reply that quotes a message | The platform's id of the message sent under `key` (the id `prepare` sends), so a quote matches its approval. Without it a quote never answers. WhatsApp has it; Discord cannot (Discord assigns message ids) |
 
 ### Intake
 
-Per message, in order: the bot's own messages are skipped; ids are checked (`ValidationError`, never echoing ids or text); `allowMessage` decides; a message with attachments or without text is refused (`ValidationError` to `onError`); `resolveInvoker`; then every agent with a matching subscription gets one run, through the engine's trusted conversation intake for an agent with `conversation`, else a plain dispatch. The idempotency key hashes channel, adapter, thread, sender and message id, so a redelivery dedupes per agent; a plain dispatch also gets a per-chat concurrency key. A transient failure (a store write) is retried after 1 s and 2 s; an agent already accepted is not dispatched again. What still fails is reported once as `chat_intake_failed`, naming channel, adapter and agents, never the text.
+Per message, in order: the bot's own messages are skipped; ids are checked (`ValidationError`, never echoing ids or text); `allowMessage` decides; a message with attachments or without text is refused (`ValidationError` to `onError`); `resolveInvoker`; with `answers`, a reply that answers an approval stops here ([below](#answers-in-the-chat)); then every agent with a matching subscription gets one run, through the engine's trusted conversation intake for an agent with `conversation`, else a plain dispatch. The idempotency key hashes channel, adapter, thread, sender and message id, so a redelivery dedupes per agent; a plain dispatch also gets a per-chat concurrency key. A transient failure (a store write) is retried after 1 s and 2 s; an agent already accepted is not dispatched again. What still fails is reported once as `chat_intake_failed`, naming channel, adapter and agents, never the text.
 
 ### Webhooks
 
@@ -89,7 +94,23 @@ channel.on(options?), channel.to({ adapter, threadId }): string;
 
 ### Outbound
 
-`emit()` sends `title`, a blank line and `body`, refused above `maxTextChars` (default `CHAT_TEXT_MAX_CHARS`; no splitting). `approve()` sends the title and body (only this prose is cut, surrogate-safe), the options (`- <id>: <label>`, no detail), `Expires: <ISO>` and `Approve or deny: <approvalUrl>` (with options `Choose and approve or deny: <approvalUrl>`); the owner answers in the UI, there are no native buttons. `ChannelMessage.slot` is ignored: every message is a new chat message. A send is bounded by `timeoutMs`; a timeout fails with `chat_request` saying the message may still be delivered, a late completion is reported, and the engine's retry may send it again (at least once). A send while the channel is stopped or draining fails.
+`emit()` sends `title`, a blank line and `body`, refused above `maxTextChars` (default `CHAT_TEXT_MAX_CHARS`; no splitting). `approve()` sends the title and body (only this prose is cut, surrogate-safe), the options (`- <id>: <label>`, no detail), `Expires: <ISO>` and `Approve or deny: <approvalUrl>` (with options `Choose and approve or deny: <approvalUrl>`); the owner answers in the UI, or with `answers` by a reply, there are no native buttons. With `answers` no approval is cut: one that does not fit is a `ValidationError`. `ChannelMessage.slot` is ignored: every message is a new chat message. A send is bounded by `timeoutMs`; a timeout fails with `chat_request` saying the message may still be delivered, a late completion is reported, and the engine's retry may send it again (at least once). A send while the channel is stopped or draining fails.
+
+### Answers in the chat
+
+```ts
+type ChatAnswerOptions = { model?: ModelRef; timeoutMs?: number }; // default the approval's agent model, CHAT_ANSWER_TIMEOUT_MS
+```
+
+With `answers`, the owner can answer an approval by replying to it in a direct chat, in their own words and any language. A model reads the reply as approve, deny or unclear: by default the model of the approval's agent (else the app's), with no tools, seeing only the approval's title and the reply; a failure or timeout counts as unclear. An approval the chat can answer has no options and is no trust-gate notice; its message ends with `CHAT_ANSWER_HINT` and needs no `approvalUrl`.
+
+- **Who**: only a direct message, whose invoker holds `chamvi_agent_approve` for the run's agent (checked before the model reads anything). The answer goes through `engine.approve()` with that invoker as approver.
+- **Which approval**: a reply quoting an approval message answers that approval (on platforms with `sentMessageId`). A quote of an approval that is no longer open, whatever it says, gets `This approval is no longer open.` and does not reach the agent. A quote of any other message is an ordinary message. A reply without a quote answers the one open approval of the chat; with several open, the sender is asked to quote the one meant.
+- **When**: only an approval that was delivered to the chat and has not expired, and only a reply sent after that delivery.
+- **Once**: a reply answers at most one approval, once, also when the platform redelivers it.
+- Anything else (an unclear reply, a group message, a sender without the permission, a quote of an ordinary message) starts runs as usual.
+
+Fixed answer words were rejected: the reply may be in any language. The agent's own model does not read it either, since an injected message could steer it.
 
 ### Memory and trust
 

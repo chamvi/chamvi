@@ -127,6 +127,7 @@ function quotedOf(content: WAMessageContent | undefined, threadId: string): Mess
         formatted: parseMarkdown(''),
         raw: undefined,
         author: {
+            // a display value the sender's client fills in: never use it for a trust decision
             userId: typeof info?.participant === 'string' ? info.participant : '',
             userName: '',
             fullName: '',

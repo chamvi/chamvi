@@ -78,9 +78,9 @@ describe('engine.resolveModel', () => {
         const engine = setup({
             model: mockModel([]),
             agents: [defineModelAgent({
-                name: 'a', 
-                instructions: 'A.', 
-                model: own, 
+                name: 'a',
+                instructions: 'A.',
+                model: own,
             })],
         });
 

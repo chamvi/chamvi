@@ -23,7 +23,7 @@ Before a live cutover:
 
 1. **One connector per bot token.** One deployment, `Recreate` (stop, then start), one replica. Two processes on one token both receive every message. The `agent-app` chart's Recreate strategy fits.
 2. **The policy, by ids.** List guild, channel, user and role ids (enable Developer Mode in Discord to copy them). Names, nicknames and role names are never consulted, so a renamed or look-alike account gains nothing.
-3. **An approval URL** into the chamvi UI, and an owner principal that can answer there. Approvals are answered in the UI only.
+3. **An approval URL** into the chamvi UI, and an owner principal that can answer there. Approvals are answered in the UI, or with `answers` by a reply in a DM (see [Answers in the chat](/reference/chat#answers-in-the-chat)): Discord cannot match a quoted message, so a quote never answers, and a plain reply answers only when exactly one approval is open in that DM.
 4. **Memory**, if the agent uses `conversation: true`: a store with conversations (PostgreSQL through `@chamvi/store-db` for restart-durable memory) and a `conversations.authorize` policy. A channel's top-level messages share one memory among the people allowed there.
 5. **Trust.** Runs are tainted by default: tools marked `guardWhenTainted` need approval. Replies to the source channel or thread are not gated; do not set a `defaultAddress` unless that channel may receive whatever a tainted run produces.
 
@@ -65,6 +65,7 @@ const DISCORD_SHUTDOWN_TIMEOUT_MS: 30_000;
 | `resolveInvoker(identity)` | Required. The invoker of an allowed message's runs; `undefined` denies the message |
 | `state` | Required. The Chat SDK `StateAdapter` of the `Chat` |
 | `approvalUrl(ref)` | Required. The approval link, `ref = { runId, approvalId, agent }` (ids only) |
+| `answers` | `{ model?, timeoutMs? }`: approvals answered by a DM reply (see above); off by default |
 | `name`, `untrusted`, `timeoutMs` | As for [`chatChannel()`](/reference/chat#chatchannel) |
 | `clock` | The connector's clock (login backoff, shutdown bound); default the engine's |
 | `onError` | Failures nobody awaits; default `console.error` |
@@ -110,7 +111,7 @@ The DM channel id is the one in the DM's URL (`https://discord.com/channels/@me/
 
 ### Delivery
 
-A send is one `POST /channels/<channel or thread>/messages` with the body `{ content, allowed_mentions: { parse: [] }, nonce, enforce_nonce: true }`: replies never ping anyone. The nonce is the first 25 hex characters of the SHA-256 of the channel name, the target channel or thread id and the message key (so one key sent to two channels posts in both), so a retry within Discord's nonce window returns the first message instead of posting a copy; beyond the window a retry may post again (at least once). The send's deadline aborts the request. A non-2xx answer, a 429 included, is `chat_request` naming the status and Discord's error code, without the token; chamvi has no retry loop of its own (the engine's effect retry applies). Text is at most 2000 characters, never split; an approval's prose is cut to fit, followed by the link into the UI.
+A send is one `POST /channels/<channel or thread>/messages` with the body `{ content, allowed_mentions: { parse: [] }, nonce, enforce_nonce: true }`: replies never ping anyone. The nonce is the first 25 hex characters of the SHA-256 of the channel name, the target channel or thread id and the message key (so one key sent to two channels posts in both), so a retry within Discord's nonce window returns the first message instead of posting a copy; beyond the window a retry may post again (at least once). The send's deadline aborts the request. A non-2xx answer, a 429 included, is `chat_request` naming the status and Discord's error code, without the token; chamvi has no retry loop of its own (the engine's effect retry applies). Text is at most 2000 characters, never split; an approval's prose is cut to fit (with `answers` refused instead), followed by the link into the UI.
 
 ### With @chamvi/app
 

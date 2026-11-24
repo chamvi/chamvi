@@ -166,7 +166,7 @@ export type WhatsAppChatOptions = {
     resolveInvoker: (identity: WhatsAppIdentity) => Invoker | undefined | Promise<Invoker | undefined>;
     /** The Chat SDK state adapter of the Chat. */
     state: StateAdapter;
-    /** The approval link (ids only); approvals are answered in the UI. */
+    /** The approval link (ids only); approvals are answered in the UI, or in a direct chat with `answers`. */
     approvalUrl: (ref: ChatApprovalRef) => string;
     /** Receives pairing material (a QR) while the account is not paired. */
     onPairing: (pairing: WhatsAppPairing) => void;
