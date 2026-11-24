@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ModelRef } from '@chamvi/core';
+import type { IClock, ModelRef } from '@chamvi/core';
+import type { LanguageModel } from 'ai';
 
 /**
  * Answers to approvals in the chat (`chatChannel({ answers })`): a direct
@@ -26,4 +27,19 @@ export type ChatAnswerOptions = {
 export type ResolvedChatAnswerOptions = {
     model?: ModelRef;
     timeoutMs: number;
+};
+
+/** How a chat reply reads against an approval (internal). */
+export type ChatAnswerDecision = 'approve' | 'deny' | 'unclear';
+
+/** The input of classifyChatAnswer() (internal): only the approval title and the reply reach the model. */
+export type ChatAnswerClassifyInput = {
+    model: LanguageModel;
+    /** The approval's title. */
+    title: string;
+    /** The reply text. */
+    text: string;
+    timeoutMs: number;
+    clock: IClock;
+    signal: AbortSignal;
 };
