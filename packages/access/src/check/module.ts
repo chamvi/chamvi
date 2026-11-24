@@ -18,7 +18,11 @@ import type { PermissionCheckOptions, PermissionHolder } from '../permission/typ
 /** The evaluators of one holder: absent where a source grants nothing. */
 type Evaluators = {
     flat?: IPermissionEvaluator;
-    snapshot?: { evaluator: IPermissionEvaluator; realm: string };
+    snapshot?: {
+        evaluator: IPermissionEvaluator;
+        realm: string;
+        client?: string;
+    };
 };
 
 /** A built pair and the serialized holder content it was built from. */
@@ -66,16 +70,20 @@ async function check(holder: PermissionHolder, name: string, options: Permission
             return false;
         }
 
-        // the global definition, then the one owned by chamvi's realm; a client-owned one is never asked for
-        for (const realmId of [undefined, snapshot.realm]) {
+        // an owner client: only its definition in chamvi's realm; else the global one, then the realm-owned one
+        const owners: { realmId?: string; clientId?: string }[] = snapshot.client ?
+            [{ realmId: snapshot.realm, clientId: snapshot.client }] :
+            [{}, { realmId: snapshot.realm }];
+
+        for (const owner of owners) {
             const data = buildData(options);
 
             data.set(BuiltInPolicyType.REALM_MATCH, snapshot.realm);
 
             if (await passes(snapshot.evaluator, {
-                name, 
-                data, 
-                ...(realmId ? { realmId } : {}), 
+                name,
+                data,
+                ...owner,
             }, some)) {
                 return true;
             }
@@ -188,7 +196,11 @@ async function buildSnapshot(holder: PermissionHolder): Promise<Evaluators['snap
             identity: rest,
         });
 
-        return { evaluator, realm: authorization.realm };
+        return {
+            evaluator,
+            realm: authorization.realm,
+            ...(authorization.client ? { client: authorization.client } : {}),
+        };
     } catch {
         return undefined;
     }

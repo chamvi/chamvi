@@ -30,6 +30,11 @@ export type PermissionAuthorization = {
     snapshot: AuthorizationSnapshot;
     /** The realm chamvi's resources belong to; every check reaches into it. */
     realm: string;
+    /**
+     * The owner client id. Present, every check asks only that client's
+     * definition in `realm`; absent, the global then the realm-owned one.
+     */
+    client?: string;
 };
 
 /** Anything that holds grants: a principal, a run's invoker. */

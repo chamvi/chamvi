@@ -16,12 +16,17 @@ export function isPermissionBinding(value: unknown): value is PermissionBinding 
 }
 
 /**
- * True for an object with a non-empty string `realm` and a `snapshot` whose
- * `definitions` are bindings and whose `grants` are absent or bindings. A
- * shallow check: the evaluator validates the policy trees when a check runs.
+ * True for an object with a non-empty string `realm`, a `client` that is
+ * absent or a non-empty string, and a `snapshot` whose `definitions` are
+ * bindings and whose `grants` are absent or bindings. A shallow check: the
+ * evaluator validates the policy trees when a check runs.
  */
 export function isPermissionAuthorization(value: unknown): value is PermissionAuthorization {
-    if (!isObject(value) || typeof value.realm !== 'string' || value.realm.length === 0) {
+    if (!isObject(value) || !isNonEmptyString(value.realm)) {
+        return false;
+    }
+
+    if (typeof value.client !== 'undefined' && !isNonEmptyString(value.client)) {
         return false;
     }
 
@@ -72,6 +77,10 @@ function readGrants(holder: unknown): PermissionBinding[] {
     }
 
     return [...holder.authorization.snapshot.grants ?? []];
+}
+
+function isNonEmptyString(value: unknown): value is string {
+    return typeof value === 'string' && value.length > 0;
 }
 
 function isBindingList(value: unknown): value is PermissionBinding[] {
