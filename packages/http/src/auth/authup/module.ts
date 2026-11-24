@@ -20,6 +20,9 @@ import type { AuthupOptions } from './types.ts';
 
 const CATALOG_MAX_AGE_MS = 60_000;
 
+/** The `@authup/errors` codes of a verifier that could not reach authup (a transitive package, so matched by code). */
+const UPSTREAM_CODES = new Set<unknown>(['upstream_error', 'upstream_timeout']);
+
 function grantsGlobal(scope: unknown): boolean {
     return typeof scope === 'string' && scope.split(' ').includes('global');
 }
@@ -167,6 +170,11 @@ export function authup(options: AuthupOptions): Authenticator {
             // authup did not answer in time: the token is not known to be invalid
             if (isObject(cause) && cause.code === ErrorCode.TIMEOUT) {
                 throw new ServiceUnavailableError({ message: 'The access token could not be verified in time.', cause });
+            }
+
+            // introspection, the verifier's token mint or the JWK fetch failed: an outage, not an invalid token
+            if (isObject(cause) && UPSTREAM_CODES.has(cause.code)) {
+                throw new ServiceUnavailableError({ message: 'The access token could not be verified: authup is unreachable.', cause });
             }
 
             throw new UnauthorizedError({ message: 'The access token is invalid.', cause });

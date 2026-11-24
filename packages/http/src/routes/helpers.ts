@@ -7,13 +7,13 @@
 
 /**
  * The raw rest of `pathname` below `basePath` and the route's `path`
- * (matched case-insensitively, as routup does; the rest keeps its case and
+ * (matched case-sensitively, as routup does; the rest keeps its
  * percent-encoding): `''` for the path itself, else starting with `/`.
  */
 export function routeSubpath(pathname: string, basePath: string, path: string): string {
     const prefix = `${basePath}${path}`;
 
-    if (pathname.slice(0, prefix.length).toLowerCase() !== prefix.toLowerCase()) {
+    if (!pathname.startsWith(prefix)) {
         return '';
     }
 

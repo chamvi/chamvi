@@ -2,6 +2,18 @@
 
 chamvi is pre-1.0: a minor release may break the API. Each section lists what changed and the exact replacement.
 
+## Upgrading to 0.11
+
+chamvi moves to routup 6.5 and authup 1.0.0-beta.77. An app that pinned `ioredis` for the `ERESOLVE` described under 0.9 can drop the `overrides` entry: `@authup/server-adapter-kit` no longer peers `ioredis`. When the `authup()` authenticator cannot reach authup (introspection, the verifier's token, the JWKs), a request answers 503 instead of 401, so the dashboard no longer signs out during an authup outage.
+
+### Breaking changes
+
+| Change | Before | Replacement |
+|---|---|---|
+| Path matching (`@chamvi/http`) | Static path segments matched in any letter case (`/DOCS`, `/Runs/:id`, `/HEALTHZ`) | Paths match in their exact case; another case answers 404, and a wrong-case `/HEALTHZ` is rate limited. Call routes, probes and webhooks with the exact path, `basePath` included. Extra routes and controller paths that differ from a built-in route or from each other only by case are accepted as separate routes |
+| `rateLimit.trustProxy` (`@chamvi/http`) | Accepted and ignored | Removed from the option type; the app's `trustProxy` decides the client address the limiter keys by |
+| `GET /runs/:id/artifacts/:artifactId` (`@chamvi/http`) | `attachment; filename="…"; filename*=UTF-8''…` for every name, `_` for characters outside ASCII | An ASCII name as `filename` only (quoted when needed); a non-ASCII name with `filename*` and `?` in the `filename` fallback |
+
 ## Upgrading to 0.10
 
 A connection row is identified by its id, its generation, never by a timestamp: a save made from a form that another save, a WhatsApp reset or a delete and create replaced answers 409 `connection_changed`, and the dashboard keeps the typed values and offers **Reload values**. No migration: the id is the row's existing primary key.

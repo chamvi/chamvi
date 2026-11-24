@@ -78,7 +78,7 @@ describe('approval artifacts on the run wire', () => {
 
         expect(response.status).toBe(200);
         expect(response.headers.get('content-type')).toBe('image/png');
-        expect(response.headers.get('content-disposition')).toBe('attachment; filename="button-diff.png"; filename*=UTF-8\'\'button-diff.png');
+        expect(response.headers.get('content-disposition')).toBe('attachment; filename=button-diff.png');
         expect(new Uint8Array(await response.arrayBuffer())).toEqual(SHOTS_PNG);
 
         const list = await call(app, 'GET', `/runs/${runId}/artifacts`, { token: READER_TOKEN });

@@ -113,8 +113,23 @@ describe('GET /runs/:id/artifacts/:artifactId', () => {
         const response = await call(ctx.app, 'GET', `/runs/${runId}/artifacts/${artifact!.id}`, { token: ADMIN_TOKEN });
 
         expect(response.headers.get('content-disposition')).toBe(
-            'attachment; filename="r_sum_ _v1_ (final).txt"; filename*=UTF-8\'\'r%C3%A9sum%C3%A9%20%22v1%22%20%28final%29.txt',
+            'attachment; filename="r?sum? \\"v1\\" (final).txt"; filename*=UTF-8\'\'r%C3%A9sum%C3%A9%20%22v1%22%20%28final%29.txt',
         );
+    });
+
+    it('keeps the stored media type when the filename names another', async () => {
+        const ctx = createRunTestApp();
+        const runId = await startWith(ctx, [{
+            mediaType: 'text/plain', 
+            filename: 'report.html', 
+            data: b64('<p>x</p>'), 
+        }]);
+        const [artifact] = await ctx.store.artifactService.find(runId);
+        const response = await call(ctx.app, 'GET', `/runs/${runId}/artifacts/${artifact!.id}`, { token: ADMIN_TOKEN });
+
+        expect(response.headers.get('content-type')).toBe('text/plain');
+        expect(response.headers.get('content-disposition')).toBe('attachment; filename=report.html');
+        expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     });
 
     it('answers 404 for an unknown artifact', async () => {

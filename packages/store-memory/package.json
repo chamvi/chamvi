@@ -50,8 +50,8 @@
     "license": "Apache-2.0",
     "dependencies": {
         "@chamvi/store": "^0.10.0",
-        "@rapiq/adapter-memory": "^2.4.1",
-        "@rapiq/core": "^2.4.1",
+        "@rapiq/adapter-memory": "^2.5.1",
+        "@rapiq/core": "^2.5.1",
         "smob": "^1.6.2"
     }
 }

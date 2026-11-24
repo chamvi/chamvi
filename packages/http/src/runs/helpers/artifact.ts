@@ -30,22 +30,3 @@ export async function loadRunArtifact(ctx: Pick<HttpContext, 'artifactService'>,
 export function toBody(data: Uint8Array): Uint8Array<ArrayBuffer> {
     return data.buffer instanceof ArrayBuffer ? data as Uint8Array<ArrayBuffer> : new Uint8Array(data);
 }
-
-/** A quoted-string fallback: printable ASCII only, without `"` and `\`. */
-function asciiFilename(filename: string): string {
-    return filename.replace(/[^\x20-\x7e]|["\\]/g, '_');
-}
-
-/** RFC 5987 `ext-value` characters: what encodeURIComponent leaves, minus `'()*`. */
-function encodeRfc5987(value: string): string {
-    return encodeURIComponent(value).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
-}
-
-/** `attachment`, with `filename` and an RFC 5987 `filename*` when the artifact has a filename. */
-export function contentDisposition(filename: string | undefined): string {
-    if (filename === undefined) {
-        return 'attachment';
-    }
-
-    return `attachment; filename="${asciiFilename(filename)}"; filename*=UTF-8''${encodeRfc5987(filename)}`;
-}

@@ -214,14 +214,14 @@ describe('GET /docs', () => {
         ['/DoCs/', ''],
         ['/api/DOCS', '/api'],
         ['/API/docs', '/api'],
-    ])('serves the shell at %s with that casing as <base href>, per request', async (path, basePath) => {
+    ])('answers the JSON 404 at %s: routup matches static paths case-sensitively', async (path, basePath) => {
         const { app } = setup({ basePath });
         const other = await get(app, path);
 
-        expect(other.status).toBe(200);
-        expect(other.headers.get('content-security-policy')).toBe(POLICY);
-        expect(await other.text()).toContain(`<base href="${path.replace(/\/$/, '')}/" />`);
-        // the next canonical request gets its own base
+        expect(other.status).toBe(404);
+        expect(other.headers.get('content-security-policy')).toBeNull();
+        expect(await other.json()).toMatchObject({ status: 404 });
+        // the canonical path still serves the shell
         expect(await (await get(app, `${basePath}/docs`)).text()).toContain(`<base href="${basePath}/docs/" />`);
     });
 
