@@ -58,16 +58,16 @@ Anything else, an old string such as `"agent:deploy:run"` or `"*"` inside the li
 
 ## authup {#authup}
 
-`authup()` (and `authupModule()` of `@chamvi/app/authup`) gives a login authup's own two-layer **authorization snapshot**, `authorization: { snapshot, realm }`, evaluated by `@authup/access` exactly as the authup server evaluates it:
+`authup()` (and `authupModule()` of `@chamvi/app/authup`) gives a login authup's own two-layer **authorization snapshot**, `authorization: { snapshot, realm, client? }`, evaluated by `@authup/access` exactly as the authup server evaluates it:
 
 - Only tokens with the `global` scope and a user or client subject carry grants.
 - `snapshot` holds the permission definitions with their policy trees and the login's grants (realm reach and the policies on the grant, the role's or the user's assignment), built by `buildAuthorizationSnapshot` from authup's catalog (`GET /authorization`, read with chamvi's own client, cached for a minute and read again when a grant names a definition or policy the copy lacks). It keeps every `chamvi_*` definition and every other definition the login holds a grant of; an app's own permission without a grant therefore denies, even where its definition would pass on the server. It is plain JSON, so a run's invoker stores it.
-- `realm` is the realm of chamvi's authup client: chamvi's resources belong to it. Every check reaches into it: a grant with reach `own` works for identities of that realm; identities of other realms need reach `any`. A definition owned by that realm is checked by its plain name; one owned by another realm or by a client is never reached.
+- `realm` is the realm of chamvi's authup client: chamvi's resources belong to it. Every check reaches into it: a grant with reach `own` works for identities of that realm; identities of other realms need reach `any`. A definition owned by that realm is checked by its plain name; one owned by another realm or by a client is never reached, unless an [owner client](#owner-client) is set.
 - A definition the catalog withholds (`policies: null`) or whose policy tree cannot be read denies its grants; the other grants still apply.
 - A catalog or realm that cannot be read (the client lacks `permission_read` with reach `ownOrNull` or wider, authup is down) gives the login no `authorization` and reports the error to `onError` (the app's logger); the start does not fail and static tokens keep working.
 - Every call to authup has a deadline: `timeoutMs` of `authupModule()`, else `AUTHUP_TIMEOUT_MS`, default 10 000 ms. A token verification that does not answer in time is a 503 (not a 401); a catalog read or realm lookup that does not answer in time counts as a failed read, and the next login tries again.
 
-With `@chamvi/app`, `authupModule()` reads `AUTHUP_URL`, `AUTHUP_CLIENT_ID`, `AUTHUP_CLIENT_SECRET` and the optional `AUTHUP_TIMEOUT_MS`. That client needs the `client_credentials` grant and the permissions `permission_read` (the catalog) and `token_introspect` (verifying logins, and finding its own realm), granted with a realm scope of `ownOrNull` or wider. authup's default reach `own` does not reach its global permission definitions: the catalog is then refused, or served with `policies: null` for the `chamvi_*` definitions, and every authup login gets no permissions (reported to `onError`). A client's direct permissions take no reach in a provisioning file, so the file below grants them through a role.
+With `@chamvi/app`, `authupModule()` reads `AUTHUP_URL`, `AUTHUP_CLIENT_ID`, `AUTHUP_CLIENT_SECRET` and the optional `AUTHUP_TIMEOUT_MS` and `AUTHUP_PERMISSION_CLIENT`. That client needs the `client_credentials` grant and the permissions `permission_read` (the catalog) and `token_introspect` (verifying logins, and finding its own realm), granted with a realm scope of `ownOrNull` or wider. authup's default reach `own` does not reach its global permission definitions: the catalog is then refused, or served with `policies: null` for the `chamvi_*` definitions, and every authup login gets no permissions (reported to `onError`). A client's direct permissions take no reach in a provisioning file, so the file below grants them through a role.
 
 ### Provisioning
 
@@ -159,6 +159,51 @@ curl -X POST "$AUTHUP_URL/role-permissions/<id>" \
 ```
 
 A user of the client's realm (`master` here) with `chamvi-triage` then starts, reads and approves `triage` only, and sees only its runs. Users of other realms need the grants' reach set to `any`. A role for a WhatsApp operator holds `chamvi_connection_write` with a policy `{ "name": "<connection>" }`: it sees that connection's page, its QR and Reset session, and no other connection.
+
+### Who owns the permissions {#owner-client}
+
+By default the permissions are global or owned by chamvi's realm (the file above). Several chamvi deployments sharing one realm then share the definitions too: a grant of `chamvi_run_read` given for one deployment applies in all of them.
+
+An **owner client** gives each deployment its own. Set `AUTHUP_PERMISSION_CLIENT` (or `authupModule({ permissionClient })`) to the id or the name of the client users sign in with: the dashboard's public client, the one `CHAMVI_UI_AUTHUP_CLIENT_ID` names, not chamvi's own `AUTHUP_CLIENT_ID`. Then every name chamvi checks on an authup login, the fourteen `chamvi_*` ones and an app's own such as `release_manage`, is checked only as the definition owned by that client in chamvi's realm. Global and realm-owned definitions grant nothing, so a leftover never applies. authup applies a user's client-owned grants only through tokens issued to that client, so the same user signs in to every deployment and holds grants per deployment.
+
+| | Realm mode (default) | Client mode |
+|---|---|---|
+| Set by | nothing | `AUTHUP_PERMISSION_CLIENT` / `permissionClient` |
+| A check asks | the global definition, then the realm-owned one | only the one owned by the client in chamvi's realm |
+| A grant applies | through any login of the realm | through tokens issued to the owner client |
+
+- A name is resolved once at start through authup's client API in chamvi's realm, so chamvi's client then also needs `client_read`; an id is used as is. A name that matches no client or several, or a lookup that fails or exceeds the deadline, fails the start. chamvi never falls back to realm mode.
+- The catalog serves client-owned definitions of chamvi's realm to chamvi's `permission_read`; nothing else changes on chamvi's client.
+- A run stores the owner with its invoker, so it keeps the mode it was dispatched in after a switch. Static tokens and `oidc()` bindings are not affected.
+
+In client mode the provisioning file declares the permissions and the roles under the owner client, binds the roles with `clientPermissions` and the users with `clientRoles`. Every role that binds the permissions moves to the client, and an app's own names follow too:
+
+```yaml
+realms:
+  - attributes: { name: master }
+    relations:
+      clients:
+        - attributes: { name: agents-dashboard, authMethod: none }
+          relations:
+            permissions:
+              - attributes: { name: chamvi_agent_read }
+              - attributes: { name: chamvi_agent_run }
+              # ... the other twelve chamvi_* names, and the app's own
+            roles:
+              - attributes: { name: chamvi-admin }
+                relations:
+                  clientPermissions:
+                    agents-dashboard: [chamvi_agent_read, chamvi_agent_run]
+      users:
+        - attributes: { name: alice }
+          relations:
+            clientRoles:
+              agents-dashboard: [chamvi-admin]
+```
+
+chamvi's own client keeps its role from the file above, with `client_read` added to `globalPermissions` when the owner is given by name.
+
+To move a realm from realm to client ownership: provision the client-owned permissions and roles, switch every deployment sharing the realm to its owner client, then remove the realm-owned or global `chamvi_*` definitions and the roles binding them.
 
 ## Upgrading
 
