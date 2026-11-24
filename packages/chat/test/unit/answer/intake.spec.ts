@@ -462,6 +462,7 @@ describe('answering approvals in chat intake', () => {
         expect(await ctx.assistantRuns()).toHaveLength(1);
         expect(ctx.notices()).toEqual([]);
     });
+
     it('answers one approval per reply: a later redelivery leaves the next approval waiting', async () => {
         const model = mockModel([
             { parts: [{ type: 'text', text: '{"decision":"approve"}' }] },
@@ -503,6 +504,22 @@ describe('answering approvals in chat intake', () => {
             id: 'r-1',
             text: 'yes',
             sentAt: new Date(new Date(notifiedAt!).getTime() - 1),
+        }));
+
+        expect((await ctx.run(ctx.ids[0]!)).status).toBe('waiting');
+        expect(await ctx.assistantRuns()).toHaveLength(1);
+        expect(model.doGenerateCalls).toHaveLength(0);
+    });
+
+    it('dispatches a reply without a send time', async () => {
+        const model = classifier('approve');
+        const ctx = await setup({ model });
+
+        // an invalid date leaves the payload without sentAt
+        await ctx.fixture.adapter.deliver(ctx.reply({
+            id: 'r-1',
+            text: 'yes',
+            sentAt: new Date(NaN),
         }));
 
         expect((await ctx.run(ctx.ids[0]!)).status).toBe('waiting');

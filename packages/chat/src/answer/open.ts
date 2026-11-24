@@ -21,7 +21,8 @@ import type {
  * most CHAT_ANSWER_SCAN_MAX scanned) whose approval was sent to this channel
  * and address and delivered there (`notifiedAt`), has no options, is no
  * trust gate (a generic notification: the owner never saw its arguments in
- * the chat) and has not expired on the engine's clock. `truncated` when more waiting approvals exist than scanned.
+ * the chat) and has not expired on the engine's clock. `truncated` when
+ * more waiting approvals exist than scanned.
  */
 export async function findOpenChatApprovals(engine: IEngine, scope: ChatApprovalScope): Promise<ChatOpenApprovals> {
     const { data, total } = await engine.runService.find({

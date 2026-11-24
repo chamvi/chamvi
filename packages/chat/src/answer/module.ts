@@ -47,11 +47,14 @@ function quotedIdOf(incoming: ChatIncoming, ctx: ChatIntakeContext): string | fa
     return ctx.options.platform?.sentMessageId ? id : false;
 }
 
-/** Whether the reply was sent before its approval reached the chat (a stale or early "yes"). */
+/**
+ * Whether the reply may predate its approval's arrival in the chat (a stale
+ * or early "yes"): sent before `notifiedAt`, or with no send time to tell.
+ */
 function isChatReplyBeforeApproval(payload: ChatPayload, notifiedAt: Date | undefined): boolean {
     const { sentAt } = payload.message;
 
-    return sentAt !== undefined && notifiedAt !== undefined && Date.parse(sentAt) < new Date(notifiedAt).getTime();
+    return sentAt === undefined || notifiedAt === undefined || Date.parse(sentAt) < new Date(notifiedAt).getTime();
 }
 
 /**
@@ -135,13 +138,14 @@ function resolveChatAnswerModel(ctx: ChatIntakeContext, run: Run): LanguageModel
  * uncertain: no `answers`, no direct chat, no invoker, a quote that can name
  * no approval, no approval the reply answers, an invoker without
  * `chamvi_agent_approve` for the run's agent (checked before any model
- * call), a reply sent before the approval reached the chat, a model that
- * does not resolve, a reply read as unclear. Several open approvals and an
- * unquoted reply (when the invoker may answer one of them), or a quote of an
- * approval no longer open, get a notice. Each reply answers at most once:
- * a durable claim (`chat-answer:<channel>`, per adapter, thread, author and
- * message) is taken right before the answer, so a redelivery answers no
- * later approval; a claim whose answer failed stays taken. An approval that
+ * call), a reply sent before the approval reached the chat or without a
+ * send time, a model that does not resolve, a reply read as unclear.
+ * Several open approvals and an unquoted reply (when the invoker may answer
+ * one of them), or a quote of an approval no longer open, get a notice.
+ * Each reply answers at most once: a durable claim (`chat_answer:<channel>`,
+ * apart from every dispatch scope; per adapter, thread, author and message)
+ * is taken right before the answer, so a redelivery answers no later
+ * approval; a claim whose answer failed stays taken. An approval that
  * settled meanwhile gets the closed notice; any other approve failure
  * rejects (an intake failure).
  */
@@ -222,7 +226,7 @@ export async function answerChatApproval(
 
     // one approval per reply, durably: a redelivery after this answer never answers a later approval
     const claim = await engine.idempotencyService.claim(
-        `chat-answer:${options.name}`,
+        `chat_answer:${options.name}`,
         hashKey([payload.adapter, payload.threadId, payload.message.author.id, payload.message.id]),
         run.id,
         IDEMPOTENCY_TTL_MS,
