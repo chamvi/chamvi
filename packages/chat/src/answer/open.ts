@@ -9,15 +9,22 @@ import type { IEngine } from '@chamvi/core';
 import type { Run } from '@chamvi/store';
 import type { IChatPlatform } from '../channel/types.ts';
 import { CHAT_ANSWER_SCAN_MAX } from './constants.ts';
-import type { ChatApprovalPick, ChatApprovalPickInput, ChatApprovalScope } from './types.ts';
+import type {
+    ChatApprovalPick,
+    ChatApprovalPickInput,
+    ChatApprovalScope,
+    ChatOpenApprovals,
+} from './types.ts';
 
 /**
  * The approvals a chat reply can answer: the waiting runs (oldest first, at
  * most CHAT_ANSWER_SCAN_MAX scanned) whose approval was sent to this channel
- * and address, has no options and has not expired on the engine's clock.
+ * and address, has no options, is no trust gate (a generic notification: the
+ * owner never saw its arguments in the chat) and has not expired on the
+ * engine's clock. `truncated` when more waiting approvals exist than scanned.
  */
-export async function findOpenChatApprovals(engine: IEngine, scope: ChatApprovalScope): Promise<Run[]> {
-    const { data } = await engine.runService.find({
+export async function findOpenChatApprovals(engine: IEngine, scope: ChatApprovalScope): Promise<ChatOpenApprovals> {
+    const { data, total } = await engine.runService.find({
         status: ['waiting'],
         waitKind: 'approval',
         limit: CHAT_ANSWER_SCAN_MAX,
@@ -25,15 +32,18 @@ export async function findOpenChatApprovals(engine: IEngine, scope: ChatApproval
     });
     const now = engine.clock.now();
 
-    return data.filter((run) => {
+    const runs = data.filter((run) => {
         const { waiting } = run;
 
         return waiting?.kind === 'approval' &&
             waiting.channel === scope.channel &&
             waiting.address === scope.address &&
             waiting.options === undefined &&
+            waiting.notification === undefined &&
             new Date(waiting.expiresAt).getTime() > now;
     });
+
+    return { runs, truncated: total > data.length };
 }
 
 /** The platform id of the approval message of an open run, if the platform can tell. */
@@ -51,10 +61,15 @@ function findChatApprovalMessageId(run: Run, platform: IChatPlatform): string | 
  * quotes, tells a closed approval when it quotes an approval message no
  * longer open, and is no answer otherwise (it quotes some other message).
  * Without a usable quote, one open approval is answered and several ask the
- * sender to quote the one meant.
+ * sender to quote the one meant. After a `truncated` scan nothing is decided
+ * from absence: no auto-pick (a notice whenever one is open) and no closed.
  */
 export function pickChatApproval(open: Run[], input: ChatApprovalPickInput): ChatApprovalPick {
-    const { quotedId, platform } = input;
+    const {
+        quotedId,
+        platform,
+        truncated,
+    } = input;
 
     if (quotedId !== undefined && platform?.sentMessageId) {
         const run = open.find((item) => findChatApprovalMessageId(item, platform) === quotedId);
@@ -63,12 +78,12 @@ export function pickChatApproval(open: Run[], input: ChatApprovalPickInput): Cha
             return { run };
         }
 
-        return input.isApprovalMessage?.(quotedId) === true ? { notice: 'closed' } : undefined;
+        return !truncated && input.isApprovalMessage?.(quotedId) === true ? { notice: 'closed' } : undefined;
     }
 
-    if (open.length === 1) {
+    if (open.length === 1 && !truncated) {
         return { run: open[0]! };
     }
 
-    return open.length > 1 ? { notice: 'several' } : undefined;
+    return open.length > 0 ? { notice: 'several' } : undefined;
 }

@@ -112,13 +112,13 @@ function renderPlain(message: ChannelMessage, max: number): string {
 
 /**
  * The approval link, when `approvalUrl` is set; required for an approval with
- * options, and without `answers` for any approval.
+ * options or a generic one, and without `answers` for any approval.
  */
 function renderApprovalLink(message: ChannelMessage & { approvalId: string }, options: ChatRenderOptions, required: boolean): string | undefined {
     if (!options.approvalUrl) {
         if (required) {
             throw new InvalidAgentDefinitionError(options.answers ?
-                'chatChannel: approvalUrl is required to send an approval with options; it is answered in the chamvi UI only.' :
+                'chatChannel: approvalUrl is required to send an approval with options or a generic notification; it is answered in the chamvi UI only.' :
                 'chatChannel: approvalUrl is required to send an approval; it is answered in the chamvi UI only.');
         }
 
@@ -138,8 +138,9 @@ function renderApproval(message: ChannelMessage, options: ChatRenderOptions, max
     }
 
     const choices = message.options ?? [];
-    // an approval with options is never answered in the chat: the reply has no selection
-    const answerable = !!options.answers && choices.length === 0;
+    // never answered in the chat: an approval with options (the reply has no
+    // selection) or a generic one (the owner would not see what they approve)
+    const answerable = !!options.answers && choices.length === 0 && message.generic !== true;
     const link = renderApprovalLink({ ...message, approvalId: message.approvalId }, options, !answerable);
     const tail: string[] = [];
 

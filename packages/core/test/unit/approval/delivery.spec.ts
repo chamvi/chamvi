@@ -17,6 +17,7 @@ import { z } from 'zod';
 import {
     ChannelNotFoundError,
     approve,
+    defineEffectTool,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
@@ -193,6 +194,68 @@ describe('approval delivery', () => {
         await engine.tick();
         expect(sent).toHaveLength(1);
         expect(errors).toEqual([]);
+    });
+
+    it('a trust-gate approval sends its generic notification marked generic, never the arguments', async () => {
+        const { clock, store } = setup();
+        const sent: ChannelMessage[] = [];
+        const source: IChannel = {
+            name: 'source',
+            untrusted: true,
+            out: async (message) => {
+                sent.push(message);
+            },
+        };
+        const engine = createTestEngine({
+            services: store,
+            channels: [source],
+            clock,
+            claimTtlMs: CLAIM_TTL_MS,
+            agents: [defineModelAgent({
+                name: 'release',
+                instructions: 'You release.',
+                model: mockModel([
+                    {
+                        parts: [{
+                            type: 'tool-call',
+                            toolName: 'send',
+                            input: { text: 'secret' },
+                        }],
+                    },
+                    { parts: [{ type: 'text', text: 'done' }] },
+                ]),
+                tools: {
+                    send: defineEffectTool({
+                        inputSchema: z.object({ text: z.string() }),
+                        trust: { guardWhenTainted: true },
+                        execute: async () => 'sent',
+                    }),
+                },
+            })],
+        });
+
+        engines.push(engine);
+        await engine.start();
+
+        const { runId } = await engine.dispatch({
+            agent: 'release',
+            trigger: 'test',
+            channel: 'source',
+            address: 'public',
+            payload: {},
+        });
+
+        await engine.idle();
+
+        const waiting = approvalWait(await store.runService.findOne(runId))!;
+
+        expect(sent).toHaveLength(1);
+        expect(sent[0]).toMatchObject({
+            kind: 'approval',
+            body: waiting.notification,
+            generic: true,
+        });
+        expect(JSON.stringify(sent[0])).not.toContain('secret');
     });
 
     it('a failed send leaves notifiedAt unset and tick() re-sends until one succeeds', async () => {

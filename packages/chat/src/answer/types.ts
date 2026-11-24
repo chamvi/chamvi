@@ -54,12 +54,21 @@ export type ChatApprovalScope = {
 
 /** What pickChatApproval() reads from a reply besides the open approvals (internal). */
 export type ChatApprovalPickInput = {
-    channel: string;
     /** The platform id of the message the reply quotes, if any. */
     quotedId?: string;
     platform?: IChatPlatform;
     /** Whether a message id is one of the approval messages this channel sent. */
     isApprovalMessage?: (messageId: string) => boolean;
+    /** The scan was cut (`ChatOpenApprovals.truncated`): an approval open here may be missing from the list. */
+    truncated?: boolean;
+};
+
+/** What findOpenChatApprovals() found (internal). */
+export type ChatOpenApprovals = {
+    /** The open approvals of the chat, oldest first. */
+    runs: Run[];
+    /** More waiting approvals exist than the scan read, so `runs` may miss some. */
+    truncated: boolean;
 };
 
 /** The approval a reply answers, a notice for the sender, or undefined: not an answer (internal). */

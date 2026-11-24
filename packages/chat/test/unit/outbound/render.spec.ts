@@ -311,4 +311,17 @@ describe('renderChatMessage({ answers })', () => {
         expect(text).not.toContain(CHAT_ANSWER_HINT);
         expect(text).toContain('Choose and approve or deny: https://chamvi.example/');
     });
+
+    it('requires approvalUrl for a generic approval, and renders no hint for one', () => {
+        const generic = approval({ body: 'An outbound operation requires review in the approval inbox.', generic: true });
+        const render = () => renderChatMessage(generic, { answers });
+
+        expect(render).toThrow(InvalidAgentDefinitionError);
+        expect(render).toThrow(/approvalUrl/);
+
+        const text = renderChatMessage(generic, { answers, approvalUrl: URL_OF });
+
+        expect(text).not.toContain(CHAT_ANSWER_HINT);
+        expect(text).toContain('Approve or deny: https://chamvi.example/');
+    });
 });
