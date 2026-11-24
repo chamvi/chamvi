@@ -13,6 +13,7 @@ import {
     MemoryConversationRepository,
     MemoryEffectRepository,
     MemoryIdempotencyRepository,
+    MemoryLimitRepository,
     MemoryLockRepository,
     MemoryRunRepository,
     MemoryStateDocumentRepository,
@@ -46,6 +47,7 @@ export function registerMemoryRepositories(
     container.register(AppToken.STATE_DOCUMENT_REPOSITORY, { useValue: new MemoryStateDocumentRepository({ registry }) });
     container.register(AppToken.LOCK_REPOSITORY, { useValue: new MemoryLockRepository({ registry }) });
     container.register(AppToken.IDEMPOTENCY_REPOSITORY, { useValue: new MemoryIdempotencyRepository({ registry }) });
+    container.register(AppToken.LIMIT_REPOSITORY, { useValue: new MemoryLimitRepository({ registry }) });
     container.register(AppToken.AGENT_REVISION_REPOSITORY, { useValue: new MemoryAgentRevisionRepository({ registry }) });
 
     if (aggregates.connections !== false) {
@@ -71,6 +73,7 @@ export async function registerDatabaseRepositories(container: IContainer, dataSo
         DatabaseConversationRepository,
         DatabaseEffectRepository,
         DatabaseIdempotencyRepository,
+        DatabaseLimitRepository,
         DatabaseLockRepository,
         DatabaseRunRepository,
         DatabaseStateDocumentRepository,
@@ -88,6 +91,7 @@ export async function registerDatabaseRepositories(container: IContainer, dataSo
     container.register(AppToken.STATE_DOCUMENT_REPOSITORY, { useValue: new DatabaseStateDocumentRepository(dataSource) });
     container.register(AppToken.LOCK_REPOSITORY, { useValue: new DatabaseLockRepository(dataSource) });
     container.register(AppToken.IDEMPOTENCY_REPOSITORY, { useValue: new DatabaseIdempotencyRepository(dataSource) });
+    container.register(AppToken.LIMIT_REPOSITORY, { useValue: new DatabaseLimitRepository(dataSource) });
     container.register(AppToken.AGENT_REVISION_REPOSITORY, { useValue: new DatabaseAgentRevisionRepository(dataSource) });
     container.register(AppToken.CONNECTION_REPOSITORY, { useValue: new DatabaseConnectionRepository(dataSource) });
     container.register(AppToken.CONVERSATION_REPOSITORY, { useValue: new DatabaseConversationRepository(dataSource) });

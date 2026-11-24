@@ -17,6 +17,7 @@ export const TableName = {
     STEPS: 'chamvi_steps',
     CHECKPOINTS: 'chamvi_checkpoints',
     IDEMPOTENCY_KEYS: 'chamvi_idempotency_keys',
+    LIMIT_USES: 'chamvi_limit_uses',
     LOCKS: 'chamvi_locks',
     LOCK_TOKENS: 'chamvi_lock_tokens',
     EFFECTS: 'chamvi_effects',

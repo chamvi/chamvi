@@ -193,6 +193,7 @@ describe('public api', () => {
             'IDEMPOTENCY_SERVICE',
             'KEYRING',
             'LIFECYCLE_HOOKS',
+            'LIMIT_REPOSITORY',
             'LOCK_REPOSITORY',
             'LOCK_SERVICE',
             'LOGGER',

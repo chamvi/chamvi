@@ -27,6 +27,7 @@ import {
     MemoryConversationRepository,
     MemoryEffectRepository,
     MemoryIdempotencyRepository,
+    MemoryLimitRepository,
     MemoryLockRepository,
     MemoryRunRepository,
     MemoryStateDocumentRepository,
@@ -101,6 +102,7 @@ describe('storeModule', () => {
         expect(harness.container.resolve(AppToken.LOCK_SERVICE)).toBeInstanceOf(LockService);
         expect(harness.container.resolve(AppToken.IDEMPOTENCY_REPOSITORY)).toBeInstanceOf(MemoryIdempotencyRepository);
         expect(harness.container.resolve(AppToken.IDEMPOTENCY_SERVICE)).toBeInstanceOf(IdempotencyService);
+        expect(harness.container.resolve(AppToken.LIMIT_REPOSITORY)).toBeInstanceOf(MemoryLimitRepository);
         expect(harness.container.resolve(AppToken.AGENT_REVISION_REPOSITORY)).toBeInstanceOf(MemoryAgentRevisionRepository);
         expect(harness.container.resolve(AppToken.AGENT_REVISION_SERVICE)).toBeInstanceOf(AgentRevisionService);
 
