@@ -26,6 +26,7 @@ import { isObject } from 'smob';
 import { CHAT_REQUEST_ERROR_CODE } from '@chamvi/chat';
 import { WHATSAPP_ADAPTER_NAME } from './constants.ts';
 import { createWhatsAppConnection } from './connection.ts';
+import { contextInfoOf } from './helpers/index.ts';
 import { resolveIdentity } from './policy.ts';
 import type {
     WhatsAppAdapter,
@@ -106,6 +107,37 @@ function readContent(content: WAMessageContent | undefined): { text: string; att
     return { text: text ?? '', attachments };
 }
 
+/**
+ * The message a swipe reply quotes, as far as WhatsApp names it: only its
+ * id (and its sender, when given) is known, so text, time and raw stay empty.
+ * Undefined without a quote or for a quote without an id.
+ */
+function quotedOf(content: WAMessageContent | undefined, threadId: string): Message<unknown> | undefined {
+    const info = contextInfoOf(content);
+    const id = info?.stanzaId;
+
+    if (typeof id !== 'string' || id.length === 0) {
+        return undefined;
+    }
+
+    return new Message<unknown>({
+        id,
+        threadId,
+        text: '',
+        formatted: parseMarkdown(''),
+        raw: undefined,
+        author: {
+            userId: typeof info?.participant === 'string' ? info.participant : '',
+            userName: '',
+            fullName: '',
+            isBot: false,
+            isMe: false,
+        },
+        metadata: { dateSent: new Date(0), edited: false },
+        attachments: [],
+    });
+}
+
 function textOf(message: AdapterPostableMessage): string {
     if (typeof message === 'string') {
         return message;
@@ -165,6 +197,7 @@ export function createWhatsAppAdapter(options: WhatsAppAdapterOptions): WhatsApp
         const author = identity?.sender ?? (from ? jidNormalizedUser(from) : remote);
         const threadId = encodeWhatsAppThread(identity?.chat ?? jidNormalizedUser(remote));
         const seconds = toNumber(raw.messageTimestamp);
+        const replyTo = quotedOf(content, threadId);
         const message = new Message<unknown>({
             id,
             threadId,
@@ -182,6 +215,7 @@ export function createWhatsAppAdapter(options: WhatsAppAdapterOptions): WhatsApp
             metadata: { dateSent: new Date(seconds > 0 ? seconds * 1000 : 0), edited: false },
             attachments: read.attachments,
             isMention: identity?.mentioned === true,
+            ...(replyTo ? { replyTo } : {}),
         });
 
         identities.set(message, identity);

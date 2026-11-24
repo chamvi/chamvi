@@ -16,6 +16,7 @@ import type { WAMessage, WAMessageContent } from 'baileys';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { ConversationRef, ConversationTarget } from '@chamvi/core';
 import { isObject } from 'smob';
+import { contextInfoOf } from './helpers/index.ts';
 import type {
     ResolvedWhatsAppPolicy,
     WhatsAppConversationInput,
@@ -91,21 +92,6 @@ export function resolvePolicy(policy: WhatsAppPolicy): ResolvedWhatsAppPolicy {
         groups,
         requireGroupMention,
     };
-}
-
-/** The context info (mentions) of a message's content, whatever its type. */
-function contextInfoOf(content: WAMessageContent | undefined): { mentionedJid?: string[] | null } | undefined {
-    if (!content) {
-        return undefined;
-    }
-
-    for (const value of Object.values(content)) {
-        if (isObject(value) && isObject(value.contextInfo)) {
-            return value.contextInfo as { mentionedJid?: string[] | null };
-        }
-    }
-
-    return undefined;
 }
 
 /**

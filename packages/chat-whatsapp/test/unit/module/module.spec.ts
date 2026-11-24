@@ -225,6 +225,11 @@ describe('whatsappModule', () => {
         expect(() => whatsappModule({ connection: 'bot', approvalUrl: 'https://chamvi.example' } as never)).toThrow(/approvalUrl/);
     });
 
+    it('passes answers through to the channel, which checks them', () => {
+        expect(() => world({ patch: { answers: {} } })).not.toThrow();
+        expect(() => world({ patch: { answers: { timeoutMs: 0 } } })).toThrow(/answers\.timeoutMs/);
+    });
+
     it('needs an approval url or CHAMVI_PUBLIC_URL', async () => {
         const w = world({ patch: { approvalUrl: undefined } });
 

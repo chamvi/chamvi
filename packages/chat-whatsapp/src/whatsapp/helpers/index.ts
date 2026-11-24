@@ -6,5 +6,6 @@
  */
 
 export * from './async.ts';
+export * from './content.ts';
 export * from './errors.ts';
 export * from './generation.ts';
