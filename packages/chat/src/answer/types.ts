@@ -6,7 +6,9 @@
  */
 
 import type { IClock, ModelRef } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import type { LanguageModel } from 'ai';
+import type { IChatPlatform } from '../channel/types.ts';
 
 /**
  * Answers to approvals in the chat (`chatChannel({ answers })`): a direct
@@ -43,3 +45,22 @@ export type ChatAnswerClassifyInput = {
     clock: IClock;
     signal: AbortSignal;
 };
+
+/** Where a chat reply came from, to find the approvals open there (internal). */
+export type ChatApprovalScope = {
+    channel: string;
+    address: string;
+};
+
+/** What pickChatApproval() reads from a reply besides the open approvals (internal). */
+export type ChatApprovalPickInput = {
+    channel: string;
+    /** The platform id of the message the reply quotes, if any. */
+    quotedId?: string;
+    platform?: IChatPlatform;
+    /** Whether a message id is one of the approval messages this channel sent. */
+    isApprovalMessage?: (messageId: string) => boolean;
+};
+
+/** The approval a reply answers, a notice for the sender, or undefined: not an answer (internal). */
+export type ChatApprovalPick = { run: Run } | { notice: 'several' | 'closed' } | undefined;
