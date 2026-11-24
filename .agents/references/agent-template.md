@@ -160,7 +160,7 @@ Checked `00ec8afc` (2026-11-12): the template names no `AUTHUP_*` variable and n
 
 ## Permission owner client (#282, unreleased)
 
-The template names no `AUTHUP_*` variable, so the optional `AUTHUP_PERMISSION_CLIENT` (`authupModule({ permissionClient })`) needs no template change.
+The template names no `AUTHUP_*` variable, so the optional `AUTHUP_PERMISSION_OWNER` (`authupModule({ permissionOwner })`, `realm` or `client`) needs no template change.
 
 ## OpenAPI document and Swagger UI (unreleased)
 

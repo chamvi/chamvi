@@ -165,7 +165,7 @@ Checked `ce1ffc81` (2026-11-12): the chart names authup only in the Secrets tabl
 
 ## Permission owner client (#282, unreleased)
 
-New optional env `AUTHUP_PERMISSION_CLIENT` (`authupModule({ permissionClient })`): the id or name of the client owning chamvi's permissions in its realm (the dashboard's public client). A plain value for `env`; no template, schema or test change. Chart README follow-up: a Secrets/env row for it (and the pending `AUTHUP_TIMEOUT_MS` row). With a name, chamvi's client also needs `client_read`; a name that does not resolve fails the start (the pod crash-loops).
+New optional env `AUTHUP_PERMISSION_OWNER` (`realm` default or `client`, anything else fails the start; `authupModule({ permissionOwner })`). In `client` mode the dashboard client (`CHAMVI_UI_AUTHUP_CLIENT_ID`, id or name) owns chamvi's permissions; without it the start fails. A plain value for `env`; no template, schema or test change. Chart README follow-up: a Secrets/env row for it (and the pending `AUTHUP_TIMEOUT_MS` row). With a dashboard client name, chamvi's client also needs `client_read`; a name that does not resolve fails the start (the pod crash-loops).
 
 ## OpenAPI document and Swagger UI (unreleased)
 
