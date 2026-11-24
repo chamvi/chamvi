@@ -19,3 +19,6 @@ export const CHAT_ANSWER_NOTICE_CLOSED = 'This approval is no longer open.';
 
 /** At most this many waiting approval runs are scanned for the ones open in a chat. */
 export const CHAT_ANSWER_SCAN_MAX = 100;
+
+/** The channel remembers the platform ids of at most this many approval messages it sent (the most recent). */
+export const CHAT_ANSWER_RECORD_MAX = 500;

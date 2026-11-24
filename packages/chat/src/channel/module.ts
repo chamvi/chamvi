@@ -6,7 +6,14 @@
  */
 
 import { ChamviError, InvalidRunStateError } from '@chamvi/core';
-import type { ChannelContext, ChannelRequest, ClockTimer } from '@chamvi/core';
+import type {
+    ChannelContext,
+    ChannelRequest,
+    ClockTimer,
+    IChannel,
+} from '@chamvi/core';
+import { createChatApprovalRecord, recordChatApprovalSends } from '../answer/record.ts';
+import type { IChatApprovalRecord } from '../answer/types.ts';
 import { createChatIntake } from '../intake/module.ts';
 import { bindIngress } from '../ingress/module.ts';
 import type { ChatIncoming, IChatReceiver } from '../ingress/types.ts';
@@ -49,10 +56,17 @@ type ChatRun = {
     teardown?: Promise<void>;
 };
 
+/** What the intake of every message shares besides the run: the channel's `out` and its approval record. */
+type ChatIntakeShared = {
+    out: NonNullable<IChannel['out']>;
+    approvals: IChatApprovalRecord;
+};
+
 function createReceiver(
     run: ChatRun,
     options: ResolvedChatChannelOptions,
     intake: ChatIntake,
+    shared: ChatIntakeShared,
 ): IChatReceiver {
     return {
         receive(incoming: ChatIncoming): Promise<void> {
@@ -71,6 +85,7 @@ function createReceiver(
                     context: run.context,
                     signal: run.controller.signal,
                     options,
+                    ...shared,
                 });
             } catch (error) {
                 task = Promise.reject(error);
@@ -201,7 +216,8 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
         platform,
     } = resolved;
     let current: ChatRun | undefined;
-    const out = createChatSender({
+    const approvals = createChatApprovalRecord();
+    const out = recordChatApprovalSends(createChatSender({
         name,
         adapters: resolved.adapters,
         ...(resolved.approvalUrl ? { approvalUrl: resolved.approvalUrl } : {}),
@@ -212,7 +228,7 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
         online: () => (current?.online && (platform?.online ? platform.online() : true) ? current.context.engine.clock : undefined),
         ...(platform?.prepare ? { prepare: (input: ChatPlatformSend) => platform.prepare!(input) } : {}),
         onError: resolved.onError,
-    });
+    }), platform, approvals);
 
     const start = async (context: ChannelContext): Promise<void> => {
         if (current && !current.teardown) {
@@ -235,7 +251,7 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
         current = run;
 
         run.body = (async () => {
-            const receiver = createReceiver(run, resolved, intake);
+            const receiver = createReceiver(run, resolved, intake, { out, approvals });
 
             // bound before the adapters initialize, so their first message has a receiver
             for (const adapter of resolved.adapters) {

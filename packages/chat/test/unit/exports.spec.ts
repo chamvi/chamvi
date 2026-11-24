@@ -29,6 +29,7 @@ describe('public api', () => {
             'CHAT_ANSWER_HINT',
             'CHAT_ANSWER_NOTICE_CLOSED',
             'CHAT_ANSWER_NOTICE_SEVERAL',
+            'CHAT_ANSWER_RECORD_MAX',
             'CHAT_ANSWER_SCAN_MAX',
             'CHAT_ANSWER_TIMEOUT_MS',
             'CHAT_BODY_LIMIT_BYTES',
@@ -68,6 +69,7 @@ describe('public api', () => {
         expect(pkg.CHAT_ANSWER_NOTICE_SEVERAL).toBe('Several approvals are open here. Reply to the approval message you mean.');
         expect(pkg.CHAT_ANSWER_NOTICE_CLOSED).toBe('This approval is no longer open.');
         expect(pkg.CHAT_ANSWER_SCAN_MAX).toBe(100);
+        expect(pkg.CHAT_ANSWER_RECORD_MAX).toBe(500);
     });
 
     it('exports the platform seam types', () => {

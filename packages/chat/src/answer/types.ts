@@ -73,3 +73,13 @@ export type ChatOpenApprovals = {
 
 /** The approval a reply answers, a notice for the sender, or undefined: not an answer (internal). */
 export type ChatApprovalPick = { run: Run } | { notice: 'several' | 'closed' } | undefined;
+
+/**
+ * The platform ids of the approval messages a channel sent, the most recent
+ * CHAT_ANSWER_RECORD_MAX (internal): tells a reply quoting an approval that
+ * is no longer open from a quote of any other message.
+ */
+export interface IChatApprovalRecord {
+    add(messageId: string): void;
+    has(messageId: string): boolean;
+}

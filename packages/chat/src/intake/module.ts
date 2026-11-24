@@ -15,6 +15,7 @@ import type {
 } from '@chamvi/core';
 import type { Invoker } from '@chamvi/store';
 import { isObject } from 'smob';
+import { answerChatApproval } from '../answer/module.ts';
 import { encodeChatAddress, hashKey } from '../channel/helpers.ts';
 import { CHAT_INTAKE_FAILED_ERROR_CODE } from '../channel/constants.ts';
 import type {
@@ -349,7 +350,8 @@ async function deliver(
  * decides (a refused message is dropped silently: no download, no history, no
  * invoker lookup, no run); a message with attachments or without text is
  * refused (ValidationError, media is not supported yet); `resolveInvoker` names the
- * invoker; then every agent with a matching subscription gets one run, through
+ * invoker; with `answers` a direct reply may answer an open approval instead
+ * (answerChatApproval(): then no run); else every agent with a matching subscription gets one run, through
  * the trusted conversation intake for an agent with `conversation`, else a
  * plain dispatch.
  *
@@ -384,6 +386,11 @@ export function createChatIntake(): ChatIntake {
         }
 
         const invoker = options.resolveInvoker ? await options.resolveInvoker(incoming) : undefined;
+
+        // a reply answering an open approval starts no run
+        if (await answerChatApproval(ctx, incoming, payload, invoker)) {
+            return;
+        }
 
         await deliver(ctx, incoming, payload, invoker);
     };

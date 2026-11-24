@@ -13,7 +13,7 @@ import type {
 } from '@chamvi/core';
 import type { Invoker } from '@chamvi/store';
 import type { Chat } from 'chat';
-import type { ChatAnswerOptions, ResolvedChatAnswerOptions } from '../answer/types.ts';
+import type { ChatAnswerOptions, IChatApprovalRecord, ResolvedChatAnswerOptions } from '../answer/types.ts';
 import type { ChatIncoming, ChatIngress } from '../ingress/types.ts';
 import type { ChatSubscriber } from '../subscription/types.ts';
 
@@ -218,6 +218,10 @@ export type ChatIntakeContext = {
     /** Aborts when the channel stops. */
     signal: AbortSignal;
     options: ResolvedChatChannelOptions;
+    /** The channel's own `out`, for the notices of answers. */
+    out: NonNullable<IChannel['out']>;
+    /** The approval messages the channel sent. */
+    approvals: IChatApprovalRecord;
 };
 
 /** Accepts one incoming message: resolves once it is durably accepted (internal). */
