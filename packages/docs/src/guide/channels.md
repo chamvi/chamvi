@@ -10,6 +10,8 @@ interface IChannel<TInput = ChannelRequest, TOutput = Response> {
     stop?(): Promise<void>;
     in?(input: TInput, ctx: ChannelContext): Promise<TOutput>;
     out?(message: ChannelMessage, address: string, opts: ChannelSendOptions): Promise<void>; // idempotent on message.key
+    fits?(message: ChannelMessage, address: string): void | Promise<void>; // throws when out would refuse it: an approval fails the tool call instead of waiting
+    direct?(address: string): boolean | Promise<boolean>; // the address reaches the owner alone (a direct message)
 }
 
 type ChannelRequest = { request: Request; subpath: string };  // the raw request, the raw path below /channels/<name>

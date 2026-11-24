@@ -220,6 +220,9 @@ export async function requestApproval(
         timeoutMs: request.timeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS,
     };
 
+    // a destination that cannot deliver the request refuses it now: the tool gets the error, nothing waits
+    await frame.fitsApproval?.(pending);
+
     // the first suspension of the call wins, also when the tool catches the signal
     frame.suspended ??= pending;
 

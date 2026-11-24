@@ -99,6 +99,17 @@ export interface IChannel<TInput = ChannelRequest, TOutput = Response> {
     in?(input: TInput, ctx: ChannelContext): Promise<TOutput>;
     /** Sends a message to an address the channel defines; idempotent on `message.key`. */
     out?(message: ChannelMessage, address: string, opts: ChannelSendOptions): Promise<void>;
+    /**
+     * Throws (a ValidationError) when `out` would refuse `message` to
+     * `address`: an approval request the channel cannot deliver fails the
+     * tool call instead of leaving the run waiting.
+     */
+    fits?(message: ChannelMessage, address: string): void | Promise<void>;
+    /**
+     * Whether `address` reaches the owner alone (a direct message): a tool
+     * limit's private `detail` goes to the source of a tainted run only then.
+     */
+    direct?(address: string): boolean | Promise<boolean>;
     /** The status of its background work (`GET /components`); synchronous and cheap. */
     status?(): ChannelStatus;
 }

@@ -88,7 +88,7 @@ describe('tool limits: counting', () => {
         expect(await ctx.store.limitService.used('limited:search')).toBe(3);
     });
 
-    it.each([0, 1.5, -1, NaN, '2'])('refuses the weight %s as a tool error and counts nothing', async (weight) => {
+    it.each([0, 1.5, -1, NaN, '2', 2 ** 31])('refuses the weight %s as a tool error and counts nothing', async (weight) => {
         const log: string[] = [];
         const ctx = setup({
             tools: {
@@ -104,7 +104,7 @@ describe('tool limits: counting', () => {
 
         expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
         expect(log).toEqual([]);
-        expect(promptOf(ctx, 1)).toContain('The limit weight of tool \\"search\\" must be an integer of at least 1.');
+        expect(promptOf(ctx, 1)).toContain('The limit weight of tool \\"search\\" must be an integer from 1 to 2147483647.');
         expect(await ctx.store.limitService.used('limited:search')).toBe(0);
     });
 

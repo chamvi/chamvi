@@ -151,6 +151,7 @@ export function wrapToolsForRun(
                 effects,
                 artifacts: ctx.artifacts,
                 ended,
+                ...(options.fitsApproval ? { fitsApproval: options.fitsApproval } : {}),
             };
             const suspend = () => {
                 onSuspend?.(frame.suspended!);

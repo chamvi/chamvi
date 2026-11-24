@@ -80,11 +80,13 @@ export function sendTool(log: string[], limit?: ToolLimit, alreadyApplied?: (to:
     });
 }
 
-/** A source channel with `out`, recording what it is sent. */
-export function chatChannel(name = 'chat') {
+/** A source channel with `out`, recording what it is sent; `untrusted` taints its runs, `direct` answers `IChannel.direct`. */
+export function chatChannel(name = 'chat', options: { untrusted?: boolean; direct?: boolean } = {}) {
     const sent: Array<{ message: ChannelMessage; address: string }> = [];
     const channel: IChannel = {
         name,
+        ...(options.untrusted ? { untrusted: true } : {}),
+        ...(options.direct !== undefined ? { direct: () => options.direct! } : {}),
         async out(message, address) {
             sent.push({ message, address });
         },

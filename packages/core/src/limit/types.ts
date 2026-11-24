@@ -18,7 +18,7 @@ import type { ToolContext } from '../tool/types.ts';
  * agent's `limits` entry replaces whole.
  */
 export type ToolLimit<I = any, S extends StateSchema = StateSchema> = {
-    /** The most weight the calls in one window may count; a safe integer of at least 1. */
+    /** The most weight the calls in one window may count; an integer from 1 to 2^31 - 1. */
     max: number;
     /** The window in milliseconds; a safe integer from 1 to APPROVAL_TIMEOUT_MAX_MS. */
     windowMs: number;
@@ -29,9 +29,15 @@ export type ToolLimit<I = any, S extends StateSchema = StateSchema> = {
      * together (agent-name rule); default the tool name.
      */
     bucket?: string;
-    /** How much of the limit a call takes, on its final input; a safe integer of at least 1, default 1. */
+    /** How much of the limit a call takes, on its final input; an integer from 1 to 2^31 - 1, default 1. */
     weight?: (input: I, ctx: ToolContext<S>) => number | Promise<number>;
-    /** The private body of the approval a call over the limit asks for. */
+    /**
+     * The body of the approval a call over the limit asks for. It reaches the
+     * run's source chat when the run is untainted or the source channel
+     * reports the address as direct (`IChannel.direct`); otherwise the
+     * source gets a generic notification and the body stays in the inbox
+     * and the API.
+     */
     detail?: (input: I, ctx: ToolContext<S>) => string | undefined | Promise<string | undefined>;
 };
 
@@ -84,11 +90,23 @@ export type EnforceToolLimitInput = {
     service: ILimitService;
     locks: ILockService;
     clock: IClock;
-    /** The run's source channel and address when that channel has `out`: the approval is delivered there. */
-    source?: { channel: string; address: string };
+    /** Where the approval of a call over the limit goes (limitApprovalTarget()); absent: the inbox only. */
+    target?: () => Promise<LimitApprovalTarget>;
     /** Aborts a wait for the scope's lock. */
     signal?: AbortSignal;
 };
 
 /** Checks one call of a limited tool on its final input (internal). */
 export type ToolLimitCheck = (final: unknown) => Promise<void>;
+
+/**
+ * The destination of a limit approval (internal): the run's source channel
+ * and address, and the generic notification sent there in place of the
+ * private body (`detail`) when the run is tainted and the address is no
+ * direct one.
+ */
+export type LimitApprovalTarget = {
+    channel?: string;
+    address?: string;
+    notification?: string;
+};

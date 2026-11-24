@@ -16,6 +16,7 @@ import type { RunContext } from '../../run/types.ts';
 import type { Step } from '@chamvi/store';
 import { assertTrust, bindTrust } from '../../trust/module.ts';
 import { resolveBudget, timeoutSignal } from '../budget.ts';
+import { assertApprovalFits } from '../approvals/message.ts';
 import { createSimpleTools } from './simple-tools.ts';
 import { assembleTools, createToolContext, toRunError } from './helpers/index.ts';
 import type { ExecuteContext, ExecutionGate, SimpleToolStep } from './types.ts';
@@ -110,6 +111,7 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
         approvals: 0,
         effects: effectService,
         artifacts: toolContext.artifacts,
+        fitsApproval: (request) => assertApprovalFits(ctx.engine, clock, runContext, request),
     };
     // one write at a time, so concurrent ctx.tools calls get distinct step indexes
     let steps: Promise<void> = Promise.resolve();

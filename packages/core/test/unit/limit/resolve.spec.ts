@@ -6,6 +6,7 @@
  */
 
 import { tool } from 'ai';
+import type { ToolSet } from 'ai';
 import {
     afterEach,
     describe,
@@ -14,7 +15,7 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
-import type { Agent, IEngine } from '@chamvi/core';
+import type { Agent, AgentLimits, IEngine } from '@chamvi/core';
 import { toolContextSchema } from '../../../src/tool/constants.ts';
 import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 import type { TestServiceSet, TestServices } from '../../utils/engine.ts';
@@ -48,6 +49,53 @@ function servicesWithoutLimits(): TestServices {
     delete services.limitService;
 
     return services as TestServices;
+}
+
+/** Tool sets whose limits cannot be enforced, each with the message refusing it. */
+function misconfigured(): Record<string, {
+    tools: ToolSet;
+    limits?: AgentLimits;
+    withoutService?: boolean;
+    message: string
+}> {
+    const hand = tool({
+        inputSchema: z.object({ q: z.string() }),
+        execute: async ({ q }: { q: string }) => q,
+        contextSchema: toolContextSchema,
+        limit: { max: 0, windowMs: HOUR },
+    } as never);
+
+    return {
+        'buckets that disagree': {
+            tools: {
+                search: searchTool([], {
+                    max: 2,
+                    windowMs: HOUR,
+                    bucket: 'mail',
+                }),
+                list: searchTool([], {
+                    max: 3,
+                    windowMs: HOUR,
+                    bucket: 'mail',
+                }),
+            },
+            message: 'share the limit bucket "mail"',
+        },
+        'a limit on a tool without execute': {
+            tools: { search: searchTool([]), manual: tool({ inputSchema: z.object({ q: z.string() }) }) },
+            limits: { manual: { max: 1, windowMs: HOUR } },
+            message: 'The limit of manual needs a tool with execute.',
+        },
+        'a hand-built chamvi tool with a malformed limit': {
+            tools: { search: searchTool([]), hand },
+            message: 'tool "hand"',
+        },
+        'a tool\'s own limit without a limit service': {
+            tools: { search: searchTool([], { max: 1, windowMs: HOUR }) },
+            withoutService: true,
+            message: 'needs an engine with a limit service',
+        },
+    };
 }
 
 async function failedRun(ctx: ReturnType<typeof setup>) {
@@ -108,66 +156,11 @@ describe('tool limits: resolution', () => {
         expect(await ctx.store.limitService.used('limited:named')).toBe(1);
     });
 
-    it('fails the run for tools sharing a bucket with different max or windowMs', async () => {
+    it.each(Object.entries(misconfigured()))('a tools factory with %s fails the run', async (_name, item) => {
         const ctx = setup({
-            tools: {
-                read: searchTool([], {
-                    max: 2,
-                    windowMs: HOUR,
-                    bucket: 'mail',
-                }),
-                list: searchTool([], {
-                    max: 3,
-                    windowMs: HOUR,
-                    bucket: 'mail',
-                }),
-            },
-            responses: [turn(call('read', { q: 'a' })), text('done')],
-        });
-        const run = await failedRun(ctx);
-
-        expect(run?.status).toBe('failed');
-        expect(run?.error).toMatchObject({ code: 'invalid_agent_definition' });
-        expect(run?.error?.message).toContain('bucket "mail"');
-    });
-
-    it('fails the run for a limit on a tool without execute', async () => {
-        const ctx = setup({
-            tools: {
-                search: searchTool([]),
-                manual: tool({ inputSchema: z.object({ q: z.string() }) }),
-            },
-            limits: { manual: { max: 1, windowMs: HOUR } },
-            responses: [turn(call('search', { q: 'a' })), text('done')],
-        });
-        const run = await failedRun(ctx);
-
-        expect(run?.status).toBe('failed');
-        expect(run?.error).toMatchObject({ code: 'invalid_agent_definition', message: 'The limit of manual needs a tool with execute.' });
-    });
-
-    it('fails the run for a hand-built chamvi tool with a malformed limit', async () => {
-        const hand = tool({
-            inputSchema: z.object({ q: z.string() }),
-            execute: async ({ q }: { q: string }) => q,
-            contextSchema: toolContextSchema,
-            limit: { max: 0, windowMs: HOUR },
-        } as never);
-        const ctx = setup({
-            tools: { hand },
-            responses: [turn(call('hand', { q: 'a' })), text('done')],
-        });
-        const run = await failedRun(ctx);
-
-        expect(run?.status).toBe('failed');
-        expect(run?.error).toMatchObject({ code: 'invalid_agent_definition' });
-        expect(run?.error?.message).toContain('tool "hand"');
-    });
-
-    it('fails the run for a tool\'s own limit on an engine without a limit service', async () => {
-        const ctx = setup({
-            tools: { search: searchTool([], { max: 1, windowMs: HOUR }) },
-            services: servicesWithoutLimits(),
+            tools: () => item.tools,
+            ...(item.limits ? { limits: item.limits } : {}),
+            ...(item.withoutService ? { services: servicesWithoutLimits() } : {}),
             responses: [turn(call('search', { q: 'a' })), text('done')],
         });
         const runId = await dispatchLimited(ctx);
@@ -175,7 +168,22 @@ describe('tool limits: resolution', () => {
 
         expect(run?.status).toBe('failed');
         expect(run?.error).toMatchObject({ code: 'invalid_agent_definition' });
-        expect(run?.error?.message).toContain('needs an engine with a limit service');
+        expect(run?.error?.message).toContain(item.message);
+    });
+
+    it.each(Object.entries(misconfigured()))('a static tool set with %s is refused at registration', (_name, item) => {
+        const agent = defineModelAgent({
+            name: 'limited',
+            model: mockModel([]),
+            instructions: 'x',
+            tools: item.tools,
+            ...(item.limits ? { limits: item.limits } : {}),
+        });
+
+        expect(() => createTestEngine({
+            agents: [agent],
+            ...(item.withoutService ? { services: servicesWithoutLimits() } : {}),
+        })).toThrow(item.message);
     });
 });
 

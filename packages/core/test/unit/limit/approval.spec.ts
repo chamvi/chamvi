@@ -86,6 +86,42 @@ describe('tool limits: approval', () => {
         });
     });
 
+    it.each([
+        ['a tainted run to an address that is no direct one', { untrusted: true, direct: false }, true],
+        ['a tainted run to a channel that cannot tell', { untrusted: true }, true],
+        ['a tainted run to a direct address', { untrusted: true, direct: true }, false],
+        ['an untainted run', { untrusted: false, direct: false }, false],
+    ] as const)('sends the detail to the source only when it stays private: %s', async (_name, options, generic) => {
+        const { channel, sent } = chatChannel('chat', options);
+        const ctx = setup({
+            tools: {
+                search: searchTool([], {
+                    max: 1,
+                    windowMs: HOUR,
+                    detail: (input: { q: string }) => `search for ${input.q}`,
+                }),
+            },
+            channels: [channel],
+            responses: twoSearches(),
+        });
+        const runId = await dispatchLimited(ctx, { channel: 'chat', address: 'room-1' });
+        const waiting = approvalWait(await ctx.store.runService.findOne(runId));
+
+        // the inbox and the API always hold the body
+        expect(waiting?.body).toBe('search for b');
+        expect(sent).toHaveLength(1);
+
+        if (generic) {
+            expect(waiting?.notification).toBe('A tool call over its limit requires review in the approval inbox.');
+            expect(sent[0]!.message).toMatchObject({ body: 'A tool call over its limit requires review in the approval inbox.', generic: true });
+            expect(JSON.stringify(sent[0]!.message)).not.toContain('search for b');
+        } else {
+            expect(waiting?.notification).toBeUndefined();
+            expect(sent[0]!.message.body).toBe('search for b');
+            expect(sent[0]!.message.generic).toBeUndefined();
+        }
+    });
+
     it('asks in the inbox only when the source channel has no out', async () => {
         const ctx = setup({
             tools: { search: searchTool([], { max: 1, windowMs: HOUR }) },
@@ -203,7 +239,7 @@ describe('tool limits: approval', () => {
 
         expect((await ctx.store.runService.findOne(runId))?.status).toBe('waiting');
         expect(log).toEqual([]);
-        expect(ctx.notifier.calls[0]?.title).toBe('Limit reached for search: 0 of 2 used in the last 1h. Allow this call?');
+        expect(ctx.notifier.calls[0]?.title).toBe('Limit reached for search: 0 of 2 used in the last 1h (this call: 3). Allow this call?');
 
         await answerLimited(ctx, true);
         expect(log).toEqual(['a']);

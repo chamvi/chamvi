@@ -10,11 +10,9 @@ import { approvalDecisionKey, toApprovalDecision } from '../approval/helpers.ts'
 import { requestApproval, unorderedApprovalId } from '../approval/request.ts';
 import { currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
-import { InvalidAgentDefinitionError, ToolDeniedError } from '../errors/index.ts';
-import { hasToolContext } from '../tool/helpers.ts';
+import { ToolDeniedError } from '../errors/index.ts';
 import type { ToolContext } from '../tool/types.ts';
-import { runSource } from '../trust/module.ts';
-import { assertLimitWeight, assertLimitedTools, assertToolLimit } from './asserts.ts';
+import { assertLimitWeight, assertLimitedTools } from './asserts.ts';
 import {
     formatLimitWindow,
     limitKeyOf,
@@ -22,12 +20,8 @@ import {
     limitScopeOf,
     withLimitLock,
 } from './helpers.ts';
-import type {
-    EnforceToolLimitInput,
-    ToolLimit,
-    ToolLimitCheck,
-    ToolLimitOptions,
-} from './types.ts';
+import { limitApprovalTarget, resolveToolLimits } from './resolve.ts';
+import type { EnforceToolLimitInput, ToolLimitCheck, ToolLimitOptions } from './types.ts';
 
 /**
  * The limit check of one call, right before it executes: a call counted
@@ -39,7 +33,7 @@ import type {
  * `used + weight <= max` records the use and passes. Over the limit, after
  * the lock is released: `deny` throws ToolDeniedError, `approve` asks for
  * an unordered bound approval (bound to the scope, the tool and the final
- * input; delivered to `source`, else the inbox only); approved records the
+ * input; delivered where `target` says, else the inbox only); approved records the
  * use without a re-check, denied throws ToolDeniedError.
  */
 export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<void> {
@@ -53,7 +47,7 @@ export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<vo
         service,
         locks,
         clock,
-        source,
+        target,
         signal,
     } = input;
     const frame = currentToolCall()!;
@@ -116,34 +110,21 @@ export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<vo
     }
 
     const body = await limit.detail?.(final, ctx);
+    const { notification, ...destination } = await target?.() ?? {};
+    const share = weight > 1 ? ` (this call: ${weight})` : '';
     const decision = await requestApproval({
-        title: `Limit reached for ${name}: ${used} of ${limit.max} used in the last ${window}. Allow this call?`,
+        title: `Limit reached for ${name}: ${used} of ${limit.max} used in the last ${window}${share}. Allow this call?`,
         ...(body !== undefined ? { body } : {}),
+        ...(notification !== undefined ? { notification } : {}),
         binding,
         unordered: true,
-    }, source ?? {});
+    }, destination);
 
     if (!decision.approved) {
         throw new ToolDeniedError(`Over the limit of ${name} and not approved.`);
     }
 
     await count();
-}
-
-/** The tool's own limit (a chamvi tool's only), replaced whole by the agent's entry; false turns it off. */
-function resolveToolLimit(name: string, def: ToolSet[string], options: ToolLimitOptions | undefined): ToolLimit | undefined {
-    const own = hasToolContext(def) ? (def as { limit?: unknown }).limit : undefined;
-
-    // a hand-built chamvi tool can carry an unchecked limit: refused like defineTool() refuses it
-    assertToolLimit(own, name);
-
-    const entry = options?.agent?.[name];
-
-    if (entry === undefined) {
-        return own;
-    }
-
-    return entry === false ? undefined : entry;
 }
 
 /**
@@ -155,49 +136,17 @@ function resolveToolLimit(name: string, def: ToolSet[string], options: ToolLimit
  */
 export function bindToolLimits(tools: ToolSet, ctx: ToolContext, options?: ToolLimitOptions): Map<string, ToolLimitCheck> {
     const checks = new Map<string, ToolLimitCheck>();
-    const buckets = new Map<string, { tool: string; limit: ToolLimit }>();
     // the public ToolContext is mutable: the run is the execution's
     const { run } = ctx;
+    const engine = options?.engine;
 
     assertLimitedTools(run.agent, options?.agent, tools);
 
-    for (const [name, def] of Object.entries(tools)) {
-        const limit = resolveToolLimit(name, def, options);
-
-        if (!limit) {
-            continue;
-        }
-
-        if (!def.execute) {
-            throw new InvalidAgentDefinitionError(`The limit of ${name} needs a tool with execute.`);
-        }
-
-        const engine = options?.engine;
-        const service = engine?.limitService;
-
-        if (!engine || !service) {
-            throw new InvalidAgentDefinitionError(`The limit of tool "${name}" needs an engine with a limit service.`);
-        }
-
-        const bucket = limit.bucket ?? name;
-        const seen = buckets.get(bucket);
-
-        if (seen && (seen.limit.max !== limit.max || seen.limit.windowMs !== limit.windowMs)) {
-            throw new InvalidAgentDefinitionError(
-                `The tools "${seen.tool}" and "${name}" share the limit bucket "${bucket}" with a different max or windowMs.`,
-            );
-        }
-
-        buckets.set(bucket, { tool: name, limit });
-
-        const scope = limitScopeOf(run.agent, bucket);
+    for (const [name, limit] of resolveToolLimits(tools, options?.agent, !!engine?.limitService)) {
+        const scope = limitScopeOf(run.agent, limit.bucket ?? name);
 
         checks.set(name, async (final) => {
             const frame = currentToolCall()!;
-            const origin = runSource({ run });
-            const source = origin?.address && engine.getChannel(origin.channel)?.out ?
-                { channel: origin.channel, address: origin.address } :
-                undefined;
 
             await enforceToolLimit({
                 name,
@@ -206,10 +155,10 @@ export function bindToolLimits(tools: ToolSet, ctx: ToolContext, options?: ToolL
                 final,
                 ctx,
                 key: limitKeyOf(run.runId, frame.stepIndex, frame.toolCallId),
-                service,
-                locks: engine.lockService,
-                clock: engine.clock,
-                ...(source ? { source } : {}),
+                service: engine!.limitService!,
+                locks: engine!.lockService,
+                clock: engine!.clock,
+                target: () => limitApprovalTarget(engine!, run),
                 signal: run.signal,
             });
         });

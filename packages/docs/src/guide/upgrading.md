@@ -8,7 +8,7 @@ chamvi moves to routup 6.5 and authup 1.0.0-beta.77. An app that pinned `ioredis
 
 ### Tool limits
 
-Per-tool rate limits ([Limits](/guide/tools#limits)): `limit` on a tool, `limits` on an agent, the `limitService` of the engine and `AppToken.LIMIT_REPOSITORY`/`LIMIT_SERVICE`. One store migration, `LimitUses1795552285096`, adds the table `chamvi_limit_uses` and runs like any other (`CHAMVI_MIGRATE`, `chamvi migrate`). A custom store module must register `AppToken.LIMIT_REPOSITORY` (an `ILimitRepository`, proven by `describeLimitRepositoryContract()` of `@chamvi/test-kit`); the app builds the `LimitService` from it and purges it with the lock and idempotency services. An engine built by hand passes `limitService` only when an agent declares limits.
+Per-tool rate limits ([Limits](/guide/tools#limits)): `limit` on a tool, `limits` on an agent, the `limitService` of the engine and `AppToken.LIMIT_REPOSITORY`/`LIMIT_SERVICE`. One store migration, `LimitUses1795552285096`, adds the table `chamvi_limit_uses` and runs like any other (`CHAMVI_MIGRATE`, `chamvi migrate`). A custom store module must register `AppToken.LIMIT_REPOSITORY` (an `ILimitRepository`, proven by `describeLimitRepositoryContract()` of `@chamvi/test-kit`); the app builds the `LimitService` from it and purges it with the lock and idempotency services. An engine built by hand needs `limitService` when an agent declares limits or one of its tools carries a `limit`.
 
 ### Breaking changes
 

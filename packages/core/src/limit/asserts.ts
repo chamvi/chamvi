@@ -10,7 +10,7 @@ import { isObject } from 'smob';
 import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
 import { APPROVAL_TIMEOUT_MAX_MS } from '../approval/constants.ts';
 import { InvalidAgentDefinitionError, ValidationError } from '../errors/index.ts';
-import { LIMIT_KEY_MAX_LENGTH } from './constants.ts';
+import { LIMIT_KEY_MAX_LENGTH, LIMIT_WEIGHT_MAX } from './constants.ts';
 import type { AgentLimits, ToolLimit } from './types.ts';
 
 const TOOL_LIMIT_KEYS = ['max', 'windowMs', 'onExceed', 'bucket', 'weight', 'detail'];
@@ -20,6 +20,11 @@ const TOOL_LIMIT_HOOKS = ['weight', 'detail'];
 
 function isPositiveSafeInteger(value: unknown): value is number {
     return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1;
+}
+
+/** An integer from 1 to LIMIT_WEIGHT_MAX: a `max` or a call's weight, so their sums stay far from unsafe. */
+function isLimitAmount(value: unknown): value is number {
+    return isPositiveSafeInteger(value) && value <= LIMIT_WEIGHT_MAX;
 }
 
 /**
@@ -55,8 +60,8 @@ export function assertToolLimit(limit: unknown, name?: string): asserts limit is
         bucket,
     } = limit as Record<string, unknown>;
 
-    if (!isPositiveSafeInteger(max)) {
-        throw new InvalidAgentDefinitionError(`The limit max of ${label} must be an integer of at least 1.`);
+    if (!isLimitAmount(max)) {
+        throw new InvalidAgentDefinitionError(`The limit max of ${label} must be an integer from 1 to ${LIMIT_WEIGHT_MAX}.`);
     }
 
     if (!isPositiveSafeInteger(windowMs) || windowMs > APPROVAL_TIMEOUT_MAX_MS) {
@@ -104,10 +109,10 @@ export function assertLimitKey(name: string, value: unknown): asserts value is s
     }
 }
 
-/** A call's weight: a safe integer of at least 1 (ValidationError naming the tool, nothing is counted). */
+/** A call's weight: an integer from 1 to LIMIT_WEIGHT_MAX (ValidationError naming the tool, nothing is counted). */
 export function assertLimitWeight(name: string, weight: unknown): asserts weight is number {
-    if (!isPositiveSafeInteger(weight)) {
-        throw new ValidationError(`The limit weight of tool "${name}" must be an integer of at least 1.`);
+    if (!isLimitAmount(weight)) {
+        throw new ValidationError(`The limit weight of tool "${name}" must be an integer from 1 to ${LIMIT_WEIGHT_MAX}.`);
     }
 }
 

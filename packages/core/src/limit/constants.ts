@@ -13,3 +13,9 @@ export const LIMIT_LOCK_RETRY_MS = 100;
 
 /** The longest scope or key of a limit use (the store's varchar width). */
 export const LIMIT_KEY_MAX_LENGTH = 255;
+
+/** What the source of a tainted run gets in place of a limit approval's body when its address is no direct one. */
+export const LIMIT_APPROVAL_NOTIFICATION = 'A tool call over its limit requires review in the approval inbox.';
+
+/** The largest `max` of a limit and the largest weight of one call (2^31 - 1). */
+export const LIMIT_WEIGHT_MAX = 2_147_483_647;

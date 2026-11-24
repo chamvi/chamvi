@@ -46,7 +46,8 @@ function delayLimitLock(clock: IClock): Promise<void> {
 async function holdLimitLock<T>(locks: ILockService, clock: IClock, scope: string, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
     const key = `limit:${scope}`;
     const owner = randomUUID();
-    const deadline = clock.now() + LIMIT_LOCK_TTL_MS;
+    // a lease taken just before ours expires within the TTL: one more retry after it can take the lock
+    const deadline = clock.now() + LIMIT_LOCK_TTL_MS + LIMIT_LOCK_RETRY_MS;
 
     while (await locks.acquire(key, owner, LIMIT_LOCK_TTL_MS) === undefined) {
         signal?.throwIfAborted();
@@ -72,7 +73,7 @@ const queues = new WeakMap<ILockService, Map<string, Promise<void>>>();
 /**
  * Runs `fn` under the store lock `limit:<scope>` (a random owner, TTL
  * LIMIT_LOCK_TTL_MS), retried every LIMIT_LOCK_RETRY_MS on the clock;
- * gives up after LIMIT_LOCK_TTL_MS with InvalidRunStateError. Checks of one
+ * gives up after LIMIT_LOCK_TTL_MS + LIMIT_LOCK_RETRY_MS with InvalidRunStateError. Checks of one
  * scope in this process queue before the store lock, so parallel calls of
  * one step never wait on the clock for each other.
  */
