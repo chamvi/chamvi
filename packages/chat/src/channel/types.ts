@@ -86,15 +86,15 @@ export type ChatChannelOptions = {
     resolveInvoker?: (incoming: ChatIncoming) => Invoker | undefined | Promise<Invoker | undefined>;
     /**
      * The approval link in approval messages (ids only, an absolute http(s)
-     * URL without credentials). Required to send an approval with options,
-     * and without `answers` any approval, since such an approval is answered
-     * in the UI only.
+     * URL without credentials). Required to send an approval with options, a
+     * generic one, one to a group, and without `answers` any approval, since
+     * such an approval is answered in the UI only.
      */
     approvalUrl?: (ref: ChatApprovalRef) => string;
     /**
      * Off by default. When set (`{}` for the defaults), an approval without
-     * options may be answered by replying to it in a direct chat, the reply
-     * read by a model; its message ends with `CHAT_ANSWER_HINT` and is never
+     * options sent to a direct chat may be answered by replying to it there,
+     * the reply read by a model; its message ends with `CHAT_ANSWER_HINT` and is never
      * cut (prose that does not fit `maxTextChars` is a ValidationError).
      * Needs `resolveInvoker`: a reply answers as the invoker it names.
      */

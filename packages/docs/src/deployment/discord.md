@@ -23,7 +23,7 @@ Before a live cutover:
 
 1. **One connector per bot token.** One deployment, `Recreate` (stop, then start), one replica. Two processes on one token both receive every message. The `agent-app` chart's Recreate strategy fits.
 2. **The policy, by ids.** List guild, channel, user and role ids (enable Developer Mode in Discord to copy them). Names, nicknames and role names are never consulted, so a renamed or look-alike account gains nothing.
-3. **An approval URL** into the chamvi UI, and an owner principal that can answer there. Approvals are answered in the UI, or with `answers` by a reply in a DM (see [Answers in the chat](/reference/chat#answers-in-the-chat)): Discord has no quote matching, so a reply (a native Reply or not) answers only when exactly one approval is open in that DM.
+3. **An approval URL** into the chamvi UI, and an owner principal that can answer there. Approvals are answered in the UI, or with `answers` by a reply in a DM (see [Answers in the chat](/reference/chat#answers-in-the-chat)): Discord has no quote matching, so a native Reply never answers; a plain message answers only when exactly one approval is open in that DM.
 4. **Memory**, if the agent uses `conversation: true`: a store with conversations (PostgreSQL through `@chamvi/store-db` for restart-durable memory) and a `conversations.authorize` policy. A channel's top-level messages share one memory among the people allowed there.
 5. **Trust.** Runs are tainted by default: tools marked `guardWhenTainted` need approval. Replies to the source channel or thread are not gated; do not set a `defaultAddress` unless that channel may receive whatever a tainted run produces.
 

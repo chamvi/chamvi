@@ -110,13 +110,16 @@ function readContent(content: WAMessageContent | undefined): { text: string; att
 /**
  * The message a swipe reply quotes, as far as WhatsApp names it: only its
  * id (and its sender, when given) is known, so text, time and raw stay empty.
- * Undefined without a quote or for a quote without an id.
+ * A quote is the quoted content (`quotedMessage`) or a quoted id; one without
+ * a usable id gets the id `''`, which never names an approval (it must not
+ * fall back to the one open). Undefined without a quote (a mention only).
  */
 function quotedOf(content: WAMessageContent | undefined, threadId: string): Message<unknown> | undefined {
     const info = contextInfoOf(content);
-    const id = info?.stanzaId;
+    const stanzaId = info?.stanzaId;
+    const id = typeof stanzaId === 'string' ? stanzaId : '';
 
-    if (typeof id !== 'string' || id.length === 0) {
+    if (id.length === 0 && (info?.quotedMessage === undefined || info.quotedMessage === null)) {
         return undefined;
     }
 

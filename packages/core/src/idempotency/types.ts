@@ -40,6 +40,16 @@ export interface IIdempotencyService {
      */
     claim(scope: string, key: string, runId: string, ttlMs: number): Promise<IdempotencyClaim>;
 
+    /** The unexpired claim of `(scope, key)` (`created: false`), else undefined; one plain read. */
+    findOne(scope: string, key: string): Promise<IdempotencyClaim | undefined>;
+
+    /**
+     * Gives up the unexpired claim of `(scope, key)` when it belongs to
+     * `runId`: it expires now, so the next claim takes it over. A claim of
+     * another run, an expired one or a missing key is left alone.
+     */
+    release(scope: string, key: string, runId: string): Promise<void>;
+
     /** Deletes the claims expired at `now` (default: the clock's time); resolves how many. */
     purgeExpired(now?: Date): Promise<number>;
 }

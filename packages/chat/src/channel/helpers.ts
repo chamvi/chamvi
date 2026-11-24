@@ -11,6 +11,7 @@ import {
     TRIGGER_KEY_MAX_LENGTH,
     ValidationError,
 } from '@chamvi/core';
+import type { Adapter } from 'chat';
 import { isObject } from 'smob';
 import { CHAT_ANSWER_TIMEOUT_MS } from '../answer/constants.ts';
 import type { ResolvedChatAnswerOptions } from '../answer/types.ts';
@@ -373,6 +374,14 @@ export function decodeChatAddress(address: string, adapters?: readonly string[])
     }
 
     return target;
+}
+
+/**
+ * Whether the adapter says the thread is a direct message (`isDM` true);
+ * an adapter without `isDM` has none.
+ */
+export function isDirectChatThread(adapter: Pick<Adapter, 'isDM'>, threadId: string): boolean {
+    return typeof adapter.isDM === 'function' && adapter.isDM(threadId) === true;
 }
 
 /**

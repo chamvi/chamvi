@@ -214,8 +214,12 @@ export function waMessage(input: {
     mentions?: string[];
     pushName?: string;
     image?: boolean;
-    /** the message this one quotes (a swipe reply): its id and, in a group, its sender */
-    quoted?: { id?: string | null; participant?: string };
+    /** the message this one quotes (a swipe reply): its id, in a group its sender, and whether the quoted content comes along (default true) */
+    quoted?: {
+        id?: string | null;
+        participant?: string;
+        content?: boolean
+    };
     /** seconds since the epoch; default a fixed time before the fixture clock */
     timestamp?: number;
 }): WAMessage {
@@ -225,7 +229,11 @@ export function waMessage(input: {
     const contextInfo = input.mentions || input.quoted ?
         {
             ...(input.mentions ? { mentionedJid: input.mentions } : {}),
-            ...(input.quoted ? { stanzaId: input.quoted.id, ...(input.quoted.participant ? { participant: input.quoted.participant } : {}) } : {}),
+            ...(input.quoted ? {
+                stanzaId: input.quoted.id,
+                ...(input.quoted.participant ? { participant: input.quoted.participant } : {}),
+                ...(input.quoted.content !== false ? { quotedMessage: { conversation: 'quoted' } } : {}),
+            } : {}),
         } :
         undefined;
     let message: WAMessage['message'];

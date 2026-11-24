@@ -474,6 +474,119 @@ describe('answering approvals in chat intake', () => {
         expect(await ctx.assistantRuns()).toEqual([]);
     });
 
+    it('handles a redelivered answered reply once nothing is open: no run, nothing answered', async () => {
+        const model = mockModel([
+            { parts: [{ type: 'text', text: '{"decision":"approve"}' }] },
+            { parts: [{ type: 'text', text: '{"decision":"approve"}' }] },
+        ]);
+        const ctx = await setup({ model });
+        const message = ctx.reply({ id: 'r-1', text: 'yes' });
+
+        await ctx.fixture.adapter.deliver(message);
+        await ctx.fixture.engine.idle();
+        await vi.waitFor(async () => {
+            expect((await ctx.run(ctx.ids[0]!)).status).toBe('completed');
+        });
+
+        await ctx.fixture.adapter.deliver(message);
+        await ctx.fixture.engine.idle();
+
+        expect(await ctx.assistantRuns()).toEqual([]);
+        expect(model.doGenerateCalls).toHaveLength(1);
+        expect(ctx.notices()).toEqual([]);
+        expect(ctx.fixture.errors).toEqual([]);
+    });
+
+    it('reports a failing claim lookup and dispatches the message', async () => {
+        const ctx = await setup({ model: classifier('approve') });
+        const service = ctx.fixture.engine.idempotencyService;
+        const failure = new Error('store down');
+
+        service.findOne = async () => {
+            throw failure;
+        };
+        await ctx.fixture.adapter.deliver(ctx.reply({ id: 'r-1', text: 'yes' }));
+
+        expect(ctx.fixture.errors).toEqual([failure]);
+        expect((await ctx.run(ctx.ids[0]!)).status).toBe('waiting');
+        expect(await ctx.assistantRuns()).toHaveLength(1);
+    });
+
+    it('releases the claim of a failed approve, so a redelivery answers the approval', async () => {
+        const model = mockModel([
+            { parts: [{ type: 'text', text: '{"decision":"approve"}' }] },
+            { parts: [{ type: 'text', text: '{"decision":"approve"}' }] },
+        ]);
+        const ctx = await setup({ model });
+        const { engine } = ctx.fixture;
+        const approve = engine.approve.bind(engine);
+        const failure = new Error('store down');
+        let calls = 0;
+
+        engine.approve = async (...args) => {
+            calls += 1;
+
+            if (calls === 1) {
+                throw failure;
+            }
+
+            return approve(...args);
+        };
+
+        const message = ctx.reply({ id: 'r-1', text: 'yes' });
+
+        await expect(ctx.fixture.adapter.deliver(message)).rejects.toBe(failure);
+        await flush();
+
+        await ctx.fixture.adapter.deliver(message);
+        await engine.idle();
+
+        expect(calls).toBe(2);
+        expect((await ctx.wait(ctx.ids[0]!))?.output).toMatchObject({ approved: true });
+        expect(await ctx.assistantRuns()).toEqual([]);
+    });
+
+    it('reports a failing release and still fails the intake with the approve error', async () => {
+        const ctx = await setup({ model: classifier('approve') });
+        const { engine } = ctx.fixture;
+        const failure = new Error('store down');
+        const released = new Error('release failed');
+
+        engine.approve = async () => {
+            throw failure;
+        };
+        engine.idempotencyService.release = async () => {
+            throw released;
+        };
+
+        await expect(ctx.fixture.adapter.deliver(ctx.reply({ id: 'r-1', text: 'yes' }))).rejects.toBe(failure);
+        await flush();
+        expect(ctx.fixture.errors).toContain(released);
+        expect(ctx.fixture.errors).toContain(failure);
+    });
+
+    it('answers an approval behind more than a page of unrelated waiting approvals', async () => {
+        const ctx = await setup({ model: classifier('approve') });
+        const mine = await ctx.run(ctx.ids[0]!);
+        const waiting = mine.waiting as ApprovalWaitPoint;
+
+        // older waiting approvals of another chat fill the first page of the scan
+        for (let index = 0; index < 150; index++) {
+            await ctx.fixture.engine.runService.create({
+                ...mine,
+                id: `00000000-0000-7000-8000-${String(index).padStart(12, '0')}`,
+                createdAt: new Date(new Date(mine.createdAt).getTime() - 1),
+                waiting: { ...waiting, address: chatAddress({ adapter: 'fake', threadId: 'fake:chat-2' }) },
+            });
+        }
+
+        await ctx.fixture.adapter.deliver(ctx.reply({ id: 'r-1', text: 'yes' }));
+        await ctx.fixture.engine.idle();
+
+        expect((await ctx.wait(ctx.ids[0]!))?.output).toMatchObject({ approved: true });
+        expect(await ctx.assistantRuns()).toEqual([]);
+    });
+
     it('still handles the message when a notice fails to send', async () => {
         const ctx = await setup({ model: classifier('approve'), askers: [asker('asker-a'), asker('asker-b')] });
 
@@ -540,8 +653,8 @@ describe('answering approvals in chat intake', () => {
 
         expect((await ctx.run(id)).status).toBe('waiting');
         expect(((await ctx.run(id)).waiting as ApprovalWaitPoint).title).toBe('B');
-        // classified again (the claim is taken right before the answer), but answers nothing
-        expect(model.doGenerateCalls).toHaveLength(2);
+        // the reply's claim is found before the scan: no second classification
+        expect(model.doGenerateCalls).toHaveLength(1);
         expect(await ctx.assistantRuns()).toEqual([]);
     });
 
@@ -699,5 +812,69 @@ describe('answering approvals in chat intake', () => {
             expect(await ctx.assistantRuns()).toHaveLength(1);
             expect(model.doGenerateCalls).toHaveLength(0);
         });
+    });
+});
+
+describe('answering an approval delivered before answers', () => {
+    it('dispatches a reply to an approval sent cut while answers was off, leaving it waiting', async () => {
+        const long = defineModelAgent({
+            name: 'asker',
+            instructions: 'Ask.',
+            model: approvalModel('ask', { title: `deploy ${'x'.repeat(300)}` }),
+            tools: { ask },
+        });
+        // answers off: the approval goes out cut, with its link
+        const before = createIntakeFixture({
+            agents: (channel) => [long, assistant(channel)],
+            patch: {
+                maxTextChars: 200,
+                approvalUrl: ({ runId }) => `https://chamvi.test/approvals/${runId}`,
+                resolveInvoker: () => owner,
+            },
+        });
+
+        engines.push(before.engine);
+        await before.engine.start();
+
+        const { runId } = await before.engine.dispatch({
+            agent: 'asker',
+            trigger: 'test',
+            channel: 'chat',
+            address: ADDRESS,
+            payload: {},
+        });
+
+        await before.engine.idle();
+        await vi.waitFor(async () => {
+            expect(((await before.engine.runService.findOne(runId))?.waiting as ApprovalWaitPoint | undefined)?.notifiedAt).toBeDefined();
+        });
+        expect((before.adapter.posts[0]?.message as { raw: string }).raw).toMatch(/cut/);
+        await before.engine.stop();
+
+        // the same store, now with answers on
+        const model = classifier('approve');
+        const after = createIntakeFixture({
+            agents: (channel) => [long, assistant(channel)],
+            replicaOf: before.engine,
+            patch: {
+                maxTextChars: 200,
+                answers: { model },
+                resolveInvoker: () => owner,
+            },
+        });
+
+        engines.push(after.engine);
+        await after.engine.start();
+        after.clock.advance(1);
+        await after.adapter.deliver(createTextMessage({
+            id: 'r-1',
+            text: 'yes',
+            sentAt: new Date(after.clock.now()),
+        }));
+        await after.engine.idle();
+
+        expect((await after.engine.runService.findOne(runId))?.status).toBe('waiting');
+        expect((await after.runs()).filter((item) => item.agent === 'assistant')).toHaveLength(1);
+        expect(model.doGenerateCalls).toHaveLength(0);
     });
 });

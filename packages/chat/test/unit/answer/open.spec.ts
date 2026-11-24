@@ -225,8 +225,9 @@ describe('findOpenChatApprovals', () => {
         expect(open.runs.map((run) => run.id)).toEqual([ids[1]]);
     });
 
-    it('tells a scan cut at CHAT_ANSWER_SCAN_MAX', async () => {
-        const { engine, ids } = await waitingRuns([
+    /** `count` waiting approvals of other chats, all older than the runs of `waitingRuns()` after the first */
+    async function behindUnrelated(count: number) {
+        const ctx = await waitingRuns([
             {
                 channel: 'other',
                 address: 'elsewhere',
@@ -238,16 +239,52 @@ describe('findOpenChatApprovals', () => {
                 title: 'mine',
             },
         ]);
-        const elsewhere = (await engine.runService.findOne(ids[0]!))!;
+        const elsewhere = (await ctx.engine.runService.findOne(ctx.ids[0]!))!;
 
-        // older waiting approvals of other chats fill the whole scan
-        for (let index = 1; index < CHAT_ANSWER_SCAN_MAX; index++) {
-            await engine.runService.create({ ...elsewhere, id: randomUUID() });
+        for (let index = 1; index < count; index++) {
+            await ctx.engine.runService.create({ ...elsewhere, id: randomUUID() });
         }
+
+        return ctx;
+    }
+
+    it('pages past CHAT_ANSWER_SCAN_MAX unrelated waiting approvals to the ones of this chat', async () => {
+        const { engine, ids } = await behindUnrelated(CHAT_ANSWER_SCAN_MAX * 2);
 
         const open = await findOpenChatApprovals(engine, { channel: 'chat', address: 'dm:1' });
 
-        expect(open).toEqual({ runs: [], truncated: true });
+        expect(open).toEqual({ runs: [expect.objectContaining({ id: ids[1] })], truncated: false });
+    });
+
+    it('tells a scan cut when its page budget runs out with rows left', async () => {
+        const { engine, ids } = await behindUnrelated(CHAT_ANSWER_SCAN_MAX);
+
+        expect(await findOpenChatApprovals(engine, { channel: 'chat', address: 'dm:1' }, 1)).toEqual({ runs: [], truncated: true });
+        // one more page reaches the end: nothing is left out
+        expect(await findOpenChatApprovals(engine, { channel: 'chat', address: 'dm:1' }, 2))
+            .toEqual({ runs: [expect.objectContaining({ id: ids[1] })], truncated: false });
+    });
+
+    it('tells a scan cut when the waiting runs shifted between its pages', async () => {
+        const { engine, ids } = await behindUnrelated(CHAT_ANSWER_SCAN_MAX * 2);
+        const { runService } = engine;
+        const find = runService.find.bind(runService);
+        let calls = 0;
+
+        runService.find = async (query) => {
+            calls += 1;
+
+            // an unrelated run of the first page settles before the second page is read
+            if (calls === 2) {
+                await runService.update(ids[0]!, { status: 'completed', waiting: undefined });
+            }
+
+            return find(query);
+        };
+
+        const open = await findOpenChatApprovals(engine, { channel: 'chat', address: 'dm:1' });
+
+        expect(open.truncated).toBe(true);
     });
 });
 

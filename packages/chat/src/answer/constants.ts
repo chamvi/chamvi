@@ -17,8 +17,11 @@ export const CHAT_ANSWER_NOTICE_SEVERAL = 'Several approvals are open here. Repl
 /** The notice for a reply to an approval that is no longer open. */
 export const CHAT_ANSWER_NOTICE_CLOSED = 'This approval is no longer open.';
 
-/** At most this many waiting approval runs are scanned for the ones open in a chat (internal). */
+/** The page size of the scan of waiting approval runs for the ones open in a chat (internal). */
 export const CHAT_ANSWER_SCAN_MAX = 100;
+
+/** At most this many pages of waiting approval runs are scanned (internal). */
+export const CHAT_ANSWER_SCAN_PAGES_MAX = 10;
 
 /** How long a reply's answer claim holds (internal): the engine's dispatch idempotency window, 7 days. */
 export const CHAT_ANSWER_CLAIM_TTL_MS = 7 * 24 * 60 * 60 * 1000;

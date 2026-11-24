@@ -270,6 +270,8 @@ export type WhatsAppContextInfo = {
     stanzaId?: string | null;
     /** the sender of the quoted message */
     participant?: string | null;
+    /** the quoted message's content: present on a quote (a swipe reply), whatever its id */
+    quotedMessage?: unknown;
 };
 
 /** What the adapter needs (internal). */

@@ -109,14 +109,14 @@ describe('identity chat ids', () => {
 
         expect(value.chat).toBe(`discord:${GUILD}:${CHANNEL}:${THREAD}`);
         expect(value.chat).toBe(adapter().encodeThreadId({
-            guildId: GUILD, 
-            channelId: CHANNEL, 
-            threadId: THREAD, 
+            guildId: GUILD,
+            channelId: CHANNEL,
+            threadId: THREAD,
         }));
         expect(adapter().decodeThreadId(value.chat)).toEqual({
-            guildId: GUILD, 
-            channelId: CHANNEL, 
-            threadId: THREAD, 
+            guildId: GUILD,
+            channelId: CHANNEL,
+            threadId: THREAD,
         });
         expect(value.channel).toBe(CHANNEL);
         expect(value.thread).toBe(THREAD);
@@ -235,7 +235,7 @@ describe('toChatMessage', () => {
         expect(Object.keys(message).sort()).toEqual(fields);
     });
 
-    it('hands a native Discord Reply to intake without replyTo: it answers only as a plain reply', () => {
+    it('hands a native Discord Reply to intake as a quote of the referenced message: it never answers', () => {
         const target = adapter();
         // a Reply (type 19) to a bot message, with its reference as discord.js and the API carry it
         const raw = Object.assign(discordMessage({
@@ -260,6 +260,20 @@ describe('toChatMessage', () => {
 
         // the pinned adapter parses no quote; a bump that fills replyTo fails here and needs a matching decision
         expect(target.parseMessage(api as never).replyTo).toBeUndefined();
-        expect(toChatMessage(target, raw, identity(raw)).replyTo).toBeUndefined();
+        // chamvi fills it from the reference: with no sentMessageId on Discord, a quote never answers an approval
+        expect(toChatMessage(target, raw, identity(raw)).replyTo).toMatchObject({ id: '300000000000000000', threadId: identity(raw).chat });
+    });
+
+    it('marks a reference without a message id as a quote with an empty id, and a plain message as none', () => {
+        const target = adapter();
+        const plain = discordMessage({ guildId: null, content: 'yes' });
+        const bare = Object.assign(discordMessage({
+            guildId: null,
+            type: 19,
+            content: 'yes',
+        }), { reference: { messageId: null } });
+
+        expect(toChatMessage(target, plain, identity(plain)).replyTo).toBeUndefined();
+        expect(toChatMessage(target, bare, identity(bare)).replyTo).toMatchObject({ id: '' });
     });
 });

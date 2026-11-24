@@ -8,13 +8,14 @@
 import { Permission, can } from '@chamvi/access';
 import { ErrorCode } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
-import type { Invoker, Run } from '@chamvi/store';
+import type { ApprovalWaitPoint, Invoker, Run } from '@chamvi/store';
 import type { LanguageModel } from 'ai';
 import { isObject } from 'smob';
 import { encodeChatAddress, hashKey, reportError } from '../channel/helpers.ts';
 import type { ChatIntakeContext, ChatPayload } from '../channel/types.ts';
 import type { ChatIncoming } from '../ingress/types.ts';
 import { CHAT_ID_MAX_LENGTH } from '../intake/constants.ts';
+import { renderChatMessage } from '../outbound/helpers.ts';
 import { classifyChatAnswer } from './classify.ts';
 import { CHAT_ANSWER_CLAIM_TTL_MS, CHAT_ANSWER_NOTICE_CLOSED, CHAT_ANSWER_NOTICE_SEVERAL } from './constants.ts';
 import { findOpenChatApprovals, pickChatApproval } from './open.ts';
@@ -122,6 +123,39 @@ async function sendChatAnswerNotice(
     }
 }
 
+/** The durable claim of a reply's answer: one per channel, adapter, thread, author and message. */
+function chatAnswerClaimOf(ctx: ChatIntakeContext, payload: ChatPayload): { scope: string; key: string } {
+    return {
+        scope: `chat_answer:${ctx.options.name}`,
+        key: hashKey([payload.adapter, payload.threadId, payload.message.author.id, payload.message.id]),
+    };
+}
+
+/**
+ * Whether the approval's message, rendered now with the channel's options
+ * to this direct chat, is whole (answerable, never cut): one that would not
+ * fit was, or would be, sent cut (e.g. while `answers` was off), so the
+ * owner may never have seen what they approve.
+ */
+function isChatApprovalWhole(ctx: ChatIntakeContext, run: Run, waiting: ApprovalWaitPoint): boolean {
+    try {
+        renderChatMessage({
+            kind: 'approval',
+            key: `${run.id}:${waiting.approvalId}`,
+            runId: run.id,
+            agent: run.agent,
+            title: waiting.title,
+            body: waiting.body ?? '',
+            approvalId: waiting.approvalId,
+            expiresAt: waiting.expiresAt,
+        }, { ...ctx.options, direct: true });
+
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 /** The model that reads the reply, or undefined (reported to `onError`) when it does not resolve. */
 function resolveChatAnswerModel(ctx: ChatIntakeContext, run: Run): LanguageModel | undefined {
     try {
@@ -182,6 +216,7 @@ async function planChatAnswer(
     if (
         run.waiting?.kind !== 'approval' ||
         isChatReplyBeforeApproval(payload, run.waiting.notifiedAt) ||
+        !isChatApprovalWhole(ctx, run, run.waiting) ||
         !await canApproveChatRun(engine, invoker, run)
     ) {
         return false;
@@ -208,12 +243,8 @@ async function planChatAnswer(
     }
 
     // one approval per reply, durably: a redelivery after this answer never answers a later approval
-    const claim = await engine.idempotencyService.claim(
-        `chat_answer:${options.name}`,
-        hashKey([payload.adapter, payload.threadId, payload.message.author.id, payload.message.id]),
-        run.id,
-        CHAT_ANSWER_CLAIM_TTL_MS,
-    );
+    const { scope, key } = chatAnswerClaimOf(ctx, payload);
+    const claim = await engine.idempotencyService.claim(scope, key, run.id, CHAT_ANSWER_CLAIM_TTL_MS);
 
     if (!claim.created) {
         return true;
@@ -235,16 +266,18 @@ async function planChatAnswer(
  * no open approval, no approval the reply answers, an invoker without
  * `chamvi_agent_approve` for the run's agent (checked before any model
  * call), a reply sent before the approval reached the chat or without a
- * send time, a model that does not resolve, a reply read as unclear, and
+ * send time, an approval whose message would not render whole now (it was
+ * or would be sent cut), a model that does not resolve, a reply read as unclear, and
  * any failure before the answer (reported to `onError`; the dispatch keeps
  * its own retry). Several open approvals and an unquoted reply (when the
  * invoker may answer one of them) get a notice.
  * Each reply answers at most once: a durable claim (`chat_answer:<channel>`,
  * apart from every dispatch scope; per adapter, thread, author and message)
- * is taken right before the answer, so a redelivery answers no later
- * approval; a claim whose answer failed stays taken. An approval that
- * settled meanwhile gets the closed notice; any other approve failure
- * rejects (an intake failure).
+ * is taken right before the answer, and a reply whose claim is held is
+ * handled before the scan, so a redelivery answers no later approval and
+ * starts no run. An approval that settled meanwhile gets the closed notice;
+ * any other approve failure releases the claim (so a redelivery may answer)
+ * and rejects (an intake failure).
  */
 export async function answerChatApproval(
     ctx: ChatIntakeContext,
@@ -265,9 +298,15 @@ export async function answerChatApproval(
         return false;
     }
 
+    const claim = chatAnswerClaimOf(ctx, payload);
     let plan: ChatAnswerPlan;
 
     try {
+        // a reply that answered already (a redelivery) is handled, even once nothing is open any more
+        if (await context.engine.idempotencyService.findOne(claim.scope, claim.key)) {
+            return true;
+        }
+
         plan = await planChatAnswer(ctx, payload, invoker, quotedId);
     } catch (error) {
         // a store failure before the answer must not lose the message: it is dispatched with its retry
@@ -295,6 +334,13 @@ export async function answerChatApproval(
             await sendChatAnswerNotice(ctx, payload, address, 'closed');
 
             return true;
+        }
+
+        // the approval is still open: a redelivery of this reply may answer it
+        try {
+            await context.engine.idempotencyService.release(claim.scope, claim.key, plan.run.id);
+        } catch (released) {
+            reportError(options, released);
         }
 
         throw error;

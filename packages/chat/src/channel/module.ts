@@ -193,7 +193,7 @@ function teardown(run: ChatRun, options: ResolvedChatChannelOptions): Promise<vo
  * once and only while the channel is started: before `start` finished and
  * from `stop` on it sends nothing (`chat_request`). Approvals go out as a
  * link of `approvalUrl` (required for them, except one without options
- * with `answers`, which ends with `CHAT_ANSWER_HINT`), never as buttons.
+ * to a direct chat with `answers`, which ends with `CHAT_ANSWER_HINT`), never as buttons.
  *
  * Runs it starts are untrusted unless `untrusted: false`. Only incoming
  * messages reach chamvi: the Chat has no handlers of chamvi's, so an action

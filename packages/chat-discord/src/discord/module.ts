@@ -334,7 +334,7 @@ export function createDiscordChat(options: DiscordChatOptions): DiscordChatSetup
         ...(name !== undefined ? { name } : {}),
         ...(options.untrusted !== undefined ? { untrusted: options.untrusted } : {}),
         ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
-        // no sentMessageId and no quote matching: a reply (a native Reply or not) answers only when exactly one approval is open
+        // no sentMessageId and no quote matching: a native Reply never answers, a plain message only when exactly one approval is open
         ...(options.answers !== undefined ? { answers: options.answers } : {}),
         account: options.account,
         maxTextChars: DISCORD_TEXT_MAX_CHARS,

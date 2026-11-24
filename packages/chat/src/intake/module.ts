@@ -16,7 +16,7 @@ import type {
 import type { Invoker } from '@chamvi/store';
 import { isObject } from 'smob';
 import { answerChatApproval } from '../answer/module.ts';
-import { encodeChatAddress, hashKey } from '../channel/helpers.ts';
+import { encodeChatAddress, hashKey, isDirectChatThread } from '../channel/helpers.ts';
 import { CHAT_INTAKE_FAILED_ERROR_CODE } from '../channel/constants.ts';
 import type {
     ChatEvent,
@@ -103,7 +103,7 @@ function readPayload(incoming: ChatIncoming, options: ResolvedChatChannelOptions
 
     let event: ChatEvent = 'message';
 
-    if (typeof adapter.isDM === 'function' && adapter.isDM(threadId) === true) {
+    if (isDirectChatThread(adapter, threadId)) {
         event = 'direct';
     } else if (message.isMention === true) {
         event = 'mention';

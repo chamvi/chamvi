@@ -67,7 +67,7 @@ export type ChatApprovalPickInput = {
 export type ChatOpenApprovals = {
     /** The open approvals of the chat, oldest first. */
     runs: Run[];
-    /** More waiting approvals exist than the scan read, so `runs` may miss some. */
+    /** The scan read not every waiting approval (its page budget ran out, or its pages shifted), so `runs` may miss some. */
     truncated: boolean;
 };
 

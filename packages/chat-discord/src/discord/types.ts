@@ -105,6 +105,8 @@ export type DiscordInboundMessage = {
     };
     attachments: { values(): Iterable<DiscordInboundAttachment> };
     channel: DiscordInboundChannel;
+    /** The message this one refers to (a native Reply); discord.js's `reference`. */
+    reference?: { messageId?: string | null } | null;
 };
 
 /** The channel of an incoming message; `fetch()` loads a partial one (a thread whose parent is unknown). */
@@ -219,7 +221,7 @@ export type DiscordChatOptions = {
     timeoutMs?: number;
     /**
      * Answers to approvals in a direct message (see chatChannel's `answers`); off by default.
-     * Discord has no quote matching: a reply (a native Reply or not) answers only when exactly one approval is open.
+     * Discord has no quote matching: a native Reply never answers; a plain (non-reply) message answers only when exactly one approval is open.
      */
     answers?: ChatAnswerOptions;
     /** The connector's clock (login retry backoff, shutdown bound); default the engine's. */

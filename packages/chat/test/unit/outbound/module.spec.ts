@@ -187,6 +187,43 @@ describe('createChatSender', () => {
         expect(ctx.adapter.posts).toEqual([]);
     });
 
+    it('renders the reply hint only for an approval to a direct message; a group one gets the link', async () => {
+        const ctx = setup({
+            answers: { timeoutMs: 1_000 },
+            approvalUrl: ({ runId }) => `https://chamvi.test/approvals/${runId}`,
+        });
+        const approval = message({
+            kind: 'approval',
+            title: 'Deploy?',
+            approvalId: '0:call-1:0',
+        });
+
+        ctx.adapter.isDirect = (threadId) => threadId === 'fake:chat-1';
+        await ctx.out(approval, SOURCE, opts());
+        await ctx.out(approval, OTHER, opts());
+
+        const [direct, group] = ctx.adapter.posts.map((post) => (post.message as { raw: string }).raw);
+
+        expect(direct).toContain('Reply to this message to approve or deny.');
+        expect(group).not.toContain('Reply to this message');
+        expect(group).toContain('Approve or deny: https://chamvi.test/approvals/run-1');
+    });
+
+    it('requires approvalUrl for an approval to a group even with answers', async () => {
+        const ctx = setup({ answers: { timeoutMs: 1_000 } });
+
+        ctx.adapter.isDirect = () => false;
+
+        const error = await rejection(ctx.out(message({
+            kind: 'approval',
+            title: 'Deploy?',
+            approvalId: '0:call-1:0',
+        }), SOURCE, opts()));
+
+        expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
+        expect(ctx.adapter.posts).toEqual([]);
+    });
+
     it('offline_fails_before_post: a channel that is not connected sends nothing and says so', async () => {
         const ctx = setup();
 

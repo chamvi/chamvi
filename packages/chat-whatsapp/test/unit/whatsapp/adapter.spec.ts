@@ -102,18 +102,39 @@ describe('WhatsApp adapter quotes', () => {
         expect(received[0]?.replyTo?.author.userId).toBe('4900000000000@s.whatsapp.net');
     });
 
-    it('sets no replyTo without a quote or for a quote without a usable id', async () => {
+    it('sets no replyTo without a quote, nor for a mention only', async () => {
         const { socket, received } = await connected();
 
         socket.deliver(
             waMessage({ chat: ALICE }),
             waMessage({ chat: ALICE, mentions: [ALICE] }),
-            waMessage({ chat: ALICE, quoted: { id: '' } }),
-            waMessage({ chat: ALICE, quoted: { id: null } }),
         );
         await settle();
 
-        expect(received).toHaveLength(4);
-        expect(received.map((message) => message.replyTo)).toEqual([undefined, undefined, undefined, undefined]);
+        expect(received).toHaveLength(2);
+        expect(received.map((message) => message.replyTo)).toEqual([undefined, undefined]);
+    });
+
+    it('marks a quote without a usable id with an empty replyTo id, so it never falls back to the one open approval', async () => {
+        const { socket, received } = await connected();
+
+        socket.deliver(
+            waMessage({ chat: ALICE, quoted: { id: '' } }),
+            waMessage({ chat: ALICE, quoted: { id: null } }),
+            waMessage({ chat: ALICE, quoted: {} }),
+        );
+        await settle();
+
+        expect(received).toHaveLength(3);
+        expect(received.map((message) => message.replyTo?.id)).toEqual(['', '', '']);
+    });
+
+    it('takes a quoted id without the quoted content as a quote too', async () => {
+        const { socket, received } = await connected();
+
+        socket.deliver(waMessage({ chat: ALICE, quoted: { id: 'Z', content: false } }));
+        await settle();
+
+        expect(received[0]?.replyTo?.id).toBe('Z');
     });
 });
