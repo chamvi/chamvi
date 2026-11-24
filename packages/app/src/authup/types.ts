@@ -23,8 +23,19 @@ export type AuthupModuleOptions = {
      */
     realm?: string;
     /**
+     * The client that owns chamvi's permissions (#282), by id or by name in
+     * chamvi's realm. Set, every permission name is checked only as a
+     * definition of this client; global and realm-owned definitions grant
+     * nothing. A name is resolved once at start (needs `client_read`); one
+     * that does not resolve to exactly one client fails the start. Default
+     * `AUTHUP_PERMISSION_CLIENT`; unset, the global then the realm-owned
+     * definition is checked.
+     */
+    permissionClient?: string;
+    /**
      * How long each call to authup may take, in ms: the catalog read, the
-     * realm lookup and each token verification (a positive finite number).
+     * realm lookup, the permission client lookup and each token verification
+     * (a positive finite number).
      * A timed-out verification answers 503; a timed-out catalog or realm
      * grants the login nothing. Default `AUTHUP_TIMEOUT_MS`, else 10 000.
      */
@@ -38,8 +49,9 @@ export type AuthupModuleOptions = {
     /**
      * Default `process.env`, read when the factory is called; `AUTHUP_URL`,
      * `AUTHUP_CLIENT_ID` and `AUTHUP_CLIENT_SECRET` are read unless
-     * `verifier`, `catalog` and `realm` are all given, `AUTHUP_TIMEOUT_MS`
-     * unless `timeoutMs` is.
+     * `verifier`, `catalog` and `realm` are all given and the permission
+     * client is no name, `AUTHUP_TIMEOUT_MS` unless `timeoutMs` is,
+     * `AUTHUP_PERMISSION_CLIENT` unless `permissionClient` is.
      */
     env?: Env;
 };
