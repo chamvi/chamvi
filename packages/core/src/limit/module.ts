@@ -6,7 +6,8 @@
  */
 
 import type { ToolSet } from 'ai';
-import { requestApproval } from '../approval/request.ts';
+import { approvalDecisionKey, toApprovalDecision } from '../approval/helpers.ts';
+import { requestApproval, unorderedApprovalId } from '../approval/request.ts';
 import { currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
 import { InvalidAgentDefinitionError, ToolDeniedError } from '../errors/index.ts';
@@ -30,7 +31,8 @@ import type {
 /**
  * The limit check of one call, right before it executes: the weight
  * (`limit.weight`, default 1; else a ValidationError, nothing counted),
- * then under the lock `limit:<scope>` a call counted already passes, and
+ * then a recorded decision of the call's limit approval stands whatever
+ * the count is now (denied throws, approved records), else under the lock `limit:<scope>` a call counted already passes, and
  * `used + weight <= max` records the use and passes. Over the limit, after
  * the lock is released: `deny` throws ToolDeniedError, `approve` asks for
  * an unordered bound approval (bound to the scope, the tool and the final
@@ -54,6 +56,25 @@ export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<vo
     const weight = limit.weight ? await limit.weight(final, ctx) : 1;
 
     assertLimitWeight(name, weight);
+
+    const binding = stableHash({
+        limit: scope,
+        tool: name,
+        input: final,
+    });
+    // an answered limit approval stands, whatever the count is now (a drained window included)
+    const frame = currentToolCall()!;
+    const recorded = await frame.effects.findOne(approvalDecisionKey(frame.runId, unorderedApprovalId(frame, binding)));
+
+    if (recorded) {
+        if (!toApprovalDecision(recorded.result).approved) {
+            throw new ToolDeniedError(`Over the limit of ${name} and not approved.`);
+        }
+
+        await service.record(scope, key, weight, limit.windowMs);
+
+        return;
+    }
 
     const used = await withLimitLock(locks, clock, scope, async () => {
         if (await service.counted(scope, key)) {
@@ -85,11 +106,7 @@ export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<vo
     const decision = await requestApproval({
         title: `Limit reached for ${name}: ${used} of ${limit.max} used in the last ${window}. Allow this call?`,
         ...(body !== undefined ? { body } : {}),
-        binding: stableHash({
-            limit: scope,
-            tool: name,
-            input: final,
-        }),
+        binding,
         unordered: true,
     }, source ?? {});
 

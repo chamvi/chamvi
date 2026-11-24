@@ -130,6 +130,42 @@ describe('tool limits: approval', () => {
         expect(await ctx.store.limitService.used('limited:search')).toBe(1);
     });
 
+    it('a denied call resumed after the window drained does not run and counts nothing', async () => {
+        const log: string[] = [];
+        const ctx = setup({
+            tools: { search: searchTool(log, { max: 1, windowMs: HOUR }) },
+            responses: twoSearches(),
+        });
+        const runId = await dispatchLimited(ctx);
+
+        ctx.clock.advance(HOUR);
+        expect(await ctx.store.limitService.used('limited:search')).toBe(0);
+        await answerLimited(ctx, false);
+
+        expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
+        expect(log).toEqual(['a']);
+        expect(ctx.notifier.calls).toHaveLength(1);
+        expect(promptOf(ctx, 2)).toContain('Over the limit of search and not approved.');
+        expect(await ctx.store.limitService.used('limited:search')).toBe(0);
+    });
+
+    it('an approved call resumed after the window drained runs once and counts once', async () => {
+        const log: string[] = [];
+        const ctx = setup({
+            tools: { search: searchTool(log, { max: 1, windowMs: HOUR }) },
+            responses: twoSearches(),
+        });
+        const runId = await dispatchLimited(ctx);
+
+        ctx.clock.advance(HOUR);
+        await answerLimited(ctx, true);
+
+        expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
+        expect(log).toEqual(['a', 'b']);
+        expect(ctx.notifier.calls).toHaveLength(1);
+        expect(await ctx.store.limitService.used('limited:search')).toBe(1);
+    });
+
     it('a weight larger than max always asks', async () => {
         const log: string[] = [];
         const ctx = setup({
