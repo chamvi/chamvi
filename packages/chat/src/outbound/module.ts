@@ -14,7 +14,63 @@ import type {
 import type { Adapter } from 'chat';
 import { decodeChatAddress, isDirectChatThread, reportError } from '../channel/helpers.ts';
 import { messageOf, renderChatMessage, requestError } from './helpers.ts';
-import type { ChatSenderOptions } from './types.ts';
+import type { ChatRenderSetup, ChatSenderOptions } from './types.ts';
+
+type ChatRendered = {
+    target: { adapter: string; threadId: string };
+    adapter: Adapter;
+    text: string;
+};
+
+/** Decodes the address and renders the message as `out` posts it (its errors come before any post). */
+function createChatRenderer(options: ChatRenderSetup): (message: ChannelMessage, address: string) => ChatRendered {
+    const adapters = new Map<string, Adapter>(options.adapters.map((adapter) => [adapter.name, adapter]));
+    const names = options.adapters.map((adapter) => adapter.name);
+
+    return (message, address) => {
+        const target = decodeChatAddress(address, names);
+        const adapter = adapters.get(target.adapter)!;
+        // an approval is answerable in a direct message only, as intake answers only those; without answers isDM is never asked
+        const direct = !!options.answers && message.kind === 'approval' && isDirectChatThread(adapter, target.threadId);
+
+        return {
+            target,
+            adapter,
+            text: renderChatMessage(message, { ...options, direct }),
+        };
+    };
+}
+
+/**
+ * The `fits` and `direct` of a chat channel. `fits` renders the message as
+ * `out` would (renderChatMessage(), the same `direct` and `quotes`) and
+ * throws what `out` would throw before posting: an approval answerable in
+ * the chat that exceeds `maxTextChars` is refused before the call
+ * suspends. `direct` is the adapter's `isDM` for the address (false for one
+ * that is no chat address of the listed adapters).
+ */
+export function createChatChecks(options: ChatRenderSetup): Required<Pick<IChannel, 'fits' | 'direct'>> {
+    const render = createChatRenderer(options);
+    const adapters = new Map<string, Adapter>(options.adapters.map((adapter) => [adapter.name, adapter]));
+    const names = options.adapters.map((adapter) => adapter.name);
+
+    return {
+        fits: (message, address) => {
+            render(message, address);
+        },
+        direct: (address) => {
+            let target: { adapter: string; threadId: string };
+
+            try {
+                target = decodeChatAddress(address, names);
+            } catch {
+                return false;
+            }
+
+            return isDirectChatThread(adapters.get(target.adapter)!, target.threadId);
+        },
+    };
+}
 
 /**
  * The `out` of a chat channel: decodes the address (ValidationError for one
@@ -41,15 +97,14 @@ import type { ChatSenderOptions } from './types.ts';
  * cancel).
  */
 export function createChatSender(options: ChatSenderOptions): NonNullable<IChannel['out']> {
-    const adapters = new Map<string, Adapter>(options.adapters.map((adapter) => [adapter.name, adapter]));
-    const names = options.adapters.map((adapter) => adapter.name);
+    const render = createChatRenderer(options);
 
     return async (message: ChannelMessage, address: string, opts: ChannelSendOptions): Promise<void> => {
-        const target = decodeChatAddress(address, names);
-        const adapter = adapters.get(target.adapter)!;
-        // an approval is answerable in a direct message only, as intake answers only those; without answers isDM is never asked
-        const direct = !!options.answers && message.kind === 'approval' && isDirectChatThread(adapter, target.threadId);
-        const text = renderChatMessage(message, { ...options, direct });
+        const {
+            target,
+            adapter,
+            text,
+        } = render(message, address);
         // a platform's own send refuses its target here, before anything goes out
         const post = options.prepare ?
             options.prepare({

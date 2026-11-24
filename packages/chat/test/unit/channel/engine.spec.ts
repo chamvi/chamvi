@@ -311,4 +311,38 @@ describe('chat channel out on an engine', () => {
         expect(decisions).toEqual([expect.objectContaining({ approved: true, selected: ['v1'] })]);
         expect(fixture.adapter.posts).toHaveLength(1);
     });
+
+    it('an approval answerable in the chat over maxTextChars is the tool\'s error: nothing is posted, the run never waits', async () => {
+        const errors: unknown[] = [];
+        const fixture = await started({
+            patch: {
+                answers: { timeoutMs: 1_000 },
+                maxTextChars: 200,
+                resolveInvoker: () => ({
+                    id: 'owner',
+                    kind: 'chat',
+                    bindings: [{ permission: { name: 'chamvi_agent_run' } }, { permission: { name: 'chamvi_agent_approve' } }],
+                }),
+            },
+            agents: (channel) => [agentWith(channel, async (context) => {
+                try {
+                    await context.channels.findOneOrFail('chat').approve({ title: 'x'.repeat(300) });
+                } catch (error) {
+                    errors.push(error);
+
+                    throw error;
+                }
+
+                return 'ok';
+            })],
+        });
+        const run = await trigger(fixture);
+
+        expect(run.status).toBe('completed');
+        expect(run.waiting).toBeUndefined();
+        expect(fixture.adapter.posts).toEqual([]);
+        expect(errors).toEqual([expect.objectContaining({ code: 'validation_error' })]);
+        expect(fixture.errors).toEqual([]);
+        expect(fixture.engineErrors).toEqual([]);
+    });
 });

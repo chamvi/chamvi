@@ -45,3 +45,6 @@ export type ChatRenderOptions = Pick<ChatSenderOptions, 'answers' | 'approvalUrl
     /** The destination is a direct message (the adapter's `isDM`): only there `answers` makes an approval answerable. */
     direct?: boolean;
 };
+
+/** What rendering a message for an address needs: `out`, `fits` and `direct` share it. */
+export type ChatRenderSetup = Pick<ChatSenderOptions, 'adapters' | 'answers' | 'approvalUrl' | 'quotes' | 'maxTextChars'>;
