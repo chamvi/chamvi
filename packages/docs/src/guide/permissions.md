@@ -177,7 +177,7 @@ Client ownership gives each deployment its own. Set `AUTHUP_PERMISSION_OWNER=cli
 - The catalog serves client-owned definitions of chamvi's realm to chamvi's `permission_read`; nothing else changes on chamvi's client.
 - A run stores the owner with its invoker, so it keeps the mode it was dispatched in after a switch. Static tokens and `oidc()` bindings are not affected.
 
-In client mode the provisioning file declares the permissions and the roles under the owner client, binds the roles with `clientPermissions` and the users with `clientRoles`. Every role that binds the permissions moves to the client, and an app's own names follow too:
+In client mode the dashboard client owns both the permissions and the roles that bind them; chamvi's own client owns neither. The provisioning file declares them under the dashboard client and binds the roles with `clientPermissions`. Users get those client roles assigned, in the file with `clientRoles` or later in authup (a user's role of the dashboard client). Every role that binds the permissions moves to the client, and an app's own names follow too:
 
 ```yaml
 realms:
@@ -195,6 +195,7 @@ realms:
                 relations:
                   clientPermissions:
                     agents-dashboard: [chamvi_agent_read, chamvi_agent_run]
+      # optional: users may also get the client role later in authup
       users:
         - attributes: { name: alice }
           relations:
