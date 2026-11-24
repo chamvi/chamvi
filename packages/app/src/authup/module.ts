@@ -13,6 +13,7 @@ import type { IContainer } from 'eldin';
 import type { IModule, ModuleDependency } from 'orkos';
 import { isObject } from 'smob';
 import { AUTHENTICATOR_ORDER, AppToken, ModuleName } from '../module/constants.ts';
+import { readUiAuthupClient } from '../module/helpers/ui-auth.ts';
 import { TIMER_MAX_MS } from '../env/constants.ts';
 import { envInteger, envString } from '../env/module.ts';
 import type { Env } from '../env/types.ts';
@@ -27,9 +28,10 @@ import type { AuthupModuleOptions, AuthupPermissionOwner } from './types.ts';
  * authup server of the env serves for each one not given. Catalog and realm
  * failures go to the app logger; that login then grants nothing. With the
  * permission owner `client`, the dashboard client (`UI_AUTH` of the dashboard
- * module, which sets up first, else `CHAMVI_UI_AUTHUP_CLIENT_ID`) owns the
- * permissions: resolved in `setup()` of a serving start, so one that does not
- * resolve fails the start, never falling back to the realm's definitions.
+ * module, which sets up first, else `CHAMVI_UI_AUTHUP_CLIENT_ID`, else
+ * `chamvi`) owns the permissions: resolved in `setup()` of a serving start,
+ * so one that does not resolve fails the start, never falling back to the
+ * realm's definitions.
  * Other modes (job, migrate, a check) resolve it at the first login with
  * grants, which then grants nothing until it resolves.
  */
@@ -62,10 +64,14 @@ export class AuthupModule implements IModule {
     protected server: () => ReturnType<typeof createAuthupRemote>;
 
     constructor(options: AuthupModuleOptions = {}) {
-        const { realm } = options;
+        const { realm, clientRealm } = options;
 
         if (typeof realm !== 'undefined' && (typeof realm !== 'string' || realm.length === 0)) {
             throw new InvalidAgentDefinitionError('authup: realm must be a non-empty string.');
+        }
+
+        if (typeof clientRealm !== 'undefined' && (typeof clientRealm !== 'string' || clientRealm.length === 0)) {
+            throw new InvalidAgentDefinitionError('authup: clientRealm must be a non-empty string.');
         }
 
         const env = options.env ?? process.env;
@@ -140,20 +146,15 @@ export class AuthupModule implements IModule {
         });
     }
 
-    /** The dashboard client, an id or a name: the dashboard module's `UI_AUTH`, else `CHAMVI_UI_AUTHUP_CLIENT_ID`. */
+    /**
+     * The dashboard client, an id or a name: the dashboard module's authup
+     * sign-in, else `CHAMVI_UI_AUTHUP_CLIENT_ID`, else `chamvi`.
+     */
     protected readOwnerClient(container: IContainer): string {
         // only the client id is needed here: the env fallback does not require the dashboard's AUTHUP_URL
-        const clientId = container.has(AppToken.UI_AUTH) ?
-            container.resolve(AppToken.UI_AUTH).authup?.clientId :
-            envString(this.env, 'CHAMVI_UI_AUTHUP_CLIENT_ID');
+        const signIn = container.has(AppToken.UI_AUTH) ? container.resolve(AppToken.UI_AUTH).authup?.clientId : undefined;
 
-        if (typeof clientId !== 'string' || clientId.length === 0) {
-            throw new InvalidAgentDefinitionError(
-                'authup: the permission owner client needs the dashboard client (CHAMVI_UI_AUTHUP_CLIENT_ID).',
-            );
-        }
-
-        return clientId;
+        return typeof signIn === 'string' && signIn.length > 0 ? signIn : readUiAuthupClient(this.env);
     }
 
     /** The owner client's id: an id as is, a name looked up in chamvi's realm under the deadline. */
@@ -181,8 +182,9 @@ export class AuthupModule implements IModule {
 
 /**
  * The authup module. Unless `verifier`, `catalog` and `realm` are all given
- * and no owner client name is looked up, it reads `AUTHUP_URL`,
- * `AUTHUP_CLIENT_ID` and `AUTHUP_CLIENT_SECRET` (all required) from
+ * and no owner client name is looked up, it reads `AUTHUP_URL` and
+ * `AUTHUP_CLIENT_SECRET` (both required), `AUTHUP_CLIENT_ID` (default
+ * `chamvi-server`) and `AUTHUP_REALM` (default `master`) from
  * `options.env ?? process.env` now; options win.
  */
 export function authupModule(options?: AuthupModuleOptions): IModule {

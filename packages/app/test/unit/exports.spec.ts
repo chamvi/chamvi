@@ -291,6 +291,10 @@ describe('public api', () => {
         }
     });
 
+    it('@chamvi/app/authup exports the default server client name', () => {
+        expect(authup.AUTHUP_CLIENT_ID_DEFAULT).toBe('chamvi-server');
+    });
+
     it.each([
         'reportingModule',
         'createPurgeTimer',

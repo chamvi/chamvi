@@ -154,7 +154,7 @@ Behind a proxy that mounts the app under a prefix, set the app's `basePath`; the
 
 ## With @chamvi/app
 
-`uiModule()` from `@chamvi/ui/module` contributes the dashboard route (`/ui` under `CHAMVI_BASE_PATH`) and reads `CHAMVI_UI_AUTHUP_CLIENT_ID`, `CHAMVI_UI_AUTHUP_REALM_ID` and `AUTHUP_URL` when it is called, unless `auth` is given. `@chamvi/app` is an optional peer; the main entry never imports it.
+`uiModule()` from `@chamvi/ui/module` contributes the dashboard route (`/ui` under `CHAMVI_BASE_PATH`) and reads `AUTHUP_URL`, `CHAMVI_UI_AUTHUP_CLIENT_ID`, `CHAMVI_UI_AUTHUP_REALM_ID` and `AUTHUP_REALM` when it is called, unless `auth` is given: with `AUTHUP_URL` set it offers the authup login as the client `chamvi` of the realm `master` by default. `@chamvi/app` is an optional peer; the main entry never imports it.
 
 ```ts
 import { createApp } from '@chamvi/app';

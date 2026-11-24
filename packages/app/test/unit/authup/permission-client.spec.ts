@@ -287,16 +287,35 @@ describe('authupModule permission owner', () => {
         await expect(harness.setup()).rejects.toThrow(/permission client "dashboard"/);
     });
 
-    it('fails the start in client mode without a dashboard client', async () => {
-        const { harness } = harnessOf({
-            ...injected, 
-            permissionOwner: 'client', 
-            env: {}, 
-        });
+    it('defaults the owner to the dashboard client chamvi, resolved in chamvi\'s realm', async () => {
+        const { authup, lookups } = await fakeAuthup([{ ...DASHBOARD, name: 'chamvi' }]);
+        const { harness, login } = harnessOf(byName({
+            AUTHUP_URL: authup.url,
+            AUTHUP_CLIENT_SECRET: 'client-secret-value',
+        }));
 
-        await expect(harness.setup()).rejects.toThrow(new InvalidAgentDefinitionError(
-            'authup: the permission owner client needs the dashboard client (CHAMVI_UI_AUTHUP_CLIENT_ID).',
-        ));
+        await harness.setup();
+
+        expect(lookups()).toBe(1);
+        expect((await login())?.authorization?.client).toBe(OWNER);
+    });
+
+    it('defaults the owner to chamvi when the dashboard module signs in without authup', async () => {
+        const { authup } = await fakeAuthup([{ ...DASHBOARD, name: 'chamvi' }]);
+        const tokensOnly: IModule = {
+            name: ModuleName.UI,
+            async setup(container) {
+                container.register(AppToken.UI_AUTH, { useValue: { tokens: true } });
+            },
+        };
+        const { harness, login } = harnessOf(byName({
+            AUTHUP_URL: authup.url,
+            AUTHUP_CLIENT_SECRET: 'client-secret-value',
+        }), { modules: [tokensOnly] });
+
+        await harness.setup();
+
+        expect((await login())?.authorization?.client).toBe(OWNER);
     });
 
     // a migrate run takes the same path (any mode but a serving start), and needs no authup at setup

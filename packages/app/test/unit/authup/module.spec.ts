@@ -183,7 +183,7 @@ describe('authupModule', () => {
         expect(module.dependencies).toEqual(['chamvi:config', { name: 'chamvi:ui', optional: true }]);
     });
 
-    it.each(Object.keys(AUTHUP_ENV))('requires %s without a verifier', (name) => {
+    it.each(['AUTHUP_URL', 'AUTHUP_CLIENT_SECRET'])('requires %s without a verifier', (name) => {
         expect(() => authupModule({ env: { ...AUTHUP_ENV, [name]: '' } }))
             .toThrow(new InvalidAgentDefinitionError(`${name} is required.`));
     });
@@ -206,8 +206,9 @@ describe('authupModule', () => {
             .toThrow(new InvalidAgentDefinitionError('authup: realm must be a non-empty string.'));
     });
 
-    it('builds a verifier from the three variables', () => {
+    it('builds a verifier from the three variables, or without AUTHUP_CLIENT_ID', () => {
         expect(() => authupModule({ env: AUTHUP_ENV })).not.toThrow();
+        expect(() => authupModule({ env: { ...AUTHUP_ENV, AUTHUP_CLIENT_ID: '' } })).not.toThrow();
         expect(() => authupModule({
             env: {},
             url: AUTHUP_ENV.AUTHUP_URL,

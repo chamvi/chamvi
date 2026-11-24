@@ -167,6 +167,8 @@ Checked `ce1ffc81` (2026-11-12): the chart names authup only in the Secrets tabl
 
 New optional env `AUTHUP_PERMISSION_OWNER` (`realm` default or `client`, anything else fails the start; `authupModule({ permissionOwner })`). In `client` mode the dashboard client (`CHAMVI_UI_AUTHUP_CLIENT_ID`, id or name) owns chamvi's permissions; without it the start fails. A plain value for `env`; no template, schema or test change. Chart README follow-up: a Secrets/env row for it (and the pending `AUTHUP_TIMEOUT_MS` row). With a dashboard client name, chamvi's client also needs `client_read`; a name that does not resolve fails the start (the pod crash-loops).
 
+Defaults (same PR): `AUTHUP_CLIENT_ID` defaults to `chamvi-server` (`AUTHUP_CLIENT_SECRET` stays required), the new `AUTHUP_REALM` (realm name or id, default `master`) is sent as `realm_id` on the client-credentials request and defaults `CHAMVI_UI_AUTHUP_REALM_ID`, and the dashboard offers the authup login whenever `AUTHUP_URL` is set (client `CHAMVI_UI_AUTHUP_CLIENT_ID`, default `chamvi`). Plain `env`/`secrets` values; no template change. Chart README follow-up: `AUTHUP_CLIENT_ID` optional with its default, an `AUTHUP_REALM` row, and the dashboard client note.
+
 ## OpenAPI document and Swagger UI (unreleased)
 
 Checked against this file's contract map: `@chamvi/http` serves `GET <basePath>/openapi.json` and a Swagger UI under `<basePath>/docs` (unauthenticated, on by default). Both sit under `basePath`, so the Ingress prefix covers them and no chart value, template or probe changes.

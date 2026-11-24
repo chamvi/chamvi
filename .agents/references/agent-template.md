@@ -162,6 +162,8 @@ Checked `00ec8afc` (2026-11-12): the template names no `AUTHUP_*` variable and n
 
 The template names no `AUTHUP_*` variable, so the optional `AUTHUP_PERMISSION_OWNER` (`authupModule({ permissionOwner })`, `realm` or `client`) needs no template change.
 
+Defaults (same PR), checked `main` at `c9c8c174` (2026-11-24): the template sets no `AUTHUP_*` or `CHAMVI_UI_*` variable and registers `uiModule()` without `auth` (`src/modules.ts`), so nothing changes until an operator sets `AUTHUP_URL`: the dashboard then offers the authup login as client `chamvi` of realm `AUTHUP_REALM` (default `master`), and `authupModule()` (not registered by the template) would default `AUTHUP_CLIENT_ID` to `chamvi-server`. Optional README follow-up: name both client defaults beside `uiModule()`.
+
 ## OpenAPI document and Swagger UI (unreleased)
 
 Checked against this file's contract map: `<basePath>/openapi.json` and `<basePath>/docs` are new routes of every app, served by default; no env, CLI or public API change, so no template change is required; the template's image build does run the postinstall analytics script of `@scarf/scarf` (a dependency of `swagger-ui-dist`) unless it sets `SCARF_ANALYTICS=false`. After the release the README may link `/docs` next to its curl flow; an app route at `/docs` or `/openapi.json` is refused at construction.
