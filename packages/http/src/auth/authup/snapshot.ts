@@ -16,6 +16,12 @@ type SnapshotInput = {
     grants: unknown;
     /** The realm chamvi's resources belong to. */
     realm: string;
+    /** The owner client id: only its definitions in `realm` are reachable. */
+    client?: string;
+    /** The kind of the token's subject: a user's grants are narrowed to the token's client. */
+    subjectKind?: 'user' | 'client';
+    /** The client the token was issued to (`client_id`). */
+    tokenClient?: string | null;
 };
 
 const keyOf = (binding: PermissionPolicyBinding): string => buildPermissionKey({
@@ -28,20 +34,36 @@ const keyOf = (binding: PermissionPolicyBinding): string => buildPermissionKey({
  * The snapshot a principal carries: upstream's `buildAuthorizationSnapshot`
  * over the catalog and every grant as received (a malformed grant makes it
  * throw: dropping one could turn an inverted binding check into a pass).
- * Of the definitions owned by nobody or by `realm` (never by a client or
- * another realm, which no check reaches) it keeps the `chamvi_*` ones and
- * those a grant names; the grants of a definition it leaves out go with it
+ * Of the reachable definitions it keeps the `chamvi_*` ones and those a grant
+ * names: with `client`, those owned by that client in `realm`; without, those
+ * owned by nobody or by `realm` (never by a client or another realm, which no
+ * check reaches); the grants of a definition it leaves out go with it
  * (upstream checks a binding per definition namespace, so no kept
- * definition reads them). Throws `AuthorizationCatalogStaleError` when a
+ * definition reads them). A user's grant of a definition owned by a client
+ * other than the token's is dropped first, as authup itself does (#3606; a
+ * token issued to no client keeps them); a client identity is not narrowed. Throws `AuthorizationCatalogStaleError` when a
  * grant names a definition or policy the catalog lacks.
  */
 export async function buildPrincipalSnapshot(input: SnapshotInput): Promise<AuthorizationSnapshot> {
     const snapshot = await buildAuthorizationSnapshot({ catalog: input.catalog, grants: input.grants });
-    const grants = snapshot.grants ?? [];
+    const tokenClient = input.tokenClient ?? null;
+    // as authup: a user's grant owned by a client applies through a token of that client or of none
+    const grants = (snapshot.grants ?? []).filter((grant) => input.subjectKind !== 'user' ||
+        tokenClient === null ||
+        (grant.permission.clientId ?? null) === null ||
+        grant.permission.clientId === tokenClient);
     const granted = new Set(grants.map(keyOf));
     const names: readonly string[] = PERMISSION_NAMES;
-    const reachable = (binding: PermissionPolicyBinding) => (binding.permission.clientId ?? null) === null &&
-        ((binding.permission.realmId ?? null) === null || binding.permission.realmId === input.realm);
+    const reachable = (binding: PermissionPolicyBinding) => {
+        const realmId = binding.permission.realmId ?? null;
+        const clientId = binding.permission.clientId ?? null;
+
+        if (input.client) {
+            return clientId === input.client && realmId === input.realm;
+        }
+
+        return clientId === null && (realmId === null || realmId === input.realm);
+    };
     const definitions = snapshot.definitions.filter((definition) => reachable(definition) &&
         (names.includes(definition.permission.name) || granted.has(keyOf(definition))));
     const kept = new Set(definitions.map(keyOf));

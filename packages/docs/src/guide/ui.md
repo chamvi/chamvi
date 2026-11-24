@@ -49,7 +49,7 @@ import { uiModule } from '@chamvi/ui/module';
 const modules = [uiModule(), toolMailModule(), toolMailUiModule()];
 ```
 
-Each page is served at `<uiBase>/ext/<slug>` and gets a sidebar item, shown to a principal who may read a connection of its type or holds `chamvi_connection_create` for that type. A connection without a page is listed under Connections and cannot be edited. A dashboard not at the default `/ui` needs the same value on both sides: `uiModule({ basePath: '/admin' })` and `toolMailUiModule({ uiBase: '/admin' })`. The package pages sign in like the dashboard: `uiModule({ auth })` in code configures them too, and without `uiModule()` they read the environment (`CHAMVI_UI_AUTHUP_CLIENT_ID`, `AUTHUP_URL`, `CHAMVI_UI_AUTHUP_REALM_ID`).
+Each page is served at `<uiBase>/ext/<slug>` and gets a sidebar item, shown to a principal who may read a connection of its type or holds `chamvi_connection_create` for that type. A connection without a page is listed under Connections and cannot be edited. A dashboard not at the default `/ui` needs the same value on both sides: `uiModule({ basePath: '/admin' })` and `toolMailUiModule({ uiBase: '/admin' })`. The package pages sign in like the dashboard: `uiModule({ auth })` in code configures them too, and without `uiModule()` they read the environment (`AUTHUP_URL`, `CHAMVI_UI_AUTHUP_CLIENT_ID`, `CHAMVI_UI_AUTHUP_REALM_ID`, `AUTHUP_REALM`) the same way.
 
 A page shows one state per field:
 
@@ -72,7 +72,7 @@ Env wins over a stored value field by field only for an account the environment 
 ## Sign-in
 
 - **Token** (default): a static bearer token of `staticTokens()`. `GET /me` checks it before it is kept, in the tab's `sessionStorage` only; sign-out removes every `chamvi.` key but a pending approval link. Only a 401 drops a stored token: a reload while the API restarts or rate limits keeps it, and the next navigation tries again.
-- **authup**: `auth.authup` adds "Continue with authup", the OIDC code flow with PKCE through `@authup/client-web-kit`, whose tokens are kept in the tab's `sessionStorage` (`chamvi.authup.*`), never in cookies. The authup client needs `<origin><uiBase>/login/callback` as a redirect URI. Pair it with the app's `authup()` authenticator. `auth.tokens: false` hides the token form (then `auth.authup` is required).
+- **authup**: `auth.authup` adds "Continue with authup", the OIDC code flow with PKCE through `@authup/client-web-kit`, whose tokens are kept in the tab's `sessionStorage` (`chamvi.authup.*`), never in cookies. The authup client needs `<origin><uiBase>/login/callback` as a redirect URI. Pair it with the app's `authup()` authenticator. With `@chamvi/app`, `uiModule()` turns it on whenever `AUTHUP_URL` is set, as the public client `CHAMVI_UI_AUTHUP_CLIENT_ID` (default `chamvi`, `authMethod: none` in authup) of the realm `CHAMVI_UI_AUTHUP_REALM_ID` (default `AUTHUP_REALM`, else `master`); `uiModule({ auth })` in code wins. `auth.tokens: false` hides the token form (then `auth.authup` is required).
 
 <<< @/snippets/ui.ts#authup
 

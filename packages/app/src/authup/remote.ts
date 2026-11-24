@@ -5,12 +5,22 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { Client, createClientTokenCreator } from '@authup/core-http-kit';
+import { Client } from '@authup/core-http-kit';
+import type { TokenCreator } from '@authup/core-http-kit';
 import { TokenVerifier } from '@authup/server-adapter-kit';
 import type { ITokenVerifier } from '@authup/server-adapter-kit';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { envString, envUrl } from '../env/module.ts';
+import { readAuthupRealm } from '../module/helpers/ui-auth.ts';
+import { AUTHUP_CLIENT_ID_DEFAULT } from './constants.ts';
 import type { AuthupModuleOptions } from './types.ts';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** True for a client id (a uuid), which is used as is; anything else is a client name. */
+export function isClientId(value: string): boolean {
+    return UUID_PATTERN.test(value);
+}
 
 /** The first call's promise, shared until it rejects; a rejection is forgotten, so the next call loads again. */
 export function once<T>(load: () => Promise<T>): () => Promise<T> {
@@ -34,24 +44,33 @@ export function once<T>(load: () => Promise<T>): () => Promise<T> {
 
 /**
  * The authup server of `AUTHUP_URL` (options win), reached as the client
- * `AUTHUP_CLIENT_ID`/`AUTHUP_CLIENT_SECRET`: the remote token verifier, the
- * permission catalog and the client's own realm. The catalog is read fresh
- * on every call (the authenticator caches it); the realm is introspected
- * once.
+ * `AUTHUP_CLIENT_ID` (default `chamvi-server`) of the realm `AUTHUP_REALM`
+ * (default `master`) with `AUTHUP_CLIENT_SECRET`: the remote token verifier,
+ * the permission catalog, the client's own realm and the id of a client by name.
+ * The catalog is read fresh on every call (the authenticator caches it); the
+ * realm is introspected once.
  */
 export function createAuthupRemote(options: AuthupModuleOptions): {
     verifier: () => ITokenVerifier;
     catalog: () => Promise<unknown>;
     /** The realm of the configured client, from the introspection of its own token: one lookup per call. */
     realm: () => Promise<string>;
+    /** The id of the one client named `name` in `realm`; `InvalidAgentDefinitionError` for none or several. */
+    client: (name: string, realm: string) => Promise<string>;
 } {
     const env = options.env ?? process.env;
     const url = options.url ?? envUrl(env, 'AUTHUP_URL', { required: true, protocols: ['http:', 'https:'] });
-    const id = options.clientId ?? envString(env, 'AUTHUP_CLIENT_ID', { required: true });
+    const id = options.clientId ?? envString(env, 'AUTHUP_CLIENT_ID') ?? AUTHUP_CLIENT_ID_DEFAULT;
     const secret = options.clientSecret ?? envString(env, 'AUTHUP_CLIENT_SECRET', { required: true });
+    const realm = options.clientRealm ?? readAuthupRealm(env);
 
-    const creator = createClientTokenCreator({ id, secret }, { client: { baseURL: url } });
     const client = new Client({ baseURL: url });
+    // Upstream: authup/authup#3908 (createClientTokenCreator sends no realm_id, which authup needs to find a client by name)
+    const creator: TokenCreator = () => client.token.createWithClientCredentials({
+        client_id: id,
+        client_secret: secret,
+        realm_id: realm,
+    });
     const authorizationHeader = async () => `Bearer ${(await creator()).access_token}`;
 
     return {
@@ -69,6 +88,20 @@ export function createAuthupRemote(options: AuthupModuleOptions): {
             }
 
             return data.realm_id;
+        },
+        client: async (name, realm) => {
+            // a client of its own: the entity APIs take no per-request authorization header
+            const lookup = new Client({ baseURL: url });
+
+            lookup.setHeader('authorization', await authorizationHeader());
+
+            const { data } = await lookup.client.getMany({ filters: { name, realmId: realm }, pagination: { limit: 2 } });
+
+            if (data.length !== 1 || typeof data[0]?.id !== 'string' || data[0].id.length === 0) {
+                throw new InvalidAgentDefinitionError(`authup: the permission client "${name}" does not resolve to one client of realm ${realm}.`);
+            }
+
+            return data[0].id;
         },
     };
 }

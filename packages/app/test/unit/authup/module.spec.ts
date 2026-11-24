@@ -176,14 +176,14 @@ async function served(options: AuthupModuleOptions) {
 const authupErrors = (logger: RecordingLogger) => logger.entries.filter((entry) => entry.msg === 'authup error');
 
 describe('authupModule', () => {
-    it('is named chamvi:authup and depends on the config module', () => {
+    it('is named chamvi:authup and depends on the config module, and on the dashboard when present', () => {
         const module = authupModule({ ...injected(), env: {} });
 
         expect(module.name).toBe('chamvi:authup');
-        expect(module.dependencies).toEqual(['chamvi:config']);
+        expect(module.dependencies).toEqual(['chamvi:config', { name: 'chamvi:ui', optional: true }]);
     });
 
-    it.each(Object.keys(AUTHUP_ENV))('requires %s without a verifier', (name) => {
+    it.each(['AUTHUP_URL', 'AUTHUP_CLIENT_SECRET'])('requires %s without a verifier', (name) => {
         expect(() => authupModule({ env: { ...AUTHUP_ENV, [name]: '' } }))
             .toThrow(new InvalidAgentDefinitionError(`${name} is required.`));
     });
@@ -206,8 +206,9 @@ describe('authupModule', () => {
             .toThrow(new InvalidAgentDefinitionError('authup: realm must be a non-empty string.'));
     });
 
-    it('builds a verifier from the three variables', () => {
+    it('builds a verifier from the three variables, or without AUTHUP_CLIENT_ID', () => {
         expect(() => authupModule({ env: AUTHUP_ENV })).not.toThrow();
+        expect(() => authupModule({ env: { ...AUTHUP_ENV, AUTHUP_CLIENT_ID: '' } })).not.toThrow();
         expect(() => authupModule({
             env: {},
             url: AUTHUP_ENV.AUTHUP_URL,

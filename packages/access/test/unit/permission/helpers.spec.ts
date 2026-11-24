@@ -43,6 +43,26 @@ describe('isPermissionAuthorization', () => {
         [{ realm: 'r', snapshot: { definitions: [] } }, true],
         [{ realm: 'r', snapshot: { definitions: [BINDING], grants: [BINDING] } }, true],
         [{ realm: 'r', snapshot: { definitions: [BINDING], grants: [] } }, true],
+        [{
+            realm: 'r', 
+            client: '0195f2a0-7c3e-7a4b-9c1d-00000000000a', 
+            snapshot: { definitions: [] }, 
+        }, true],
+        [{
+            realm: 'r', 
+            client: '', 
+            snapshot: { definitions: [] }, 
+        }, false],
+        [{
+            realm: 'r', 
+            client: 42, 
+            snapshot: { definitions: [] }, 
+        }, false],
+        [{
+            realm: 'r', 
+            client: null, 
+            snapshot: { definitions: [] }, 
+        }, false],
         [{ realm: '', snapshot: { definitions: [] } }, false],
         [{ realm: 1, snapshot: { definitions: [] } }, false],
         [{ snapshot: { definitions: [] } }, false],

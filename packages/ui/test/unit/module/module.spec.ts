@@ -114,11 +114,11 @@ describe('uiModule', () => {
         expect(config).toMatchObject({ apiBase: '/api', uiBase: '/api/ui' });
     });
 
-    it('authup login only with CHAMVI_UI_AUTHUP_CLIENT_ID', async () => {
+    it('authup login with CHAMVI_UI_AUTHUP_CLIENT_ID', async () => {
         const { config } = await served({
             AUTHUP_URL: 'https://auth.example.com/api',
             CHAMVI_UI_AUTHUP_CLIENT_ID: 'chamvi-ui',
-            CHAMVI_UI_AUTHUP_REALM_ID: 'master',
+            CHAMVI_UI_AUTHUP_REALM_ID: 'tenant',
         });
 
         expect(config?.auth).toEqual({
@@ -126,13 +126,22 @@ describe('uiModule', () => {
             authup: {
                 url: 'https://auth.example.com/api',
                 clientId: 'chamvi-ui',
-                realmId: 'master',
+                realmId: 'tenant',
             },
         });
+    });
 
-        const without = await served({ AUTHUP_URL: 'https://auth.example.com/api' });
+    it('authup login with AUTHUP_URL alone, as the client chamvi of AUTHUP_REALM', async () => {
+        const { config } = await served({ AUTHUP_URL: 'https://auth.example.com/api', AUTHUP_REALM: 'tenant' });
 
-        expect(without.config?.auth).toEqual({ tokens: true });
+        expect(config?.auth).toEqual({
+            tokens: true,
+            authup: {
+                url: 'https://auth.example.com/api',
+                clientId: 'chamvi',
+                realmId: 'tenant',
+            },
+        });
     });
 
     it('CHAMVI_UI_AUTHUP_CLIENT_ID without AUTHUP_URL names AUTHUP_URL', () => {

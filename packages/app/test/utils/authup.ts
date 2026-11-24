@@ -8,6 +8,7 @@
 import { createServer } from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { Permission } from '@chamvi/access';
+import { isObject } from 'smob';
 
 export const AUTHUP_REALM = 'c641912c-21e5-4cb4-84b6-169e2b2bb023';
 export const AUTHUP_USER = '245e3c5d-5747-4fbd-8554-c33d34780c58';
@@ -58,6 +59,8 @@ export type FakeAuthup = {
     url: string;
     /** Requests by method and path, in order. */
     requests: string[];
+    /** The form or JSON fields of each `POST /token`, in order. */
+    tokenRequests: Record<string, string>[];
     close(): Promise<void>;
 };
 
@@ -74,23 +77,57 @@ function readBody(request: IncomingMessage): Promise<string> {
     });
 }
 
+/** The fields of a JSON object body, else of a form body. */
+function readFields(body: string): Record<string, string> {
+    try {
+        const parsed: unknown = JSON.parse(body);
+
+        if (isObject(parsed)) {
+            return Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key, String(value)]));
+        }
+    } catch {
+        // a form body
+    }
+
+    return Object.fromEntries(new URLSearchParams(body));
+}
+
+/** A client as `GET /clients` lists it. */
+export type FakeAuthupClient = {
+    id: string;
+    name: string;
+    realmId: string;
+};
+
+/** The clients whose `name` and `realmId` match the `eq(...)` terms of a url-expression `filter`. */
+function filterClients(clients: FakeAuthupClient[], query: string): FakeAuthupClient[] {
+    const filter = new URLSearchParams(query).get('filter') ?? '';
+    const terms = filter.matchAll(/eq\((\w+),'([^']*)'\)/g).toArray().map(([, key, value]) => [key, value] as const);
+
+    return clients.filter((client) => terms.every(([key, value]) => (client as Record<string, unknown>)[key!] === value));
+}
+
 /**
  * A loopback authup: `POST /token` mints `CLIENT_TOKEN` for client
- * credentials, `POST /token/introspect` answers for that token (a client of
+ * credentials (its fields kept in `tokenRequests`), `POST /token/introspect` answers for that token (a client of
  * `AUTHUP_REALM`) and for every key of `users`, `GET /authorization` serves
- * `catalog` to the client token (or 403 when `catalog` is undefined).
+ * `catalog` to the client token (or 403 when `catalog` is undefined),
+ * `GET /clients` lists the `clients` matching its filter to the client token
+ * (or 403 when `clients` is undefined).
  */
 export async function createFakeAuthup(options: {
     users: Record<string, Record<string, unknown>>;
     catalog?: unknown;
+    clients?: FakeAuthupClient[];
     /** Leaves a request unanswered while it returns true (`<METHOD> <path>`). */
     hold?: (route: string) => boolean;
 }): Promise<FakeAuthup> {
     const requests: string[] = [];
+    const tokenRequests: Record<string, string>[] = [];
     const exp = Math.floor(Date.now() / 1000) + 3600;
 
     const server = createServer((request, response) => {
-        const path = (request.url ?? '').split('?')[0];
+        const [path, query = ''] = (request.url ?? '').split('?');
 
         requests.push(`${request.method} ${path}`);
 
@@ -105,6 +142,7 @@ export async function createFakeAuthup(options: {
             }
 
             if (request.method === 'POST' && path === '/token') {
+                tokenRequests.push(readFields(body));
                 json(200, {
                     access_token: CLIENT_TOKEN,
                     token_type: 'Bearer',
@@ -161,6 +199,20 @@ export async function createFakeAuthup(options: {
                 return;
             }
 
+            if (request.method === 'GET' && path === '/clients') {
+                if (request.headers.authorization !== `Bearer ${CLIENT_TOKEN}` || typeof options.clients === 'undefined') {
+                    json(403, { message: 'client_read is required.' });
+
+                    return;
+                }
+
+                const data = filterClients(options.clients, query);
+
+                json(200, { data, meta: { total: data.length } });
+
+                return;
+            }
+
             json(404, { message: 'not found' });
         }).catch(() => {
             json(500, { message: 'error' });
@@ -177,6 +229,7 @@ export async function createFakeAuthup(options: {
     return {
         url: `http://127.0.0.1:${port}`,
         requests,
+        tokenRequests,
         close: () => new Promise((resolve) => {
             server.closeAllConnections();
             server.close(() => resolve());

@@ -13,6 +13,9 @@ chamvi moves to routup 6.5 and authup 1.0.0-beta.77. An app that pinned `ioredis
 | Path matching (`@chamvi/http`) | Static path segments matched in any letter case (`/DOCS`, `/Runs/:id`, `/HEALTHZ`) | Paths match in their exact case; another case answers 404, and a wrong-case `/HEALTHZ` is rate limited. Call routes, probes and webhooks with the exact path, `basePath` included. Extra routes and controller paths that differ from a built-in route or from each other only by case are accepted as separate routes |
 | `rateLimit.trustProxy` (`@chamvi/http`) | Accepted and ignored | Removed from the option type; the app's `trustProxy` decides the client address the limiter keys by |
 | `GET /runs/:id/artifacts/:artifactId` (`@chamvi/http`) | `attachment; filename="…"; filename*=UTF-8''…` for every name, `_` for characters outside ASCII | An ASCII name as `filename` only (quoted when needed); a non-ASCII name with `filename*` and `?` in the `filename` fallback |
+| `AUTHUP_CLIENT_ID` (`@chamvi/app/authup`) | Required | Defaults to `chamvi-server`. Set it to keep another client name |
+| `AUTHUP_REALM` (`@chamvi/app/authup`) | None: the client-credentials request carried no realm | New, default `master` (or `authupModule({ clientRealm })`): the realm, by name or id, of the server and dashboard clients, sent as `realm_id`. A server client outside `master` needs it set |
+| Dashboard sign-in (`uiModule()`, the `*-ui` pages) | The authup login only with `CHAMVI_UI_AUTHUP_CLIENT_ID` | Offered whenever `AUTHUP_URL` is set, as the client `chamvi` (`CHAMVI_UI_AUTHUP_CLIENT_ID`) of the realm `AUTHUP_REALM` (`CHAMVI_UI_AUTHUP_REALM_ID`). Provision a public client `chamvi` with the redirect URI `<origin><uiBase>/login/callback`, set `CHAMVI_UI_AUTHUP_CLIENT_ID` to yours, or pass `uiModule({ auth: { tokens: true } })` to keep the token login only |
 
 ## Upgrading to 0.10
 
