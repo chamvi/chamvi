@@ -172,7 +172,8 @@ Client ownership gives each deployment its own. Set `AUTHUP_PERMISSION_OWNER=cli
 | A check asks | the global definition, then the realm-owned one | only the one owned by the client in chamvi's realm |
 | A grant applies | through any login of the realm | through tokens issued to the owner client |
 
-- The dashboard client may be given by id (used as is) or by name. A name is resolved once at start through authup's client API in chamvi's realm, so chamvi's client then also needs `client_read`. Client mode without a dashboard client, a name that matches no client or several, or a lookup that fails or exceeds the deadline fails the start. chamvi never falls back to realm mode.
+- The dashboard client may be given by id (used as is; a uuid-shaped value is always an id) or by name, and must belong to chamvi's realm (an owner in another realm denies every authup login). A name is resolved once through authup's client API in chamvi's realm, so chamvi's client then also needs `client_read`: at start for a serving app, at the first login with grants for `run-job`, `migrate` and `start --check` (which then grants nothing until it resolves). Client mode without a dashboard client, or at a serving start a name that matches no client or several, or a lookup that fails or exceeds the deadline, fails the start. chamvi never falls back to realm mode.
+- Machine clients (peers, CI, other API clients) are not narrowed, but in client mode their global or realm-owned grants of `chamvi_*` count no longer: grant them the owner client's definitions (`clientPermissions: { <dashboard client>: [...] }` on their role or client) before switching.
 - The catalog serves client-owned definitions of chamvi's realm to chamvi's `permission_read`; nothing else changes on chamvi's client.
 - A run stores the owner with its invoker, so it keeps the mode it was dispatched in after a switch. Static tokens and `oidc()` bindings are not affected.
 

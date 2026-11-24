@@ -177,6 +177,18 @@ describe('authupModule permission owner', () => {
         expect(await can(principal, Permission.RUN_READ)).toBe(true);
     });
 
+    it('reads the dashboard client from the env without the dashboard\'s AUTHUP_URL', async () => {
+        const { harness, login } = harnessOf({
+            ...injected,
+            permissionOwner: 'client',
+            env: { CHAMVI_UI_AUTHUP_CLIENT_ID: OWNER },
+        });
+
+        await harness.setup();
+
+        expect((await login())?.authorization?.client).toBe(OWNER);
+    });
+
     it('reads AUTHUP_PERMISSION_OWNER', async () => {
         const { harness, login } = harnessOf({ ...injected, env: { ...dashboardEnv(OWNER), AUTHUP_PERMISSION_OWNER: 'client' } });
 

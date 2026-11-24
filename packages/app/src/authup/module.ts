@@ -19,7 +19,6 @@ import type { Env } from '../env/types.ts';
 import { AUTHUP_MODULE_NAME, AUTHUP_TIMEOUT_MS_DEFAULT } from './constants.ts';
 import { boundVerifier, withDeadline } from './deadline.ts';
 import { createAuthupRemote, isClientId, once } from './remote.ts';
-import { readUiAuth } from '../module/helpers/ui-auth.ts';
 import type { AuthupModuleOptions, AuthupPermissionOwner } from './types.ts';
 
 /**
@@ -141,10 +140,12 @@ export class AuthupModule implements IModule {
         });
     }
 
-    /** The dashboard client, an id or a name: the dashboard module's `UI_AUTH`, else the env. */
+    /** The dashboard client, an id or a name: the dashboard module's `UI_AUTH`, else `CHAMVI_UI_AUTHUP_CLIENT_ID`. */
     protected readOwnerClient(container: IContainer): string {
-        const auth = container.has(AppToken.UI_AUTH) ? container.resolve(AppToken.UI_AUTH) : readUiAuth(this.env);
-        const clientId = auth.authup?.clientId;
+        // only the client id is needed here: the env fallback does not require the dashboard's AUTHUP_URL
+        const clientId = container.has(AppToken.UI_AUTH) ?
+            container.resolve(AppToken.UI_AUTH).authup?.clientId :
+            envString(this.env, 'CHAMVI_UI_AUTHUP_CLIENT_ID');
 
         if (typeof clientId !== 'string' || clientId.length === 0) {
             throw new InvalidAgentDefinitionError(
