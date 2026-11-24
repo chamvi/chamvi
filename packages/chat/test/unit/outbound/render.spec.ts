@@ -13,7 +13,12 @@ import {
     ValidationError,
 } from '@chamvi/core';
 import type { ChannelMessage } from '@chamvi/core';
-import { CHAT_ANSWER_HINT, CHAT_ANSWER_TIMEOUT_MS, CHAT_TEXT_MAX_CHARS } from '@chamvi/chat';
+import { 
+    CHAT_ANSWER_HINT, 
+    CHAT_ANSWER_HINT_PLAIN, 
+    CHAT_ANSWER_TIMEOUT_MS, 
+    CHAT_TEXT_MAX_CHARS, 
+} from '@chamvi/chat';
 import type { ChatApprovalRef } from '@chamvi/chat';
 import { renderChatMessage } from '../../../src/outbound/helpers.ts';
 
@@ -259,20 +264,35 @@ describe('renderChatMessage({ answers, direct })', () => {
 
     it('renders the reply hint without approvalUrl for an approval without options', () => {
         expect(CHAT_ANSWER_HINT).toBe('Reply to this message to approve or deny.');
-        expect(renderChatMessage(approval(), { answers, direct: true })).toBe([
+        expect(renderChatMessage(approval(), {
+            answers, 
+            direct: true, 
+            quotes: true, 
+        })).toBe([
             'Deploy to prod?',
             'Release v1.2.0.',
             `Expires: ${EXPIRES.toISOString()}\nReply to this message to approve or deny.`,
         ].join('\n\n'));
         // no expiry: the hint alone
-        expect(renderChatMessage(approval({ expiresAt: undefined }), { answers, direct: true }))
+        expect(renderChatMessage(approval({ expiresAt: undefined }), {
+            answers, 
+            direct: true, 
+            quotes: true, 
+        }))
             .toBe('Deploy to prod?\n\nRelease v1.2.0.\n\nReply to this message to approve or deny.');
+    });
+
+    it('renders the plain-message hint on a platform without quote matching', () => {
+        expect(CHAT_ANSWER_HINT_PLAIN).toBe('Send a new message here (not a reply) to approve or deny.');
+        expect(renderChatMessage(approval({ expiresAt: undefined }), { answers, direct: true }))
+            .toBe('Deploy to prod?\n\nRelease v1.2.0.\n\nSend a new message here (not a reply) to approve or deny.');
     });
 
     it('puts the hint before the link when approvalUrl is set too', () => {
         expect(renderChatMessage(approval(), {
             answers,
             direct: true,
+            quotes: true,
             approvalUrl: URL_OF,
         })).toBe([
             'Deploy to prod?',
@@ -289,6 +309,7 @@ describe('renderChatMessage({ answers, direct })', () => {
         const render = () => renderChatMessage(approval({ body: 'b'.repeat(5000) }), {
             answers,
             direct: true,
+            quotes: true,
             approvalUrl: URL_OF,
         });
 
@@ -298,6 +319,7 @@ describe('renderChatMessage({ answers, direct })', () => {
         const bounded = () => renderChatMessage(approval({ body: 'b'.repeat(2000) }), {
             answers,
             direct: true,
+            quotes: true,
             maxTextChars: 2000,
         });
 
@@ -305,7 +327,11 @@ describe('renderChatMessage({ answers, direct })', () => {
         expect(bounded).toThrow(/2000/);
 
         // the same prose fits the default bound uncut
-        const text = renderChatMessage(approval({ body: 'b'.repeat(2000) }), { answers, direct: true });
+        const text = renderChatMessage(approval({ body: 'b'.repeat(2000) }), {
+            answers, 
+            direct: true, 
+            quotes: true, 
+        });
 
         expect(text).toContain('b'.repeat(2000));
         expect(text).not.toMatch(/cut/);
@@ -313,7 +339,11 @@ describe('renderChatMessage({ answers, direct })', () => {
 
     it('still requires approvalUrl for an approval with options, and renders no hint for one', () => {
         const options = [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }];
-        const render = () => renderChatMessage(approval({ options }), { answers, direct: true });
+        const render = () => renderChatMessage(approval({ options }), {
+            answers, 
+            direct: true, 
+            quotes: true, 
+        });
 
         expect(render).toThrow(InvalidAgentDefinitionError);
         expect(render).toThrow(/approvalUrl/);
@@ -321,6 +351,7 @@ describe('renderChatMessage({ answers, direct })', () => {
         const text = renderChatMessage(approval({ options }), {
             answers,
             direct: true,
+            quotes: true,
             approvalUrl: URL_OF,
         });
 
@@ -330,7 +361,11 @@ describe('renderChatMessage({ answers, direct })', () => {
 
     it('requires approvalUrl for a generic approval, and renders no hint for one', () => {
         const generic = approval({ body: 'An outbound operation requires review in the approval inbox.', generic: true });
-        const render = () => renderChatMessage(generic, { answers, direct: true });
+        const render = () => renderChatMessage(generic, {
+            answers, 
+            direct: true, 
+            quotes: true, 
+        });
 
         expect(render).toThrow(InvalidAgentDefinitionError);
         expect(render).toThrow(/approvalUrl/);
@@ -338,6 +373,7 @@ describe('renderChatMessage({ answers, direct })', () => {
         const text = renderChatMessage(generic, {
             answers,
             direct: true,
+            quotes: true,
             approvalUrl: URL_OF,
         });
 
@@ -355,6 +391,7 @@ describe('renderChatMessage({ answers, direct })', () => {
             const text = renderChatMessage(message, {
                 answers,
                 direct: true,
+                quotes: true,
                 approvalUrl: URL_OF,
             });
 

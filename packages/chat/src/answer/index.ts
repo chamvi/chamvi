@@ -7,8 +7,10 @@
 
 export {
     CHAT_ANSWER_HINT,
+    CHAT_ANSWER_HINT_PLAIN,
     CHAT_ANSWER_NOTICE_CLOSED,
     CHAT_ANSWER_NOTICE_SEVERAL,
+    CHAT_ANSWER_NOTICE_SEVERAL_PLAIN,
     CHAT_ANSWER_TIMEOUT_MS,
 } from './constants.ts';
 export type { ChatAnswerOptions } from './types.ts';

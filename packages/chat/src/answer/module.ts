@@ -17,16 +17,25 @@ import type { ChatIncoming } from '../ingress/types.ts';
 import { CHAT_ID_MAX_LENGTH } from '../intake/constants.ts';
 import { renderChatMessage } from '../outbound/helpers.ts';
 import { classifyChatAnswer } from './classify.ts';
-import { CHAT_ANSWER_CLAIM_TTL_MS, CHAT_ANSWER_NOTICE_CLOSED, CHAT_ANSWER_NOTICE_SEVERAL } from './constants.ts';
+import {
+    CHAT_ANSWER_CLAIM_TTL_MS,
+    CHAT_ANSWER_NOTICE_CLOSED,
+    CHAT_ANSWER_NOTICE_SEVERAL,
+    CHAT_ANSWER_NOTICE_SEVERAL_PLAIN,
+} from './constants.ts';
 import { findOpenChatApprovals, pickChatApproval } from './open.ts';
 import type { ChatAnswerDecision } from './types.ts';
 
 type ChatAnswerNotice = 'several' | 'closed';
 
-const NOTICE_TEXTS: Record<ChatAnswerNotice, string> = {
-    several: CHAT_ANSWER_NOTICE_SEVERAL,
-    closed: CHAT_ANSWER_NOTICE_CLOSED,
-};
+/** A notice's text; without quote matching no chat message can pick one of several approvals. */
+function chatAnswerNoticeText(notice: ChatAnswerNotice, quotes: boolean): string {
+    if (notice === 'closed') {
+        return CHAT_ANSWER_NOTICE_CLOSED;
+    }
+
+    return quotes ? CHAT_ANSWER_NOTICE_SEVERAL : CHAT_ANSWER_NOTICE_SEVERAL_PLAIN;
+}
 
 /**
  * The quote of a reply: none (no `replyTo`), the quoted message's id, or
@@ -104,7 +113,7 @@ async function sendChatAnswerNotice(
             key,
             runId: '',
             agent: '',
-            body: NOTICE_TEXTS[notice],
+            body: chatAnswerNoticeText(notice, !!options.platform?.sentMessageId),
         }, address, {
             signal: ctx.signal,
             // no run: a minimal envelope of the reply

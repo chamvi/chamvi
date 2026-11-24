@@ -23,6 +23,8 @@ export type ChatSenderOptions = {
      * direct message, no options, not generic) gets the hint line and no cut.
      */
     answers?: ResolvedChatAnswerOptions;
+    /** The platform matches quoted approvals (`sentMessageId`): picks the hint an answerable approval ends with. */
+    quotes?: boolean;
     /** Bound of one send. */
     timeoutMs: number;
     /** The longest text one send posts (UTF-16 code units). */
@@ -39,7 +41,7 @@ export type ChatSenderOptions = {
 };
 
 /** What renderChatMessage() reads of the options (internal); `maxTextChars` defaults to `CHAT_TEXT_MAX_CHARS`. */
-export type ChatRenderOptions = Pick<ChatSenderOptions, 'answers' | 'approvalUrl'> & Partial<Pick<ChatSenderOptions, 'maxTextChars'>> & {
+export type ChatRenderOptions = Pick<ChatSenderOptions, 'answers' | 'approvalUrl' | 'quotes'> & Partial<Pick<ChatSenderOptions, 'maxTextChars'>> & {
     /** The destination is a direct message (the adapter's `isDM`): only there `answers` makes an approval answerable. */
     direct?: boolean;
 };

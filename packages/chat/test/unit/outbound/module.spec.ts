@@ -204,8 +204,9 @@ describe('createChatSender', () => {
 
         const [direct, group] = ctx.adapter.posts.map((post) => (post.message as { raw: string }).raw);
 
-        expect(direct).toContain('Reply to this message to approve or deny.');
-        expect(group).not.toContain('Reply to this message');
+        // no platform with sentMessageId: the plain-message hint
+        expect(direct).toContain('Send a new message here (not a reply) to approve or deny.');
+        expect(group).not.toContain('to approve or deny.');
         expect(group).toContain('Approve or deny: https://chamvi.test/approvals/run-1');
     });
 

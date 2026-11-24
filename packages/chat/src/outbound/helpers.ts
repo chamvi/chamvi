@@ -11,7 +11,7 @@ import {
     ValidationError,
 } from '@chamvi/core';
 import type { ChannelMessage } from '@chamvi/core';
-import { CHAT_ANSWER_HINT } from '../answer/constants.ts';
+import { CHAT_ANSWER_HINT, CHAT_ANSWER_HINT_PLAIN } from '../answer/constants.ts';
 import { CHAT_REQUEST_ERROR_CODE, CHAT_TEXT_MAX_CHARS } from '../channel/constants.ts';
 import {
     ERROR_TEXT_MAX_LENGTH,
@@ -156,7 +156,7 @@ function renderApproval(message: ChannelMessage, options: ChatRenderOptions, max
 
     tail.push([
         ...(message.expiresAt instanceof Date ? [`Expires: ${message.expiresAt.toISOString()}`] : []),
-        ...(answerable ? [CHAT_ANSWER_HINT] : []),
+        ...(answerable ? [options.quotes ? CHAT_ANSWER_HINT : CHAT_ANSWER_HINT_PLAIN] : []),
         ...(link ? [`${choices.length > 0 ? 'Choose and approve or deny' : 'Approve or deny'}: ${link}`] : []),
     ].join('\n'));
 
@@ -202,7 +202,8 @@ function renderApproval(message: ChannelMessage, options: ChatRenderOptions, max
  * its title and body (cut Unicode-safely when they do not fit, the only cut;
  * one answerable in the chat (`answers`, a `direct` destination, no options,
  * not generic) is never cut but refused), the options as `- <id>: <label>`
- * (never a detail), the expiry, for an answerable one `CHAT_ANSWER_HINT`,
+ * (never a detail), the expiry, for an answerable one `CHAT_ANSWER_HINT`
+ * (`CHAT_ANSWER_HINT_PLAIN` without `quotes`),
  * and the link of `approvalUrl` (ids only, never a
  * token); options, expiry and link that cannot fit are a ValidationError, a
  * missing `approvalUrl` where one is required or an invalid one an

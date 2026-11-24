@@ -25,6 +25,7 @@ import type { ApprovalWaitPoint, Invoker, Run } from '@chamvi/store';
 import {
     CHAT_ANSWER_NOTICE_CLOSED,
     CHAT_ANSWER_NOTICE_SEVERAL,
+    CHAT_ANSWER_NOTICE_SEVERAL_PLAIN,
     chatAddress,
 } from '@chamvi/chat';
 import type { ChatChannel, ChatChannelOptions, IChatPlatform } from '@chamvi/chat';
@@ -200,7 +201,7 @@ async function setup(input: Setup = {}) {
     const approvalId = async (id: string) => `m:${id}:${((await run(id)).waiting as ApprovalWaitPoint).approvalId}`;
     const notices = () => fixture.adapter.posts
         .map((post) => (post.message as { raw: string }).raw)
-        .filter((text) => text === CHAT_ANSWER_NOTICE_SEVERAL || text === CHAT_ANSWER_NOTICE_CLOSED);
+        .filter((text) => [CHAT_ANSWER_NOTICE_SEVERAL, CHAT_ANSWER_NOTICE_SEVERAL_PLAIN, CHAT_ANSWER_NOTICE_CLOSED].includes(text));
 
     /** a reply sent now on the engine's clock */
     const reply = (message: Parameters<typeof createTextMessage>[0]) => createTextMessage({ sentAt: new Date(fixture.clock.now()), ...message });
@@ -732,6 +733,25 @@ describe('answering approvals in chat intake', () => {
 
         expect((await ctx.run(ctx.ids[0]!)).status).toBe('waiting');
         expect(await ctx.assistantRuns()).toHaveLength(2);
+        expect(model.doGenerateCalls).toHaveLength(0);
+    });
+
+    it('points to the dashboard when several are open on a platform that cannot match quotes', async () => {
+        const model = classifier('approve');
+        const ctx = await setup({
+            model, 
+            askers: [asker('asker-a'), asker('asker-b')], 
+            patch: { platform: {} }, 
+        });
+
+        await ctx.fixture.adapter.deliver(ctx.reply({ id: 'r-1', text: 'yes' }));
+
+        for (const id of ctx.ids) {
+            expect((await ctx.run(id)).status).toBe('waiting');
+        }
+
+        expect(ctx.notices()).toEqual([CHAT_ANSWER_NOTICE_SEVERAL_PLAIN]);
+        expect(await ctx.assistantRuns()).toEqual([]);
         expect(model.doGenerateCalls).toHaveLength(0);
     });
 

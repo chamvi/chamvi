@@ -213,6 +213,7 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
         adapters: resolved.adapters,
         ...(resolved.approvalUrl ? { approvalUrl: resolved.approvalUrl } : {}),
         ...(resolved.answers ? { answers: resolved.answers } : {}),
+        ...(platform?.sentMessageId ? { quotes: true } : {}),
         timeoutMs: resolved.timeoutMs,
         maxTextChars: resolved.maxTextChars,
         // started, and connected as far as the transport knows
