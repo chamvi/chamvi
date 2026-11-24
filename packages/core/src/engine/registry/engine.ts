@@ -11,6 +11,7 @@ import { assertConcurrencyMaxRuns } from '../../channel/concurrency.ts';
 import { assertDispatchRoles } from '../../dispatch/helpers/index.ts';
 import { InvalidAgentDefinitionError } from '../../errors/index.ts';
 import { checkAgentModel } from '../../model/module.ts';
+import type { ModelContext } from '../../model/types.ts';
 import { agentCancelReason } from './helpers.ts';
 import {
     cancelAgentRuns,
@@ -32,6 +33,9 @@ export class EngineRegistry implements IEngineRegistry {
 
     readonly state: EngineRegistryState;
 
+    /** The default, the resolver and the live agent models: what resolveModel(ctx) and IEngine.resolveModel() read. */
+    readonly modelContext: ModelContext;
+
     constructor(ctx: EngineRegistryContext, agents: readonly Agent[]) {
         this.ctx = ctx;
         this.state = {
@@ -41,6 +45,11 @@ export class EngineRegistry implements IEngineRegistry {
             replacing: new Map(),
             syncing: new Set(),
             removals: new Map(),
+        };
+        this.modelContext = {
+            model: ctx.model,
+            models: ctx.models,
+            agentModel: (name) => this.state.agents.get(name)?.definition.model,
         };
 
         if (this.state.agents.size === agents.length) {

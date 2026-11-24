@@ -14,7 +14,7 @@ import type { StateSchema } from '../state/types.ts';
 import type { ToolContext } from '../tool/types.ts';
 import { noModelMessage, toLanguageModel } from './asserts.ts';
 import { MODEL_CONTEXT } from './constants.ts';
-import type { ModelCheckOptions, ModelRef } from './types.ts';
+import type { ModelCheckOptions, ModelContext, ModelRef } from './types.ts';
 
 const SHAPE = 'must be a "<provider>/<model>" string or a LanguageModel object.';
 const NO_RESOLVER = 'but the engine has no model resolver (EngineOptions.models); pass a LanguageModel object.';
@@ -79,6 +79,35 @@ export function checkAgentModel(agent: Agent, options: ModelCheckOptions): void 
 }
 
 /**
+ * The LanguageModel for `ref`, else the model of `agent` in the live
+ * registry, else the engine's default. A string goes through the resolver;
+ * without one, or with no model at all, it is an
+ * InvalidAgentDefinitionError. Shared by resolveModel(ctx) and
+ * IEngine.resolveModel().
+ */
+export function resolveModelRef(
+    context: ModelContext,
+    ref: ModelRef | undefined,
+    agent: string | undefined,
+): LanguageModel {
+    const wanted = ref ?? (agent === undefined ? undefined : context.agentModel(agent)) ?? context.model;
+
+    if (typeof wanted === 'string' && !context.models) {
+        throw new InvalidAgentDefinitionError(
+            `resolveModel(): the model string "${wanted}" needs a model resolver (EngineOptions.models).`,
+        );
+    }
+
+    if (wanted === undefined && agent === undefined) {
+        throw new InvalidAgentDefinitionError(
+            'resolveModel(): no model given and the engine sets no default (EngineOptions.model).',
+        );
+    }
+
+    return toLanguageModel(wanted, context.models, agent ?? '');
+}
+
+/**
  * The LanguageModel for `ref` or, without one, for the run's agent model
  * (its own, else the engine's default), read from the live registry. A
  * string goes through EngineOptions.models; without a resolver it is an
@@ -89,18 +118,5 @@ export function resolveModel<S extends StateSchema = StateSchema>(
     ctx: ToolContext<S>,
     ref?: ModelRef,
 ): LanguageModel {
-    const {
-        model,
-        models,
-        agentModel,
-    } = inject(ctx, MODEL_CONTEXT);
-    const wanted = ref ?? agentModel(ctx.run.agent) ?? model;
-
-    if (typeof wanted === 'string' && !models) {
-        throw new InvalidAgentDefinitionError(
-            `resolveModel(): the model string "${wanted}" needs a model resolver (EngineOptions.models).`,
-        );
-    }
-
-    return toLanguageModel(wanted, models, ctx.run.agent);
+    return resolveModelRef(inject(ctx, MODEL_CONTEXT), ref, ctx.run.agent);
 }

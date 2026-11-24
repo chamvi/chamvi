@@ -10,7 +10,7 @@ import type { Run } from '@chamvi/store';
 import type { Agent, RemoteAgent } from '../../agent/types.ts';
 import type { IAgentRevisionService } from '../../agent-revision/types.ts';
 import type { ILockService } from '../../lock/types.ts';
-import type { IModelResolver, ModelRef } from '../../model/types.ts';
+import type { IModelResolver, ModelContext, ModelRef } from '../../model/types.ts';
 import type { IRunService } from '../../run/types.ts';
 import type { EngineContext } from '../context/types.ts';
 import type { IEngineSkills } from '../skills/types.ts';
@@ -63,6 +63,7 @@ export type EngineRegistryState = {
 /** The agent registry of an engine (internal). */
 export interface IEngineRegistry {
     readonly state: EngineRegistryState;
+    readonly modelContext: ModelContext;
     getAgent(name: string): Agent | undefined;
     listAgents(): Agent[];
     agentRevision(name: string): string | undefined;
