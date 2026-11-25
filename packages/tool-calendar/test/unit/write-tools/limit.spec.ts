@@ -52,6 +52,7 @@ const INVITE = { ...plain('Review'), attendees: ['a@example.com'] };
 
 const INVITE_BODY = [
     'Calendar: Home (icloud:home)',
+    'From: peter@example.com',
     'Title: Review',
     'When: 2026-11-05 09:00 to 2026-11-05 10:00 (Europe/Berlin)',
     'Attendees: a@example.com',

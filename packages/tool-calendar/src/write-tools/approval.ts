@@ -71,13 +71,18 @@ export function whenOf(start: CalendarTime, end: CalendarTime, zone: string): st
     return '';
 }
 
-/** The body of a create approval (also the detail of its limit approval): every field, never cut. */
-export function createBodyOf(calendarName: string, parsed: ParsedCreate, zone: string): string {
-    const lines = [
-        `Calendar: ${lineOf(calendarName)} (${parsed.calendar})`,
+/** The body of a create approval (also the detail of its limit approval): every field, never cut; `From:` with attendees. */
+export function createBodyOf(calendarName: string, parsed: ParsedCreate, zone: string, organizer?: string): string {
+    const lines = [`Calendar: ${lineOf(calendarName)} (${parsed.calendar})`];
+
+    if (parsed.attendees.length > 0 && organizer !== undefined) {
+        lines.push(`From: ${organizer}`);
+    }
+
+    lines.push(
         `Title: ${parsed.title}`,
         `When: ${whenOf(parsed.start, parsed.end, zone)}`,
-    ];
+    );
 
     if (parsed.location !== undefined) {
         lines.push(`Where: ${parsed.location}`);
@@ -94,11 +99,11 @@ export function createBodyOf(calendarName: string, parsed: ParsedCreate, zone: s
     return lines.join('\n');
 }
 
-/** The approval of a create with attendees: the calendar, the count of invitations and the whole event. */
-export function createApprovalOf(view: { name: string }, parsed: ParsedCreate, zone: string): ApprovalRequestInput {
+/** The approval of a create with attendees: the calendar, the organizer, the count of invitations and the whole event. */
+export function createApprovalOf(view: { name: string }, parsed: ParsedCreate, zone: string, organizer: string): ApprovalRequestInput {
     return {
         title: `Create event in ${lineOf(view.name)} and invite ${parsed.attendees.length}?`,
-        body: createBodyOf(view.name, parsed, zone),
+        body: createBodyOf(view.name, parsed, zone, organizer),
     };
 }
 

@@ -30,28 +30,41 @@ import type {
     CalendarWriteClientSource,
 } from './types.ts';
 
-/** The create approval body of `input` (the calendar's name best effort, else its id); undefined for an input that does not parse. */
+/**
+ * The create approval body of `input` (the calendar's name best effort, else its id; with attendees the
+ * organizer, without which the body is not the whole invitation); undefined for an input that does not parse.
+ */
 async function createDetailOf(
     source: CalendarWriteClientSource,
     writable: CalendarWritable,
     input: unknown,
     ctx: ToolContext,
-): Promise<string | undefined> {
+): Promise<{ body: string; whole: boolean } | undefined> {
     try {
         const client = source(ctx);
         const parsed = parseCalendarCreateInput(input, client.timezone);
         let name = parsed.calendar;
+        let organizer: string | undefined;
 
         // a calendar the tools may not write to is not looked up (execute refuses it)
         if (writable(parsed.calendar)) {
             try {
-                name = (await client.calendar(parsed.calendar, ctx.run.signal)).name;
+                const view = await client.calendar(parsed.calendar, ctx.run.signal);
+
+                name = view.name;
+
+                if (parsed.attendees.length > 0) {
+                    organizer = await client.organizer(view.account, ctx.run.signal);
+                }
             } catch {
-                // the id stands in for the name
+                // the id stands in for the name; without the organizer the invitation is asked again
             }
         }
 
-        return createBodyOf(name, parsed, client.timezone);
+        return {
+            body: createBodyOf(name, parsed, client.timezone, organizer),
+            whole: parsed.attendees.length === 0 || organizer !== undefined,
+        };
     } catch {
         return undefined;
     }
@@ -77,10 +90,11 @@ export function calendarCreateLimitOf(
         onExceed: 'approve',
         weight: () => 1,
         detail: async (input, ctx) => {
-            const body = await createDetailOf(source, writable, input, ctx);
-            const shown = await once<boolean>(ctx, CALENDAR_CREATE_SHOWN_ONCE, async () => body !== undefined);
+            const detail = await createDetailOf(source, writable, input, ctx);
 
-            return shown ? body : undefined;
+            await once<boolean>(ctx, CALENDAR_CREATE_SHOWN_ONCE, async () => detail?.whole ?? false);
+
+            return detail?.body;
         },
     };
 }

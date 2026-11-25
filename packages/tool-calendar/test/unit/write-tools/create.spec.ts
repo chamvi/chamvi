@@ -45,6 +45,7 @@ const PLAIN = {
 
 const BODY = [
     'Calendar: Home (icloud:home)',
+    'From: peter@example.com',
     'Title: Planning',
     'When: 2026-11-05 09:00 to 2026-11-05 10:30 (Europe/Berlin)',
     'Where: Room 1',
@@ -285,6 +286,7 @@ describe('calendar_create', () => {
 
         expect(write.sent[0]!.message.body).toBe([
             'Calendar: Home (icloud:home)',
+            'From: peter@example.com',
             'Title: Planning',
             'When: 2026-11-05 to 2026-11-06, all day',
             'Attendees: a@example.com',

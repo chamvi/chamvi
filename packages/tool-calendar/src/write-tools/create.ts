@@ -137,7 +137,7 @@ export function calendarCreateTool(
                 // an approved limit approval that showed the whole create is the owner's decision on it; an agent's
                 // own limit shows nothing, so the invitation is still asked
                 if (!toolLimitApproved(context) || !await createLimitShown(context)) {
-                    const decision = await decisionOf(context, createApprovalOf(view, parsed, client.timezone));
+                    const decision = await decisionOf(context, createApprovalOf(view, parsed, client.timezone, organizer));
 
                     if (!decision.approved) {
                         const reason = decision.reason ? ` Reason: ${decision.reason}` : '';
