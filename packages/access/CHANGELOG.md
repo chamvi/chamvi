@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/chamvi/chamvi/compare/v0.11.0...v0.12.0) (2026-11-25)
+
+
+### Bug Fixes
+
+* ensure consistent version for release ([#311](https://github.com/chamvi/chamvi/issues/311)) ([f723e3a](https://github.com/chamvi/chamvi/commit/f723e3ac146a4895efa2f7cbf1f17cec4d51eee3))
+
 ## [0.11.0](https://github.com/chamvi/chamvi/compare/v0.10.0...v0.11.0) (2026-11-25)
 
 
