@@ -83,6 +83,7 @@
         "@ilingo/validup-vue": "^1.2.3",
         "@ilingo/vue": "^6.1.3",
         "@playwright/test": "^1.65.1",
+        "@rapiq/core": "^2.5.1",
         "@validup/vue": "^2.0.2",
         "@vitejs/plugin-vue": "^6.0.11",
         "@vuecs/button": "^1.4.4",

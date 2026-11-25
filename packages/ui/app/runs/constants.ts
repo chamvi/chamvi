@@ -6,6 +6,8 @@
  */
 
 import type { RunStatusLiteral } from '@chamvi/store';
+import { createDateRangePresets, toDateInput } from '@vuecs/forms';
+import type { DateRangePreset } from '@vuecs/forms';
 
 export const RUN_LIST_POLL_MS = 5000;
 
@@ -28,3 +30,13 @@ export const PARENT_LABELS: Readonly<Record<string, string>> = { dispatch: 'disp
 
 /** The most dispatched runs the run page lists (one page, newest first). */
 export const RUN_CHILDREN_LIMIT = 100;
+
+/** The day range shortcuts of the run lists: today, then vuecs' last 7 days, this month and this year. */
+export const RUN_DATE_PRESETS: DateRangePreset[] = [
+    {
+        key: 'today',
+        label: 'Today',
+        resolve: (now) => ({ from: toDateInput(now), to: toDateInput(now) }),
+    },
+    ...createDateRangePresets(),
+];

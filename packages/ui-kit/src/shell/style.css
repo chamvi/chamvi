@@ -371,6 +371,12 @@ button.nav-item { width: 100%; background: none; font: inherit; text-align: left
 /* ---------- shared view parts ---------- */
 .toolbar { display: flex; flex-wrap: wrap; gap: 12px 14px; align-items: flex-end; margin-bottom: 14px; }
 .toolbar .field { width: 180px; }
+/* a VCFormDateRange in a toolbar: a row of its own, the two days and the presets wrapping in it */
+.toolbar .date-range { width: auto; flex: 1 1 100%; }
+.date-range .vc-form-date-range { flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 8px 14px; }
+.date-range .vc-form-date-range-fields { flex: 0 1 auto; flex-wrap: nowrap; }
+.date-range .vc-form-date-range-field { flex: 0 1 160px; }
+.date-range .vc-form-date-range-presets { padding-bottom: 4px; }
 .seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; background: var(--ch-sunken); border: 1px solid var(--ch-line); border-radius: var(--ch-radius); }
 .seg button {
     --c: var(--ch-muted);

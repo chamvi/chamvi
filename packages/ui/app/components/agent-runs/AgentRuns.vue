@@ -7,13 +7,14 @@
  */
 
 import type { RunStatusLiteral } from '@chamvi/store';
+import type { DateRangeValue } from '@vuecs/forms';
 import { computed, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { AgentWire } from '@chamvi/http-kit';
 import type { RunListFilter } from '../../runs/types.ts';
 import { useAppContext } from '@chamvi/ui-kit';
 import { useRunList } from '../../runs/composables.ts';
-import { RUN_STATUSES } from '../../runs/constants.ts';
+import { RUN_DATE_PRESETS, RUN_STATUSES } from '../../runs/constants.ts';
 import { filterFromQuery, queryFromFilter } from '../../runs/query.ts';
 import EmptyState from '../empty-state/EmptyState.vue';
 import RunsTable from '../runs-table/RunsTable.vue';
@@ -24,7 +25,7 @@ const { client } = useAppContext();
 const route = useRoute();
 const router = useRouter();
 
-// the status filter and page live in the query, next to ?tab=runs
+// the status and date filters and the page live in the query, next to ?tab=runs
 const read = (): RunListFilter => ({ ...filterFromQuery(route.query), agent: props.agent.name });
 const filter = shallowRef<RunListFilter>(read());
 
@@ -45,13 +46,18 @@ function update(next: Partial<RunListFilter>): void {
     void router.replace({ query: { ...query, tab: 'runs' } });
 }
 
+const range = computed({
+    get: (): DateRangeValue => ({ from: filter.value.from, to: filter.value.to }),
+    set: (value: DateRangeValue) => update({ from: value.from, to: value.to }),
+});
+
 function toggleStatus(status: RunStatusLiteral): void {
     const current = filter.value.status ?? [];
 
     update({ status: current.includes(status) ? current.filter((s) => s !== status) : [...current, status] });
 }
 
-const filtered = computed(() => !!filter.value.status?.length);
+const filtered = computed(() => !!filter.value.status?.length || !!filter.value.from || !!filter.value.to);
 </script>
 
 <template>
@@ -80,13 +86,23 @@ const filtered = computed(() => !!filter.value.status?.length);
                 </div>
             </div>
         </div>
+        <div class="field date-range">
+            <VCFormDateRange
+                v-model="range"
+                :presets="RUN_DATE_PRESETS"
+                from-label="Created from"
+                to-label="Created until"
+                presets-label="Created in"
+                :theme-class="{ label: 'field-label' }"
+            />
+        </div>
     </div>
     <RunsTable
         :page="page"
         :agents="[agent]"
         :loading="loading"
         :scoped="agent.name"
-        @page="(offset) => update({ offset, status: filter.status })"
+        @page="(offset) => update({ offset })"
     >
         <template #empty>
             <EmptyState
@@ -94,9 +110,9 @@ const filtered = computed(() => !!filter.value.status?.length);
                 variant="noResults"
                 icon="search"
                 title="No runs match these filters"
-                :text="`Nothing of ${agent.name} with this status. Widen the status filter.`"
+                :text="`Nothing of ${agent.name} with this status in this date range. Widen the filters.`"
                 action-label="Clear filters"
-                @action="update({ status: undefined })"
+                @action="update({ status: undefined, from: undefined, to: undefined })"
             />
             <EmptyState
                 v-else

@@ -44,14 +44,35 @@ export function wireStep(index: number, kind: StepWire['kind'] = 'llm', override
     };
 }
 
-/** The view filter a run-list query was built from (`toRunQuery`), for fakes that answer by filter. */
-export function filterOf(query: RunListQuery = {}): RunListFilter {
-    const input = query as { filters?: Record<string, unknown>; pagination?: Record<string, number> };
+/** A run-list query's filter as the view filter it was built from (`toRunQuery`), its createdAt bounds as sent (instants). */
+export type QueriedRunFilter = Omit<RunListFilter, 'from' | 'to'> & { createdAt?: { gte?: string; lte?: string } };
 
-    return { ...input.filters, ...input.pagination } as RunListFilter;
+/** The view filter a run-list query was built from (`toRunQuery`), for fakes that answer by filter. */
+export function filterOf(query: RunListQuery = {}): QueriedRunFilter {
+    const input = query as {
+        filters?: {
+            value?: Array<{
+                field: string; 
+                operator: string; 
+                value: unknown 
+            }> 
+        };
+        pagination?: Record<string, number> 
+    };
+    const output: Record<string, unknown> = { ...input.pagination };
+
+    for (const leaf of input.filters?.value ?? []) {
+        if (leaf.field === 'createdAt') {
+            output.createdAt = { ...(output.createdAt as object | undefined), [leaf.operator]: leaf.value };
+        } else {
+            output[leaf.field] = leaf.value;
+        }
+    }
+
+    return output as QueriedRunFilter;
 }
 
 /** A fake `run.getMany` answering by the view filter. */
-export function runsBy(answer: (filter: RunListFilter) => Promise<RunPage> | RunPage): (query?: RunListQuery) => Promise<RunPage> {
+export function runsBy(answer: (filter: QueriedRunFilter) => Promise<RunPage> | RunPage): (query?: RunListQuery) => Promise<RunPage> {
     return async (query) => answer(filterOf(query));
 }
