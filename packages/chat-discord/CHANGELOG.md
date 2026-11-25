@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.11.0](https://github.com/chamvi/chamvi/compare/v0.10.0...v0.11.0) (2026-11-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** bump authup, routup, rapiq, validup and adopt their features ([#287](https://github.com/chamvi/chamvi/issues/287))
+
+### Features
+
+* **chat:** answer approvals from chat replies ([#290](https://github.com/chamvi/chamvi/issues/290)) ([1b583b3](https://github.com/chamvi/chamvi/commit/1b583b3b6da4f769bf1fc69c9d8e865f29a9494f))
+
+
+### Bug Fixes
+
+* **deps:** bump authup, routup, rapiq, validup and adopt their features ([#287](https://github.com/chamvi/chamvi/issues/287)) ([98cac0e](https://github.com/chamvi/chamvi/commit/98cac0ec18811859ced7f07dee8307b22bc3891a))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/app bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/channel-cron bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/chat bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/core bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/store bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/store-memory bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/test-kit bumped from ^0.10.0 to ^0.11.0
+  * peerDependencies
+    * @chamvi/app bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/chat bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/core bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/store bumped from ^0.10.0 to ^0.11.0
+
 ## [0.10.0](https://github.com/chamvi/chamvi/compare/v0.9.0...v0.10.0) (2026-11-20)
 
 

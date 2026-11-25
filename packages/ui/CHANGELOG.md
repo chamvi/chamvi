@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.11.0](https://github.com/chamvi/chamvi/compare/v0.10.0...v0.11.0) (2026-11-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* own the chamvi permissions by the realm or the dashboard client ([#288](https://github.com/chamvi/chamvi/issues/288))
+* **deps:** bump authup, routup, rapiq, validup and adopt their features ([#287](https://github.com/chamvi/chamvi/issues/287))
+
+### Features
+
+* adopt authup and vuecs features and filter runs by date ([#298](https://github.com/chamvi/chamvi/issues/298)) ([76c1b42](https://github.com/chamvi/chamvi/commit/76c1b42faf75fb1f9a7fb0be56ccf36bef848bda))
+* own the chamvi permissions by the realm or the dashboard client ([#288](https://github.com/chamvi/chamvi/issues/288)) ([813c5d3](https://github.com/chamvi/chamvi/commit/813c5d3946b49ff1437ef4dbc8a63b440d2b4e7c))
+
+
+### Bug Fixes
+
+* **deps:** bump authup, routup, rapiq, validup and adopt their features ([#287](https://github.com/chamvi/chamvi/issues/287)) ([98cac0e](https://github.com/chamvi/chamvi/commit/98cac0ec18811859ced7f07dee8307b22bc3891a))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/access bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/app bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/channel-cron bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/core bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/http bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/http-kit bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/store bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/store-memory bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/test-kit bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/ui-kit bumped from ^0.10.0 to ^0.11.0
+  * peerDependencies
+    * @chamvi/app bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/core bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/http bumped from ^0.10.0 to ^0.11.0
+
 ## [0.10.0](https://github.com/chamvi/chamvi/compare/v0.9.0...v0.10.0) (2026-11-20)
 
 

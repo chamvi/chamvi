@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.11.0](https://github.com/chamvi/chamvi/compare/v0.10.0...v0.11.0) (2026-11-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* own the chamvi permissions by the realm or the dashboard client ([#288](https://github.com/chamvi/chamvi/issues/288))
+* **deps:** bump authup, routup, rapiq, validup and adopt their features ([#287](https://github.com/chamvi/chamvi/issues/287))
+
+### Features
+
+* own the chamvi permissions by the realm or the dashboard client ([#288](https://github.com/chamvi/chamvi/issues/288)) ([813c5d3](https://github.com/chamvi/chamvi/commit/813c5d3946b49ff1437ef4dbc8a63b440d2b4e7c))
+* **store:** add the limit use aggregate for tool rate limits ([#291](https://github.com/chamvi/chamvi/issues/291)) ([15ac793](https://github.com/chamvi/chamvi/commit/15ac7930918f4b1e3a9fcc8adf1c164b8755e237))
+
+
+### Bug Fixes
+
+* **deps:** bump authup, routup, rapiq, validup and adopt their features ([#287](https://github.com/chamvi/chamvi/issues/287)) ([98cac0e](https://github.com/chamvi/chamvi/commit/98cac0ec18811859ced7f07dee8307b22bc3891a))
+* **deps:** bump the minorandpatch group across 1 directory with 4 updates ([#279](https://github.com/chamvi/chamvi/issues/279)) ([02cce84](https://github.com/chamvi/chamvi/commit/02cce84e56cedec3ffe38b5c19ea806c3e6065a1))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @chamvi/access bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/channel-cron bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/core bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/http bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/store bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/store-db bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/store-memory bumped from ^0.10.0 to ^0.11.0
+  * devDependencies
+    * @chamvi/test-kit bumped from ^0.10.0 to ^0.11.0
+
 ## [0.10.0](https://github.com/chamvi/chamvi/compare/v0.9.0...v0.10.0) (2026-11-20)
 
 

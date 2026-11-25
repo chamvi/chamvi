@@ -1,6 +1,6 @@
 {
     "name": "@chamvi/store-db-vector",
-    "version": "0.10.0",
+    "version": "0.11.0",
     "type": "module",
     "description": "pgvector store for chamvi knowledge collections: the tables, migrations and repositories on PostgreSQL.",
     "author": {
@@ -50,12 +50,12 @@
     },
     "license": "Apache-2.0",
     "devDependencies": {
-        "@chamvi/app": "^0.10.0",
-        "@chamvi/core": "^0.10.0",
-        "@chamvi/knowledge": "^0.10.0",
-        "@chamvi/store": "^0.10.0",
-        "@chamvi/store-db": "^0.10.0",
-        "@chamvi/test-kit": "^0.10.0",
+        "@chamvi/app": "^0.11.0",
+        "@chamvi/core": "^0.11.0",
+        "@chamvi/knowledge": "^0.11.0",
+        "@chamvi/store": "^0.11.0",
+        "@chamvi/store-db": "^0.11.0",
+        "@chamvi/test-kit": "^0.11.0",
         "@swc/core": "^1.16.22",
         "@testcontainers/postgresql": "^12.2.2",
         "ai": "^7.0.181",
@@ -65,11 +65,11 @@
         "unplugin-swc": "^2.0.0"
     },
     "peerDependencies": {
-        "@chamvi/app": "^0.10.0",
-        "@chamvi/core": "^0.10.0",
-        "@chamvi/knowledge": "^0.10.0",
-        "@chamvi/store": "^0.10.0",
-        "@chamvi/store-db": "^0.10.0",
+        "@chamvi/app": "^0.11.0",
+        "@chamvi/core": "^0.11.0",
+        "@chamvi/knowledge": "^0.11.0",
+        "@chamvi/store": "^0.11.0",
+        "@chamvi/store-db": "^0.11.0",
         "pg": "^8",
         "typeorm": "^1.1.3"
     }
