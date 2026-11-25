@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+// The package entry composes the folder barrels.
 export * from './constants.ts';
 export * from './module.ts';
 export type * from './types.ts';
