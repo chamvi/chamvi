@@ -52,7 +52,7 @@ const twoSearches = () => [
 describe('tool limits: approval', () => {
     it('asks over the limit with the exact title and the detail body, delivered to the source channel', async () => {
         const log: string[] = [];
-        const { channel, sent } = chatChannel();
+        const { channel, sent } = chatChannel('chat', { direct: true });
         const ctx = setup({
             tools: {
                 search: searchTool(log, {
@@ -90,7 +90,9 @@ describe('tool limits: approval', () => {
         ['a tainted run to an address that is no direct one', { untrusted: true, direct: false }, true],
         ['a tainted run to a channel that cannot tell', { untrusted: true }, true],
         ['a tainted run to a direct address', { untrusted: true, direct: true }, false],
-        ['an untainted run', { untrusted: false, direct: false }, false],
+        ['an untainted run to an address that is no direct one', { untrusted: false, direct: false }, true],
+        ['an untainted run to a channel that cannot tell', { untrusted: false }, true],
+        ['an untainted run to a direct address', { untrusted: false, direct: true }, false],
     ] as const)('sends the detail to the source only when it stays private: %s', async (_name, options, generic) => {
         const { channel, sent } = chatChannel('chat', options);
         const ctx = setup({
@@ -120,6 +122,33 @@ describe('tool limits: approval', () => {
             expect(sent[0]!.message.body).toBe('search for b');
             expect(sent[0]!.message.generic).toBeUndefined();
         }
+    });
+
+    it('treats a direct() that rejects as no direct address', async () => {
+        const { channel, sent } = chatChannel();
+        const ctx = setup({
+            tools: {
+                search: searchTool([], {
+                    max: 1,
+                    windowMs: HOUR,
+                    detail: (input: { q: string }) => `search for ${input.q}`,
+                }),
+            },
+            channels: [{
+                ...channel,
+                direct: async () => {
+                    throw new Error('directory down'); 
+                }, 
+            }],
+            responses: twoSearches(),
+        });
+        const runId = await dispatchLimited(ctx, { channel: 'chat', address: 'room-1' });
+        const waiting = approvalWait(await ctx.store.runService.findOne(runId));
+
+        expect(waiting?.body).toBe('search for b');
+        expect(waiting?.notification).toBe('A tool call over its limit requires review in the approval inbox.');
+        expect(sent).toHaveLength(1);
+        expect(JSON.stringify(sent[0]!.message)).not.toContain('search for b');
     });
 
     it('asks in the inbox only when the source channel has no out', async () => {

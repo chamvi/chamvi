@@ -6,6 +6,7 @@
  */
 
 export { LIMIT_LOCK_RETRY_MS, LIMIT_LOCK_TTL_MS } from './constants.ts';
+export { toolLimitApproved } from './module.ts';
 export * from './service.ts';
 export type {
     AgentLimits,

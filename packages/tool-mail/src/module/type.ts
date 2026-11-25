@@ -24,6 +24,9 @@ import type {
 import { verifyMailLogin } from '../client/login.ts';
 import type { MailAccount } from '../client/types.ts';
 import { normalizeAccount } from '../options/module.ts';
+import { normalizeSmtp } from '../write-client/asserts.ts';
+import { verifySmtpLogin } from '../write-client/smtp.ts';
+import type { MailSmtpSettings, MailWriteAccount } from '../write-client/types.ts';
 import {
     MAIL_ACCOUNTS_VARIABLE,
     MAIL_CONNECTION_NAME_MAX_LENGTH,
@@ -104,10 +107,41 @@ export function mailConnectionDefinition(): ConnectionTypeDefinition {
             },
             credentialField('user', 'User', 'USER', { description: 'Default the address.' }),
             credentialField('password', 'Password', 'PASSWORD', { kind: 'secret', required: true }),
+            {
+                key: 'smtpHost',
+                label: 'SMTP host',
+                kind: 'string',
+                description: 'Set to send mail; the user and password log in to SMTP too.',
+                bindsSecrets: true,
+            },
+            {
+                key: 'smtpPort',
+                label: 'SMTP port',
+                kind: 'number',
+                description: 'Default 465 with tls, 587 with starttls, else 25.',
+                bindsSecrets: true,
+            },
+            {
+                key: 'smtpSecurity',
+                label: 'SMTP security',
+                kind: 'select',
+                options: ['tls', 'starttls', 'plain'],
+                description: 'Default tls.',
+                bindsSecrets: true,
+            },
         ],
         uniqueId: (values) => String(values.address ?? '').toLowerCase(),
-        // saved values only; the account id is not part of a login
-        test: (values, signal) => verifyMailLogin(normalizeAccount(toAccount('test', values), 'Mail account'), signal),
+        // saved values only; the account id is not part of a login. SMTP after IMAP, when the account sends
+        test: async (values, signal) => {
+            const account = toAccount('test', values);
+            const normalized = normalizeAccount(account, 'Mail account');
+
+            await verifyMailLogin(normalized, signal);
+
+            if (account.smtp !== undefined) {
+                await verifySmtpLogin({ ...normalized, smtp: normalizeSmtp(account.smtp, 'Mail account.smtp') }, signal);
+            }
+        },
     };
 }
 
@@ -118,6 +152,9 @@ function presetOf(account: MailEnvAccount, source: ConnectionFieldSource, pinned
         ['host', account.host],
         ['port', account.port],
         ['security', account.security],
+        ['smtpHost', account.smtp?.host],
+        ['smtpPort', account.smtp?.port],
+        ['smtpSecurity', account.smtp?.security],
         // the variables of an env account resolve per field; code sets these too
         ...(pinned ? [['user', account.user], ['password', account.password as string]] as [string, string][] : []),
     ];
@@ -127,8 +164,50 @@ function presetOf(account: MailEnvAccount, source: ConnectionFieldSource, pinned
         .map(([key, value]) => [key, { value, source }]));
 }
 
-function toAccount(id: string, values: ConnectionValues, declared?: MailEnvAccount): MailAccount {
+/** The SMTP settings of the flat `smtp*` values; any of them set gives an object `normalizeSmtp` checks. */
+function smtpOf(values: ConnectionValues): MailSmtpSettings | undefined {
+    if (values.smtpHost === undefined && values.smtpPort === undefined && values.smtpSecurity === undefined) {
+        return undefined;
+    }
+
+    return {
+        host: values.smtpHost as string,
+        ...(values.smtpPort !== undefined && { port: values.smtpPort as number }),
+        ...(values.smtpSecurity !== undefined && { security: values.smtpSecurity as MailSmtpSettings['security'] }),
+    };
+}
+
+/** An account checked for reading and, with `smtp`, for sending (InvalidAgentDefinitionError naming the field). */
+function assertWriteAccount(account: MailWriteAccount, label: string): void {
+    normalizeAccount(account, label);
+
+    if (account.smtp !== undefined) {
+        normalizeSmtp(account.smtp, `${label}.smtp`);
+    }
+}
+
+/** The message of the error `account.smtp` is refused with (naming the field, never a value); undefined when fine or absent. */
+function refusedSmtpOf(account: MailWriteAccount, label: string): string | undefined {
+    if (account.smtp === undefined) {
+        return undefined;
+    }
+
+    try {
+        normalizeSmtp(account.smtp, `${label}.smtp`);
+
+        return undefined;
+    } catch (error) {
+        if (!(error instanceof InvalidAgentDefinitionError)) {
+            throw error;
+        }
+
+        return error.message;
+    }
+}
+
+function toAccount(id: string, values: ConnectionValues, declared?: MailEnvAccount): MailWriteAccount {
     const address = values.address as string | undefined;
+    const smtp = smtpOf(values);
 
     return {
         id,
@@ -140,6 +219,7 @@ function toAccount(id: string, values: ConnectionValues, declared?: MailEnvAccou
         ...(values.security !== undefined && { security: values.security as MailAccount['security'] }),
         ...(declared?.folders !== undefined && { folders: declared.folders }),
         ...(declared?.gmail !== undefined && { gmail: declared.gmail }),
+        ...(smtp !== undefined && { smtp }),
     };
 }
 
@@ -153,6 +233,26 @@ function variablesSetFor(env: Env, definition: ConnectionTypeDefinition, connect
 
         return variable === undefined ? [] : [variable, `${variable}_FILE`].filter((name) => (env[name] ?? '').length > 0);
     });
+}
+
+/** The stored values without the smtp settings: what stays of a row whose smtp settings the client refuses. */
+function storedWithoutSmtpOf(values: ConnectionValues): ConnectionValues {
+    return Object.fromEntries(Object.entries(values).filter(([key]) => !key.startsWith('smtp')));
+}
+
+/** Whether `account` passes assertWriteAccount() (any other error rethrown). */
+function isWriteAccount(account: MailWriteAccount, label: string): boolean {
+    try {
+        assertWriteAccount(account, label);
+
+        return true;
+    } catch (error) {
+        if (!(error instanceof InvalidAgentDefinitionError)) {
+            throw error;
+        }
+
+        return false;
+    }
 }
 
 /** Only the stored secrets: what stays of a row whose settings the client refuses. */
@@ -172,7 +272,7 @@ function storedSecretsOf(definition: ConnectionTypeDefinition, values: Connectio
  * the client refuses, is listed incomplete and stays in use, and fails the
  * start only for what env and store both lack (never echoing a value).
  */
-export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: MailAccount[]; connections: DeclaredConnection[] }> {
+export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: MailWriteAccount[]; connections: DeclaredConnection[] }> {
     const {
         definition,
         declared,
@@ -187,7 +287,7 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
 
         return id === undefined ? [] : [[id, row] as const];
     }));
-    const accounts: MailAccount[] = [];
+    const accounts: MailWriteAccount[] = [];
     const connections: DeclaredConnection[] = [];
     const readVariable = (variable: string) => envSecret(env, variable);
     const list = (id: string, resolved: ResolvedConnection, deletable: boolean, row: StoredConnection | undefined) => {
@@ -224,24 +324,31 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
             continue;
         }
 
-        let merged = pinned ? account as MailAccount : toAccount(account.id, resolved.values, account);
+        let merged = pinned ? account as MailWriteAccount : toAccount(account.id, resolved.values, account);
 
         try {
-            normalizeAccount(merged, label);
+            assertWriteAccount(merged, label);
         } catch (error) {
             if (!row || !(error instanceof InvalidAgentDefinitionError)) {
                 throw error;
             }
 
-            // a stored setting the client refuses must not stop the app whose dashboard repairs it
-            logger.warn(`${error.message} The stored settings are dropped.`);
+            // a stored setting the client refuses must not stop the app whose dashboard repairs it: a refused
+            // smtp value drops the stored smtp settings only, anything else every stored setting
+            const withoutSmtp = { values: storedWithoutSmtpOf(row.values) };
+            const fallback = refusedSmtpOf(toAccount(account.id, resolved.values, account), label) !== undefined &&
+                isWriteAccount(toAccount(account.id, resolve(withoutSmtp).values, account), label) ?
+                withoutSmtp :
+                { values: storedSecretsOf(definition, row.values) };
+
+            logger.warn(`${error.message} ${fallback === withoutSmtp ? 'The stored SMTP settings are dropped.' : 'The stored settings are dropped.'}`);
             resolved = {
-                ...resolve({ values: storedSecretsOf(definition, row.values) }),
+                ...resolve(fallback),
                 state: 'incomplete',
                 reason: error.message,
             };
             merged = toAccount(account.id, resolved.values, account);
-            normalizeAccount(merged, label);
+            assertWriteAccount(merged, label);
         }
 
         accounts.push(merged);
@@ -275,12 +382,26 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
             continue;
         }
 
+        const label = `Mail account "${id}"`;
         const account = toAccount(id, resolved.values);
 
         try {
-            normalizeAccount(account, `Mail account "${id}"`);
+            normalizeAccount(account, label);
+
+            const refused = refusedSmtpOf(account, label);
+
+            if (refused !== undefined) {
+                // the account still reads; the dashboard repairs its sending
+                logger.warn(`${refused} The SMTP settings are dropped; the account reads only.`);
+                delete account.smtp;
+            }
+
             accounts.push(account);
-            list(id, resolved, true, row);
+            list(id, refused === undefined ? resolved : {
+                ...resolved,
+                state: 'incomplete',
+                reason: refused,
+            }, true, row);
         } catch (error) {
             if (!(error instanceof InvalidAgentDefinitionError)) {
                 throw error;

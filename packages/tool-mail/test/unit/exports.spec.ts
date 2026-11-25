@@ -5,7 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { describe, expect, it } from 'vitest';
+import {
+    describe,
+    expect,
+    expectTypeOf,
+    it,
+} from 'vitest';
 import * as mail from '@chamvi/tool-mail';
 import * as module from '@chamvi/tool-mail/module';
 
@@ -13,6 +18,7 @@ describe('public api', () => {
     it('exports the tools, the client, the context pair and the limits', () => {
         expect(mail.mailTools).toBeTypeOf('function');
         expect(mail.createMailClient).toBeTypeOf('function');
+        expect(mail.createMailWriteClient).toBeTypeOf('function');
         expect(mail.provideMailContext).toBeTypeOf('function');
         expect(mail.injectMailContext).toBeTypeOf('function');
         expect(mail.encodeMailId).toBeTypeOf('function');
@@ -36,13 +42,32 @@ describe('public api', () => {
         expect(mail.MAIL_ADDRESSES_MAX_CHARS).toBe(2000);
         expect(mail.MAIL_INVITE_FIELD_MAX_CHARS).toBe(500);
         expect(mail.MAIL_INVITES_MAX).toBe(10);
+        expect(mail.mailWriteTools).toBeTypeOf('function');
+        expect(mail.provideMailWriteContext).toBeTypeOf('function');
+        expect(mail.injectMailWriteContext).toBeTypeOf('function');
+        expect(mail.MAIL_EFFECT_HEADER).toBe('X-Chamvi-Effect');
+        expect(mail.MAIL_SEND_MAX_RECIPIENTS).toBe(50);
+        expect(mail.MAIL_SEND_SUBJECT_MAX_CHARS).toBe(500);
+        expect(mail.MAIL_SEND_TEXT_MAX_CHARS).toBe(100_000);
+        expect(mail.MAIL_ADDRESS_PATTERN).toEqual(/^[^\s@<>(),;:"\\]+@[^\s@<>(),;:"\\]+\.[^\s@<>(),;:"\\]+$/);
+        expect(mail).not.toHaveProperty('mailDeleteLimit');
+        expect(mail.MAIL_DELETE_MAX_IDS).toBe(20);
+        expect(mail.MAIL_DELETE_LIMIT_MAX).toBe(20);
+        expect(mail.MAIL_DELETE_LIMIT_WINDOW_MS).toBe(3_600_000);
+        expect(mail.MAIL_DELETE_LIMIT_BUCKET).toBe('deletes');
     });
 
     it('keeps the internals internal', () => {
         expect(Object.keys(mail).sort()).toEqual([
             'MAIL_ADDRESSES_MAX_CHARS',
+            'MAIL_ADDRESS_PATTERN',
             'MAIL_ATTACHMENT_MAX_CHARS',
             'MAIL_BODY_MAX_CHARS',
+            'MAIL_DELETE_LIMIT_BUCKET',
+            'MAIL_DELETE_LIMIT_MAX',
+            'MAIL_DELETE_LIMIT_WINDOW_MS',
+            'MAIL_DELETE_MAX_IDS',
+            'MAIL_EFFECT_HEADER',
             'MAIL_FETCH_MAX_BYTES',
             'MAIL_HTML_MAX_CHARS',
             'MAIL_INVITES_MAX',
@@ -53,6 +78,9 @@ describe('public api', () => {
             'MAIL_SEARCH_DATE_CANDIDATES',
             'MAIL_SEARCH_DEFAULT_LIMIT',
             'MAIL_SEARCH_MAX_LIMIT',
+            'MAIL_SEND_MAX_RECIPIENTS',
+            'MAIL_SEND_SUBJECT_MAX_CHARS',
+            'MAIL_SEND_TEXT_MAX_CHARS',
             'MAIL_SUBJECT_MAX_CHARS',
             'MAIL_THREAD_MAX_REFERENCES',
             'MAIL_TIMEOUT_MS',
@@ -60,12 +88,69 @@ describe('public api', () => {
             'MAIL_ZIP_PART_MAX_BYTES',
             'MAIL_ZIP_TOTAL_MAX_BYTES',
             'createMailClient',
+            'createMailWriteClient',
             'encodeMailId',
             'injectMailContext',
+            'injectMailWriteContext',
             'mailTools',
+            'mailWriteTools',
             'parseMailId',
             'provideMailContext',
+            'provideMailWriteContext',
         ]);
+    });
+
+    it('exports the write account types', () => {
+        expectTypeOf<mail.MailSmtpSettings>().toEqualTypeOf<{
+            host: string;
+            port?: number;
+            security?: 'tls' | 'starttls' | 'plain'
+        }>();
+        expectTypeOf<mail.MailWriteAccount>().toEqualTypeOf<mail.MailAccount & { smtp?: mail.MailSmtpSettings }>();
+        expectTypeOf<mail.MailSmtpNormalized>().toEqualTypeOf<{
+            host: string;
+            port: number;
+            security: 'tls' | 'starttls' | 'plain'
+        }>();
+        expectTypeOf<mail.MailWriteAccountView>().toEqualTypeOf<{
+            id: string;
+            address: string;
+            gmail: boolean;
+            smtp: boolean;
+        }>();
+        expectTypeOf<mail.MailSendResult>().toEqualTypeOf<{
+            account: string;
+            messageId: string;
+            filed: boolean;
+            refused: string[]
+        }>();
+        expectTypeOf<mail.MailReplyHeaders>().toEqualTypeOf<{
+            messageId: string;
+            references: string[];
+            from: string;
+            subject: string;
+        }>();
+        expectTypeOf<mail.MailSendRequest['marker']>().toEqualTypeOf<string>();
+        expectTypeOf<ReturnType<typeof mail.createMailWriteClient>>().toEqualTypeOf<mail.IMailWriteClient>();
+        expectTypeOf<mail.MailWriteToolsOptions['client']>().toEqualTypeOf<mail.IMailWriteClient | undefined>();
+        expectTypeOf<mail.MailWriteToolsOptions['accounts']>().toEqualTypeOf<mail.MailWriteAccount[] | undefined>();
+        expectTypeOf<mail.MailSendInput>().toEqualTypeOf<{
+            account: string;
+            to: string[];
+            cc?: string[];
+            bcc?: string[];
+            subject: string;
+            text: string;
+            inReplyTo?: string;
+        }>();
+        expectTypeOf<mail.MailDeleteInput>().toEqualTypeOf<{ ids: string[] }>();
+        expectTypeOf<mail.MailDeleteLimitSettings>().toEqualTypeOf<{
+            max?: number;
+            windowMs?: number;
+            bucket?: string;
+        }>();
+        expectTypeOf<mail.MailWriteToolsOptions['deleteLimit']>().toEqualTypeOf<mail.MailDeleteLimitSettings | false | undefined>();
+        expectTypeOf<NonNullable<module.ToolMailModuleOptions['accounts']>>().toEqualTypeOf<mail.MailWriteAccount[]>();
     });
 
     it('exports the module, its name and variable, never the env helpers', () => {

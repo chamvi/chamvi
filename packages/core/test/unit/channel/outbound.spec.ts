@@ -543,6 +543,52 @@ describe('channel outbound', () => {
         expect(seen[2]?.address).toBe('C9');
     });
 
+    it('a handle is direct only when its channel says so for the handle\'s address', async () => {
+        const asked: string[] = [];
+        const dm: IChannel = {
+            name: 'dm',
+            out: async () => undefined,
+            direct: async (address) => {
+                asked.push(address);
+
+                return address === 'peter';
+            },
+        };
+        const failing: IChannel = {
+            name: 'failing',
+            defaultAddress: 'room',
+            out: async () => undefined,
+            direct: () => {
+                throw new Error('down');
+            },
+        };
+        const seen: boolean[] = [];
+        const tools = (toolContext: ToolContext) => ({
+            check: defineTool({
+                inputSchema: z.object({}),
+                execute: async () => {
+                    seen.push(
+                        await toolContext.channels.findOneOrFail('dm').direct(),
+                        await toolContext.channels.findOneOrFail('slack').direct(),
+                        await toolContext.channels.findOneOrFail('failing').direct(),
+                    );
+
+                    return 'ok';
+                },
+            }),
+        });
+        const channels = () => [dm, failing, recorder('slack').channel];
+
+        await run(setup(mockModel([call('check'), text('done')]), tools, { channels: channels() }), { channel: 'dm', address: 'peter' });
+        await run(setup(mockModel([call('check'), text('done')]), tools, { channels: channels() }), { channel: 'dm', address: 'team' });
+        await run(setup(mockModel([call('check'), text('done')]), tools, { channels: channels() }), { channel: 'slack', address: 'C9' });
+
+        // dm with the source address, slack without direct(), failing throws
+        expect(seen).toEqual([true, false, false, false, false, false, false, false, false]);
+        // no address (not the source channel, no defaultAddress): never asked
+        expect(asked).toEqual(['peter', 'team']);
+    });
+
     it('channels.findOne() emits to the source address', async () => {
         const tools: ToolSet = { notify: emitTool((ctx, { body }) => ctx.channels.findOneOrFail().emit({ body })) };
         const ctx = setup(mockModel([call('notify', { body: 'Done.' }), text('done')]), tools);

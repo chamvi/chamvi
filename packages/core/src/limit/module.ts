@@ -11,6 +11,7 @@ import { requestApproval, unorderedApprovalId } from '../approval/request.ts';
 import { currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
 import { ToolDeniedError } from '../errors/index.ts';
+import type { StateSchema } from '../state/types.ts';
 import type { ToolContext } from '../tool/types.ts';
 import { assertLimitWeight, assertLimitedTools } from './asserts.ts';
 import {
@@ -26,6 +27,8 @@ import type { EnforceToolLimitInput, ToolLimitCheck, ToolLimitOptions } from './
 /**
  * The limit check of one call, right before it executes: a call counted
  * before (its marker `limit:<scope>:<key>` in the run's effects) passes;
+ * a recorded decision of the call's limit approval is read first, so an
+ * approved one sets `frame.limitApproved` on that replay too; otherwise
  * a recorded decision of the call's limit approval stands whatever the
  * count is now (denied throws); then the weight (`limit.weight`, default
  * 1; else a ValidationError, nothing counted); an approved call counts,
@@ -34,7 +37,8 @@ import type { EnforceToolLimitInput, ToolLimitCheck, ToolLimitOptions } from './
  * the lock is released: `deny` throws ToolDeniedError, `approve` asks for
  * an unordered bound approval (bound to the scope, the tool and the final
  * input; delivered where `target` says, else the inbox only); approved records the
- * use without a re-check, denied throws ToolDeniedError.
+ * use without a re-check, denied throws ToolDeniedError. Every approved path
+ * sets `frame.limitApproved` (`toolLimitApproved()`).
  */
 export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<void> {
     const {
@@ -52,22 +56,27 @@ export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<vo
     } = input;
     const frame = currentToolCall()!;
     const marker = limitMarkerKey(scope, key);
-
-    // counted before (a replay after the tool's own approve(), a retried step): never checked again,
-    // also once its use left the window or the purge deleted it
-    if (await frame.effects.findOne(marker)) {
-        return;
-    }
-
     const binding = stableHash({
         limit: scope,
         tool: name,
         input: final,
     });
-    // an answered limit approval stands, whatever the count is now (a drained window included)
+    // read before the marker: a replay of an approved over-limit call still tells the tool it was approved
     const recorded = await frame.effects.findOne(approvalDecisionKey(frame.runId, unorderedApprovalId(frame, binding)));
+    const approved = recorded ? toApprovalDecision(recorded.result).approved : undefined;
 
-    if (recorded && !toApprovalDecision(recorded.result).approved) {
+    // counted before (a replay after the tool's own approve(), a retried step): never checked again,
+    // also once its use left the window or the purge deleted it
+    if (await frame.effects.findOne(marker)) {
+        if (approved) {
+            frame.limitApproved = true;
+        }
+
+        return;
+    }
+
+    // an answered limit approval stands, whatever the count is now (a drained window included)
+    if (approved === false) {
         throw new ToolDeniedError(`Over the limit of ${name} and not approved.`);
     }
 
@@ -81,7 +90,8 @@ export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<vo
         await frame.effects.save(marker, true);
     };
 
-    if (recorded) {
+    if (approved) {
+        frame.limitApproved = true;
         await count();
 
         return;
@@ -132,7 +142,25 @@ export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<vo
         throw new ToolDeniedError(`Over the limit of ${name} and not approved.`);
     }
 
+    frame.limitApproved = true;
     await count();
+}
+
+/**
+ * Whether the limit check of the current tool call passed through an
+ * approved limit approval (asked now, or recorded and replayed): a tool with
+ * an approval of its own skips it then, so one decision covers the call.
+ * False outside a tool call, for another run's context, under the limit and
+ * for a tool without a limit.
+ */
+export function toolLimitApproved<S extends StateSchema = StateSchema>(ctx: ToolContext<S>): boolean {
+    const frame = currentToolCall();
+
+    if (!frame || ctx?.run?.runId !== frame.runId) {
+        return false;
+    }
+
+    return frame.limitApproved === true;
 }
 
 /**

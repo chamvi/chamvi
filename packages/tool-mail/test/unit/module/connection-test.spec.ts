@@ -31,11 +31,13 @@ import type { MailAccountNormalized } from '../../../src/options/types.ts';
 import { createFakeImap } from '../../utils/imap.ts';
 import type { FakeImap, FakeImapOptions } from '../../utils/imap.ts';
 import { PASSWORD, fakeOptions } from '../../utils/mail.ts';
+import { SMTP_SERVER_TEXT, createFakeSmtp } from '../../utils/smtp.ts';
+import type { FakeSmtp, FakeSmtpOptions } from '../../utils/smtp.ts';
 
 const TOKEN = 'a-static-token-of-length';
 const keyring = createKeyring([{ id: 'k1', key: randomBytes(32) }]);
 const harnesses: ModuleHarness[] = [];
-const servers: FakeImap[] = [];
+const servers: (FakeImap | FakeSmtp)[] = [];
 const logLines: string[] = [];
 
 afterEach(async () => {
@@ -66,6 +68,14 @@ function freePort(): Promise<number> {
 
 async function fake(options: Partial<FakeImapOptions> = {}): Promise<FakeImap> {
     const server = await createFakeImap(fakeOptions(false, options));
+
+    servers.push(server);
+
+    return server;
+}
+
+async function fakeSmtp(options: FakeSmtpOptions = {}): Promise<FakeSmtp> {
+    const server = await createFakeSmtp(options);
 
     servers.push(server);
 
@@ -132,7 +142,7 @@ function account(port: number, overrides: Partial<MailAccountNormalized> = {}): 
     } as MailAccountNormalized;
 }
 
-async function createAccount(call: Awaited<ReturnType<typeof serve>>, port: number): Promise<void> {
+async function createAccount(call: Awaited<ReturnType<typeof serve>>, port: number, smtpPort?: number): Promise<void> {
     const response = await call('POST', '/connection-types/mail/connections', {
         account: 'work',
         settings: {
@@ -140,6 +150,11 @@ async function createAccount(call: Awaited<ReturnType<typeof serve>>, port: numb
             host: '127.0.0.1',
             port,
             security: 'plain',
+            ...(smtpPort !== undefined && {
+                smtpHost: '127.0.0.1', 
+                smtpPort, 
+                smtpSecurity: 'plain', 
+            }),
         },
         secrets: { password: PASSWORD },
     });
@@ -194,6 +209,59 @@ describe('the mail connection test', () => {
 
         expect(JSON.parse(text)).toEqual({ ok: false, message: 'The IMAP server cannot be reached.' });
         expect(text).not.toContain(String(port));
+    });
+
+    it('logs in over SMTP after IMAP when an SMTP host is set, sending nothing', async () => {
+        const imap = await fake();
+        const smtp = await fakeSmtp();
+        const call = await serve();
+
+        await createAccount(call, imap.port, smtp.port);
+
+        expect(await (await call('POST', '/connections/mail-work/test')).json()).toEqual({ ok: true });
+        expect(smtp.commands).toContain('AUTH PLAIN');
+        expect(smtp.commands).not.toContain('MAIL FROM');
+        expect(smtp.messages).toEqual([]);
+    });
+
+    it('reports a refused SMTP login without a value or the server text', async () => {
+        const imap = await fake();
+        const smtp = await fakeSmtp({ authFails: true });
+        const call = await serve();
+
+        await createAccount(call, imap.port, smtp.port);
+
+        const text = await (await call('POST', '/connections/mail-work/test')).text();
+
+        expect(JSON.parse(text)).toEqual({ ok: false, message: 'The SMTP server refused the user or password.' });
+        expect(text).not.toContain(PASSWORD);
+        expect(text).not.toContain(SMTP_SERVER_TEXT);
+        expect(logLines.join('\n')).not.toContain(PASSWORD);
+    });
+
+    it('reports an unreachable SMTP server without its address', async () => {
+        const imap = await fake();
+        const port = await freePort();
+        const call = await serve();
+
+        await createAccount(call, imap.port, port);
+
+        const text = await (await call('POST', '/connections/mail-work/test')).text();
+
+        expect(JSON.parse(text)).toEqual({ ok: false, message: 'The SMTP server cannot be reached.' });
+        expect(text).not.toContain(String(port));
+    });
+
+    it('reports the IMAP failure first and does not reach SMTP', async () => {
+        const imap = await fake({ loginFails: true });
+        const smtp = await fakeSmtp();
+        const call = await serve();
+
+        await createAccount(call, imap.port, smtp.port);
+
+        expect(await (await call('POST', '/connections/mail-work/test')).json())
+            .toEqual({ ok: false, message: 'The IMAP server refused the user or password.' });
+        expect(smtp.commands).toEqual([]);
     });
 
     it('is bounded by its signal: an abort during a login that never answers closes the socket', async () => {

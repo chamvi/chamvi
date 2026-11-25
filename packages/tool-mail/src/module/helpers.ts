@@ -11,6 +11,7 @@ import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
 import { ACCOUNT_ID_PATTERN } from '../options/constants.ts';
 import { normalizeAccount } from '../options/module.ts';
+import { normalizeSmtp } from '../write-client/asserts.ts';
 import { MAIL_ACCOUNTS_VARIABLE, MAIL_VARIABLE_PREFIX } from './constants.ts';
 import type { MailEnvAccount } from './types.ts';
 
@@ -65,7 +66,7 @@ function accountOf(env: Env, entry: unknown, at: string, ids: Set<string>): Mail
         ...(password !== undefined && { password }),
     };
 
-    for (const field of ['port', 'security', 'folders', 'gmail'] as const) {
+    for (const field of ['port', 'security', 'folders', 'gmail', 'smtp'] as const) {
         if (entry[field] !== undefined) {
             Object.assign(account, { [field]: entry[field] });
         }
@@ -75,12 +76,16 @@ function accountOf(env: Env, entry: unknown, at: string, ids: Set<string>): Mail
     // a missing password is no format error: the store may hold it, `setup` decides
     normalizeAccount({ ...account, password: password ?? 'unset' }, at);
 
+    if (account.smtp !== undefined) {
+        normalizeSmtp(account.smtp, `${at}.smtp`);
+    }
+
     return account;
 }
 
 /**
  * The accounts of `CHAMVI_MAIL_ACCOUNTS` (`[{ id?, address, host, port?,
- * security?, folders?, gmail? }]`) with their credentials from
+ * security?, folders?, gmail?, smtp?: { host, port?, security? } }]`) with their credentials from
  * `CHAMVI_MAIL_<ID>_USER` (default the address) and
  * `CHAMVI_MAIL_<ID>_PASSWORD`, each also from a `_FILE` variant; undefined
  * without the variable. A password in neither env nor store fails in `setup`.
@@ -96,7 +101,7 @@ export function readMailAccountsFromEnv(env: Env): MailEnvAccount[] | undefined 
     }
 
     if (!Array.isArray(value)) {
-        return fail(`${MAIL_ACCOUNTS_VARIABLE} must be a JSON array of { id?, address, host, port?, security?, folders?, gmail? }.`);
+        return fail(`${MAIL_ACCOUNTS_VARIABLE} must be a JSON array of { id?, address, host, port?, security?, folders?, gmail?, smtp? }.`);
     }
 
     const ids = new Set<string>();

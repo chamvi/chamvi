@@ -156,6 +156,12 @@ export type ChannelHandle = {
      * bound address), at most once per key; only inside a tool call.
      */
     emit(message: EmitMessage, address?: string): Promise<void>;
+    /**
+     * Whether the bound address reaches the owner alone: true only when the
+     * channel implements `direct()` and it answers true for that address;
+     * false without an address and when `direct()` throws.
+     */
+    direct(): Promise<boolean>;
     /** Asks the owner to approve, durably (suspends the tool call until answered). */
     approve(request: ApprovalRequestInput & { address?: string; slot?: string }): Promise<ApprovalDecision>;
 };

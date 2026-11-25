@@ -2,7 +2,7 @@
     "name": "@chamvi/tool-mail",
     "version": "0.10.0",
     "type": "module",
-    "description": "Read-only mail tools for chamvi agents: search, read and thread mails and extract attachment text over IMAP, without ever changing a mailbox.",
+    "description": "Mail tools for chamvi agents: search, read and thread mails and extract attachment text over IMAP; send mail over SMTP after an approval and move mail to Trash.",
     "author": {
         "name": "Peter Placzek",
         "email": "contact@tada5hi.net",
@@ -46,6 +46,7 @@
         "chamvi",
         "mail",
         "imap",
+        "smtp",
         "email",
         "tools",
         "agent"
@@ -57,6 +58,7 @@
     "dependencies": {
         "fflate": "0.8.3",
         "imapflow": "2.12.2",
+        "nodemailer": "10.6.1",
         "postal-mime": "4.2.1",
         "smob": "^1.6.2",
         "unpdf": "2.2.2"

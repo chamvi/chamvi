@@ -33,10 +33,9 @@ export type ToolLimit<I = any, S extends StateSchema = StateSchema> = {
     weight?: (input: I, ctx: ToolContext<S>) => number | Promise<number>;
     /**
      * The body of the approval a call over the limit asks for. It reaches the
-     * run's source chat when the run is untainted or the source channel
-     * reports the address as direct (`IChannel.direct`); otherwise the
-     * source gets a generic notification and the body stays in the inbox
-     * and the API.
+     * run's source chat only when the source channel reports the address as
+     * direct (`IChannel.direct`); otherwise the source gets a generic
+     * notification and the body stays in the inbox and the API.
      */
     detail?: (input: I, ctx: ToolContext<S>) => string | undefined | Promise<string | undefined>;
 };

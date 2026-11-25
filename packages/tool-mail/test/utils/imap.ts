@@ -33,6 +33,12 @@ export type FakeMessage = {
     size?: number;
     /** X-GM-THRID (gmail fakes). */
     threadId?: string;
+    /** Further header values by name, matched by `UID SEARCH HEADER` (an APPENDed message carries all of its own). */
+    headers?: Record<string, string>;
+    /** The bytes an APPEND stored. */
+    raw?: string;
+    /** The flags an APPEND set. */
+    flags?: string[];
 };
 
 export type FakeFolder = {
@@ -55,11 +61,27 @@ export type FakeImapOptions = {
      * a string is sent as the raw rest of the `* SEARCH` line.
      */
     search?: (folder: string, command: string) => number[] | string | undefined;
+    /** Leaves MOVE out of the capabilities. */
+    noMove?: boolean;
+    /** Answers APPEND with NO (after reading its literal). */
+    appendFails?: boolean;
+    /** Called with each command line as it arrives, before any answer. */
+    onCommand?: (line: string) => void;
+    /** A folder path whose `UID MOVE` answers NO (nothing moved). */
+    moveFails?: string;
+    /**
+     * IMAP4rev2 (which folds MOVE into the base protocol): `enabled` advertises it next to IMAP4rev1 and
+     * answers `ENABLE IMAP4rev2` with `* ENABLED IMAP4rev2`; `only` advertises it alone (rev2 without ENABLE);
+     * `advertised` advertises it next to IMAP4rev1 but never confirms an ENABLE.
+     */
+    rev2?: 'enabled' | 'only' | 'advertised';
 };
 
 export type FakeImap = {
     port: number;
     commands: string[];
+    /** The options the server reads per command (changeable during a test; the capabilities stay). */
+    options: FakeImapOptions;
     /** Sockets that ended or closed. */
     closed: () => number;
     close: () => Promise<void>;
@@ -83,6 +105,11 @@ type Built = {
 const BOUNDARY = 'chamvi-boundary';
 
 function quote(value: string): string {
+    // a quoted string cannot carry a line break: a literal can
+    if (/[\r\n]/.test(value)) {
+        return `{${Buffer.byteLength(value)}}\r\n${value}`;
+    }
+
     return `"${value.replace(/["\\]/g, (char) => `\\${char}`)}"`;
 }
 
@@ -101,7 +128,7 @@ function parseAddress(value: string): {
     local: string;
     domain: string
 } {
-    const match = /^(.*)<([^>]+)>$/.exec(value.trim());
+    const match = /^([\s\S]*)<([^>]+)>$/.exec(value.trim());
     const name = match ? match[1]!.trim() : undefined;
     const address = match ? match[2]! : value.trim();
     const [local, domain] = address.split('@');
@@ -323,7 +350,8 @@ function store(folder: FakeFolder, command: string): void {
 }
 
 function fetchResponse(folder: FakeFolder, command: string, gmail: boolean): string[] {
-    const match = /UID FETCH (\S+) \((.*)\)$/i.exec(command);
+    // a list of items in parentheses, or a single item without them (`UID FETCH 1 UID`)
+    const match = /UID FETCH (\S+) (?:\((.*)\)|(\S+))$/i.exec(command);
 
     if (!match) {
         return [];
@@ -331,7 +359,7 @@ function fetchResponse(folder: FakeFolder, command: string, gmail: boolean): str
 
     const messages = folder.messages ?? [];
     const uids = uidSet(match[1]!, Math.max(0, ...messages.map((message) => message.uid)));
-    const items = match[2]!;
+    const items = match[2] ?? match[3]!;
     const lines: string[] = [];
     // a fetch of a body section that is not BODY.PEEK sets \Seen, as a real server does (RFC 3501 6.4.5)
     const marks = SEEN_ITEMS.test(items);
@@ -394,6 +422,87 @@ function fetchResponse(folder: FakeFolder, command: string, gmail: boolean): str
     return lines;
 }
 
+/** The header fields of a raw message by name, folded lines joined. */
+function parseHeaders(raw: string): Record<string, string> {
+    const end = raw.indexOf('\r\n\r\n');
+    const block = (end === -1 ? raw : raw.slice(0, end)).replace(/\r\n[ \t]+/g, ' ');
+    const headers: Record<string, string> = {};
+
+    for (const line of block.split('\r\n')) {
+        const colon = line.indexOf(':');
+
+        if (colon > 0) {
+            headers[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
+        }
+    }
+
+    return headers;
+}
+
+function headerOf(message: FakeMessage, name: string): string | undefined {
+    const entry = Object.entries(message.headers ?? {}).find(([key]) => key.toLowerCase() === name.toLowerCase());
+
+    if (!entry && name.toLowerCase() === 'message-id') {
+        return message.messageId;
+    }
+
+    return entry?.[1];
+}
+
+/** A message stored by APPEND, read back from its own headers. */
+function appended(raw: string, uid: number, flags: string[]): FakeMessage {
+    const headers = parseHeaders(raw);
+    const value = (name: string) => headerOf({ uid, headers }, name);
+    const date = value('date');
+
+    return {
+        uid,
+        ...(date && !Number.isNaN(new Date(date).getTime()) && { date: new Date(date).toISOString() }),
+        ...(value('from') && { from: value('from') }),
+        ...(value('to') && { to: value('to') }),
+        ...(value('cc') && { cc: value('cc') }),
+        ...(value('subject') && { subject: value('subject') }),
+        ...(value('message-id') && { messageId: value('message-id') }),
+        ...(value('in-reply-to') && { inReplyTo: value('in-reply-to') }),
+        seen: flags.some((flag) => flag.toLowerCase() === '\\seen'),
+        text: '',
+        headers,
+        raw,
+        flags,
+    };
+}
+
+/**
+ * The uids of a search the write client sends: `HEADER <name> <value>` or `OR HEADER .. HEADER ..` of two
+ * (substring, case-insensitive name; Message-ID also from `messageId`) or Gmail's `X-GM-RAW rfc822msgid:<id>`
+ * (atom or quoted); undefined for any other search.
+ */
+function lookup(messages: FakeMessage[], line: string): number[] | undefined {
+    const value = '("(?:[^"\\\\]|\\\\.)*"|\\S+)';
+    const header = new RegExp(`^\\S+ UID SEARCH HEADER (\\S+) ${value}$`, 'i').exec(line);
+    const either = new RegExp(`^\\S+ UID SEARCH OR HEADER (\\S+) ${value} HEADER (\\S+) ${value}$`, 'i').exec(line);
+    const matches = (message: FakeMessage, name: string, quoted: string) => headerOf(message, name)?.includes(unquote(quoted)) ?? false;
+
+    if (header) {
+        return messages.filter((message) => matches(message, header[1]!, header[2]!)).map((message) => message.uid);
+    }
+
+    if (either) {
+        return messages.filter((message) => matches(message, either[1]!, either[2]!) || matches(message, either[3]!, either[4]!))
+            .map((message) => message.uid);
+    }
+
+    const gmail = /^\S+ UID SEARCH X-GM-RAW ("rfc822msgid:[^"]+"|rfc822msgid:\S+)$/i.exec(line);
+
+    if (gmail) {
+        const id = unquote(gmail[1]!).slice('rfc822msgid:'.length);
+
+        return messages.filter((message) => message.messageId === id).map((message) => message.uid);
+    }
+
+    return undefined;
+}
+
 function unquote(value: string): string {
     const trimmed = value.trim();
 
@@ -404,9 +513,55 @@ function unquote(value: string): string {
     return trimmed;
 }
 
+/**
+ * `UID MOVE <set> <dest>` (RFC 6851): the present messages go to `dest` under new uids, answered by
+ * `* OK [COPYUID ...]`, one `* <seq> EXPUNGE` per moved message (highest first) and OK.
+ */
+function move(options: FakeImapOptions, selected: FakeFolder | undefined, line: string, tag: string): string {
+    const match = /^\S+ UID MOVE (\S+) ("(?:[^"\\]|\\.)*"|\S+)$/i.exec(line);
+
+    if (!selected || !match || (options.noMove && !options.rev2)) {
+        return `${tag} BAD move\r\n`;
+    }
+
+    const destination = options.folders.find((folder) => folder.path === unquote(match[2]!));
+
+    if (!destination || options.moveFails === selected.path) {
+        return `${tag} NO [CANNOT] move refused\r\n`;
+    }
+
+    const messages = selected.messages ?? [];
+    const uids = uidSet(match[1]!, Math.max(0, ...messages.map((message) => message.uid)));
+    const moving = messages
+        .map((message, index) => ({ message, seq: index + 1 }))
+        .filter((entry) => uids.has(entry.message.uid));
+
+    if (moving.length === 0) {
+        return `${tag} OK nothing moved\r\n`;
+    }
+
+    destination.messages ??= [];
+
+    let next = Math.max(0, ...destination.messages.map((message) => message.uid)) + 1;
+    const target: number[] = [];
+
+    for (const { message } of moving) {
+        target.push(next);
+        destination.messages.push({ ...message, uid: next++ });
+    }
+
+    selected.messages = messages.filter((message) => !uids.has(message.uid));
+
+    const source = moving.map((entry) => entry.message.uid).join(',');
+    const expunged = moving.map((entry) => entry.seq).sort((a, b) => b - a).map((seq) => `* ${seq} EXPUNGE\r\n`);
+
+    return `* OK [COPYUID ${destination.uidValidity ?? 42} ${source} ${target.join(',')}] moved\r\n${expunged.join('')}${tag} OK done\r\n`;
+}
+
 /** An in-process IMAP server on 127.0.0.1 answering the commands imapflow sends; records every command line. */
 export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap> {
-    const capabilities = `IMAP4rev1 NAMESPACE SPECIAL-USE${options.gmail ? ' X-GM-EXT-1' : ''}`;
+    const versions = options.rev2 === 'only' ? 'IMAP4rev2' : `IMAP4rev1${options.rev2 ? ' IMAP4rev2 ENABLE' : ''}`;
+    const capabilities = `${versions} NAMESPACE SPECIAL-USE${options.noMove ? '' : ' MOVE'}${options.gmail ? ' X-GM-EXT-1' : ''}`;
     const commands: string[] = [];
     const sockets = new Set<net.Socket>();
     let closed = 0;
@@ -420,7 +575,14 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
         socket.on('error', () => undefined);
 
         let selected: FakeFolder | undefined;
-        let buffer = '';
+        let buffer = Buffer.alloc(0);
+        // an APPEND waiting for its literal (byte-counted)
+        let append: {
+            tag: string;
+            folder: FakeFolder | undefined;
+            flags: string[];
+            size: number
+        } | undefined;
         const write = (value: string) => {
             if (!socket.destroyed) {
                 socket.write(value);
@@ -429,17 +591,55 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
 
         write(`* OK [CAPABILITY ${capabilities}] ready\r\n`);
 
-        socket.on('data', (data) => {
-            buffer += data.toString('utf8');
+        socket.on('data', (data: Buffer) => {
+            buffer = Buffer.concat([buffer, data]);
 
-            let index = buffer.indexOf('\r\n');
+            while (true) {
+                if (append) {
+                    // the literal, then the rest of the command line (empty)
+                    const end = buffer.indexOf('\r\n', append.size);
 
-            while (index !== -1) {
-                const line = buffer.slice(0, index);
+                    if (end === -1) {
+                        break;
+                    }
 
-                buffer = buffer.slice(index + 2);
-                index = buffer.indexOf('\r\n');
+                    const raw = buffer.subarray(0, append.size).toString('utf8');
+                    const {
+                        tag,
+                        folder,
+                        flags,
+                    } = append;
+
+                    buffer = buffer.subarray(end + 2);
+                    append = undefined;
+
+                    if (!folder || options.appendFails) {
+                        write(`${tag} NO [CANNOT] ${folder ? 'append refused' : 'no such mailbox'}\r\n`);
+
+                        continue;
+                    }
+
+                    folder.messages ??= [];
+
+                    const uid = Math.max(0, ...folder.messages.map((message) => message.uid)) + 1;
+
+                    folder.messages.push(appended(raw, uid, flags));
+                    write(`${tag} OK done\r\n`);
+
+                    continue;
+                }
+
+                const index = buffer.indexOf('\r\n');
+
+                if (index === -1) {
+                    break;
+                }
+
+                const line = buffer.subarray(0, index).toString('utf8');
+
+                buffer = buffer.subarray(index + 2);
                 commands.push(line);
+                options.onCommand?.(line);
 
                 if (options.hold?.test(line)) {
                     continue;
@@ -496,7 +696,7 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
                         write(`* ${folder.messages?.length ?? 0} EXISTS\r\n* 0 RECENT\r\n* FLAGS (\\Seen)\r\n` +
                             `* OK [UIDVALIDITY ${folder.uidValidity ?? 42}] u\r\n` +
                             `* OK [UIDNEXT ${Math.max(0, ...(folder.messages ?? []).map((message) => message.uid)) + 1}] n\r\n`);
-                        write(`${tag} OK [READ-ONLY] done\r\n`);
+                        write(`${tag} OK [${name === 'SELECT' ? 'READ-WRITE' : 'READ-ONLY'}] done\r\n`);
 
                         break;
                     }
@@ -504,7 +704,7 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
                     case 'SEARCH': {
                         const messages = selected?.messages ?? [];
                         const thread = /X-GM-THRID (\d+)/.exec(line);
-                        let uids = selected ? options.search?.(selected.path, line) : undefined;
+                        let uids = selected ? options.search?.(selected.path, line) ?? lookup(messages, line) : undefined;
 
                         if (!uids && thread) {
                             uids = messages.filter((message) => (message.threadId ?? String(2000 + message.uid)) === thread[1])
@@ -527,6 +727,10 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
                         ok();
 
                         break;
+                    case 'UID MOVE':
+                        write(move(options, selected, line, tag!));
+
+                        break;
                     case 'UID STORE':
                         if (selected) {
                             store(selected, line);
@@ -535,6 +739,27 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
                         ok();
 
                         break;
+                    case 'APPEND': {
+                        const match = /^\S+ APPEND ("(?:[^"\\]|\\.)*"|\S+)(?: \(([^)]*)\))?(?: "[^"]*")? \{(\d+)\}$/i.exec(line);
+
+                        if (!match) {
+                            write(`${tag} BAD append\r\n`);
+
+                            break;
+                        }
+
+                        const path = unquote(match[1]!);
+
+                        append = {
+                            tag: tag!,
+                            folder: options.folders.find((entry) => entry.path === path),
+                            flags: (match[2] ?? '').split(' ').filter((flag) => flag.length > 0),
+                            size: Number(match[3]),
+                        };
+                        write('+ go ahead\r\n');
+
+                        break;
+                    }
                     case 'NOOP':
                     case 'CLOSE':
                     case 'UNSELECT':
@@ -545,6 +770,14 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
                         write('* BYE bye\r\n');
                         ok();
                         socket.end();
+
+                        break;
+                    case 'ENABLE':
+                        if (options.rev2 === 'enabled' && /\bIMAP4rev2\b/i.test(rest)) {
+                            write('* ENABLED IMAP4rev2\r\n');
+                        }
+
+                        ok();
 
                         break;
                     default:
@@ -561,6 +794,7 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
     return {
         port: (server.address() as AddressInfo).port,
         commands,
+        options,
         closed: () => closed,
         close: async () => {
             for (const socket of sockets) {

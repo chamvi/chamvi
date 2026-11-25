@@ -34,7 +34,7 @@ import {
     createLogger,
     engineModule,
 } from '@chamvi/app';
-import type { IModule } from '@chamvi/app';
+import type { IModule, StoredConnection } from '@chamvi/app';
 import { createModuleHarness, memoryStoreModule } from '@chamvi/app/testing';
 import type { ModuleHarness, ModuleHarnessOptions } from '@chamvi/app/testing';
 import { mailTools } from '@chamvi/tool-mail';
@@ -46,6 +46,7 @@ import {
     toolMailModule,
 } from '@chamvi/tool-mail/module';
 import type { ToolMailModuleOptions } from '@chamvi/tool-mail/module';
+import { loadMailAccounts, mailConnectionDefinition } from '../../../src/module/type.ts';
 import { createFakeImap } from '../../utils/imap.ts';
 import type { FakeImap } from '../../utils/imap.ts';
 import {
@@ -281,6 +282,24 @@ function spyConnections(store: TestStore): string[] {
     return calls;
 }
 
+function testLogger() {
+    return createLogger({
+        level: 'warn',
+        write: (line) => {
+            logLines.push(line);
+        },
+    });
+}
+
+function storedRow(name: string, values: StoredConnection['values']): StoredConnection {
+    return {
+        name,
+        values,
+        revision: 1,
+        id: `${name}-1`,
+    };
+}
+
 const logins = (server: FakeImap) => untagged(server.commands).filter((command) => command.startsWith('LOGIN'));
 
 describe('toolMailModule() configuration', () => {
@@ -290,10 +309,192 @@ describe('toolMailModule() configuration', () => {
 
         expect(definition.type).toBe('mail');
         expect(definition.multiple).toBe(true);
-        expect(definition.fields.map((field) => field.key)).toEqual(['address', 'host', 'port', 'security', 'user', 'password']);
+        expect(definition.fields.map((field) => field.key)).toEqual([
+            'address',
+            'host',
+            'port',
+            'security',
+            'user',
+            'password',
+            'smtpHost',
+            'smtpPort',
+            'smtpSecurity',
+        ]);
         expect(definition.fields.find((field) => field.key === 'password')).toMatchObject({ kind: 'secret', required: true });
         expect(definition.fields.find((field) => field.key === 'security')).toMatchObject({ kind: 'select' });
         expect(definition.uniqueId?.({ address: 'Bob@Y.test' })).toBe('bob@y.test');
+    });
+
+    it('declares the smtp fields, each binding the secrets', async () => {
+        const harness = await harnessOf({ store: storeOf(), options: { env: {} } });
+        const { definition } = providerOf(harness);
+        const fieldOf = (key: string) => definition.fields.find((field) => field.key === key);
+
+        expect(fieldOf('smtpHost')).toMatchObject({ kind: 'string', bindsSecrets: true });
+        expect(fieldOf('smtpPort')).toMatchObject({ kind: 'number', bindsSecrets: true });
+        expect(fieldOf('smtpSecurity')).toMatchObject({
+            kind: 'select',
+            options: ['tls', 'starttls', 'plain'],
+            bindsSecrets: true,
+        });
+    });
+
+    it('a stored account with smtpHost loads with smtp settings', async () => {
+        const definition = mailConnectionDefinition();
+        const loaded = await loadMailAccounts({
+            definition,
+            declared: [],
+            pinned: false,
+            env: {},
+            logger: testLogger(),
+            rows: [storedRow('mail-home', {
+                address: 'home@y.test',
+                host: '127.0.0.1',
+                password: STORED_PASSWORD,
+                smtpHost: 'smtp.y.test',
+                smtpSecurity: 'starttls',
+            })],
+            editable: true,
+        });
+
+        expect(loaded.accounts).toHaveLength(1);
+        expect(loaded.accounts[0]?.smtp).toEqual({ host: 'smtp.y.test', security: 'starttls' });
+    });
+
+    it.each([
+        ['a port without a host', { smtpPort: 2525 }, 'smtp.host'],
+        ['a security without a host', { smtpSecurity: 'starttls' }, 'smtp.host'],
+        ['a port out of range', { smtpHost: 'smtp.y.test', smtpPort: 70_000 }, 'smtp.port'],
+    ])('a stored-only account with %s drops smtp with a warning and still reads', async (_, smtp, field) => {
+        const definition = mailConnectionDefinition();
+        const loaded = await loadMailAccounts({
+            definition,
+            declared: [],
+            pinned: false,
+            env: {},
+            logger: testLogger(),
+            rows: [storedRow('mail-home', {
+                address: 'home@y.test',
+                host: '127.0.0.1',
+                password: STORED_PASSWORD,
+                ...smtp,
+            })],
+            editable: true,
+        });
+
+        expect(loaded.accounts).toHaveLength(1);
+        expect(loaded.accounts[0]?.id).toBe('home');
+        expect(loaded.accounts[0]?.smtp).toBeUndefined();
+        expect(loaded.connections[0]?.resolved.state).toBe('incomplete');
+        expect(logLines.some((line) => line.includes('home') && line.includes(field) && line.includes('reads only'))).toBe(true);
+        expect(logLines.join('\n')).not.toContain('70000');
+    });
+
+    it('a refused stored smtp value on a declared account drops only the stored smtp settings', async () => {
+        const definition = mailConnectionDefinition();
+        const loaded = await loadMailAccounts({
+            definition,
+            declared: [{
+                id: 'work',
+                address: 'bob@y.test',
+                host: '127.0.0.1',
+                user: 'bob@y.test',
+                smtp: { host: 'smtp.y.test' },
+            }],
+            pinned: false,
+            env: { CHAMVI_MAIL_WORK_PASSWORD: PASSWORD },
+            logger: testLogger(),
+            rows: [storedRow('mail-work', {
+                user: 'stored-user',
+                port: 1143,
+                security: 'starttls',
+                smtpPort: 70_000,
+                smtpSecurity: 'plain',
+            })],
+            editable: true,
+        });
+
+        expect(loaded.accounts).toHaveLength(1);
+        expect(loaded.accounts[0]).toMatchObject({
+            user: 'stored-user',
+            port: 1143,
+            security: 'starttls',
+            password: PASSWORD,
+            smtp: { host: 'smtp.y.test' },
+        });
+        expect(loaded.accounts[0]?.smtp).toEqual({ host: 'smtp.y.test' });
+        expect(loaded.connections[0]?.resolved.state).toBe('incomplete');
+        expect(loaded.connections[0]?.resolved.values.user).toBe('stored-user');
+        expect(logLines.some((line) => line.includes('work') && line.includes('smtp.port'))).toBe(true);
+        expect(logLines.join('\n')).not.toContain('70000');
+    });
+
+    it('env smtp settings win per field over the stored row', async () => {
+        const definition = mailConnectionDefinition();
+        const loaded = await loadMailAccounts({
+            definition,
+            declared: [{
+                id: 'work',
+                address: 'bob@y.test',
+                host: '127.0.0.1',
+                user: 'bob@y.test',
+                smtp: { host: 'smtp.env.test' },
+            }],
+            pinned: false,
+            env: { CHAMVI_MAIL_WORK_PASSWORD: PASSWORD },
+            logger: testLogger(),
+            rows: [storedRow('mail-work', {
+                smtpHost: 'smtp.stored.test',
+                smtpPort: 2525,
+                smtpSecurity: 'plain',
+            })],
+            editable: true,
+        });
+
+        expect(loaded.accounts[0]?.smtp).toEqual({
+            host: 'smtp.env.test',
+            port: 2525,
+            security: 'plain',
+        });
+        expect(loaded.connections[0]?.resolved.sources.smtpHost).toEqual({ kind: 'env', variable: MAIL_ACCOUNTS_VARIABLE });
+        expect(loaded.connections[0]?.resolved.sources.smtpPort).toEqual({ kind: 'store' });
+    });
+
+    it('a bad stored smtpPort on a declared account is dropped with a warning and the account listed incomplete', async () => {
+        const store = storeOf();
+
+        await configsOf(store).create('mail-work', MAIL_CONNECTION_TYPE, {
+            settings: { smtpPort: 70_000, user: 'stored-user' },
+            secrets: { set: { password: STORED_PASSWORD } },
+        });
+
+        const harness = await harnessOf({
+            store,
+            options: { env: { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([envAccount(1, { smtp: { host: 'smtp.y.test' } })]) } },
+        });
+        const work = connectionOf(harness, 'mail-work');
+
+        expect(work.resolved.state).toBe('incomplete');
+        expect(work.resolved.values.smtpPort).toBeUndefined();
+        expect(work.resolved.values.smtpHost).toBe('smtp.y.test');
+        expect(work.resolved.sources.password).toEqual({ kind: 'store' });
+        expect(logLines.some((line) => line.includes('work') && line.includes('smtp.port'))).toBe(true);
+        expect(logLines.join('\n')).not.toContain('70000');
+    });
+
+    it('a pinned account keeps its smtp settings and a bad one fails the factory', async () => {
+        const harness = await harnessOf({
+            store: storeOf(),
+            options: { accounts: [{ ...accountOf(1), smtp: { host: 'smtp.y.test', port: 2525 } }] },
+        });
+
+        expect(connectionOf(harness, 'mail-work').resolved.values).toMatchObject({ smtpHost: 'smtp.y.test', smtpPort: 2525 });
+        expect(() => toolMailModule({
+            accounts: [{
+                ...accountOf(1),
+                smtp: { host: '' },
+            }],
+        })).toThrow('toolMailModule() accounts[0].smtp.host must be a non-empty string.');
     });
 
     it('loads env accounts and stored accounts together, env winning per field', async () => {

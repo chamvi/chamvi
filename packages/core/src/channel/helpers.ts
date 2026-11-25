@@ -292,10 +292,23 @@ function createChannelHandle(
         }, reservation);
     };
 
+    const direct = async (): Promise<boolean> => {
+        if (fallback === undefined || typeof channel.direct !== 'function') {
+            return false;
+        }
+
+        try {
+            return await channel.direct(fallback) === true;
+        } catch {
+            return false;
+        }
+    };
+
     return {
         name,
         ...(fallback !== undefined ? { address: fallback } : {}),
         emit,
+        direct,
         approve,
     };
 }

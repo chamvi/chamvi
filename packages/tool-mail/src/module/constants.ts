@@ -7,7 +7,7 @@
 
 export const TOOL_MAIL_MODULE_NAME = 'chamvi:tool-mail';
 
-/** A JSON array of `{ id?, address, host, port?, security?, folders?, gmail? }`, read by `toolMailModule()`. */
+/** A JSON array of `{ id?, address, host, port?, security?, folders?, gmail?, smtp? }`, read by `toolMailModule()`. */
 export const MAIL_ACCOUNTS_VARIABLE = 'CHAMVI_MAIL_ACCOUNTS';
 
 /** The prefix of an account's credential variables: `CHAMVI_MAIL_<ID>_USER`, `..._PASSWORD`. */

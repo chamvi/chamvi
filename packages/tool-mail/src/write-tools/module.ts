@@ -1,0 +1,88 @@
+/*
+ * Copyright (c) 2026.
+ * Author Peter Placzek (tada5hi)
+ * For the full copyright and license information,
+ * view the LICENSE file that was distributed with this source code.
+ */
+
+import type { ToolSet } from 'ai';
+import { InvalidAgentDefinitionError, inject } from '@chamvi/core';
+import type { IClock } from '@chamvi/core';
+import { isObject } from 'smob';
+import { MAIL_WRITE_CONTEXT } from '../context/constants.ts';
+import { normalizeAccounts, normalizeTiming } from '../options/module.ts';
+import { normalizeSmtp } from '../write-client/asserts.ts';
+import { createMailWriteClient } from '../write-client/module.ts';
+import type { IMailWriteClient } from '../write-client/types.ts';
+import { mailDeleteTool } from './delete.ts';
+import { mailSendTool } from './send.ts';
+import type { MailWriteClientSource, MailWriteToolsOptions } from './types.ts';
+
+const CALLER = 'mailWriteTools()';
+
+const CLIENT_METHODS = ['account', 'send', 'findSent', 'describe', 'trash', 'replyHeaders', 'close'] as const;
+
+function isMailWriteClient(value: unknown): value is IMailWriteClient {
+    return isObject(value) && CLIENT_METHODS.every((name) => typeof value[name] === 'function');
+}
+
+function sourceOf(options: MailWriteToolsOptions, timing: { clock: IClock; timeoutMs: number }): MailWriteClientSource {
+    if (options.classifier !== undefined && !isObject(options.classifier)) {
+        throw new InvalidAgentDefinitionError(`${CALLER} classifier must be an object.`);
+    }
+
+    if (options.client !== undefined) {
+        if (!isMailWriteClient(options.client)) {
+            throw new InvalidAgentDefinitionError(`${CALLER} client must be a mail write client (createMailWriteClient()).`);
+        }
+
+        const { client } = options;
+
+        return () => client;
+    }
+
+    if (options.accounts !== undefined) {
+        // checked here, so errors name this factory, never a value
+        normalizeAccounts(options.accounts, CALLER);
+        options.accounts.forEach((account, index) => {
+            if (account.smtp !== undefined) {
+                normalizeSmtp(account.smtp, `${CALLER} accounts[${index}].smtp`);
+            }
+        });
+
+        const client = createMailWriteClient(options.accounts, timing);
+
+        return () => client;
+    }
+
+    // the client the mail module provided; ContextNotProvidedError (a tool error) without one
+    return (context) => inject(context, MAIL_WRITE_CONTEXT);
+}
+
+/**
+ * The mail write tools: `mail_send` (SMTP, always approved by the owner with the whole mail) and `mail_delete`
+ * (a move to the account's trash, approved unless a classifier finds it routine, limited by its own limit,
+ * `deleteLimit`, default 20 mails an hour). They use `client`, else a client of `accounts`, else the write client the mail module
+ * provided on the engine. Options are checked when called (InvalidAgentDefinitionError).
+ */
+export function mailWriteTools(options: MailWriteToolsOptions = {}): ToolSet {
+    if (!isObject(options)) {
+        throw new InvalidAgentDefinitionError(`${CALLER} options must be an object.`);
+    }
+
+    const timing = normalizeTiming(options, CALLER);
+    const source = sourceOf(options, timing);
+
+    if (options.deleteLimit !== undefined && options.deleteLimit !== false && !isObject(options.deleteLimit)) {
+        throw new InvalidAgentDefinitionError(`${CALLER} deleteLimit must be an object or false.`);
+    }
+
+    return {
+        mail_send: mailSendTool(source),
+        mail_delete: mailDeleteTool(source, {
+            ...timing,
+            ...(options.classifier?.model !== undefined && { classifier: { model: options.classifier.model } }),
+            ...(options.deleteLimit !== undefined && { limit: options.deleteLimit }),
+        }),
+    };
+}
