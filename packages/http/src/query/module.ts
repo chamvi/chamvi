@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { appendQueryConditions } from '@authup/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { BadRequestError } from '@ebec/http';
 import {
@@ -16,7 +17,6 @@ import {
     Sort,
     Sorts,
     defineSchema as defineRapiqSchema,
-    isFilters,
 } from '@rapiq/core';
 import type { ICondition, IQuery, ObjectLiteral } from '@rapiq/core';
 import {
@@ -205,19 +205,9 @@ export function decodeQuery(searchParams: URLSearchParams, schema: ListSchema): 
  * whatever their shape: a decoded query of a schema with `nested` may
  * have an `or` at its root, which a condition pushed into its list would
  * join instead of narrowing. The way a service adds its scope (an owner,
- * a tenant, the agents a caller may read) to a client's query; fields,
- * relations, order and page stay.
+ * a tenant, the agents a caller may read) to a client's query; every
+ * other part of the query stays (authup's `appendQueryConditions`).
  */
 export function scopeQuery(query: IQuery, ...conditions: ICondition[]): IQuery {
-    const root = query.filters;
-    const empty = isFilters(root) && root.value.length === 0;
-    const filters = empty ? conditions : [root, ...conditions];
-
-    return new Query({
-        fields: query.fields,
-        filters: new Filters('and', filters),
-        relations: query.relations,
-        sorts: query.sorts,
-        pagination: query.pagination,
-    });
+    return appendQueryConditions(query, ...conditions);
 }
