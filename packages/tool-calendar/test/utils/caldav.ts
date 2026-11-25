@@ -55,6 +55,18 @@ export type FakeCalDav = {
     status?: number;
     /** Never answer until the request's signal aborts. */
     hang: boolean;
+    /** The principal's `calendar-user-address-set` (default none). */
+    addresses: string[];
+    /** `false`: a GET of an object answers without an `ETag` header. */
+    etagOnGet?: boolean;
+    /** Answer every request of `method` on an object URL with `status` (a 3xx with `location`). */
+    fail?: {
+        method: string; 
+        status: number; 
+        location?: string 
+    };
+    /** Runs before a request on an object URL is answered (a test changes the event there). */
+    before?: (request: FakeRequest) => void;
 };
 
 function multistatus(body: string): string {
@@ -104,6 +116,32 @@ function hang(signal: AbortSignal | null | undefined): Promise<Response> {
     });
 }
 
+/** The answer to a request on the object `name` of `calendar`: `fail` first, then a GET of the resource, else 404. */
+function objectResponse(fake: FakeCalDav, calendar: FakeCalendar, name: string, request: FakeRequest): Response {
+    fake.before?.(request);
+
+    if (fake.fail && fake.fail.method === request.method) {
+        return new Response('<error>refused by the server</error>', {
+            status: fake.fail.status,
+            headers: fake.fail.location ? { location: fake.fail.location } : {},
+        });
+    }
+
+    const object = fakeObjectsOf(calendar).find((item) => item.name === name);
+
+    if (request.method === 'GET' && object) {
+        return new Response(object.ics, {
+            status: 200,
+            headers: {
+                'content-type': 'text/calendar; charset=utf-8',
+                ...(fake.etagOnGet !== false && object.etag && { etag: object.etag }),
+            },
+        });
+    }
+
+    return new Response('not found', { status: 404 });
+}
+
 /**
  * An in-process CalDAV server behind a fetch: the iCloud discovery
  * (`.well-known` redirect to a partition host, principal, absolute home with
@@ -116,12 +154,13 @@ export function createFakeCalDav(calendars: FakeCalendar[] = []): FakeCalDav {
         requests,
         calendars,
         hang: false,
+        addresses: [],
         fetch: async (input, init) => {
             const url = new URL(input instanceof Request ? input.url : String(input));
             const method = (init?.method ?? 'GET').toUpperCase();
             const headers = new Headers(init?.headers);
 
-            requests.push({
+            const request: FakeRequest = {
                 method,
                 url: url.href,
                 depth: headers.get('depth'),
@@ -129,7 +168,9 @@ export function createFakeCalDav(calendars: FakeCalendar[] = []): FakeCalDav {
                 headers: Object.fromEntries(headers.entries()),
                 ...(init?.redirect && { redirect: init.redirect }),
                 body: typeof init?.body === 'string' ? init.body : '',
-            });
+            };
+
+            requests.push(request);
 
             init?.signal?.throwIfAborted();
 
@@ -155,6 +196,12 @@ export function createFakeCalDav(calendars: FakeCalendar[] = []): FakeCalDav {
                 return xml(ok('/', '<d:current-user-principal><d:href>/123/principal/</d:href></d:current-user-principal>'));
             }
 
+            if (path === '/123/principal/' && method === 'PROPFIND' && request.body.includes('calendar-user-address-set')) {
+                const hrefs = fake.addresses.map((address) => `<d:href>${escapeXml(address)}</d:href>`).join('');
+
+                return xml(ok('/123/principal/', `<c:calendar-user-address-set>${hrefs}</c:calendar-user-address-set>`));
+            }
+
             if (path === '/123/principal/' && method === 'PROPFIND') {
                 return xml(ok('/123/principal/', `<c:calendar-home-set><d:href xmlns:d="DAV:">${PARTITION}:443${HOME}</d:href></c:calendar-home-set>`));
             }
@@ -169,6 +216,12 @@ export function createFakeCalDav(calendars: FakeCalendar[] = []): FakeCalDav {
 
             if (calendar && method === 'PROPFIND') {
                 return xml(ok(path, '<d:supported-report-set><d:supported-report><d:report><c:calendar-query/></d:report></d:supported-report></d:supported-report-set>'));
+            }
+
+            const owner = calendars.find((item) => path.startsWith(`${HOME}${item.slug}/`) && path.length > `${HOME}${item.slug}/`.length);
+
+            if (owner) {
+                return objectResponse(fake, owner, path.slice(`${HOME}${owner.slug}/`.length), request);
             }
 
             if (calendar && method === 'REPORT') {

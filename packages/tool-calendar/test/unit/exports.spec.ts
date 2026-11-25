@@ -24,6 +24,9 @@ describe('public api', () => {
         expect(calendar.CALENDAR_DESCRIPTION_MAX_CHARS).toBe(2000);
         expect(calendar.CALENDAR_EXPAND_MAX_ITERATIONS).toBe(10_000);
         expect(calendar.CALENDAR_FIELD_MAX_CHARS).toBe(500);
+        expect(calendar.createCalendarWriteClient).toBeTypeOf('function');
+        expect(calendar.CALENDAR_WRITE_ALLOWED_METHODS).toEqual(['PROPFIND', 'GET', 'PUT', 'DELETE']);
+        expect(calendar.CALENDAR_EVENT_MAX_BYTES).toBe(1_048_576);
     });
 
     it('keeps the internals internal', () => {
@@ -32,13 +35,16 @@ describe('public api', () => {
             'CALENDAR_DESCRIPTION_MAX_CHARS',
             'CALENDAR_EVENTS_DEFAULT_LIMIT',
             'CALENDAR_EVENTS_MAX_LIMIT',
+            'CALENDAR_EVENT_MAX_BYTES',
             'CALENDAR_EXPAND_MAX_ITERATIONS',
             'CALENDAR_FIELD_MAX_CHARS',
             'CALENDAR_RANGE_MAX_DAYS',
             'CALENDAR_REQUEST_ERROR_CODE',
             'CALENDAR_TIMEOUT_MS',
+            'CALENDAR_WRITE_ALLOWED_METHODS',
             'calendarTools',
             'createCalendarClient',
+            'createCalendarWriteClient',
             'injectCalendarContext',
             'provideCalendarContext',
         ]);
