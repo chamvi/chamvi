@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { jsonSchema } from 'ai';
-import { InvalidAgentDefinitionError, defineTool } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineTool, once } from '@chamvi/core';
 import type { ToolLimit } from '@chamvi/core';
 import { mockModel } from '@chamvi/test-kit';
 import type { MockResponse } from '@chamvi/test-kit';
@@ -369,6 +369,36 @@ describe('calendar_delete\'s own limit', () => {
         const [step] = await write.steps(runId, 'probe');
 
         expect(step?.output).toEqual([TWO_LINE, TWO_LINE]);
+    });
+
+    it('shows the id alone for a recorded listing without its text', async () => {
+        const server = deleteFake();
+        const limit = (calendarWriteTools().calendar_delete as { limit?: ToolLimit }).limit!;
+        const probe = defineTool({
+            inputSchema: jsonSchema<Record<string, never>>({ type: 'object' }),
+            execute: async (_input, { context }) => {
+                // a record of an earlier version: the event only
+                await once(context, 'calendar_delete:limit-listing', async () => ({ event: eventOf(TWO) }));
+
+                return limit.detail!({ event: eventOf(TWO) }, context);
+            },
+        });
+        const write = createWriteEngine({
+            fake: server,
+            model: mockModel([{
+                parts: [{
+                    type: 'tool-call', 
+                    toolName: 'probe', 
+                    input: {}, 
+                    toolCallId: 'p1', 
+                }], 
+            }, done]),
+            tools: { probe },
+        });
+        const runId = await write.dispatch();
+        const [step] = await write.steps(runId, 'probe');
+
+        expect(step?.output).toBe('icloud:home event two.ics');
     });
 
     it('still classifies and asks after a limit approval that could show only the id', async () => {

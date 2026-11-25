@@ -78,7 +78,8 @@ export function mailDeleteLimitOf(source: MailWriteClientSource, settings: MailD
             const listed = new Set(shown?.ids ?? []);
             const covered = shown !== null && ids.every((id) => listed.has(id));
 
-            return covered && shown ? shown.text : fallbackListingOf(ids);
+            // a record of an earlier version holds the ids only
+            return covered && typeof shown?.text === 'string' ? shown.text : fallbackListingOf(ids);
         },
     };
 }

@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { jsonSchema } from 'ai';
-import { InvalidAgentDefinitionError, defineTool } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineTool, once } from '@chamvi/core';
 import type { ToolLimit } from '@chamvi/core';
 import { mockModel } from '@chamvi/test-kit';
 import type { MockResponse } from '@chamvi/test-kit';
@@ -166,6 +166,36 @@ describe('mail_delete\'s own limit', () => {
         const [step] = await write.steps(runId, 'probe');
 
         expect(step?.output).toEqual([LISTING, LISTING]);
+    });
+
+    it('shows the ids alone for a recorded listing without its text', async () => {
+        const { client } = await setupWrite(false);
+        const limit = limitOf(client)!;
+        const probe = defineTool({
+            inputSchema: jsonSchema<Record<string, never>>({ type: 'object' }),
+            execute: async (_input, { context }) => {
+                // a record of an earlier version: the ids only
+                await once(context, 'mail_delete:limit-listing', async () => ({ ids: THREE }));
+
+                return limit.detail!({ ids: THREE }, context);
+            },
+        });
+        const write = createWriteEngine({
+            client,
+            model: mockModel([{
+                parts: [{
+                    type: 'tool-call',
+                    toolName: 'probe',
+                    input: {},
+                    toolCallId: 'p1',
+                }],
+            }, done]),
+            tools: { probe },
+        });
+        const runId = await write.dispatch();
+        const [step] = await write.steps(runId, 'probe');
+
+        expect(step?.output).toBe('Archive uid 7\nINBOX uid 1\nINBOX uid 2');
     });
 
     it('lists the mails through the tools\' own client of accounts, with no client provided on the engine', async () => {

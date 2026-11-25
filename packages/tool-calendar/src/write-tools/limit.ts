@@ -164,7 +164,8 @@ export function calendarDeleteLimitOf(
             });
 
             // asked again in the same call: the recorded listing, so what covers the call is what is shown
-            return shown === null || shown.event !== event ? fallbackListingOf(event) : shown.text;
+            // a record of an earlier version holds the event only
+            return shown?.event === event && typeof shown.text === 'string' ? shown.text : fallbackListingOf(event);
         },
     };
 }
