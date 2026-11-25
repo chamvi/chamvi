@@ -7,7 +7,7 @@
 
 // Runs on the built packages (spawned by test/unit/loader/identity.spec.ts):
 // a module provides a context key in engineCreated, and a folder agent's tool
-// in CHAMVI_AGENTS_DIR (argv[2], outside the app tree) injects it. The folder
+// in AGENTS_DIR (argv[2], outside the app tree) injects it. The folder
 // agent reads the key and the mock model from globalThis.
 import { AppToken, createApp } from '@chamvi/app';
 import { memoryStoreModule } from '@chamvi/app/testing';
@@ -88,9 +88,9 @@ const result = await app.runJob({
     agent: 'greeter',
     env: {
         RESUME_SECRET: 'x'.repeat(32),
-        CHAMVI_AGENTS_DIR: process.argv[2],
-        CHAMVI_DRAIN_TIMEOUT_MS: '1000',
-        CHAMVI_LOG_LEVEL: 'error',
+        AGENTS_DIR: process.argv[2],
+        DRAIN_TIMEOUT_MS: '1000',
+        LOG_LEVEL: 'error',
     },
 });
 const steps = result.runId ? await engine.stepService.find(result.runId) : [];

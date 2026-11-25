@@ -91,7 +91,7 @@ export function splitAgentEntries(entries: readonly unknown[]): AgentEntries {
     return { agents, packages };
 }
 
-/** The union of the package lists by specifier, in first-seen order (code, then chamvi.json, then CHAMVI_AGENTS). */
+/** The union of the package lists by specifier, in first-seen order (code, then chamvi.json, then AGENTS). */
 export function mergePackageSpecifiers(...lists: readonly (readonly string[] | undefined)[]): string[] {
     const merged = new Set<string>();
 

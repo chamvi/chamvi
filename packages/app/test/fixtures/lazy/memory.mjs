@@ -52,8 +52,8 @@ const env = {
         id: 'ops',
         permissions: '*',
     }]),
-    CHAMVI_LOG_LEVEL: 'error',
-    CHAMVI_DRAIN_TIMEOUT_MS: '1000',
+    LOG_LEVEL: 'error',
+    DRAIN_TIMEOUT_MS: '1000',
 };
 
 const checked = await createApp({ agents: [echo] }).check({ env });

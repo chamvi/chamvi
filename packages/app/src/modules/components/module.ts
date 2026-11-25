@@ -28,7 +28,7 @@ function runsComponents(context: AppContext): boolean {
  * engine with its channels; a component whose `start()` fails fails the app
  * start (the group stops those it started). The `stopping` hook (before the
  * drain) and `teardown` stop the group once, bounded by
- * `CHAMVI_DRAIN_TIMEOUT_MS` on the app clock, a budget the engine drain after
+ * `DRAIN_TIMEOUT_MS` on the app clock, a budget the engine drain after
  * it shares (the drain gets what remains): a component whose `stop()` or
  * `settled()` never resolves is reported, never awaited past it.
  */

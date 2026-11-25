@@ -107,7 +107,7 @@ describe('createApp', () => {
         });
 
         // the built-in would connect to this unreachable database and fail
-        await app.migrate({ env: { DATABASE_URL: 'postgres://u:p@127.0.0.1:1/db', CHAMVI_LOG_LEVEL: 'error' } });
+        await app.migrate({ env: { DATABASE_URL: 'postgres://u:p@127.0.0.1:1/db', LOG_LEVEL: 'error' } });
         expect(calls).toEqual(['fake store']);
     });
 

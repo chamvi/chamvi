@@ -117,7 +117,7 @@ export class HttpModule implements IModule {
             server: { close: (force) => (server ? server.close(force) : Promise.resolve()) },
             // a check never served: nothing to take out of rotation
             readinessDelayMs: context.check ? 0 : config.http.readinessDelayMs,
-            // what the components' stop left of the one CHAMVI_DRAIN_TIMEOUT_MS budget
+            // what the components' stop left of the one DRAIN_TIMEOUT_MS budget
             drainTimeoutMs: () => remainingDrainMs(container),
             closeTimeoutMs: config.http.closeTimeoutMs,
             onError: (error) => context.report(error, { phase: 'shutdown' }),

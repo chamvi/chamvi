@@ -41,13 +41,13 @@ describe('package specifiers', () => {
         '',
         'x'.repeat(215),
     ])('refuses %s, naming the field and never the value', (spec) => {
-        expect(() => assertPackageSpecifier(spec, 'CHAMVI_AGENTS entry 2')).toThrow(InvalidAgentDefinitionError);
+        expect(() => assertPackageSpecifier(spec, 'AGENTS entry 2')).toThrow(InvalidAgentDefinitionError);
 
         try {
-            assertPackageSpecifier(spec, 'CHAMVI_AGENTS entry 2');
+            assertPackageSpecifier(spec, 'AGENTS entry 2');
         } catch (error) {
             expect((error as Error).message).toBe(
-                'CHAMVI_AGENTS entry 2 is no bare package specifier (a package name such as @acme/agents, no path or URL).',
+                'AGENTS entry 2 is no bare package specifier (a package name such as @acme/agents, no path or URL).',
             );
         }
     });

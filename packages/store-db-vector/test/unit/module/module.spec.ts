@@ -276,8 +276,8 @@ describePostgres('vectorStoreModule() on PostgreSQL', () => {
 
         const { app, logged } = build([vectorStoreModule({ url: `postgres://${role}:${secret}@${host}:${port}/${database}` })], { memoryStore: true });
 
-        // the start migrates (CHAMVI_MIGRATE): the vector migration runs as the role and fails
-        const error = await rejectionOf(app.start({ env: await envFor({ CHAMVI_MIGRATE: 'true' }) }));
+        // the start migrates (MIGRATE): the vector migration runs as the role and fails
+        const error = await rejectionOf(app.start({ env: await envFor({ MIGRATE: 'true' }) }));
 
         await owner.query(`DROP ROLE "${role}"`).catch(() => {});
 
@@ -307,7 +307,7 @@ describePostgres('vectorStoreModule() on PostgreSQL', () => {
     it.each([
         ['true', 'passed'],
         ['false', APP_ERROR_CODE.STORE_NOT_MIGRATED],
-    ])('a check with a declared collection on an empty database and CHAMVI_MIGRATE=%s: %s, applying nothing', async (migrate, outcome) => {
+    ])('a check with a declared collection on an empty database and MIGRATE=%s: %s, applying nothing', async (migrate, outcome) => {
         const url = await databaseUrl();
         const { app } = build([
             vectorStoreModule({ url }),
@@ -324,7 +324,7 @@ describePostgres('vectorStoreModule() on PostgreSQL', () => {
             }),
         ], { memoryStore: true });
 
-        const result = await app.check({ env: await envFor({ CHAMVI_MIGRATE: migrate }) })
+        const result = await app.check({ env: await envFor({ MIGRATE: migrate }) })
             .then(() => 'passed', (e: { code?: string; message?: string }) => e.code ?? e.message);
 
         expect(result).toBe(outcome);
@@ -335,14 +335,14 @@ describePostgres('vectorStoreModule() on PostgreSQL', () => {
         expect(await check.query('SELECT extname FROM pg_extension WHERE extname = \'vector\'')).toEqual([]);
     });
 
-    it('a check with CHAMVI_MIGRATE=false and pending migrations fails with the hint and applies nothing', async () => {
+    it('a check with MIGRATE=false and pending migrations fails with the hint and applies nothing', async () => {
         const url = await databaseUrl();
         const { app } = build([vectorStoreModule({ url })], { memoryStore: true });
 
-        const error = await rejectionOf(app.check({ env: await envFor({ CHAMVI_MIGRATE: 'false' }) }));
+        const error = await rejectionOf(app.check({ env: await envFor({ MIGRATE: 'false' }) }));
 
         expect(error).toMatchObject({ code: APP_ERROR_CODE.STORE_NOT_MIGRATED });
-        expect(error.message).toBe(`The database "vector" has ${MIGRATION_NAMES.length} pending migration(s); run chamvi migrate or set CHAMVI_MIGRATE=true.`);
+        expect(error.message).toBe(`The database "vector" has ${MIGRATION_NAMES.length} pending migration(s); run chamvi migrate or set MIGRATE=true.`);
 
         const check = await admin(url);
 

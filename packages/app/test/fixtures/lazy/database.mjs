@@ -71,8 +71,8 @@ const env = {
         id: 'ops',
         permissions: '*',
     }]),
-    CHAMVI_LOG_LEVEL: 'error',
-    CHAMVI_DRAIN_TIMEOUT_MS: '1000',
+    LOG_LEVEL: 'error',
+    DRAIN_TIMEOUT_MS: '1000',
     ...(process.env.LAZY_DATABASE_URL ? { DATABASE_URL: process.env.LAZY_DATABASE_URL } : {}),
 };
 

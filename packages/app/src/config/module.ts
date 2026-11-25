@@ -47,17 +47,17 @@ function readBasePath(env: Env): string {
     return value;
 }
 
-/** CHAMVI_AGENTS: comma-separated bare package specifiers, each checked (an error names the entry, never its value). */
+/** AGENTS: comma-separated bare package specifiers, each checked (an error names the entry, never its value). */
 function readAgentPackages(env: Env): string[] | undefined {
-    const list = envList(env, 'CHAMVI_AGENTS');
+    const list = envList(env, 'AGENTS');
 
     if (list === undefined || list.length === 0) {
         return undefined;
     }
 
-    const packages = list.map((entry, index) => assertPackageSpecifier(entry, `CHAMVI_AGENTS entry ${index + 1}`));
+    const packages = list.map((entry, index) => assertPackageSpecifier(entry, `AGENTS entry ${index + 1}`));
 
-    assertUniqueSpecifiers(packages, 'CHAMVI_AGENTS');
+    assertUniqueSpecifiers(packages, 'AGENTS');
 
     return packages;
 }
@@ -74,12 +74,12 @@ export function readConfig(env: Env, options: ReadConfigOptions): AppConfig {
         required: options.mode === 'migrate',
     });
     const tokens = readTokens(env);
-    const agentsDir = envString(env, 'CHAMVI_AGENTS_DIR');
+    const agentsDir = envString(env, 'AGENTS_DIR');
     const packages = readAgentPackages(env);
 
     return {
         dev,
-        logLevel: envOneOf(env, 'CHAMVI_LOG_LEVEL', LOG_LEVELS, { default: 'info' }),
+        logLevel: envOneOf(env, 'LOG_LEVEL', LOG_LEVELS, { default: 'info' }),
         http: {
             port: envInteger(env, 'PORT', {
                 default: DEFAULT_PORT,
@@ -89,26 +89,26 @@ export function readConfig(env: Env, options: ReadConfigOptions): AppConfig {
             host: envString(env, 'HOST', { default: DEFAULT_HOST }),
             basePath: readBasePath(env),
             ...(typeof publicUrl === 'string' ? { publicUrl } : {}),
-            readinessDelayMs: envInteger(env, 'CHAMVI_READINESS_DELAY_MS', { default: DEFAULT_READINESS_DELAY_MS, max: TIMER_MAX_MS }),
-            drainTimeoutMs: envInteger(env, 'CHAMVI_DRAIN_TIMEOUT_MS', { default: dev ? DEV_DRAIN_TIMEOUT_MS : DEFAULT_DRAIN_TIMEOUT_MS, max: TIMER_MAX_MS }),
-            closeTimeoutMs: envInteger(env, 'CHAMVI_CLOSE_TIMEOUT_MS', { default: DEFAULT_CLOSE_TIMEOUT_MS, max: TIMER_MAX_MS }),
+            readinessDelayMs: envInteger(env, 'READINESS_DELAY_MS', { default: DEFAULT_READINESS_DELAY_MS, max: TIMER_MAX_MS }),
+            drainTimeoutMs: envInteger(env, 'DRAIN_TIMEOUT_MS', { default: dev ? DEV_DRAIN_TIMEOUT_MS : DEFAULT_DRAIN_TIMEOUT_MS, max: TIMER_MAX_MS }),
+            closeTimeoutMs: envInteger(env, 'CLOSE_TIMEOUT_MS', { default: DEFAULT_CLOSE_TIMEOUT_MS, max: TIMER_MAX_MS }),
         },
         store: {
             ...(typeof url === 'string' ? { url } : {}),
-            migrate: envBoolean(env, 'CHAMVI_MIGRATE', { default: true }),
-            purgeIntervalMs: envInteger(env, 'CHAMVI_PURGE_INTERVAL_MS', { default: DEFAULT_PURGE_INTERVAL_MS, max: TIMER_MAX_MS }),
+            migrate: envBoolean(env, 'MIGRATE', { default: true }),
+            purgeIntervalMs: envInteger(env, 'PURGE_INTERVAL_MS', { default: DEFAULT_PURGE_INTERVAL_MS, max: TIMER_MAX_MS }),
         },
         engine: {
-            concurrencyMaxRuns: envInteger(env, 'CHAMVI_MAX_CONCURRENT_RUNS', {
+            concurrencyMaxRuns: envInteger(env, 'MAX_CONCURRENT_RUNS', {
                 default: DEFAULT_MAX_CONCURRENT_RUNS,
                 min: 1,
             }),
         },
-        scheduler: { enabled: envBoolean(env, 'CHAMVI_SCHEDULER', { default: true }) },
+        scheduler: { enabled: envBoolean(env, 'SCHEDULER', { default: true }) },
         agents: {
             ...(typeof agentsDir === 'string' ? { dir: agentsDir } : {}),
             ...(packages !== undefined && { packages }),
-            pollMs: envInteger(env, 'CHAMVI_AGENTS_POLL_MS', {
+            pollMs: envInteger(env, 'AGENTS_POLL_MS', {
                 default: DEFAULT_AGENTS_POLL_MS,
                 min: 1,
                 max: TIMER_MAX_MS,

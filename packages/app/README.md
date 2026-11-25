@@ -86,7 +86,7 @@ export default createApp({
 
 `env` defaults to `process.env`. An app runs one lifecycle (`check` counts as one); a second one rejects with `app_in_use`. `isApp(value)` recognizes an app, also one of another installed copy of the package.
 
-`agents` also takes bare package specifiers beside the agents passed in code: `createApp({ agents: [triage, '@acme/review-agent'] })` loads the package's default export (an agent, an array of agents, or a sync or async factory returning one of those) at start, with `@chamvi/*`, `ai` and `@ai-sdk/*` resolved to the app's copies. `chamvi.json` `agents` and `CHAMVI_AGENTS` (comma-separated) add packages from the deployment. A package agent's revision is its version (`<name>@<version>`; in dev plus a content hash), so a version bump cancels its unsettled runs once. Agents passed in code win a name, then packages, then folders. See [Agent Packages](https://chamvi.dev/guide/agent-packages).
+`agents` also takes bare package specifiers beside the agents passed in code: `createApp({ agents: [triage, '@acme/review-agent'] })` loads the package's default export (an agent, an array of agents, or a sync or async factory returning one of those) at start, with `@chamvi/*`, `ai` and `@ai-sdk/*` resolved to the app's copies. `chamvi.json` `agents` and `AGENTS` (comma-separated) add packages from the deployment. A package agent's revision is its version (`<name>@<version>`; in dev plus a content hash), so a version bump cancels its unsettled runs once. Agents passed in code win a name, then packages, then folders. See [Agent Packages](https://chamvi.dev/guide/agent-packages).
 
 Agent `instructions` also accept an ordered readonly array of native system/user/assistant messages. `AgentInstructions`, `SystemModelMessage`, `UserModelMessage`, `AssistantModelMessage` and the native content types are exported by `@chamvi/core` and re-exported by this package. Strings remain compatible. See the [typed instructions example](https://chamvi.dev/guide/agents#instructions) for role-specific content, provider options and transient checkpoint behavior.
 
@@ -134,15 +134,15 @@ Every variable is read once per lifecycle. An empty string counts as unset, inte
 | `HOST` | http | string | `0.0.0.0` |
 | `BASE_PATH` | http | empty or `^(?:\/[a-z0-9._~-]+)+$` | `''` (health at `/healthz`, UI at `/ui`) |
 | `PUBLIC_URL` | ui, channels | absolute URL | unset; set it for approval links (`<url><basePath>/ui/approvals?run=<runId>&approval=<approvalId>`) |
-| `CHAMVI_LOG_LEVEL` | config | `error`, `warn`, `info`, `debug` | `info` |
+| `LOG_LEVEL` | config | `error`, `warn`, `info`, `debug` | `info` |
 | `DATABASE_URL` | store | `postgres://...` | unset: memory repositories (warned outside `--dev`); required for `migrate` and any multi-replica or CronJob deployment |
-| `CHAMVI_MIGRATE` | store | bool | `true` (`start` and `run-job` migrate, advisory-locked) |
-| `CHAMVI_PURGE_INTERVAL_MS` | store | int, `0` disables | `3600000` (the lock, idempotency and limit services' `purgeExpired()`) |
-| `CHAMVI_MAX_CONCURRENT_RUNS` | engine | int >= 1 | `4` |
-| `CHAMVI_SCHEDULER` | scheduler | bool | `true`; `false` starts no in-process cron (CronJob mode; `cron.on()` subscriptions still validate) |
-| `CHAMVI_READINESS_DELAY_MS` | http shutdown | int | `0` |
-| `CHAMVI_DRAIN_TIMEOUT_MS` | http shutdown | int | `30000` (`--dev` 5000) |
-| `CHAMVI_CLOSE_TIMEOUT_MS` | http shutdown | int | `5000` |
+| `MIGRATE` | store | bool | `true` (`start` and `run-job` migrate, advisory-locked) |
+| `PURGE_INTERVAL_MS` | store | int, `0` disables | `3600000` (the lock, idempotency and limit services' `purgeExpired()`) |
+| `MAX_CONCURRENT_RUNS` | engine | int >= 1 | `4` |
+| `SCHEDULER` | scheduler | bool | `true`; `false` starts no in-process cron (CronJob mode; `cron.on()` subscriptions still validate) |
+| `READINESS_DELAY_MS` | http shutdown | int | `0` |
+| `DRAIN_TIMEOUT_MS` | http shutdown | int | `30000` (`--dev` 5000) |
+| `CLOSE_TIMEOUT_MS` | http shutdown | int | `5000` |
 | `TOKENS` | static tokens | JSON `[{ "value", "id", "permissions" }]`, `value` at least 16 characters and unique; `permissions` is `"*"` (every chamvi permission) or an array of permission bindings (`{ "permission": { "name": "chamvi_agent_run" }, "policies": [...] }`) | unset (`--dev`: one random `*` token, warned); required when no other authenticator is configured |
 | `MODEL` | engine | `'<provider>/<model id>'` | the config file's `model`, else `createApp({ model })`; required when an agent has no model of its own |
 | `CONFIG_FILE` | engine | path of a JSON file | unset: `./chamvi.json` when it exists |
@@ -171,7 +171,7 @@ githubModule({ env: { GITHUB_APP_ID: '1', GITHUB_APP_PRIVATE_KEY: pem, GITHUB_WE
 
 ## HTTP intake and execution limits
 
-`CHAMVI_MAX_CONCURRENT_RUNS` limits each engine instance (default `4`). Set `concurrencyMaxRuns` on an agent and/or its `channel.on(...)` subscription to add nested ceilings across replicas sharing a store. Positive safe integers cap running runs; `false` or omission adds no ceiling at that level and never bypasses a parent cap. Waiting approvals release numerical capacity but retain concurrency-key exclusion. Excess runs stay durably queued, with no storage bound.
+`MAX_CONCURRENT_RUNS` limits each engine instance (default `4`). Set `concurrencyMaxRuns` on an agent and/or its `channel.on(...)` subscription to add nested ceilings across replicas sharing a store. Positive safe integers cap running runs; `false` or omission adds no ceiling at that level and never bypasses a parent cap. Waiting approvals release numerical capacity but retain concurrency-key exclusion. Excess runs stay durably queued, with no storage bound.
 
 Configure mounted channel HTTP policies separately through `httpModule({ channelRateLimits: { github: { max: 3000, windowMs: 60000 } } })`, or use `github: false` to disable only that channel's request limiter. Omitted channels share the general REST bucket; signatures and body limits remain enforced. `trustProxy` must identify only known ingress sources; ingress configuration does not set it automatically. These are TypeScript options, not new environment variables. A `202` acknowledges stored acceptance, not execution completion. GitHub does not automatically redeliver failed webhook deliveries, so monitor and reconcile them. See [GitHub intake](https://chamvi.dev/deployment/github-app#bursts-and-http-intake) and [concurrency](https://chamvi.dev/guide/concurrency).
 
@@ -183,11 +183,11 @@ Modules are orkos `IModule`s on an eldin container. The built-in ones are always
 |---|---|---|---|
 | `configModule()` | `chamvi:config` | `@chamvi/app` | reads the config, registers `CONFIG`, `CLOCK`, `LOGGER` |
 | `storeModule({ url?, dataSource? })` | `chamvi:store` | `@chamvi/app` | The database repositories over `DATABASE_URL` (migrated) or a given data source, else memory repositories on one registry (the connection fence reads the lock rows there). Registers `STORE_KIND` and each repository token (`RUN_REPOSITORY`, `STEP_REPOSITORY`, ..., `CONNECTION_REPOSITORY`, `CONVERSATION_REPOSITORY`). In the same setup step the app builds each service from the registered repositories and registers it under its token (`RUN_SERVICE`, ...; `CONNECTION_SERVICE` and `CONVERSATION_SERVICE` only while their repository is registered) and contributes the purge of the lock and idempotency services (the component `store-purge`). A module of the same name that registers the repository tokens replaces it (a third-party store) |
-| `databaseModule({ entities, migrations, migrationsDirectory, migrationsTableName, name?, env?, waitTimeoutMs?, schemas? })` | `chamvi:db:<name>` (default `chamvi:db:default`) | `@chamvi/app` | A database for the app's own tables, never chamvi's store: PostgreSQL on `DATABASE_URL` (the same database, its own tables and migrations table, migrated under the lock `chamvi:db:<name>` at start with `CHAMVI_MIGRATE` and in `chamvi migrate`; a check writes nothing), else SQLite in memory through `better-sqlite3` (synchronized, lost on a restart, refused with `NODE_ENV=production`; work waiting `waitTimeoutMs`, default 30 s, behind one holder of its one connection is refused with `DatabaseBusyError`). The name `store` is reserved for `chamvi migration --database store`. Registers the data source under `dataSourceToken(name)` (`DatabaseToken.DATA_SOURCE` for `default`) and its descriptor under `DatabaseToken.DESCRIPTORS`; closed after the engine drained. `readDatabaseDescriptors(app)` lists an app's databases without connecting. `schemas` (list schemas, `defineSchema({ entity, ... })`) are checked against the entities after connecting and before migrating or serving: a name the entity lacks fails the start (also a check) with `InvalidAgentDefinitionError` naming the database, the schema and the name |
+| `databaseModule({ entities, migrations, migrationsDirectory, migrationsTableName, name?, env?, waitTimeoutMs?, schemas? })` | `chamvi:db:<name>` (default `chamvi:db:default`) | `@chamvi/app` | A database for the app's own tables, never chamvi's store: PostgreSQL on `DATABASE_URL` (the same database, its own tables and migrations table, migrated under the lock `chamvi:db:<name>` at start with `MIGRATE` and in `chamvi migrate`; a check writes nothing), else SQLite in memory through `better-sqlite3` (synchronized, lost on a restart, refused with `NODE_ENV=production`; work waiting `waitTimeoutMs`, default 30 s, behind one holder of its one connection is refused with `DatabaseBusyError`). The name `store` is reserved for `chamvi migration --database store`. Registers the data source under `dataSourceToken(name)` (`DatabaseToken.DATA_SOURCE` for `default`) and its descriptor under `DatabaseToken.DESCRIPTORS`; closed after the engine drained. `readDatabaseDescriptors(app)` lists an app's databases without connecting. `schemas` (list schemas, `defineSchema({ entity, ... })`) are checked against the entities after connecting and before migrating or serving: a name the entity lacks fails the start (also a check) with `InvalidAgentDefinitionError` naming the database, the schema and the name |
 | `staticTokensModule({ tokens? })` | `chamvi:static-tokens` | `@chamvi/app` | the static-token authenticator from `TOKENS` |
 | `engineModule({ owner?, claimTtlMs? })` | `chamvi:engine` | `@chamvi/app` | checks the model strings, builds the `Engine` with every contributed channel (`CHANNELS`) and starts it (which starts the channels) |
-| `schedulerModule({ owner?, lockTtlMs? })` | `chamvi:scheduler` | `@chamvi/app` | the `cron` channel (`cronChannel()` of `@chamvi/channel-cron`; in start mode it fires only with `CHAMVI_SCHEDULER`) |
-| `componentsModule()` | `chamvi:components` | `@chamvi/app` | runs every `AppToken.COMPONENTS` contribution (`{ name, component }`, a hubwire component) as one group in start mode outside a check: started after `engine.start()` and before the `started` hooks, stopped first in the shutdown within `CHAMVI_DRAIN_TIMEOUT_MS`; `GET /components` lists them |
+| `schedulerModule({ owner?, lockTtlMs? })` | `chamvi:scheduler` | `@chamvi/app` | the `cron` channel (`cronChannel()` of `@chamvi/channel-cron`; in start mode it fires only with `SCHEDULER`) |
+| `componentsModule()` | `chamvi:components` | `@chamvi/app` | runs every `AppToken.COMPONENTS` contribution (`{ name, component }`, a hubwire component) as one group in start mode outside a check: started after `engine.start()` and before the `started` hooks, stopped first in the shutdown within `DRAIN_TIMEOUT_MS`; `GET /components` lists them |
 | `httpModule()` | `chamvi:http` | `@chamvi/app` | the `http`, `mcp` and `webhook` channels (webhooks authenticate with the app's authenticators), `createHttpApp()` mounting every contributed channel with an `in` at `/channels/<name>`, the graceful shutdown, listens last |
 | `consoleChannelModule({ name?, write? })` | `chamvi:console` (`chamvi:console:<name>` with a name) | `@chamvi/app` | `consoleChannel()` (name `console`, out only) |
 | `githubModule()` | `chamvi:github:<name>` | `@chamvi/github/module` | the GitHub App and its channel (`<name>`, default `github` or `channel.name` when set: signed deliveries at `/channels/<name>`, comments out); `injectGithubContext(ctx)` and `ctx.channels.findOne('github')` for tools |
@@ -210,12 +210,12 @@ Modules are orkos `IModule`s on an eldin container. The built-in ones are always
 
 `stop()` (also during a start still setting up, which then never listens):
 
-1. `/readyz` answers 503, then `CHAMVI_READINESS_DELAY_MS`
-2. the components stop (within `CHAMVI_DRAIN_TIMEOUT_MS`)
+1. `/readyz` answers 503, then `READINESS_DELAY_MS`
+2. the components stop (within `DRAIN_TIMEOUT_MS`)
 3. the app's closers (SSE streams, MCP waits)
 4. `server.close()`
-5. `engine.drain()`: every channel's `stop()` first, then up to `CHAMVI_DRAIN_TIMEOUT_MS` for the runs
-6. up to `CHAMVI_CLOSE_TIMEOUT_MS` for the close, then `server.close(true)`
+5. `engine.drain()`: every channel's `stop()` first, then up to `DRAIN_TIMEOUT_MS` for the runs
+6. up to `CLOSE_TIMEOUT_MS` for the close, then `server.close(true)`
 7. the workspace manager closes (with `sandboxModule`)
 8. the store's data source is destroyed
 

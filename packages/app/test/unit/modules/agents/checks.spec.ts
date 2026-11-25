@@ -76,7 +76,7 @@ describe('the checks a folder agent passes before it is registered', () => {
                 HOST: '127.0.0.1',
                 PORT: String(port),
                 TOKENS,
-                CHAMVI_AGENTS_DIR: root.path,
+                AGENTS_DIR: root.path,
             },
         });
 

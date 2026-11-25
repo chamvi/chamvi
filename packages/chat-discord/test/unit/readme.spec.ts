@@ -112,7 +112,7 @@ describe('README example', () => {
             env: {
                 TOKENS, 
                 PORT: '4997', 
-                CHAMVI_LOG_LEVEL: 'error', 
+                LOG_LEVEL: 'error', 
             }, 
         })).resolves.toEqual({ issues: [] });
 
@@ -150,7 +150,7 @@ describe('README example', () => {
                 HOST: '127.0.0.1',
                 PORT: String(port),
                 TOKENS,
-                CHAMVI_LOG_LEVEL: 'error',
+                LOG_LEVEL: 'error',
             },
         });
 

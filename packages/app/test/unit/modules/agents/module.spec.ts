@@ -122,8 +122,8 @@ function build(options: {
     const harness = buildHarness({
         mode: options.mode,
         env: {
-            CHAMVI_AGENTS_DIR: dir,
-            CHAMVI_AGENTS_POLL_MS: String(POLL_MS),
+            AGENTS_DIR: dir,
+            AGENTS_POLL_MS: String(POLL_MS),
             ...options.env,
         },
         agents: options.agents,
@@ -823,8 +823,8 @@ describe('agentsModule', () => {
 
         const result = await app.runJob({
             env: {
-                CHAMVI_AGENTS_DIR: root.path,
-                CHAMVI_DRAIN_TIMEOUT_MS: '1000',
+                AGENTS_DIR: root.path,
+                DRAIN_TIMEOUT_MS: '1000',
             },
             agent: 'greeter',
         });
@@ -873,7 +873,7 @@ describe('agentsModule', () => {
                 HOST: '127.0.0.1',
                 PORT: String(port),
                 TOKENS,
-                CHAMVI_AGENTS_DIR: root.path,
+                AGENTS_DIR: root.path,
             },
         });
 
@@ -910,11 +910,11 @@ describe('agentsModule', () => {
         const error = await rejectionOf(harness.setup());
 
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-        expect(error.message).toBe('CHAMVI_AGENTS_DIR must name a directory.');
+        expect(error.message).toBe('AGENTS_DIR must name a directory.');
     });
 
-    it('without CHAMVI_AGENTS_DIR it does nothing for an app with agents passed in code', async () => {
-        const { harness, engine } = build({ agents: [agentInCode('triage')], env: { CHAMVI_AGENTS_DIR: '' } });
+    it('without AGENTS_DIR it does nothing for an app with agents passed in code', async () => {
+        const { harness, engine } = build({ agents: [agentInCode('triage')], env: { AGENTS_DIR: '' } });
 
         await harness.setup();
 
@@ -922,7 +922,7 @@ describe('agentsModule', () => {
         expect(harness.container.has(AppToken.AGENT_ISSUES)).toBe(false);
     });
 
-    it('without CHAMVI_AGENTS_DIR, ./agents and agents passed in code it starts empty and warns', async () => {
+    it('without AGENTS_DIR, ./agents and agents passed in code it starts empty and warns', async () => {
         const cwd = await createTempDir();
         const spy = vi.spyOn(process, 'cwd').mockReturnValue(cwd.path);
 
@@ -931,7 +931,7 @@ describe('agentsModule', () => {
                 harness,
                 engine,
                 logger,
-            } = build({ env: { CHAMVI_AGENTS_DIR: '' } });
+            } = build({ env: { AGENTS_DIR: '' } });
 
             await harness.setup();
 
@@ -944,7 +944,7 @@ describe('agentsModule', () => {
         }
     });
 
-    it('without CHAMVI_AGENTS_DIR it loads ./agents when that is a directory', async () => {
+    it('without AGENTS_DIR it loads ./agents when that is a directory', async () => {
         const cwd = await createTempDir();
 
         await writeTree(cwd.path, { 'agents/greeter/agent.ts': agentFile('v1') });
@@ -952,7 +952,7 @@ describe('agentsModule', () => {
         const spy = vi.spyOn(process, 'cwd').mockReturnValue(cwd.path);
 
         try {
-            const { harness, engine } = build({ env: { CHAMVI_AGENTS_DIR: '' } });
+            const { harness, engine } = build({ env: { AGENTS_DIR: '' } });
 
             await harness.setup();
 

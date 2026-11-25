@@ -8,5 +8,5 @@
 import { createApp } from '@chamvi/app';
 import { echo } from '../../app/src/agents.ts';
 
-// the folder agents (CHAMVI_AGENTS_DIR=../agents) use echo's model as the app default
+// the folder agents (AGENTS_DIR=../agents) use echo's model as the app default
 export default createApp({ agents: [echo], model: echo.definition.model });

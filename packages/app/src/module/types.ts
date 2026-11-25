@@ -82,7 +82,7 @@ export type AppContext = {
     providers?: Readonly<Record<string, ProviderConfig>>;
     /** createApp's agents (the agents passed in code); the live set is `engine.listAgents()`. */
     agents: readonly Agent[];
-    /** createApp's agent package specifiers; `chamvi.json` `agents` and `CHAMVI_AGENTS` add theirs in the agents module. */
+    /** createApp's agent package specifiers; `chamvi.json` `agents` and `AGENTS` add theirs in the agents module. */
     packages?: readonly string[];
     /** createApp's additive skill defaults; check and migrate never load sources. */
     skills?: readonly SkillInput[];

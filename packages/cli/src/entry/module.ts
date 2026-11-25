@@ -138,7 +138,7 @@ export async function loadApp(file: string, context: Pick<CliContext, 'cwd' | 'i
 /**
  * The app of `entry` (see loadApp), or without one the default app
  * `createApp({})`: no agents passed in code, its agents from `./agents` or
- * `CHAMVI_AGENTS_DIR`, configured by env alone; `notice` written to stderr.
+ * `AGENTS_DIR`, configured by env alone; `notice` written to stderr.
  */
 export async function loadEntryApp(
     entry: string | undefined,

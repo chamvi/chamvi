@@ -118,7 +118,7 @@ describe('bin start', () => {
     });
 
     it('a second SIGTERM exits 1', async () => {
-        cli = spawnCli(['start', '--entry', fixtureEntry('hang')], { env: startEnv(port, { CHAMVI_DRAIN_TIMEOUT_MS: '60000' }) });
+        cli = spawnCli(['start', '--entry', fixtureEntry('hang')], { env: startEnv(port, { DRAIN_TIMEOUT_MS: '60000' }) });
         await waitForOk(`http://127.0.0.1:${port}/readyz`);
         await startHangingRun();
 
@@ -133,7 +133,7 @@ describe('bin start', () => {
     });
 
     it('one Ctrl-C delivered twice (npm and the terminal) still drains and exits 0', async () => {
-        cli = spawnCli(['start', '--entry', fixtureEntry('hang')], { env: startEnv(port, { CHAMVI_DRAIN_TIMEOUT_MS: '1000' }) });
+        cli = spawnCli(['start', '--entry', fixtureEntry('hang')], { env: startEnv(port, { DRAIN_TIMEOUT_MS: '1000' }) });
         await waitForOk(`http://127.0.0.1:${port}/readyz`);
         await startHangingRun();
 
@@ -147,11 +147,11 @@ describe('bin start', () => {
         expect(cli.stderr()).not.toContain('forced exit');
     });
 
-    it('CHAMVI_FORCE_EXIT_MS forces exit 1', async () => {
+    it('FORCE_EXIT_MS forces exit 1', async () => {
         cli = spawnCli(['start', '--entry', fixtureEntry('hang')], {
             env: startEnv(port, {
-                CHAMVI_DRAIN_TIMEOUT_MS: '60000',
-                CHAMVI_FORCE_EXIT_MS: '500',
+                DRAIN_TIMEOUT_MS: '60000',
+                FORCE_EXIT_MS: '500',
             }),
         });
         await waitForOk(`http://127.0.0.1:${port}/readyz`);

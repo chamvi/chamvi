@@ -13,7 +13,7 @@ import { AppToken } from './constants.ts';
 const DRAIN_DEADLINE = new TypedToken<{ at: number }>('chamvi.drain-deadline');
 
 /**
- * What remains of the one `CHAMVI_DRAIN_TIMEOUT_MS` budget the component
+ * What remains of the one `DRAIN_TIMEOUT_MS` budget the component
  * stop and the engine drain share (at least 0). The first call (the
  * components' stop, else the drain) fixes the deadline on the app clock, so
  * the drain gets only what the components left.

@@ -90,7 +90,7 @@ export class App implements IApp {
     protected stopping: Promise<void> | undefined;
 
     constructor(options: AppOptions) {
-        // no agents at all is refused by start and runJob, once CHAMVI_AGENTS_DIR is read
+        // no agents at all is refused by start and runJob, once AGENTS_DIR is read
         if (!isObject(options) || (options.agents !== undefined && !Array.isArray(options.agents))) {
             throw new InvalidAgentDefinitionError('createApp needs an options object whose agents is an array.');
         }

@@ -69,14 +69,14 @@ describe('package agents', () => {
         expect(setup.logger.entries.some((entry) => entry.msg.startsWith('the app has no agents'))).toBe(false);
     });
 
-    it('reads chamvi.json agents and CHAMVI_AGENTS after createApp\'s', async () => {
+    it('reads chamvi.json agents and AGENTS after createApp\'s', async () => {
         await installPackage(cwd, 'a', { agents: ['one'] });
         await installPackage(cwd, 'b', { agents: ['two'] });
         await installPackage(cwd, 'c', { agents: ['three'] });
         await writeTree(cwd, { 'chamvi.json': JSON.stringify({ agents: ['b'] }) });
 
         // the config file is the engine module's: located from the process cwd, here named absolutely
-        const setup = build({ packages: ['a'], env: { CHAMVI_AGENTS: 'c,b', CONFIG_FILE: join(cwd, 'chamvi.json') } });
+        const setup = build({ packages: ['a'], env: { AGENTS: 'c,b', CONFIG_FILE: join(cwd, 'chamvi.json') } });
 
         await setup.harness.setup();
 

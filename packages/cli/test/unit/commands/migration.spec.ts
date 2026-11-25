@@ -92,7 +92,7 @@ describe('migration', () => {
     });
 
     it('generate on a built entry exits 2', async () => {
-        const result = await migration(['generate', '--entry', BUILT, '--name', 'Init'], { CHAMVI_MIGRATION_DATABASE_URL: 'postgres://u:p@127.0.0.1:1/scratch' });
+        const result = await migration(['generate', '--entry', BUILT, '--name', 'Init'], { MIGRATION_DATABASE_URL: 'postgres://u:p@127.0.0.1:1/scratch' });
 
         expect(result.code).toBe(2);
         expect(result.stderr).toContain('generate needs the TypeScript source entry');
@@ -106,7 +106,7 @@ describe('migration', () => {
         [['status', '--entry', ONE, '--force'], 'Unknown option --force'],
         [[], 'OPERATION'],
     ])('a misuse exits 2: %j', async (args, message) => {
-        const result = await migration(args, { CHAMVI_MIGRATION_DATABASE_URL: 'postgres://u:p@127.0.0.1:1/scratch', DATABASE_URL: CLOSED });
+        const result = await migration(args, { MIGRATION_DATABASE_URL: 'postgres://u:p@127.0.0.1:1/scratch', DATABASE_URL: CLOSED });
 
         expect(result.code).toBe(2);
         expect(result.stderr).toContain(message);
@@ -130,16 +130,16 @@ describe('migration', () => {
     it('generate exits 2 when NODE_ENV is production, before reading any URL', async () => {
         const result = await migration(['generate', '--entry', ONE, '--name', 'Next'], {
             NODE_ENV: 'production',
-            CHAMVI_MIGRATION_DATABASE_URL: 'not a url',
+            MIGRATION_DATABASE_URL: 'not a url',
         });
 
         expect(result.code).toBe(2);
         expect(result.stderr).toContain('generate is a development command');
-        expect(result.stderr).not.toContain('CHAMVI_MIGRATION_DATABASE_URL must');
+        expect(result.stderr).not.toContain('MIGRATION_DATABASE_URL must');
     });
 
-    it.each(['run', 'status', 'drift', 'revert'])('%s ignores a malformed CHAMVI_MIGRATION_DATABASE_URL', async (operation) => {
-        const result = await migration([operation, '--entry', ONE], { DATABASE_URL: CLOSED, CHAMVI_MIGRATION_DATABASE_URL: 'not a url' });
+    it.each(['run', 'status', 'drift', 'revert'])('%s ignores a malformed MIGRATION_DATABASE_URL', async (operation) => {
+        const result = await migration([operation, '--entry', ONE], { DATABASE_URL: CLOSED, MIGRATION_DATABASE_URL: 'not a url' });
 
         // the database, not the development variable, decides: closed port, exit 1
         expect(result.code).toBe(1);
@@ -173,7 +173,7 @@ describe('migration', () => {
 
 /**
  * Every spelling of the real database's URL a developer may give
- * `CHAMVI_MIGRATION_DATABASE_URL` (Review Focus 8). The server listens
+ * `MIGRATION_DATABASE_URL` (Review Focus 8). The server listens
  * on the container's mapped port, so "the default port left out" is
  * covered by `isSameDatabase`'s table in `@chamvi/store-db`.
  */
@@ -234,7 +234,7 @@ describePostgres('migration on PostgreSQL', () => {
 
         const generated = await migration(['generate', '--database', 'tags', '--name', 'CreateTags'], {
             ...env,
-            CHAMVI_MIGRATION_DATABASE_URL: postgresUrl(scratch),
+            MIGRATION_DATABASE_URL: postgresUrl(scratch),
         }, temp.cwd);
 
         expect(generated.code).toBe(0);
@@ -271,7 +271,7 @@ describePostgres('migration on PostgreSQL', () => {
         expect(await migration(['status', '--database', 'store'], env)).toMatchObject({ code: 0 });
     });
 
-    describe('CHAMVI_MIGRATION_DATABASE_URL naming DATABASE_URL\'s database', () => {
+    describe('MIGRATION_DATABASE_URL naming DATABASE_URL\'s database', () => {
         let real: string;
 
         beforeEach(async () => {
@@ -293,11 +293,11 @@ describePostgres('migration on PostgreSQL', () => {
         it.each(SPELLINGS)('generate refuses it %s and nothing was dropped', async (_, spelling) => {
             const result = await migration(['generate', '--entry', ONE, '--name', 'Next'], {
                 DATABASE_URL: postgresUrl(real),
-                CHAMVI_MIGRATION_DATABASE_URL: postgresUrl(real, spelling(real)),
+                MIGRATION_DATABASE_URL: postgresUrl(real, spelling(real)),
             });
 
             expect(result.code).toBe(2);
-            expect(result.stderr).toContain('CHAMVI_MIGRATION_DATABASE_URL');
+            expect(result.stderr).toContain('MIGRATION_DATABASE_URL');
             expect(result.stderr).not.toContain(postgres!.password);
             expect(await preciousRows()).toBe(1);
         });
@@ -305,7 +305,7 @@ describePostgres('migration on PostgreSQL', () => {
         it.each(SPELLINGS)('drift with it %s reads DATABASE_URL only and nothing was dropped', async (_, spelling) => {
             const result = await migration(['drift', '--entry', ONE], {
                 DATABASE_URL: postgresUrl(real),
-                CHAMVI_MIGRATION_DATABASE_URL: postgresUrl(real, spelling(real)),
+                MIGRATION_DATABASE_URL: postgresUrl(real, spelling(real)),
             });
 
             // the notes table is missing: drift says so
@@ -314,7 +314,7 @@ describePostgres('migration on PostgreSQL', () => {
         });
 
         it('generate refuses it without DATABASE_URL too: the server reports tables generate did not create', async () => {
-            const result = await migration(['generate', '--entry', ONE, '--name', 'Next'], { CHAMVI_MIGRATION_DATABASE_URL: postgresUrl(real) });
+            const result = await migration(['generate', '--entry', ONE, '--name', 'Next'], { MIGRATION_DATABASE_URL: postgresUrl(real) });
 
             expect(result.code).toBe(2);
             expect(result.stderr).toContain('exists and was not created by generate');

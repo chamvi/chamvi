@@ -208,7 +208,7 @@ describe('app skills lifecycle', () => {
         await writeTree(root, { 'folder/agent.ts': agentFile('Folder work', 'test/model', 'folder') });
 
         const ctx = build({ skills: [preparationInput()] });
-        const { env } = await environment({ CHAMVI_AGENTS_DIR: root });
+        const { env } = await environment({ AGENTS_DIR: root });
 
         await ctx.app.start({ env });
 

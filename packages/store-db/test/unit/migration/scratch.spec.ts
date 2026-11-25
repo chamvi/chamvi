@@ -38,7 +38,7 @@ import {
 import type { UrlSpelling } from '../../utils/migration.ts';
 
 /**
- * Every spelling of the real database's URL `CHAMVI_MIGRATION_DATABASE_URL`
+ * Every spelling of the real database's URL `MIGRATION_DATABASE_URL`
  * may use (Review Focus 8). The server listens on the container's mapped
  * port, so "the default port left out" is covered by isSameDatabase's
  * table only.

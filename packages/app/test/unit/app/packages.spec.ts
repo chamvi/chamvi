@@ -95,7 +95,7 @@ async function env() {
         HOST: '127.0.0.1',
         PORT: String(await freePort()),
         TOKENS,
-        CHAMVI_DRAIN_TIMEOUT_MS: '1000',
+        DRAIN_TIMEOUT_MS: '1000',
     };
 }
 

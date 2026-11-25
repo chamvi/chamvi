@@ -87,7 +87,7 @@ export async function queueRun(store: TestStore, clock: ControllableClock, name:
 }
 
 export type AgentsDirHarnessOptions = {
-    /** The agents dir (CHAMVI_AGENTS_DIR); none without it (unless `cwd` holds `./agents`). */
+    /** The agents dir (AGENTS_DIR); none without it (unless `cwd` holds `./agents`). */
     root?: string;
     /** The agents module's working directory (agent packages and `./agents` resolve from it). */
     cwd?: string;
@@ -125,8 +125,8 @@ export function buildAgentsDirHarness(options: AgentsDirHarnessOptions) {
         ...(options.job && { job: options.job }),
         ...(options.check && { check: options.check }),
         env: {
-            ...(options.root !== undefined && { CHAMVI_AGENTS_DIR: options.root }),
-            CHAMVI_AGENTS_POLL_MS: String(POLL_MS),
+            ...(options.root !== undefined && { AGENTS_DIR: options.root }),
+            AGENTS_POLL_MS: String(POLL_MS),
             ...options.env,
         },
         agents: options.agents,
