@@ -186,6 +186,25 @@ function assertWriteAccount(account: MailWriteAccount, label: string): void {
     }
 }
 
+/** The message of the error `account.smtp` is refused with (naming the field, never a value); undefined when fine or absent. */
+function refusedSmtpOf(account: MailWriteAccount, label: string): string | undefined {
+    if (account.smtp === undefined) {
+        return undefined;
+    }
+
+    try {
+        normalizeSmtp(account.smtp, `${label}.smtp`);
+
+        return undefined;
+    } catch (error) {
+        if (!(error instanceof InvalidAgentDefinitionError)) {
+            throw error;
+        }
+
+        return error.message;
+    }
+}
+
 function toAccount(id: string, values: ConnectionValues, declared?: MailEnvAccount): MailWriteAccount {
     const address = values.address as string | undefined;
     const smtp = smtpOf(values);
@@ -336,12 +355,26 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
             continue;
         }
 
+        const label = `Mail account "${id}"`;
         const account = toAccount(id, resolved.values);
 
         try {
-            assertWriteAccount(account, `Mail account "${id}"`);
+            normalizeAccount(account, label);
+
+            const refused = refusedSmtpOf(account, label);
+
+            if (refused !== undefined) {
+                // the account still reads; the dashboard repairs its sending
+                logger.warn(`${refused} The SMTP settings are dropped; the account reads only.`);
+                delete account.smtp;
+            }
+
             accounts.push(account);
-            list(id, resolved, true, row);
+            list(id, refused === undefined ? resolved : {
+                ...resolved,
+                state: 'incomplete',
+                reason: refused,
+            }, true, row);
         } catch (error) {
             if (!(error instanceof InvalidAgentDefinitionError)) {
                 throw error;

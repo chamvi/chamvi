@@ -361,6 +361,35 @@ describe('toolMailModule() configuration', () => {
         expect(loaded.accounts[0]?.smtp).toEqual({ host: 'smtp.y.test', security: 'starttls' });
     });
 
+    it.each([
+        ['a port without a host', { smtpPort: 2525 }, 'smtp.host'],
+        ['a security without a host', { smtpSecurity: 'starttls' }, 'smtp.host'],
+        ['a port out of range', { smtpHost: 'smtp.y.test', smtpPort: 70_000 }, 'smtp.port'],
+    ])('a stored-only account with %s drops smtp with a warning and still reads', async (_, smtp, field) => {
+        const definition = mailConnectionDefinition();
+        const loaded = await loadMailAccounts({
+            definition,
+            declared: [],
+            pinned: false,
+            env: {},
+            logger: testLogger(),
+            rows: [storedRow('mail-home', {
+                address: 'home@y.test',
+                host: '127.0.0.1',
+                password: STORED_PASSWORD,
+                ...smtp,
+            })],
+            editable: true,
+        });
+
+        expect(loaded.accounts).toHaveLength(1);
+        expect(loaded.accounts[0]?.id).toBe('home');
+        expect(loaded.accounts[0]?.smtp).toBeUndefined();
+        expect(loaded.connections[0]?.resolved.state).toBe('incomplete');
+        expect(logLines.some((line) => line.includes('home') && line.includes(field) && line.includes('reads only'))).toBe(true);
+        expect(logLines.join('\n')).not.toContain('70000');
+    });
+
     it('env smtp settings win per field over the stored row', async () => {
         const definition = mailConnectionDefinition();
         const loaded = await loadMailAccounts({
