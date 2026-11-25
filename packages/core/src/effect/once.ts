@@ -44,15 +44,38 @@ export async function once<T, S extends StateSchema = StateSchema>(
 
     // the call id hashed: a provider's id cannot run into the name, and the key stays bounded
     const key = `once:${frame.runId}:${frame.stepIndex}:${stableHash(frame.toolCallId)}:${name}`;
-    const recorded = await frame.effects.findOne(key);
+    // overlapping calls of one key in this call share one computation; a settled one leaves nothing shared
+    const onces = frame.onces ?? new Map<string, Promise<unknown>>();
 
-    if (recorded) {
-        return (recorded.result as { value: T }).value;
+    frame.onces = onces;
+
+    const shared = onces.get(key);
+
+    if (shared) {
+        return shared as Promise<T>;
     }
 
-    const value = await fn();
+    const work = (async () => {
+        const recorded = await frame.effects.findOne(key);
 
-    await frame.effects.save(key, { value });
+        if (recorded) {
+            return (recorded.result as { value: T }).value;
+        }
 
-    return value;
+        const value = await fn();
+
+        // a call whose frame ended meanwhile records nothing
+        assertFrameActive(frame, 'once()');
+        await frame.effects.save(key, { value });
+
+        return value;
+    })();
+
+    onces.set(key, work);
+
+    try {
+        return await work;
+    } finally {
+        onces.delete(key);
+    }
 }

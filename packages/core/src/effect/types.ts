@@ -50,6 +50,8 @@ export type ToolCallFrame = {
     limitApproved?: boolean;
     /** Where approve() reads the recorded decisions. */
     effects: Pick<IEffectService, 'findOne' | 'save'>;
+    /** The once() computations in flight in this call, by key: overlapping calls share one. */
+    onces?: Map<string, Promise<unknown>>;
     /** The run's artifacts, where approve() checks the artifact ids a request names. */
     artifacts?: IRunArtifacts;
     /**

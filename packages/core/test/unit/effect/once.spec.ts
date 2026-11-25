@@ -21,7 +21,9 @@ import {
     defineTool,
     once,
 } from '@chamvi/core';
-import type { IEngine, ToolContext } from '@chamvi/core';
+import type { EffectResult, IEngine, ToolContext } from '@chamvi/core';
+import { runToolCall } from '../../../src/effect/frame.ts';
+import type { ToolCallFrame } from '../../../src/effect/types.ts';
 import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createTestEngine } from '../../utils/engine.ts';
@@ -205,5 +207,101 @@ describe('once()', () => {
         expect(errors[0]).toBeInstanceOf(InvalidRunStateError);
         expect(errors[1]).toBeInstanceOf(ValidationError);
         expect(errors[2]).toBeInstanceOf(ValidationError);
+    });
+
+    describe('within one frame', () => {
+        function frameOf(): {
+            frame: ToolCallFrame; 
+            saved: string[]; 
+            ctx: ToolContext 
+        } {
+            const store = new Map<string, EffectResult>();
+            const saved: string[] = [];
+            const frame: ToolCallFrame = {
+                runId: 'r1',
+                toolCallId: 'c1',
+                toolName: 'decide',
+                stepIndex: 0,
+                approvals: 0,
+                effects: {
+                    findOne: async (key) => store.get(key),
+                    save: async (key, result) => {
+                        saved.push(key);
+                        store.set(key, { result });
+
+                        return { result };
+                    },
+                },
+            };
+
+            return {
+                frame, 
+                saved, 
+                ctx: { run: { runId: 'r1' } } as ToolContext, 
+            };
+        }
+
+        it('shares one computation between overlapping calls of one name, then the stored value', async () => {
+            const {
+                frame, 
+                saved, 
+                ctx, 
+            } = frameOf();
+            let runs = 0;
+            const gate = Promise.withResolvers<void>();
+            const fn = async () => {
+                runs++;
+                await gate.promise;
+
+                return { verdict: `run ${runs}` };
+            };
+            const both = runToolCall(frame, () => Promise.all([once(ctx, 'v', fn), once(ctx, 'v', fn)]));
+
+            gate.resolve();
+
+            const [first, second] = await both;
+
+            expect(runs).toBe(1);
+            expect(first).toEqual({ verdict: 'run 1' });
+            expect(second).toEqual(first);
+            expect(saved).toHaveLength(1);
+            expect(await runToolCall(frame, () => once(ctx, 'v', fn))).toEqual({ verdict: 'run 1' });
+            expect(runs).toBe(1);
+        });
+
+        it('leaves nothing shared after a rejection: the next call runs fn again', async () => {
+            const {
+                frame, 
+                saved, 
+                ctx, 
+            } = frameOf();
+            let runs = 0;
+            const failing = async () => {
+                runs++;
+
+                throw new Error('boom');
+            };
+
+            await expect(runToolCall(frame, () => Promise.all([once(ctx, 'v', failing), once(ctx, 'v', failing)]))).rejects.toThrow('boom');
+            expect(runs).toBe(1);
+            expect(await runToolCall(frame, () => once(ctx, 'v', async () => 'ok'))).toBe('ok');
+            expect(saved).toHaveLength(1);
+        });
+
+        it('saves nothing when the frame ended while fn ran', async () => {
+            const {
+                frame, 
+                saved, 
+                ctx, 
+            } = frameOf();
+            const result = runToolCall(frame, () => once(ctx, 'v', async () => {
+                frame.abandoned = true;
+
+                return 'late';
+            }));
+
+            await expect(result).rejects.toBeInstanceOf(InvalidRunStateError);
+            expect(saved).toEqual([]);
+        });
     });
 });
