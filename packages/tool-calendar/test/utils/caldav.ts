@@ -27,6 +27,10 @@ export type FakeCalendar = {
     components?: string[];
     /** A VTIMEZONE text as `calendar-timezone`. */
     timezone?: string;
+    /** CalendarServer sharing in `resourcetype`: `shared` (shared with this user) or `shared-owner` (this user shares it). */
+    sharing?: 'shared' | 'shared-owner';
+    /** The `DAV:owner` principal href (the user's own is `/123/principal/`). */
+    owner?: string;
     /**
      * Resources of the calendar; every REPORT returns all of them. A string is
      * `{ name: 'event-<index>.ics', ics, etag: '"<index>"' }`.
@@ -98,7 +102,8 @@ function calendarProps(calendar: FakeCalendar): string {
         `<d:displayname>${escapeXml(calendar.name)}</d:displayname>`,
         calendar.color ? `<ic:calendar-color>${calendar.color}</ic:calendar-color>` : '',
         calendar.timezone ? `<c:calendar-timezone>${escapeXml(calendar.timezone)}</c:calendar-timezone>` : '',
-        '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>',
+        `<d:resourcetype><d:collection/><c:calendar/>${calendar.sharing ? `<cs:${calendar.sharing}/>` : ''}</d:resourcetype>`,
+        calendar.owner ? `<d:owner><d:href>${escapeXml(calendar.owner)}</d:href></d:owner>` : '',
         `<c:supported-calendar-component-set>${components}</c:supported-calendar-component-set>`,
     ].join('');
 }

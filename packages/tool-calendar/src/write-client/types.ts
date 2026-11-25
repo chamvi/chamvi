@@ -20,7 +20,12 @@ export type CalendarWriteView = {
 };
 
 /** A listed calendar of a write session: its view and tsdav's record. */
-export type CalendarWriteEntry = { view: CalendarWriteView; dav: DAVCalendar };
+export type CalendarWriteEntry = {
+    view: CalendarWriteView;
+    dav: DAVCalendar;
+    /** Shared with the account by someone else (CalendarServer `shared`, or a `DAV:owner` other than its principal). */
+    shared: boolean;
+};
 
 /** A time of an event: a plain date (all-day) or an instant. */
 export type CalendarTime = { kind: 'date'; date: Temporal.PlainDate } | { kind: 'instant'; instant: Temporal.Instant };
@@ -79,6 +84,13 @@ export type CalendarDeleteItem = {
     attendees: number;
     /** An attendee or organizer is neither the account user nor one of its calendar user addresses. */
     others: boolean;
+    /**
+     * The addresses of those others (organizer first, then the attendees of every VEVENT), without `mailto:`,
+     * deduplicated case-insensitively: who the server may notify of a delete.
+     */
+    notified: string[];
+    /** The event's calendar is shared with the account by someone else. */
+    shared: boolean;
     /** An RRULE or RDATE, a RECURRENCE-ID component or more than one VEVENT. */
     recurring: boolean;
     /** The master's end is before the client clock's now (an all-day end: midnight in the zone). */

@@ -87,14 +87,15 @@ export async function classifyCalendarDelete(
 /**
  * The verdict on a delete: `ask` without a model call when the resource
  * repeats, has someone besides the owner (an attendee or organizer the server
- * may notify) or has not ended; else the classifier's.
+ * may notify), lies in a calendar someone else shares with the account or has
+ * not ended; else the classifier's.
  */
 export async function deleteVerdictOf(
     ctx: ToolContext,
     item: CalendarDeleteItem,
     options: CalendarClassifierOptions,
 ): Promise<CalendarDeleteDecision> {
-    if (item.recurring || item.others || !item.ended) {
+    if (item.recurring || item.others || item.shared || !item.ended) {
         return 'ask';
     }
 

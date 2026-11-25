@@ -202,6 +202,37 @@ describe('calendar_delete', () => {
         expect(has(server, item.name)).toBe(true);
     });
 
+    it('names who the server may notify', async () => {
+        const crowd = object('crowd.ics', [
+            'UID:crowd',
+            'DTSTART:20261020T080000Z',
+            'DTEND:20261020T090000Z',
+            'SUMMARY:Party',
+            'ORGANIZER:mailto:peter@example.com',
+            'ATTENDEE:mailto:peter@example.com',
+            'ATTENDEE:mailto:p\u0435ter@example.com',
+            ...Array.from({ length: 22 }, (_, index) => `ATTENDEE:mailto:guest${index}@example.com`),
+        ]);
+        const server = fake([crowd]);
+        const write = createWriteEngine({ fake: server, model: mockModel([deleteCall({ event: idOf(GUEST) }), deleteCall({ event: idOf(crowd) }, 'd2'), done]) });
+        const runId = await write.dispatch();
+
+        expect(write.sent[0]!.message.body).toBe([
+            '2026-10-20 10:00 to 2026-10-20 11:00 (Europe/Berlin) | Lunch | 1 attendee | Home',
+            'Notified: alice@example.com',
+            'The calendar server may notify them.',
+        ].join('\n'));
+
+        await write.answer(runId, false);
+
+        const lines = write.sent[1]!.message.body!.split('\n');
+
+        expect(lines[0]).toBe('2026-10-20 10:00 to 2026-10-20 11:00 (Europe/Berlin) | Party | 24 attendees | Home');
+        // 23 others: 20 shown, the one that is no printable address among the rest
+        expect(lines[1]).toBe(`Notified: ${Array.from({ length: 20 }, (_, index) => `guest${index}@example.com`).join(', ')} and 3 more`);
+        expect(lines[2]).toBe('The calendar server may notify them.');
+    });
+
     it('requires series: true for a repeating event, then asks for the whole series', async () => {
         const server = fake();
         const refused = createWriteEngine({ fake: server, model: mockModel([deleteCall({ event: idOf(SERIES) }), done]) });
@@ -224,7 +255,11 @@ describe('calendar_delete', () => {
 
         expect(write.sent[0]!.message).toMatchObject({
             title: 'Delete a repeating event (every occurrence) from Home?',
-            body: '2026-10-19 09:00 (repeats) | Standup | 2 attendees | Home',
+            body: [
+                '2026-10-19 09:00 (repeats) | Standup | 2 attendees | Home',
+                'Notified: boss@example.com, me@example.com, other@example.com',
+                'The calendar server may notify them.',
+            ].join('\n'),
         });
         expect(classifier.doGenerateCalls).toHaveLength(0);
 
@@ -445,3 +480,71 @@ describe('the writable calendars', () => {
         expect(server.requests).toEqual([]);
     });
 });
+
+describe('events of a shared calendar', () => {
+    function sharedFake(): FakeCalDav {
+        return createFakeCalDav([
+            {
+                slug: 'team', 
+                name: 'Team', 
+                sharing: 'shared', 
+                objects: [{ ...PAST }], 
+            },
+            {
+                slug: 'mine', 
+                name: 'Mine', 
+                sharing: 'shared-owner', 
+                objects: [{ ...PAST }], 
+            },
+            {
+                slug: 'boss', 
+                name: 'Boss', 
+                owner: '/999/principal/', 
+                objects: [{ ...PAST }], 
+            },
+            {
+                slug: 'own', 
+                name: 'Own', 
+                owner: '/123/principal/', 
+                objects: [{ ...PAST }], 
+            },
+        ]);
+    }
+
+    function eventIn(slug: string): string {
+        return encodeCalendarEventId({
+            calendar: `icloud:${slug}`, 
+            name: PAST.name, 
+            etag: PAST.etag, 
+        });
+    }
+
+    it.each(['team', 'boss'])('asks without the classifier in %s', async (slug) => {
+        const classifier = mockModel([]);
+        const write = createWriteEngine({
+            fake: sharedFake(), 
+            model: mockModel([deleteCall({ event: eventIn(slug) }), done]), 
+            classifierModel: classifier, 
+        });
+        const runId = await write.dispatch();
+
+        expect(await write.waiting(runId)).toMatchObject({ title: expect.stringMatching(/^Delete 1 event from /) });
+        expect(classifier.doGenerateCalls).toHaveLength(0);
+    });
+
+    it.each(['mine', 'own'])('takes the classifier path in %s', async (slug) => {
+        const server = sharedFake();
+        const classifier = mockModel([decision('routine')]);
+        const write = createWriteEngine({
+            fake: server, 
+            model: mockModel([deleteCall({ event: eventIn(slug) }), done]), 
+            classifierModel: classifier, 
+        });
+        const runId = await write.dispatch();
+
+        expect(await write.waiting(runId)).toBeUndefined();
+        expect(classifier.doGenerateCalls).toHaveLength(1);
+        expect(server.requests.every((request) => ['PROPFIND', 'GET', 'DELETE'].includes(request.method))).toBe(true);
+    });
+});
+

@@ -308,6 +308,40 @@ describe('calendar_delete\'s own limit', () => {
         expect(write.sent).toHaveLength(1);
     });
 
+    it('names who the server may notify in the limit listing', async () => {
+        const guest: FakeObject = {
+            name: 'guest.ics',
+            etag: '"guest"',
+            ics: calendar(vevent(
+                'UID:guest',
+                'DTSTART:20261020T080000Z',
+                'DTEND:20261020T090000Z',
+                'SUMMARY:Lunch',
+                'ATTENDEE:mailto:alice@example.com',
+            )),
+        };
+        const server = createFakeCalDav([{
+            slug: 'home', 
+            name: 'Home', 
+            objects: [ONE, guest], 
+        }]);
+        const write = createWriteEngine({
+            fake: server,
+            model: mockModel([deleteCall(ONE, 'd1'), deleteCall(guest, 'd2'), done]),
+            classifierModel: mockModel([decision('routine')]),
+            deleteLimit: { max: 1 },
+        });
+
+        await write.dispatch();
+
+        expect(write.sent[0]!.message.title).toMatch(DELETE_LIMIT_TITLE);
+        expect(write.sent[0]!.message.body).toBe([
+            '2026-10-20 10:00 to 2026-10-20 11:00 (Europe/Berlin) | Lunch | 1 attendee | Home',
+            'Notified: alice@example.com',
+            'The calendar server may notify them.',
+        ].join('\n'));
+    });
+
     it('still classifies and asks after a limit approval that could show only the id', async () => {
         const server = deleteFake();
         const client = createCalendarWriteClient([WRITE_ACCOUNT], { fetch: server.fetch, timezone: 'Europe/Berlin' });

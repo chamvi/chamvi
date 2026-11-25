@@ -8,7 +8,12 @@
 import { approve } from '@chamvi/core';
 import type { ApprovalDecision, ApprovalRequestInput, ToolContext } from '@chamvi/core';
 import type { CalendarDeleteItem, CalendarTime } from '../write-client/types.ts';
-import { CALENDAR_APPROVAL_FIELD_MAX_CHARS, CALENDAR_DESCRIPTION_SEPARATOR } from './constants.ts';
+import {
+    CALENDAR_APPROVAL_FIELD_MAX_CHARS,
+    CALENDAR_DESCRIPTION_SEPARATOR,
+    CALENDAR_NOTIFIED_MAX_SHOWN,
+    CALENDAR_NOTIFY_NOTE,
+} from './constants.ts';
 import type { ParsedCreate } from './types.ts';
 
 /**
@@ -126,14 +131,38 @@ function deleteWhenOf(item: CalendarDeleteItem, zone: string): string {
     return `${minuteOfIso(item.start)} to ${minuteOfIso(item.end)} (${zone})`;
 }
 
-/** The listing line of a delete: `<when> | <title> | <attendees> | <calendar name>`, each field one line of at most 200 characters. */
+/** `Notified: a, b and N more`: at most CALENDAR_NOTIFIED_MAX_SHOWN printable addresses, the rest counted. */
+function notifiedOf(addresses: string[]): string {
+    const shown = addresses
+        .filter((address) => /^[\x21-\x7E]+$/.test(address))
+        .slice(0, CALENDAR_NOTIFIED_MAX_SHOWN)
+        .map((address) => lineOf(address));
+    const rest = addresses.length - shown.length;
+
+    if (shown.length === 0) {
+        return `Notified: ${rest} ${rest === 1 ? 'person' : 'people'}`;
+    }
+
+    return `Notified: ${shown.join(', ')}${rest > 0 ? ` and ${rest} more` : ''}`;
+}
+
+/**
+ * The listing of a delete: the line `<when> | <title> | <attendees> | <calendar name>`, each field one line of
+ * at most 200 characters; with others in the event also who the server may notify.
+ */
 export function deleteListingOf(item: CalendarDeleteItem, zone: string): string {
-    return [
+    const line = [
         lineOf(deleteWhenOf(item, zone)),
         lineOf(item.title),
         attendeesOf(item.attendees),
         lineOf(item.calendarName),
     ].join(' | ');
+
+    if (!item.others) {
+        return line;
+    }
+
+    return [line, notifiedOf(item.notified), CALENDAR_NOTIFY_NOTE].join('\n');
 }
 
 /** The approval of a delete: the event (a series as such) and its listing line. */

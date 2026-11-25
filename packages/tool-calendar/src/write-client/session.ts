@@ -6,6 +6,7 @@
  */
 
 import { ChamviError, ValidationError } from '@chamvi/core';
+import { isObject } from 'smob';
 import { DAVClient } from 'tsdav';
 import type { DAVCalendar } from 'tsdav';
 import { calendarError } from '../client/asserts.ts';
@@ -46,6 +47,57 @@ function viewOf(account: CalendarAccount, calendar: DAVCalendar): CalendarWriteV
     };
 }
 
+// tsdav's default calendar props, plus DAV:owner for the sharing check
+const CALENDAR_PROPS = {
+    'c:calendar-description': {},
+    'c:calendar-timezone': {},
+    'd:displayname': {},
+    'ca:calendar-color': {},
+    'cs:getctag': {},
+    'd:resourcetype': {},
+    'c:supported-calendar-component-set': {},
+    'd:sync-token': {},
+    'd:owner': {},
+};
+
+function hrefOf(value: unknown): string | undefined {
+    if (typeof value === 'string' && value.length > 0) {
+        return value;
+    }
+
+    return isObject(value) && typeof value.href === 'string' && value.href.length > 0 ? value.href : undefined;
+}
+
+function pathOf(href: string, base: string): string {
+    const path = new URL(href, base).pathname;
+
+    return path.endsWith('/') ? path : `${path}/`;
+}
+
+/**
+ * Whether someone else shares `calendar` with the account: CalendarServer's
+ * `shared` resource type (not `shared-owner`, the owner's own view), or a
+ * `DAV:owner` that differs from the account's principal when both are known.
+ * A server that reports neither counts as the account's own.
+ */
+function sharedOf(calendar: DAVCalendar, principal: string | undefined): boolean {
+    if (calendar.resourcetype?.includes('shared')) {
+        return true;
+    }
+
+    const owner = hrefOf((calendar.projectedProps as Record<string, unknown> | undefined)?.owner);
+
+    if (!owner || !principal) {
+        return false;
+    }
+
+    try {
+        return pathOf(owner, calendar.url) !== pathOf(principal, calendar.url);
+    } catch {
+        return false;
+    }
+}
+
 /**
  * The write client's tsdav sessions, one per account, separate from the read
  * client's: login and discovery (PROPFIND) through the write guard, each call
@@ -81,10 +133,18 @@ export class CalendarWriteSessions {
         const state = this.stateOf(account);
 
         return this.sessionOf(state, signal).then((session) => {
-            session.calendars ??= session.dav.fetchCalendars({ fetchOptions: { signal } }).then(
+            session.calendars ??= session.dav.fetchCalendars({
+                props: CALENDAR_PROPS,
+                projectedProps: { owner: true },
+                fetchOptions: { signal },
+            }).then(
                 (calendars) => calendars
                     .filter((calendar) => calendar.components?.includes('VEVENT'))
-                    .map((calendar) => ({ view: viewOf(state.account, calendar), dav: calendar })),
+                    .map((calendar) => ({
+                        view: viewOf(state.account, calendar),
+                        dav: calendar,
+                        shared: sharedOf(calendar, session.dav.account?.principalUrl),
+                    })),
                 (error: unknown) => {
                     session.calendars = undefined;
 

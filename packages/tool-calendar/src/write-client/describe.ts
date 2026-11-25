@@ -74,6 +74,8 @@ function veventsOf(data: Uint8Array): Component[] {
 type DescribeContext = {
     event: string;
     view: CalendarWriteView;
+    /** The calendar is shared with the account by someone else. */
+    shared: boolean;
     name: string;
     etag: string;
     zone: string;
@@ -94,10 +96,23 @@ export function calendarDeleteItemOf(data: Uint8Array, context: DescribeContext)
     const event = new ICAL.Event(master);
     const startTzid = tzidOf(master, 'dtstart');
     const endTzid = master.hasProperty('dtend') ? tzidOf(master, 'dtend') ?? startTzid : startTzid;
-    const others = vevents.some((vevent) => [
-        ...vevent.getAllProperties('attendee'),
-        ...vevent.getAllProperties('organizer'),
-    ].some((property) => !context.self.has(addressOf(property.getFirstValue()))));
+    const people = [
+        ...vevents.flatMap((vevent) => vevent.getAllProperties('organizer')),
+        ...vevents.flatMap((vevent) => vevent.getAllProperties('attendee')),
+    ].map((property) => property.getFirstValue());
+    const others = people.some((value) => !context.self.has(addressOf(value)));
+    const seen = new Set<string>(context.self);
+    const notified: string[] = [];
+
+    for (const value of people) {
+        const address = typeof value === 'string' ? value.replace(/^mailto:/i, '').trim() : '';
+
+        if (!seen.has(address.toLowerCase())) {
+            seen.add(address.toLowerCase());
+            notified.push(address);
+        }
+    }
+
     const summary = master.getFirstPropertyValue('summary');
 
     return {
@@ -112,6 +127,8 @@ export function calendarDeleteItemOf(data: Uint8Array, context: DescribeContext)
         allDay: event.startDate.isDate,
         attendees: master.getAllProperties('attendee').length,
         others,
+        notified,
+        shared: context.shared,
         recurring: vevents.length > 1 || vevents.some((vevent) => ['rrule', 'rdate', 'recurrence-id'].some((name) => vevent.hasProperty(name))),
         ended: instantOf(event.endDate, endTzid, context.zone).epochMilliseconds <= context.now,
         data,
@@ -160,6 +177,7 @@ export async function describeCalendarEvent(
         return calendarDeleteItemOf(data, {
             event,
             view: entry.view,
+            shared: entry.shared,
             name: ref.name,
             etag,
             zone: sessions.options.timezone,

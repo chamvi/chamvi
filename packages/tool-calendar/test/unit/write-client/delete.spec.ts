@@ -123,6 +123,8 @@ describe('createCalendarWriteClient: describe', () => {
             allDay: false,
             attendees: 1,
             others: false,
+            notified: [],
+            shared: false,
             recurring: false,
             ended: false,
             data: new Uint8Array(Buffer.from(ONE.ics)),
@@ -136,6 +138,7 @@ describe('createCalendarWriteClient: describe', () => {
         expect((await client.describe(idOf('alias.ics')))?.others).toBe(false);
         expect(await client.describe(idOf('boss.ics'))).toMatchObject({
             others: true,
+            notified: ['boss@example.com'],
             allDay: true,
             start: '2026-11-05',
             end: '2026-11-06',
