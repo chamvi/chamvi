@@ -39,3 +39,17 @@ export const FORM_THEME: Theme = {
         formSelect: { variants: { severity: { error: { trigger: 'is-invalid' }, warning: { trigger: '' } } } },
     },
 };
+
+/**
+ * Stacked on the Tailwind theme: a `VCEmptyState` sits inside a `.card`, which
+ * is its frame, so it drops the theme's dashed border; its built-in button is
+ * the dashboard's `.btn` (`.btn-primary` for the `empty` variant).
+ */
+export const EMPTY_STATE_THEME: Theme = {
+    elements: {
+        emptyState: {
+            classes: { root: 'p-8 text-center', action: 'btn btn-sm' },
+            variants: { variant: { empty: { action: 'btn-primary' }, noResults: { action: '' } } },
+        },
+    },
+};

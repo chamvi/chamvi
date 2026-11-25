@@ -172,18 +172,20 @@ const filtered = computed(() => !!filter.value.agent || !!filter.value.status?.l
         >
             <template #empty>
                 <EmptyState
-                    :icon="filtered ? 'search' : 'play'"
-                    :title="filtered ? 'No runs match these filters' : 'No runs yet'"
-                    :text="filtered ? 'Widen the status filter or pick all agents.' : 'Runs appear here once a trigger starts one.'"
-                >
-                    <VCButton
-                        v-if="filtered"
-                        class="btn btn-sm"
-                        @click="update({ agent: undefined, status: undefined })"
-                    >
-                        Clear filters
-                    </VCButton>
-                </EmptyState>
+                    v-if="filtered"
+                    variant="noResults"
+                    icon="search"
+                    title="No runs match these filters"
+                    text="Widen the status filter or pick all agents."
+                    action-label="Clear filters"
+                    @action="update({ agent: undefined, status: undefined })"
+                />
+                <EmptyState
+                    v-else
+                    icon="play"
+                    title="No runs yet"
+                    text="Runs appear here once a trigger starts one."
+                />
             </template>
         </RunsTable>
     </template>

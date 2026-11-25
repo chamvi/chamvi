@@ -450,12 +450,8 @@ table.t { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 
 .pager .vc-pagination-ellipsis { cursor: default; }
 .pager .vc-pagination-ellipsis:hover { background: transparent; color: var(--ch-muted); }
 
-.empty { display: grid; justify-items: center; gap: 8px; padding: 44px 20px; text-align: center; }
-.empty-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--ch-radius); background: var(--ch-sunken); border: 1px dashed var(--ch-line-strong); color: var(--ch-muted); margin-bottom: 4px; }
-.empty-icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.6; }
-.empty b { font-weight: 600; font-size: 14.5px; }
-.empty p { color: var(--ch-muted); font-size: 13px; max-width: 42ch; }
-.empty .btn { margin-top: 6px; }
+/* a NavIcon in VCEmptyState's icon slot, sized by the theme's text size */
+.vc-empty-state-icon svg { width: 1em; height: 1em; stroke: currentColor; fill: none; stroke-width: 1.4; }
 
 /* run detail */
 /* connections */

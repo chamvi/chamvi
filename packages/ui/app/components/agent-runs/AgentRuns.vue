@@ -91,18 +91,13 @@ const filtered = computed(() => !!filter.value.status?.length);
         <template #empty>
             <EmptyState
                 v-if="filtered"
+                variant="noResults"
                 icon="search"
                 title="No runs match these filters"
                 :text="`Nothing of ${agent.name} with this status. Widen the status filter.`"
-            >
-                <button
-                    type="button"
-                    class="btn btn-sm"
-                    @click="update({ status: undefined })"
-                >
-                    Clear filters
-                </button>
-            </EmptyState>
+                action-label="Clear filters"
+                @action="update({ status: undefined })"
+            />
             <EmptyState
                 v-else
                 icon="play"

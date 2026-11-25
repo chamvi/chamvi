@@ -19,7 +19,7 @@ import installTable from '@vuecs/table';
 import tailwind from '@vuecs/theme-tailwind';
 import installTimeago from '@vuecs/timeago';
 import type { App } from 'vue';
-import { FORM_THEME } from './constants.ts';
+import { EMPTY_STATE_THEME, FORM_THEME } from './constants.ts';
 import { installValidation } from './validation.ts';
 
 /**
@@ -29,7 +29,7 @@ import { installValidation } from './validation.ts';
  * first-install-wins, so call it before any other vuecs install.
  */
 export function installVuecs(app: App): void {
-    app.use(vuecs, { themes: [tailwind(), FORM_THEME], icons: [lucide()] });
+    app.use(vuecs, { themes: [tailwind(), FORM_THEME, EMPTY_STATE_THEME], icons: [lucide()] });
 
     for (const plugin of [
         installIcon,
