@@ -149,6 +149,40 @@ describe('calendar_create\'s own limit', () => {
         expect((await write.run(runId))?.status).toBe('completed');
     });
 
+    it('still asks the invitation when the organizer changed after the limit approval', async () => {
+        const server = fake();
+        const client = createCalendarWriteClient([WRITE_ACCOUNT], { fetch: server.fetch, timezone: 'Europe/Berlin' });
+        const organizers = ['peter@example.com', 'other@example.com'];
+        const changing: ICalendarWriteClient = {
+            timezone: client.timezone,
+            clock: client.clock,
+            calendar: (id, signal) => client.calendar(id, signal),
+            organizer: async () => organizers.shift() ?? 'other@example.com',
+            create: (request, signal) => client.create(request, signal),
+            findCreated: (id, key, signal) => client.findCreated(id, key, signal),
+            describe: (event, signal) => client.describe(event, signal),
+            remove: (event, signal) => client.remove(event, signal),
+            close: () => client.close(),
+        };
+        const write = createWriteEngine({
+            client: changing,
+            model: mockModel([createCall(plain('One'), 'c1'), createCall(INVITE, 'c2'), done]),
+            createLimit: { max: 1 },
+        });
+        const runId = await write.dispatch();
+
+        expect(write.sent[0]!.message.body).toBe(INVITE_BODY);
+
+        await write.answer(runId, true);
+
+        expect(write.sent).toHaveLength(2);
+        expect(write.sent[1]!.message).toMatchObject({
+            title: 'Create event in Home and invite 1?',
+            body: INVITE_BODY.replace('From: peter@example.com', 'From: other@example.com'),
+        });
+        expect(puts(server)).toBe(1);
+    });
+
     it('still asks the invitation after an agent limits entry, which shows no detail', async () => {
         const server = fake();
         const write = createWriteEngine({

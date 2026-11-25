@@ -23,6 +23,7 @@ import {
 } from './constants.ts';
 import type {
     CalendarCreateInput,
+    CalendarCreateShown,
     CalendarDeleteInput,
     CalendarDeleteShown,
     CalendarLimitSettings,
@@ -39,7 +40,11 @@ async function createDetailOf(
     writable: CalendarWritable,
     input: unknown,
     ctx: ToolContext,
-): Promise<{ body: string; whole: boolean } | undefined> {
+): Promise<{
+    body: string; 
+    whole: boolean; 
+    organizer?: string 
+} | undefined> {
     try {
         const client = source(ctx);
         const parsed = parseCalendarCreateInput(input, client.timezone);
@@ -64,6 +69,7 @@ async function createDetailOf(
         return {
             body: createBodyOf(name, parsed, client.timezone, organizer),
             whole: parsed.attendees.length === 0 || organizer !== undefined,
+            ...(organizer !== undefined && { organizer }),
         };
     } catch {
         return undefined;
@@ -92,16 +98,25 @@ export function calendarCreateLimitOf(
         detail: async (input, ctx) => {
             const detail = await createDetailOf(source, writable, input, ctx);
 
-            await once<boolean>(ctx, CALENDAR_CREATE_SHOWN_ONCE, async () => detail?.whole ?? false);
+            await once<CalendarCreateShown>(ctx, CALENDAR_CREATE_SHOWN_ONCE, async () => ({
+                whole: detail?.whole ?? false,
+                ...(detail?.organizer !== undefined && { organizer: detail.organizer }),
+            }));
 
             return detail?.body;
         },
     };
 }
 
-/** Whether this call's limit approval showed the whole create (read in `execute`; false when it never ran). */
-export async function createLimitShown(ctx: ToolContext): Promise<boolean> {
-    return once<boolean>(ctx, CALENDAR_CREATE_SHOWN_ONCE, async () => false);
+/**
+ * Whether this call's limit approval showed the whole create with `organizer` as its sender (read in `execute`;
+ * false when it never ran, showed less or named another organizer).
+ */
+export async function createLimitShown(ctx: ToolContext, organizer: string): Promise<boolean> {
+    const shown = await once<CalendarCreateShown | boolean>(ctx, CALENDAR_CREATE_SHOWN_ONCE, async () => ({ whole: false }));
+
+    // the invitation shown must be the one sent: the organizer read now is the one the approval named
+    return typeof shown === 'object' && shown.whole && shown.organizer === organizer;
 }
 
 /** The event id of a delete input; '' for a malformed one (the tool refuses it). */

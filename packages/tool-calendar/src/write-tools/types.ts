@@ -81,6 +81,12 @@ export type ParsedCreate = {
 /** The write client a tool call uses: the given one, or the one provided on the engine. */
 export type CalendarWriteClientSource = (ctx: ToolContext) => ICalendarWriteClient;
 
+/** What a create's limit approval showed (internal): the whole invitation, and from which organizer. */
+export type CalendarCreateShown = {
+    whole: boolean;
+    organizer?: string;
+};
+
 /** Whether the tools may write to the calendar id (internal). */
 export type CalendarWritable = (calendar: string) => boolean;
 
