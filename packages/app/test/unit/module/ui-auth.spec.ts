@@ -14,7 +14,7 @@ const URL = 'https://auth.example.com/api';
 describe('readUiAuth', () => {
     it('offers the token login only without AUTHUP_URL', () => {
         expect(readUiAuth({})).toEqual({ tokens: true });
-        expect(readUiAuth({ CHAMVI_UI_AUTHUP_REALM_ID: 'master', AUTHUP_REALM: 'tenant' })).toEqual({ tokens: true });
+        expect(readUiAuth({ UI_AUTHUP_REALM: 'master', AUTHUP_REALM: 'tenant' })).toEqual({ tokens: true });
     });
 
     it('offers the authup login with AUTHUP_URL alone, as the client chamvi of the realm master', () => {
@@ -32,12 +32,12 @@ describe('readUiAuth', () => {
         expect(readUiAuth({ AUTHUP_URL: URL, AUTHUP_REALM: 'tenant' }).authup).toMatchObject({ clientId: 'chamvi', realmId: 'tenant' });
     });
 
-    it('lets CHAMVI_UI_AUTHUP_CLIENT_ID and CHAMVI_UI_AUTHUP_REALM_ID win', () => {
+    it('lets UI_AUTHUP_CLIENT_ID and UI_AUTHUP_REALM win', () => {
         expect(readUiAuth({
             AUTHUP_URL: URL,
             AUTHUP_REALM: 'tenant',
-            CHAMVI_UI_AUTHUP_CLIENT_ID: 'dashboard',
-            CHAMVI_UI_AUTHUP_REALM_ID: 'other',
+            UI_AUTHUP_CLIENT_ID: 'dashboard',
+            UI_AUTHUP_REALM: 'other',
         }).authup).toEqual({
             url: URL,
             clientId: 'dashboard',
@@ -45,8 +45,8 @@ describe('readUiAuth', () => {
         });
     });
 
-    it('requires AUTHUP_URL for CHAMVI_UI_AUTHUP_CLIENT_ID', () => {
-        expect(() => readUiAuth({ CHAMVI_UI_AUTHUP_CLIENT_ID: 'dashboard' }))
+    it('requires AUTHUP_URL for UI_AUTHUP_CLIENT_ID', () => {
+        expect(() => readUiAuth({ UI_AUTHUP_CLIENT_ID: 'dashboard' }))
             .toThrow(new InvalidAgentDefinitionError('AUTHUP_URL is required.'));
     });
 });

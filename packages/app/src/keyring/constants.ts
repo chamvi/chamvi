@@ -9,4 +9,4 @@
  * The app's master keyring, `<id>:<base64 32 bytes>[,<id>:<base64>...]`, the
  * first key active: it wraps the data key of every connection.
  */
-export const ENV_ENCRYPTION_KEYS = 'CHAMVI_ENCRYPTION_KEYS';
+export const ENV_ENCRYPTION_KEYS = 'ENCRYPTION_KEYS';

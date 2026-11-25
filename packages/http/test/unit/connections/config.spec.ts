@@ -864,14 +864,14 @@ describe('connection configuration', () => {
             const { app } = world({
                 declared: (definition) => [declare(definition, 'mail-work')],
                 keyring: () => {
-                    throw new InvalidAgentDefinitionError('CHAMVI_ENCRYPTION_KEYS is not set.');
+                    throw new InvalidAgentDefinitionError('ENCRYPTION_KEYS is not set.');
                 },
             });
 
             const response = await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
 
             expect(response.status).toBe(409);
-            expect((await json(response)).message).toContain('CHAMVI_ENCRYPTION_KEYS');
+            expect((await json(response)).message).toContain('ENCRYPTION_KEYS');
         });
 
         it('a save over secrets sealed under a key the keyring dropped answers 409 decryption_failed', async () => {
@@ -1110,7 +1110,7 @@ describe('connection configuration', () => {
                 entry.resolved = {
                     ...entry.resolved,
                     state: 'incomplete',
-                    reason: 'approvalUrl is required, or CHAMVI_PUBLIC_URL.',
+                    reason: 'approvalUrl is required, or PUBLIC_URL.',
                 };
 
                 return [entry];
@@ -1123,7 +1123,7 @@ describe('connection configuration', () => {
             const list = await json(await call(app, 'GET', '/connections', { token: ADMIN_TOKEN }));
             const detail = await json(await call(app, 'GET', '/connections/mail-work', { token: tokenFor(restricted(Permission.CONNECTION_READ, { name: 'mail-work' })) }));
 
-            expect(view).toMatchObject({ state: 'incomplete', reason: 'approvalUrl is required, or CHAMVI_PUBLIC_URL.' });
+            expect(view).toMatchObject({ state: 'incomplete', reason: 'approvalUrl is required, or PUBLIC_URL.' });
             expect(list.data[0].reason).toBe(view.reason);
             expect(detail).toMatchObject({ state: 'incomplete', reason: view.reason });
 

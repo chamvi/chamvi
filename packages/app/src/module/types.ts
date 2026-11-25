@@ -141,7 +141,7 @@ export type StoredConnection = {
     id: string;
     /**
      * Set when the row's secrets cannot be read (an undecryptable row,
-     * stored secrets without `CHAMVI_ENCRYPTION_KEYS`): `values` then holds
+     * stored secrets without `ENCRYPTION_KEYS`): `values` then holds
      * the settings only. `resolveStoredConnection()` turns it into a `failed`
      * connection unless env or code set every one of `secrets`.
      */
@@ -333,7 +333,7 @@ export type AppTokens = {
     /** A collection: git credential sources modules contribute for the workspaces (`sandboxModule()` reads them). */
     GIT_CREDENTIALS: GitCredentialSource;
     /**
-     * The app's keyring from `CHAMVI_ENCRYPTION_KEYS`, built when first
+     * The app's keyring from `ENCRYPTION_KEYS`, built when first
      * resolved: without the variable, or malformed, resolving throws
      * InvalidAgentDefinitionError (naming the variable, never the value), so
      * only an app with a module that needs it needs the variable.
@@ -349,7 +349,7 @@ export type AppTokens = {
      * resolve it in `setup`. Built lazily; resolving it throws
      * InvalidAgentDefinitionError while the store keeps no connections; the
      * keyring is resolved only when a secret is touched, so reading plain
-     * settings needs no `CHAMVI_ENCRYPTION_KEYS`.
+     * settings needs no `ENCRYPTION_KEYS`.
      */
     CONNECTION_CONFIGS: IConnectionConfigStore;
     /** A collection: the separately built pages modules contribute; the shell lists them from `GET /ui-pages`. */

@@ -55,10 +55,10 @@ describe('staticTokensModule', () => {
         expect(module.dependencies).toEqual([ModuleName.CONFIG]);
     });
 
-    it('contributes CHAMVI_TOKENS', async () => {
+    it('contributes TOKENS', async () => {
         const { entries } = await entriesOf({
             env: {
-                CHAMVI_TOKENS: JSON.stringify([{
+                TOKENS: JSON.stringify([{
                     value: ENV_TOKEN,
                     id: 'ci',
                     permissions: [{ permission: { name: Permission.RUN_READ } }],
@@ -79,7 +79,7 @@ describe('staticTokensModule', () => {
     it('options win over env', async () => {
         const { entries } = await entriesOf({
             env: {
-                CHAMVI_TOKENS: JSON.stringify([{
+                TOKENS: JSON.stringify([{
                     value: ENV_TOKEN,
                     id: 'ci',
                     permissions: '*',
@@ -111,7 +111,7 @@ describe('staticTokensModule', () => {
 
         expect(entries).toHaveLength(1);
 
-        const warnings = logger.entries.filter((entry) => entry.msg.includes('CHAMVI_TOKENS'));
+        const warnings = logger.entries.filter((entry) => entry.msg.includes('TOKENS'));
 
         expect(warnings).toHaveLength(1);
         expect(warnings[0]!.level).toBe('warn');
@@ -130,7 +130,7 @@ describe('staticTokensModule', () => {
         const { entries, logger } = await entriesOf({
             dev: true,
             env: {
-                CHAMVI_TOKENS: JSON.stringify([{
+                TOKENS: JSON.stringify([{
                     value: ENV_TOKEN,
                     id: 'ci',
                     permissions: '*',
@@ -139,7 +139,7 @@ describe('staticTokensModule', () => {
         });
 
         expect(entries).toHaveLength(1);
-        expect(logger.entries.filter((entry) => entry.msg.includes('CHAMVI_TOKENS'))).toEqual([]);
+        expect(logger.entries.filter((entry) => entry.msg.includes('TOKENS'))).toEqual([]);
     });
 
     it('dev with another authenticator generates none', async () => {
@@ -159,6 +159,6 @@ describe('staticTokensModule', () => {
         });
 
         expect(entries).toEqual([other]);
-        expect(logger.entries.filter((entry) => entry.msg.includes('CHAMVI_TOKENS'))).toEqual([]);
+        expect(logger.entries.filter((entry) => entry.msg.includes('TOKENS'))).toEqual([]);
     });
 });

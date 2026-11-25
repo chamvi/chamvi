@@ -126,7 +126,7 @@ async function envFor(url: string, extra: Record<string, string> = {}): Promise<
     return {
         HOST: '127.0.0.1',
         PORT: String(await freePort()),
-        CHAMVI_TOKENS: TOKENS,
+        TOKENS,
         DATABASE_URL: url,
         ...extra,
     };

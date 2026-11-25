@@ -24,7 +24,7 @@ export type DiscordModuleOptions = Omit<DiscordChatOptions, 'account' | 'token' 
     applicationId?: string;
     /** Who may start runs; given here it is fixed as a whole, env and the store add nothing. */
     policy?: DiscordPolicy;
-    /** The approval link; default the dashboard's approvals page under `CHAMVI_PUBLIC_URL`. */
+    /** The approval link; default the dashboard's approvals page under `PUBLIC_URL`. */
     approvalUrl?: DiscordChatOptions['approvalUrl'];
 };
 

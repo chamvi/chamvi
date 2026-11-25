@@ -229,7 +229,7 @@ async function harnessOf(input: HarnessInput): Promise<ModuleHarness> {
         ...options,
         env: {
             ...(port !== undefined && {
-                CHAMVI_TOKENS: TOKENS,
+                TOKENS,
                 HOST: '127.0.0.1',
                 PORT: String(port),
             }),

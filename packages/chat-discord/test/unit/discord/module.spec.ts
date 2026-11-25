@@ -210,7 +210,7 @@ describe('chatModule under start --check', () => {
 
         apps.push(app);
 
-        await expect(app.check({ env: { CHAMVI_TOKENS: TOKENS, PORT: '4998' } })).resolves.toEqual({ issues: [] });
+        await expect(app.check({ env: { TOKENS, PORT: '4998' } })).resolves.toEqual({ issues: [] });
 
         expect(reads).toBe(0);
         expect(clients.clients).toEqual([]);

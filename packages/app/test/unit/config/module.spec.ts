@@ -51,8 +51,8 @@ describe('readConfig', () => {
         const config = readConfig({
             PORT: '8080',
             HOST: '127.0.0.1',
-            CHAMVI_BASE_PATH: '/api',
-            CHAMVI_PUBLIC_URL: 'https://a.example/',
+            BASE_PATH: '/api',
+            PUBLIC_URL: 'https://a.example/',
             CHAMVI_LOG_LEVEL: 'debug',
             DATABASE_URL: 'postgres://u:p@db:5432/chamvi',
             CHAMVI_MIGRATE: 'false',
@@ -143,15 +143,15 @@ describe('readConfig', () => {
         expect(start({ CHAMVI_PURGE_INTERVAL_MS: '0' }).store.purgeIntervalMs).toBe(0);
     });
 
-    it('CHAMVI_BASE_PATH accepts /api, rejects api, /api/, /API', () => {
-        expect(start({ CHAMVI_BASE_PATH: '/api' }).http.basePath).toBe('/api');
-        expect(start({ CHAMVI_BASE_PATH: '/api/v1' }).http.basePath).toBe('/api/v1');
+    it('BASE_PATH accepts /api, rejects api, /api/, /API', () => {
+        expect(start({ BASE_PATH: '/api' }).http.basePath).toBe('/api');
+        expect(start({ BASE_PATH: '/api/v1' }).http.basePath).toBe('/api/v1');
 
         for (const value of ['api', '/api/', '/API', '/', '//api']) {
-            const error = errorOf(() => start({ CHAMVI_BASE_PATH: value }));
+            const error = errorOf(() => start({ BASE_PATH: value }));
 
             expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-            expect(error.message).toContain('CHAMVI_BASE_PATH');
+            expect(error.message).toContain('BASE_PATH');
         }
     });
 
@@ -164,10 +164,10 @@ describe('readConfig', () => {
             .toThrow('CHAMVI_LOG_LEVEL must be one of error, warn, info, debug.');
     });
 
-    it('CHAMVI_PUBLIC_URL must be absolute http(s)', () => {
-        expect(() => start({ CHAMVI_PUBLIC_URL: 'a.example' })).toThrow(/CHAMVI_PUBLIC_URL/);
-        expect(() => start({ CHAMVI_PUBLIC_URL: 'ftp://a.example' })).toThrow(/CHAMVI_PUBLIC_URL/);
-        expect(start({ CHAMVI_PUBLIC_URL: 'http://a.example/x/' }).http.publicUrl).toBe('http://a.example/x');
+    it('PUBLIC_URL must be absolute http(s)', () => {
+        expect(() => start({ PUBLIC_URL: 'a.example' })).toThrow(/PUBLIC_URL/);
+        expect(() => start({ PUBLIC_URL: 'ftp://a.example' })).toThrow(/PUBLIC_URL/);
+        expect(start({ PUBLIC_URL: 'http://a.example/x/' }).http.publicUrl).toBe('http://a.example/x');
     });
 
     it('migrate mode requires DATABASE_URL', () => {
@@ -184,7 +184,7 @@ describe('readConfig', () => {
         expect(errorOf(() => start({ DATABASE_URL: 'mysql://u:hunter2@db/chamvi' })).message).not.toContain('hunter2');
     });
 
-    describe('CHAMVI_TOKENS', () => {
+    describe('TOKENS', () => {
         const valid = {
             value: 'a'.repeat(16),
             id: 'ops',
@@ -197,7 +197,7 @@ describe('readConfig', () => {
 
         it('parses a valid JSON array', () => {
             const config = start({
-                CHAMVI_TOKENS: JSON.stringify([valid, {
+                TOKENS: JSON.stringify([valid, {
                     value: 'b'.repeat(20),
                     id: 'ci',
                     permissions: [],
@@ -230,14 +230,14 @@ describe('readConfig', () => {
             ['non-binding permissions', [{ ...valid, permissions: [1] }]],
             ['missing permissions', [{ value: valid.value, id: 'x' }]],
         ])('rejects %s', (_, value) => {
-            const error = errorOf(() => start({ CHAMVI_TOKENS: JSON.stringify(value) }));
+            const error = errorOf(() => start({ TOKENS: JSON.stringify(value) }));
 
             expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-            expect(error.message).toContain('CHAMVI_TOKENS');
+            expect(error.message).toContain('TOKENS');
         });
 
         it('parses a binding with an attributes policy as a copy', () => {
-            const config = start({ CHAMVI_TOKENS: JSON.stringify([{ ...valid, permissions: [restricted] }]) });
+            const config = start({ TOKENS: JSON.stringify([{ ...valid, permissions: [restricted] }]) });
 
             expect(config.tokens).toEqual([{ ...valid, permissions: [restricted] }]);
         });
@@ -249,31 +249,31 @@ describe('readConfig', () => {
             ['another string', 'all'],
             ['a binding without a name', [{ permission: {} }]],
         ])('rejects %s with the binding shape', (_, permissions) => {
-            const error = errorOf(() => start({ CHAMVI_TOKENS: JSON.stringify([{ ...valid, permissions }]) }));
+            const error = errorOf(() => start({ TOKENS: JSON.stringify([{ ...valid, permissions }]) }));
 
             expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-            expect(error.message).toBe('CHAMVI_TOKENS[0].permissions must be "*" or an array of permission bindings.');
+            expect(error.message).toBe('TOKENS[0].permissions must be "*" or an array of permission bindings.');
         });
 
         it('rejects malformed JSON', () => {
-            expect(() => start({ CHAMVI_TOKENS: '[{' })).toThrow('CHAMVI_TOKENS must be valid JSON.');
+            expect(() => start({ TOKENS: '[{' })).toThrow('TOKENS must be valid JSON.');
         });
 
-        it('CHAMVI_TOKENS error names no token', () => {
+        it('TOKENS error names no token', () => {
             const secret = 'sekr3t-tok';
             const short = errorOf(() => start({
-                CHAMVI_TOKENS: JSON.stringify([valid, {
+                TOKENS: JSON.stringify([valid, {
                     value: secret,
                     id: 'x',
                     permissions: [],
                 }]),
             }));
 
-            expect(short.message).toBe('CHAMVI_TOKENS[1].value must be at least 16 characters.');
+            expect(short.message).toBe('TOKENS[1].value must be at least 16 characters.');
 
-            const duplicate = errorOf(() => start({ CHAMVI_TOKENS: JSON.stringify([valid, { ...valid, id: 'y' }]) }));
+            const duplicate = errorOf(() => start({ TOKENS: JSON.stringify([valid, { ...valid, id: 'y' }]) }));
 
-            expect(duplicate.message).toBe('CHAMVI_TOKENS[1].value is given more than once.');
+            expect(duplicate.message).toBe('TOKENS[1].value is given more than once.');
             expect(duplicate.message).not.toContain(valid.value);
         });
     });

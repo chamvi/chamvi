@@ -335,7 +335,7 @@ describe('componentsModule', () => {
                 env: {
                     HOST: '127.0.0.1',
                     PORT: String(port),
-                    CHAMVI_TOKENS: TOKENS,
+                    TOKENS,
                     CHAMVI_READINESS_DELAY_MS: '0',
                     CHAMVI_DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS),
                 },
@@ -392,7 +392,7 @@ describe('componentsModule', () => {
                 env: {
                     HOST: '127.0.0.1',
                     PORT: String(port),
-                    CHAMVI_TOKENS: TOKENS,
+                    TOKENS,
                     CHAMVI_READINESS_DELAY_MS: '0',
                     CHAMVI_DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS),
                     // the server close adds nothing: only the components and the drain count
@@ -464,7 +464,7 @@ describe('componentsModule', () => {
             env: {
                 HOST: '127.0.0.1',
                 PORT: String(port),
-                CHAMVI_TOKENS: TOKENS,
+                TOKENS,
                 CHAMVI_READINESS_DELAY_MS: '0',
                 CHAMVI_DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS),
                 // the server close adds nothing: only the components and the drain count

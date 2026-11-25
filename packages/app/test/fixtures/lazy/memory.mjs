@@ -47,7 +47,7 @@ const port = await new Promise((resolve) => {
 const env = {
     HOST: '127.0.0.1',
     PORT: String(port),
-    CHAMVI_TOKENS: JSON.stringify([{
+    TOKENS: JSON.stringify([{
         value: 'x'.repeat(32),
         id: 'ops',
         permissions: '*',

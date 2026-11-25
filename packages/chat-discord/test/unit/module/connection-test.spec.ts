@@ -100,7 +100,7 @@ async function serve(input: ServeInput = {}) {
     });
     const harness = await createModuleHarness({
         env: {
-            CHAMVI_TOKENS: JSON.stringify([{
+            TOKENS: JSON.stringify([{
                 value: TOKEN,
                 id: 'ops',
                 permissions: '*',
@@ -175,7 +175,7 @@ const ENV = {
     CHAMVI_DISCORD_GUILDS: GUILD,
     CHAMVI_DISCORD_USERS: ALICE,
 };
-const PUBLIC = { CHAMVI_PUBLIC_URL: 'https://chamvi.example' };
+const PUBLIC = { PUBLIC_URL: 'https://chamvi.example' };
 
 describe('the Discord connection test', () => {
     it('calls GET /users/@me with the bot token', async () => {

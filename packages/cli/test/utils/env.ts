@@ -12,7 +12,7 @@ export const TOKEN = 'a-static-token-of-16+';
 /** The env a production start needs, on a loopback port. */
 export function startEnv(port: number, extra: Env = {}): Env {
     return {
-        CHAMVI_TOKENS: JSON.stringify([{
+        TOKENS: JSON.stringify([{
             value: TOKEN,
             id: 'ops',
             permissions: '*',

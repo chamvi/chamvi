@@ -107,7 +107,7 @@ async function serve(modules: IModule[], agents: Agent[]): Promise<{ harness: Mo
     const port = await freePort();
     const harness = await createModuleHarness({
         env: {
-            CHAMVI_TOKENS: TOKENS,
+            TOKENS,
             HOST: '127.0.0.1',
             PORT: String(port),
         },
@@ -285,7 +285,7 @@ describe('githubModule configuration', () => {
         const port = await freePort();
         const harness = await createModuleHarness({
             env: {
-                CHAMVI_TOKENS: TOKENS,
+                TOKENS,
                 HOST: '127.0.0.1',
                 PORT: String(port),
             },

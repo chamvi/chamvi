@@ -126,7 +126,7 @@ async function envFor(extra: Record<string, string> = {}) {
         env: {
             HOST: '127.0.0.1',
             PORT: String(port),
-            CHAMVI_TOKENS: TOKENS,
+            TOKENS,
             ...extra,
         },
     };
@@ -291,11 +291,11 @@ describe('App.check', () => {
         expect(error.message).toContain('0 0 * * 1/2');
     });
 
-    it('rejects without CHAMVI_TOKENS outside dev', async () => {
+    it('rejects without TOKENS outside dev', async () => {
         const { app } = build({ agents: [triage] });
         const { env } = await envFor();
 
-        delete (env as Record<string, string | undefined>).CHAMVI_TOKENS;
+        delete (env as Record<string, string | undefined>).TOKENS;
 
         const error = await rejectionOf(app.check({ env }));
 

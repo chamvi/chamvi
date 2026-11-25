@@ -114,7 +114,7 @@ async function build(options: {
         env: {
             HOST: '127.0.0.1',
             PORT: String(port),
-            CHAMVI_TOKENS: TOKENS,
+            TOKENS,
             ...options.env,
         },
         agents: options.agents ?? [triage()],
@@ -278,7 +278,7 @@ describe('httpModule', () => {
     });
 
     it('basePath prefixes health', async () => {
-        const { harness, url } = await build({ env: { CHAMVI_BASE_PATH: '/api' } });
+        const { harness, url } = await build({ env: { BASE_PATH: '/api' } });
 
         await harness.setup();
 
@@ -362,12 +362,12 @@ describe('httpModule', () => {
     });
 
     it('no authenticator fails setup', async () => {
-        const { harness, port } = await build({ env: { CHAMVI_TOKENS: '' } });
+        const { harness, port } = await build({ env: { TOKENS: '' } });
 
         const error = await rejectionOf(harness.setup());
 
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-        expect(error.message).toBe('No authenticator: set CHAMVI_TOKENS, or add staticTokensModule(), authupModule() or oidcModule().');
+        expect(error.message).toBe('No authenticator: set TOKENS, or add staticTokensModule(), authupModule() or oidcModule().');
         expect(await isFree(port)).toBe(true);
     });
 

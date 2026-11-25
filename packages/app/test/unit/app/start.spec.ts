@@ -67,7 +67,7 @@ async function envFor(extra: Record<string, string> = {}) {
         env: {
             HOST: '127.0.0.1',
             PORT: String(port),
-            CHAMVI_TOKENS: TOKENS,
+            TOKENS,
             ...extra,
         },
     };
@@ -255,7 +255,7 @@ describe('App.start', () => {
         it('no authenticator', async () => {
             const ctx = await queuedRun();
             const app = track(createApp({ agents: [ctx.queued], modules: [quiet(), storeModuleOf(ctx.store)] }));
-            const { env } = await envFor({ CHAMVI_TOKENS: '' });
+            const { env } = await envFor({ TOKENS: '' });
 
             const error = await rejectionOf(app.start({ env }));
 
@@ -271,7 +271,7 @@ describe('App.start', () => {
                 agents: [ctx.queued],
                 modules: [quiet(), storeModuleOf(ctx.store), httpless()],
             }));
-            const { env } = await envFor({ CHAMVI_TOKENS: '' });
+            const { env } = await envFor({ TOKENS: '' });
 
             await app.start({ env });
 
@@ -307,7 +307,7 @@ describe('App.start', () => {
                     },
                 ],
             }));
-            const { env } = await envFor({ CHAMVI_TOKENS: '' });
+            const { env } = await envFor({ TOKENS: '' });
 
             await app.start({ env });
             expect(started).toEqual(['started']);

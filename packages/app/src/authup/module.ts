@@ -28,7 +28,7 @@ import type { AuthupModuleOptions, AuthupPermissionOwner } from './types.ts';
  * authup server of the env serves for each one not given. Catalog and realm
  * failures go to the app logger; that login then grants nothing. With the
  * permission owner `client`, the dashboard client (`UI_AUTH` of the dashboard
- * module, which sets up first, else `CHAMVI_UI_AUTHUP_CLIENT_ID`, else
+ * module, which sets up first, else `UI_AUTHUP_CLIENT_ID`, else
  * `chamvi`) owns the permissions: resolved in `setup()` of a serving start,
  * so one that does not resolve fails the start, never falling back to the
  * realm's definitions.
@@ -148,7 +148,7 @@ export class AuthupModule implements IModule {
 
     /**
      * The dashboard client, an id or a name: the dashboard module's authup
-     * sign-in, else `CHAMVI_UI_AUTHUP_CLIENT_ID`, else `chamvi`.
+     * sign-in, else `UI_AUTHUP_CLIENT_ID`, else `chamvi`.
      */
     protected readOwnerClient(container: IContainer): string {
         // only the client id is needed here: the env fallback does not require the dashboard's AUTHUP_URL

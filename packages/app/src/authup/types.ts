@@ -29,7 +29,7 @@ export type AuthupModuleOptions = {
      * Who owns the permissions chamvi checks (#282). `realm` (default): the
      * global then the realm-owned definition. `client`: the dashboard client
      * (the dashboard module's authup sign-in, else
-     * `CHAMVI_UI_AUTHUP_CLIENT_ID`, else `chamvi`) owns every name, checked
+     * `UI_AUTHUP_CLIENT_ID`, else `chamvi`) owns every name, checked
      * only as its definition in chamvi's realm; global and realm-owned
      * definitions grant nothing. A dashboard client given by
      * name is resolved once at start (needs `client_read`); one that does not
@@ -59,7 +59,7 @@ export type AuthupModuleOptions = {
      * `realm_id` with its client-credentials token request (authup finds a
      * client by name only within a realm). Default `AUTHUP_REALM`, else
      * `master` (the env value also defaults the dashboard's
-     * `CHAMVI_UI_AUTHUP_REALM_ID`; this option does not). Not chamvi's
+     * `UI_AUTHUP_REALM`; this option does not). Not chamvi's
      * resource realm: that is `realm`, else introspected from this client's
      * token.
      */

@@ -88,7 +88,7 @@ afterEach(async () => {
 });
 
 /** The env of a dashboard client `client` signing in at `url`. */
-const dashboardEnv = (client: string, url = 'https://auth.example.com/api') => ({ AUTHUP_URL: url, CHAMVI_UI_AUTHUP_CLIENT_ID: client });
+const dashboardEnv = (client: string, url = 'https://auth.example.com/api') => ({ AUTHUP_URL: url, UI_AUTHUP_CLIENT_ID: client });
 
 async function fakeAuthup(clients: FakeAuthupClient[] | undefined, hold?: (route: string) => boolean) {
     const authup = await createFakeAuthup({
@@ -181,7 +181,7 @@ describe('authupModule permission owner', () => {
         const { harness, login } = harnessOf({
             ...injected,
             permissionOwner: 'client',
-            env: { CHAMVI_UI_AUTHUP_CLIENT_ID: OWNER },
+            env: { UI_AUTHUP_CLIENT_ID: OWNER },
         });
 
         await harness.setup();

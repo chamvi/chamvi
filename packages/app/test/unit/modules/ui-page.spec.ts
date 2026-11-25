@@ -155,7 +155,7 @@ describe('uiPageModule()', () => {
 
     it('lets the authup origin through the CSP when the dashboard signs in with authup', async () => {
         const { result, html } = await renderIndex({
-            CHAMVI_UI_AUTHUP_CLIENT_ID: 'client',
+            UI_AUTHUP_CLIENT_ID: 'client',
             AUTHUP_URL: 'https://auth.example/base',
         });
 
@@ -166,7 +166,7 @@ describe('uiPageModule()', () => {
     it('signs in like the dashboard module, whatever the env says', async () => {
         const authup = { url: 'https://auth.example/base', clientId: 'code-client' };
         const { result, html } = await renderIndex(
-            { CHAMVI_UI_AUTHUP_CLIENT_ID: 'env-client', AUTHUP_URL: 'https://env.example' },
+            { UI_AUTHUP_CLIENT_ID: 'env-client', AUTHUP_URL: 'https://env.example' },
             dashboardModule({ tokens: false, authup }),
         );
 

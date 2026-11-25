@@ -82,7 +82,7 @@ describePostgres('app conversation PostgreSQL lifecycle', () => {
         const app = createApp({ conversations: { authorize: () => true }, modules: [configModule({ logger: createRecordingLogger() })] });
 
         cleanup.push(() => app.stop());
-        await app.check({ env: { DATABASE_URL: url, CHAMVI_TOKENS: TOKENS } });
+        await app.check({ env: { DATABASE_URL: url, TOKENS } });
 
         const admin = new DataSource({ type: 'postgres', url });
 

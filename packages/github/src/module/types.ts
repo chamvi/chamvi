@@ -11,7 +11,7 @@ import type { GithubAppOptions, IGithubApp } from '../app/types.ts';
 import type { GithubChannelOptions } from '../channel/types.ts';
 import type { GithubAppCredentialsOptions } from '../credentials/types.ts';
 
-/** `githubChannel()` options; `approvalUrl` defaults to the UI link from `CHAMVI_PUBLIC_URL`, `clock` is the app's. */
+/** `githubChannel()` options; `approvalUrl` defaults to the UI link from `PUBLIC_URL`, `clock` is the app's. */
 export type GithubModuleChannelOptions = Omit<GithubChannelOptions, 'app' | 'clock' | 'locks'> & {
     /** Default the app's lock service (`AppToken.LOCK_SERVICE`). */
     locks?: GithubChannelOptions['locks'];

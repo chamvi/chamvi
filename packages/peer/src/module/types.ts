@@ -9,7 +9,7 @@ import type { PeerResolverOptions } from '../resolver/types.ts';
 
 /**
  * `createPeerResolver()` options; `clock` defaults to the app's,
- * `approvalUrl` to the UI link from `CHAMVI_PUBLIC_URL` (none without it).
+ * `approvalUrl` to the UI link from `PUBLIC_URL` (none without it).
  */
 export type PeerModuleOptions = Omit<PeerResolverOptions, 'clock' | 'approvalUrl'> &
     Partial<Pick<PeerResolverOptions, 'clock' | 'approvalUrl'>>;

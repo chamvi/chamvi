@@ -472,7 +472,7 @@ describe('discordModule', () => {
         expect(w.lines.join('\n')).not.toContain(SENTINEL_TOKEN);
     });
 
-    it('stored settings without CHAMVI_PUBLIC_URL stay idle, env settings fail', async () => {
+    it('stored settings without PUBLIC_URL stay idle, env settings fail', async () => {
         const store = await storedWorld('discord', {
             settings: { applicationId: APP_ID, guilds: [GUILD] },
             secrets: { set: { token: 'stored-token' } },
@@ -486,25 +486,25 @@ describe('discordModule', () => {
         await stored.harness.setup();
         expect(stored.clients.clients).toEqual([]);
         expect(stored.connection().resolved.state).toBe('incomplete');
-        expect(stored.connection().resolved.reason).toContain('CHAMVI_PUBLIC_URL');
+        expect(stored.connection().resolved.reason).toContain('PUBLIC_URL');
 
         const env = world({ patch: { approvalUrl: undefined } });
 
-        await expect(env.harness.setup()).rejects.toThrow(/CHAMVI_PUBLIC_URL/);
+        await expect(env.harness.setup()).rejects.toThrow(/PUBLIC_URL/);
     });
 
-    it('an env deployment with an old row still fails without CHAMVI_PUBLIC_URL', async () => {
+    it('an env deployment with an old row still fails without PUBLIC_URL', async () => {
         const store = await storedWorld('discord', { settings: { applicationId: 'old-row' } });
         const w = world({ store, patch: { approvalUrl: undefined } });
 
-        await expect(w.harness.setup()).rejects.toThrow(/CHAMVI_PUBLIC_URL/);
+        await expect(w.harness.setup()).rejects.toThrow(/PUBLIC_URL/);
     });
 
-    it('a complete env deployment fails without CHAMVI_PUBLIC_URL although a row stores an optional field', async () => {
+    it('a complete env deployment fails without PUBLIC_URL although a row stores an optional field', async () => {
         const store = await storedWorld('discord', { settings: { roles: [ROLE] } });
         const w = world({ store, patch: { approvalUrl: undefined } });
 
-        await expect(w.harness.setup()).rejects.toThrow(/CHAMVI_PUBLIC_URL/);
+        await expect(w.harness.setup()).rejects.toThrow(/PUBLIC_URL/);
     });
 
     it.each([

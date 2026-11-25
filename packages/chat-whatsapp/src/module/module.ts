@@ -52,7 +52,7 @@ function invalid(message: string): InvalidAgentDefinitionError {
  * Chat and the connection handle are built when the factory is called
  * (nothing is read, acquired or connected), so agents subscribe with
  * `module.on()`. `setup` (start mode, a check included) resolves the keyring
- * (`CHAMVI_ENCRYPTION_KEYS`, failing setup naming it), builds the connection
+ * (`ENCRYPTION_KEYS`, failing setup naming it), builds the connection
  * vault over `AppToken.CONNECTION_SERVICE` and the app clock, and contributes the channel
  * to `AppToken.CHANNELS` and the handle to `AppToken.CONNECTIONS`; a job
  * contributes the channel only (its subscriptions validate, the engine never
@@ -183,7 +183,7 @@ export class WhatsAppModule implements IModule {
         const approvalUrl = this.options.approvalUrl ?? approvalUrlOf(container.resolve(AppToken.CONFIG));
 
         if (!approvalUrl) {
-            throw invalid('approvalUrl is required, or CHAMVI_PUBLIC_URL for the dashboard\'s approvals page.');
+            throw invalid('approvalUrl is required, or PUBLIC_URL for the dashboard\'s approvals page.');
         }
 
         this.approvalUrl = approvalUrl;

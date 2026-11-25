@@ -119,7 +119,7 @@ async function served(options: AuthupModuleOptions) {
     const logger = createRecordingLogger();
     const harness = await createHarness({
         env: {
-            CHAMVI_TOKENS: TOKENS,
+            TOKENS,
             HOST: '127.0.0.1',
             PORT: String(port),
         },

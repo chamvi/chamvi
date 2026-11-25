@@ -124,7 +124,7 @@ describe('openclawModule', () => {
         expect(harness.container.resolveAll(AppToken.LIFECYCLE_HOOKS)).toEqual([]);
     });
 
-    it('delivers through the gateway with the UI link of CHAMVI_PUBLIC_URL', async () => {
+    it('delivers through the gateway with the UI link of PUBLIC_URL', async () => {
         const clock = new ControllableClock(new Date('2026-10-21T09:00:00Z'));
         const fake = createFakeOpenclaw({
             token: HOOKS_TOKEN,
@@ -132,7 +132,7 @@ describe('openclawModule', () => {
             clock,
         });
         const harness = await createModuleHarness({
-            env: { CHAMVI_PUBLIC_URL: 'https://chamvi.example' },
+            env: { PUBLIC_URL: 'https://chamvi.example' },
             modules: [
                 configModule({ clock, logger: createRecordingLogger(clock) }),
                 openclawModule({

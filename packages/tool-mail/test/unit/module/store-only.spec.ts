@@ -112,7 +112,7 @@ async function serve(store: TestStore, env: Record<string, string>): Promise<Ser
     const port = await freePort();
     const harness = await createModuleHarness({
         env: {
-            CHAMVI_TOKENS: JSON.stringify([{
+            TOKENS: JSON.stringify([{
                 value: TOKEN,
                 id: 'ops',
                 permissions: '*',

@@ -103,7 +103,7 @@ async function environment(extra: Record<string, string> = {}) {
         env: {
             HOST: '127.0.0.1',
             PORT: String(port),
-            CHAMVI_TOKENS: TOKENS,
+            TOKENS,
             ...extra,
         },
     };

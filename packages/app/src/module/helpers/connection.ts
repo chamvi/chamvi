@@ -51,7 +51,7 @@ export function connectionIssuesOf(container: IContainer): AgentIssue[] {
 /**
  * Whether a row's read failed for a reason of the row, which degrades only
  * that connection: a seal that does not open (e.g. under a key dropped from
- * the keyring), or stored secrets while `CHAMVI_ENCRYPTION_KEYS` is unset. A
+ * the keyring), or stored secrets while `ENCRYPTION_KEYS` is unset. A
  * malformed keyring is a deployment error and still fails the start.
  */
 function isUnreadableConnectionError(error: unknown): error is ChamviError {
@@ -141,7 +141,7 @@ async function readStoredConnection(
  * The stored connections of `type` with their decrypted values, for a
  * module's `setup` (list `ModuleName.STORE` in `dependencies`). Nothing for a
  * store without connections. A row whose secrets cannot be read
- * (undecryptable, stored secrets without `CHAMVI_ENCRYPTION_KEYS`) comes
+ * (undecryptable, stored secrets without `ENCRYPTION_KEYS`) comes
  * back with its settings only and `unreadable` set, with a warning naming the
  * connection, never a value; resolve it with `resolveStoredConnection()`. Any
  * other read failure throws InvalidAgentDefinitionError naming the

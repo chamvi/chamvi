@@ -110,7 +110,7 @@ describe('README example', () => {
 
         await expect(app.check({
             env: {
-                CHAMVI_TOKENS: TOKENS, 
+                TOKENS, 
                 PORT: '4997', 
                 CHAMVI_LOG_LEVEL: 'error', 
             }, 
@@ -149,7 +149,7 @@ describe('README example', () => {
             env: {
                 HOST: '127.0.0.1',
                 PORT: String(port),
-                CHAMVI_TOKENS: TOKENS,
+                TOKENS,
                 CHAMVI_LOG_LEVEL: 'error',
             },
         });

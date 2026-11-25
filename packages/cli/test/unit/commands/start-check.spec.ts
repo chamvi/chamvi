@@ -95,10 +95,10 @@ describe('start --check', () => {
         expect(lines).toEqual(['@chamvi-fixture/missing-agents: not found from the app\'s directory; add it to the app\'s dependencies.']);
     });
 
-    it('exits 2 without CHAMVI_TOKENS', async () => {
+    it('exits 2 without TOKENS', async () => {
         const env = startEnv(port);
 
-        delete env.CHAMVI_TOKENS;
+        delete env.TOKENS;
         await check('app', env);
 
         expect(exitCode()).toBe(2);

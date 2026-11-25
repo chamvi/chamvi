@@ -36,11 +36,11 @@ import { readTokens } from './helpers.ts';
 import type { AppConfig, ReadConfigOptions } from './types.ts';
 
 function readBasePath(env: Env): string {
-    const value = envString(env, 'CHAMVI_BASE_PATH', { default: '' });
+    const value = envString(env, 'BASE_PATH', { default: '' });
 
     if (value.length > 0 && !BASE_PATH_PATTERN.test(value)) {
         throw new InvalidAgentDefinitionError(
-            'CHAMVI_BASE_PATH must be a lower-case path such as /api, without a trailing slash.',
+            'BASE_PATH must be a lower-case path such as /api, without a trailing slash.',
         );
     }
 
@@ -68,7 +68,7 @@ function readAgentPackages(env: Env): string[] | undefined {
 export function readConfig(env: Env, options: ReadConfigOptions): AppConfig {
     const dev = options.dev ?? false;
 
-    const publicUrl = envUrl(env, 'CHAMVI_PUBLIC_URL', { protocols: PUBLIC_URL_PROTOCOLS });
+    const publicUrl = envUrl(env, 'PUBLIC_URL', { protocols: PUBLIC_URL_PROTOCOLS });
     const url = envUrl(env, 'DATABASE_URL', {
         protocols: DATABASE_URL_PROTOCOLS,
         required: options.mode === 'migrate',

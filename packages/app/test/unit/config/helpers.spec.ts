@@ -16,8 +16,8 @@ describe('approvalUrlOf', () => {
 
     it('builds the UI approval link under the base path', () => {
         const config = readConfig({
-            CHAMVI_PUBLIC_URL: 'https://a.example',
-            CHAMVI_BASE_PATH: '/api',
+            PUBLIC_URL: 'https://a.example',
+            BASE_PATH: '/api',
         }, { mode: 'start' });
         const url = approvalUrlOf(config);
 

@@ -169,7 +169,7 @@ describe('start', () => {
 
             await writeFile(path.join(cwd, '.env'), [
                 'CHAMVI_LOG_LEVEL=warn',
-                `CHAMVI_TOKENS='[{"value":"${devToken}","id":"dev","permissions":"*"}]'`,
+                `TOKENS='[{"value":"${devToken}","id":"dev","permissions":"*"}]'`,
                 'PORT=1',
                 '',
             ].join('\n'));
@@ -229,7 +229,7 @@ describe('start', () => {
 
             const log = lines.join('');
 
-            expect(log).toContain('CHAMVI_TOKENS unset');
+            expect(log).toContain('TOKENS unset');
         });
     });
 });

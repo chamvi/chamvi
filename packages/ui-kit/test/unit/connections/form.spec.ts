@@ -675,14 +675,14 @@ describe('ConnectionForm', () => {
         const form = await mount({
             routes: {
                 'PUT /connections/mail-work/config': () => {
-                    throw new ApiError(409, 'conflict', 'CHAMVI_ENCRYPTION_KEYS is not set');
+                    throw new ApiError(409, 'conflict', 'ENCRYPTION_KEYS is not set');
                 },
             },
         });
 
         await form.submit();
 
-        expect(form.root.textContent).toContain('CHAMVI_ENCRYPTION_KEYS is not set');
+        expect(form.root.textContent).toContain('ENCRYPTION_KEYS is not set');
     });
 
     it('offers delete only when deletable', async () => {
@@ -809,9 +809,9 @@ describe('ConnectionForm', () => {
 
         expect(incomplete.root.querySelector('[data-testid="connection-state"]')?.textContent).toContain('Incomplete: Password missing.');
 
-        const refused = await mount({ current: view({ state: 'incomplete', reason: 'CHAMVI_PUBLIC_URL is required.' }) });
+        const refused = await mount({ current: view({ state: 'incomplete', reason: 'PUBLIC_URL is required.' }) });
 
-        expect(refused.root.querySelector('[data-testid="connection-state"]')?.textContent).toContain('CHAMVI_PUBLIC_URL');
+        expect(refused.root.querySelector('[data-testid="connection-state"]')?.textContent).toContain('PUBLIC_URL');
 
         const empty = await mount({ current: view({ state: 'not_configured' }) });
 
