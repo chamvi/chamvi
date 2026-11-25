@@ -20,6 +20,8 @@ export function createUnconfiguredMailWriteClient(connection: string): IMailWrit
         account: () => undefined,
         send: refuse,
         findSent: refuse,
+        describe: refuse,
+        trash: refuse,
         replyHeaders: refuse,
         close: async () => undefined,
     };

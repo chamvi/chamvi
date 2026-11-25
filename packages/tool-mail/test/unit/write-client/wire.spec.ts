@@ -117,3 +117,104 @@ describe('the write client on the wire: sending', () => {
         }
     });
 });
+
+/** Every SELECT is followed by a UID MOVE, every UID MOVE follows a SELECT and names only the trash. */
+function assertDeleteWire(commands: string[], trash: string) {
+    const names = commands.map(nameOf);
+
+    names.forEach((name, index) => {
+        if (name === 'SELECT') {
+            expect(names[index + 1]).toBe('UID MOVE');
+        }
+
+        if (name !== 'UID MOVE') {
+            return;
+        }
+
+        expect(names[index - 1]).toBe('SELECT');
+
+        const path = /^\S+ UID MOVE \S+ ("[^"]*"|\S+)$/.exec(commands[index]!)?.[1];
+
+        expect(path?.replace(/^"|"$/g, '')).toBe(trash);
+    });
+
+    for (const forbidden of ['CLOSE', 'EXPUNGE', 'UID EXPUNGE', 'STORE', 'UID STORE', 'COPY', 'UID COPY', 'DELETE']) {
+        expect(names).not.toContain(forbidden);
+    }
+}
+
+describe('the write client on the wire: deleting', () => {
+    it.each([
+        ['a generic server', false, ['INBOX', 1, 'Archive', 7], 'Trash', 'Sent'],
+        ['gmail', true, ['INBOX', 1, '[Gmail]/All Mail', 9], '[Gmail]/Trash', '[Gmail]/Sent Mail'],
+    ] as const)('describes and trashes with allowed commands only on %s, SELECT right before the move, never CLOSE', async (
+        _,
+        gmail,
+        [first, firstUid, second, secondUid],
+        trash,
+        sent,
+    ) => {
+        const {
+            client,
+            imap,
+            folders,
+        } = await setupWrite(gmail);
+        const ids = [
+            encodeMailId({
+                account: 'work', 
+                folder: first, 
+                uidValidity: '42', 
+                uid: firstUid,
+            }),
+            encodeMailId({
+                account: 'work', 
+                folder: second, 
+                uidValidity: '42', 
+                uid: secondUid,
+            }),
+        ];
+        const before = seenFlags(folders);
+
+        expect((await client.describe(ids)).mails).toHaveLength(2);
+        expect((await client.trash(ids)).moved).toEqual(ids);
+
+        const moved = imap.commands.length;
+
+        // the connection is left on a SELECTed folder: switching away and logging out must not send CLOSE
+        expect((await client.describe(ids)).missing).toEqual(ids);
+        await client.close();
+
+        assertWriteWire(imap.commands, sent);
+        assertDeleteWire(imap.commands, trash);
+        expect(imap.commands.slice(moved).map(nameOf)).toEqual(expect.arrayContaining(['EXAMINE', 'LOGOUT']));
+        expect(imap.commands.map(nameOf).filter((name) => name === 'SELECT')).toHaveLength(2);
+        expect(imap.commands.map(nameOf).filter((name) => name === 'UID MOVE')).toHaveLength(2);
+
+        const after = seenFlags(folders);
+
+        for (const [entry, seen] of Object.entries(after).filter(([entry]) => entry in before)) {
+            expect(seen).toBe(before[entry]);
+        }
+    });
+
+    it.each([false, true])('sends no SELECT, COPY, STORE or EXPUNGE to a server without MOVE (gmail: %s)', async (gmail) => {
+        const { client, imap } = await setupWrite(gmail, { fake: { noMove: true } });
+        const ids = [encodeMailId({
+            account: 'work', 
+            folder: 'INBOX', 
+            uidValidity: '42', 
+            uid: 1,
+        })];
+
+        await expect(client.describe(ids)).rejects.toThrow('move not supported');
+        await expect(client.trash(ids)).rejects.toThrow('move not supported');
+        await client.close();
+
+        const names = imap.commands.map(nameOf);
+
+        assertWriteWire(imap.commands, '');
+        assertDeleteWire(imap.commands, '');
+        expect(names).not.toContain('SELECT');
+        expect(names).not.toContain('UID MOVE');
+    });
+});

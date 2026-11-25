@@ -78,6 +78,37 @@ export type MailSendResult = {
     refused: string[];
 };
 
+/** A mail a delete would move, as its approval shows it. */
+export type MailDeleteItem = {
+    id: string;
+    folder: string;
+    /** The From addresses, cut at `MAIL_ADDRESSES_MAX_CHARS`. */
+    from: string;
+    /** Cut at `MAIL_SUBJECT_MAX_CHARS`. */
+    subject: string;
+    /** ISO date: the Date header, else INTERNALDATE. */
+    date: string;
+};
+
+/** The mails of a delete, in input order. */
+export type MailDeleteListing = {
+    account: string;
+    /** The path of the account's `\Trash` folder. */
+    trash: string;
+    mails: MailDeleteItem[];
+    /** Ids whose mail is gone or whose folder changed UIDVALIDITY. */
+    missing: string[];
+};
+
+export type MailDeleteResult = {
+    account: string;
+    trash: string;
+    /** Ids moved to the trash, in input order. */
+    moved: string[];
+    /** Ids whose mail was gone (already moved, deleted elsewhere) or whose folder changed UIDVALIDITY. */
+    missing: string[];
+};
+
 /** The SMTP envelope of a send. */
 export type MailEnvelope = {
     from: string;
@@ -105,6 +136,18 @@ export interface IMailWriteClient {
      * cannot send or has no `\Sent`. A failed search throws.
      */
     findSent(account: string, lookup: { key: string; messageId: string }, signal?: AbortSignal): Promise<MailSendResult | undefined>;
+    /**
+     * The mails `ids` name (EXAMINE only), deduplicated, in input order. A ValidationError, before any folder is
+     * opened, for ids of two accounts, an unknown account, an unlisted folder or a folder that is the trash;
+     * `move not supported` without the MOVE capability, `no trash folder` without a `\Trash` folder.
+     */
+    describe(ids: string[], signal?: AbortSignal): Promise<MailDeleteListing>;
+    /**
+     * Moves the mails `ids` to the account's `\Trash` folder (`UID MOVE`, one per folder, each right after its
+     * SELECT), with `describe`'s checks. A failed move throws; folders moved before stay moved, and a retry
+     * reports their ids as missing.
+     */
+    trash(ids: string[], signal?: AbortSignal): Promise<MailDeleteResult>;
     /** The headers a reply to the mail `id` takes (EXAMINE, never SELECT). */
     replyHeaders(id: string, signal?: AbortSignal): Promise<MailReplyHeaders>;
     /** Logs out of every account. */

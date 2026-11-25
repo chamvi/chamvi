@@ -8,6 +8,9 @@
 export { createMailWriteClient } from './module.ts';
 export type {
     IMailWriteClient,
+    MailDeleteItem,
+    MailDeleteListing,
+    MailDeleteResult,
     MailReplyHeaders,
     MailSendRequest,
     MailSendResult,

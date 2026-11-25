@@ -25,8 +25,11 @@ import { normalizeSmtp } from './asserts.ts';
 import { composeMail, withoutBcc } from './compose.ts';
 import { appendSent, findSentMail } from './sent.ts';
 import { sendSmtp } from './smtp.ts';
+import { describeMails, mailDeleteTargetsOf, trashMails } from './trash.ts';
 import type {
     IMailWriteClient,
+    MailDeleteListing,
+    MailDeleteResult,
     MailReplyHeaders,
     MailSendRequest,
     MailSendResult,
@@ -117,6 +120,18 @@ class MailWriteClient implements IMailWriteClient {
         } : undefined;
     }
 
+    async describe(ids: string[], signal?: AbortSignal): Promise<MailDeleteListing> {
+        const { account, targets } = mailDeleteTargetsOf(ids);
+
+        return describeMails(this.pool, this.known(account, 'ids'), targets, signal);
+    }
+
+    async trash(ids: string[], signal?: AbortSignal): Promise<MailDeleteResult> {
+        const { account, targets } = mailDeleteTargetsOf(ids);
+
+        return trashMails(this.pool, this.known(account, 'ids'), targets, signal);
+    }
+
     async replyHeaders(id: string, signal?: AbortSignal): Promise<MailReplyHeaders> {
         const parts = parseMailId(id);
         const account = this.known(parts.account, 'inReplyTo');
@@ -184,7 +199,8 @@ class MailWriteClient implements IMailWriteClient {
 
 /**
  * A mail client that writes: sends over SMTP (one nodemailer transport per send) and files the mail in Sent
- * over IMAP (APPEND); every other open is EXAMINE. A call runs at most `timeoutMs` (default 30 s) on the clock.
+ * over IMAP (APPEND), and moves mails to the `\\Trash` folder (SELECT right before each `UID MOVE`, never
+ * CLOSE, refused without the MOVE capability); every other open is EXAMINE. A call runs at most `timeoutMs` (default 30 s) on the clock.
  * InvalidAgentDefinitionError for bad accounts or SMTP settings, without echoing any value.
  */
 export function createMailWriteClient(accounts: MailWriteAccount[], options: MailClientOptions = {}): IMailWriteClient {

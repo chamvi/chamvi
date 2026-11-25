@@ -67,11 +67,15 @@ export type FakeImapOptions = {
     appendFails?: boolean;
     /** Called with each command line as it arrives, before any answer. */
     onCommand?: (line: string) => void;
+    /** A folder path whose `UID MOVE` answers NO (nothing moved). */
+    moveFails?: string;
 };
 
 export type FakeImap = {
     port: number;
     commands: string[];
+    /** The options the server reads per command (changeable during a test; the capabilities stay). */
+    options: FakeImapOptions;
     /** Sockets that ended or closed. */
     closed: () => number;
     close: () => Promise<void>;
@@ -335,7 +339,8 @@ function store(folder: FakeFolder, command: string): void {
 }
 
 function fetchResponse(folder: FakeFolder, command: string, gmail: boolean): string[] {
-    const match = /UID FETCH (\S+) \((.*)\)$/i.exec(command);
+    // a list of items in parentheses, or a single item without them (`UID FETCH 1 UID`)
+    const match = /UID FETCH (\S+) (?:\((.*)\)|(\S+))$/i.exec(command);
 
     if (!match) {
         return [];
@@ -343,7 +348,7 @@ function fetchResponse(folder: FakeFolder, command: string, gmail: boolean): str
 
     const messages = folder.messages ?? [];
     const uids = uidSet(match[1]!, Math.max(0, ...messages.map((message) => message.uid)));
-    const items = match[2]!;
+    const items = match[2] ?? match[3]!;
     const lines: string[] = [];
     // a fetch of a body section that is not BODY.PEEK sets \Seen, as a real server does (RFC 3501 6.4.5)
     const marks = SEEN_ITEMS.test(items);
@@ -495,6 +500,51 @@ function unquote(value: string): string {
     }
 
     return trimmed;
+}
+
+/**
+ * `UID MOVE <set> <dest>` (RFC 6851): the present messages go to `dest` under new uids, answered by
+ * `* OK [COPYUID ...]`, one `* <seq> EXPUNGE` per moved message (highest first) and OK.
+ */
+function move(options: FakeImapOptions, selected: FakeFolder | undefined, line: string, tag: string): string {
+    const match = /^\S+ UID MOVE (\S+) ("(?:[^"\\]|\\.)*"|\S+)$/i.exec(line);
+
+    if (!selected || !match || options.noMove) {
+        return `${tag} BAD move\r\n`;
+    }
+
+    const destination = options.folders.find((folder) => folder.path === unquote(match[2]!));
+
+    if (!destination || options.moveFails === selected.path) {
+        return `${tag} NO [CANNOT] move refused\r\n`;
+    }
+
+    const messages = selected.messages ?? [];
+    const uids = uidSet(match[1]!, Math.max(0, ...messages.map((message) => message.uid)));
+    const moving = messages
+        .map((message, index) => ({ message, seq: index + 1 }))
+        .filter((entry) => uids.has(entry.message.uid));
+
+    if (moving.length === 0) {
+        return `${tag} OK nothing moved\r\n`;
+    }
+
+    destination.messages ??= [];
+
+    let next = Math.max(0, ...destination.messages.map((message) => message.uid)) + 1;
+    const target: number[] = [];
+
+    for (const { message } of moving) {
+        target.push(next);
+        destination.messages.push({ ...message, uid: next++ });
+    }
+
+    selected.messages = messages.filter((message) => !uids.has(message.uid));
+
+    const source = moving.map((entry) => entry.message.uid).join(',');
+    const expunged = moving.map((entry) => entry.seq).sort((a, b) => b - a).map((seq) => `* ${seq} EXPUNGE\r\n`);
+
+    return `* OK [COPYUID ${destination.uidValidity ?? 42} ${source} ${target.join(',')}] moved\r\n${expunged.join('')}${tag} OK done\r\n`;
 }
 
 /** An in-process IMAP server on 127.0.0.1 answering the commands imapflow sends; records every command line. */
@@ -665,6 +715,10 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
                         ok();
 
                         break;
+                    case 'UID MOVE':
+                        write(move(options, selected, line, tag!));
+
+                        break;
                     case 'UID STORE':
                         if (selected) {
                             store(selected, line);
@@ -720,6 +774,7 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
     return {
         port: (server.address() as AddressInfo).port,
         commands,
+        options,
         closed: () => closed,
         close: async () => {
             for (const socket of sockets) {
