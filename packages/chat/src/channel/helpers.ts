@@ -19,6 +19,13 @@ import { isChatIngress } from '../ingress/module.ts';
 import type { ChatIngress } from '../ingress/types.ts';
 import type { ChatTarget } from '../subscription/types.ts';
 import {
+    CHAT_VOICE_LABEL,
+    CHAT_VOICE_MAX_BYTES,
+    CHAT_VOICE_MAX_SECONDS,
+    CHAT_VOICE_TIMEOUT_MS,
+} from '../voice/constants.ts';
+import type { ResolvedChatVoiceOptions } from '../voice/types.ts';
+import {
     CHANNEL_NAME_MAX_LENGTH,
     CHANNEL_NAME_PATTERN,
     CHAT_ADDRESS_PREFIX,
@@ -125,6 +132,50 @@ function resolveAnswers(answers: unknown): ResolvedChatAnswerOptions | undefined
     return {
         ...(model !== undefined ? { model: model as ResolvedChatAnswerOptions['model'] } : {}),
         timeoutMs,
+    };
+}
+
+/** The voice option with its defaults; undefined when off. Shape only: the model resolves on start. */
+function resolveVoice(voice: unknown): ResolvedChatVoiceOptions | undefined {
+    if (voice === undefined) {
+        return undefined;
+    }
+
+    if (!isObject(voice)) {
+        throw invalid('voice must be an object with a model.');
+    }
+
+    const { model } = voice;
+
+    if (!(typeof model === 'string' && model.length > 0) && !isObject(model)) {
+        throw invalid('voice.model must be a non-empty model string or a TranscriptionModel.');
+    }
+
+    const maxBytes = voice.maxBytes ?? CHAT_VOICE_MAX_BYTES;
+    const maxSeconds = voice.maxSeconds ?? CHAT_VOICE_MAX_SECONDS;
+    const timeoutMs = voice.timeoutMs ?? CHAT_VOICE_TIMEOUT_MS;
+    const label = voice.label ?? CHAT_VOICE_LABEL;
+
+    for (const [key, value] of [['maxBytes', maxBytes], ['maxSeconds', maxSeconds]] as const) {
+        if (!isPositiveInteger(value)) {
+            throw invalid(`voice.${key} must be a positive integer.`);
+        }
+    }
+
+    if (!isPositiveInteger(timeoutMs) || timeoutMs > TIMER_MAX_MS) {
+        throw invalid(`voice.timeoutMs must be a positive integer of at most ${TIMER_MAX_MS}.`);
+    }
+
+    if (typeof label !== 'string' || label.includes('\0')) {
+        throw invalid('voice.label must be a string without NUL.');
+    }
+
+    return {
+        model: model as ResolvedChatVoiceOptions['model'],
+        maxBytes: maxBytes as number,
+        maxSeconds: maxSeconds as number,
+        timeoutMs,
+        label,
     };
 }
 
@@ -251,6 +302,7 @@ export function resolveOptions(options: ChatChannelOptions): ResolvedChatChannel
         throw invalid('answers needs resolveInvoker: a reply answers only as the invoker it names.');
     }
 
+    const voice = resolveVoice(options.voice);
     const timeoutMs = options.timeoutMs ?? CHAT_TIMEOUT_MS;
 
     if (!isPositiveInteger(timeoutMs) || timeoutMs > TIMER_MAX_MS) {
@@ -292,6 +344,7 @@ export function resolveOptions(options: ChatChannelOptions): ResolvedChatChannel
         ...(options.resolveInvoker ? { resolveInvoker: options.resolveInvoker } : {}),
         ...(options.approvalUrl ? { approvalUrl: options.approvalUrl } : {}),
         ...(answers ? { answers } : {}),
+        ...(voice ? { voice } : {}),
         timeoutMs,
         maxTextChars,
         // eslint-disable-next-line no-console

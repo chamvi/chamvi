@@ -12,3 +12,4 @@ export * from './answer/index.ts';
 export * from './channel/index.ts';
 export * from './ingress/index.ts';
 export * from './subscription/index.ts';
+export * from './voice/index.ts';

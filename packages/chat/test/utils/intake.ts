@@ -11,6 +11,7 @@ import type {
     Agent,
     ConversationAccess,
     Engine,
+    IModelResolver,
     IRunService,
 } from '@chamvi/core';
 import type { Run } from '@chamvi/store';
@@ -51,6 +52,8 @@ export type IntakeFixtureInput = {
     adapterNames?: string[];
     /** another fixture's engine whose store and clock this one shares (a replica) */
     replicaOf?: Engine;
+    /** the engine's model resolver; none by default */
+    models?: IModelResolver;
 };
 
 /** A chat channel with the real intake over the fake adapter, on an Engine with a memory store (conversations included). */
@@ -85,6 +88,7 @@ export function createIntakeFixture(input: IntakeFixtureInput): IntakeFixture {
         channels: [channel],
         clock,
         ...(input.replicaOf ? { replicaOf: input.replicaOf } : {}),
+        ...(input.models ? { models: input.models } : {}),
         conversations: {
             authorize: (item) => {
                 access.push(item);

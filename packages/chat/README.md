@@ -224,6 +224,20 @@ Approvals (`ctx.channels.findOneOrFail('chat').approve()`) send a text with the 
 - Anything else (an unclear reply, a group message, a sender without the permission, a store failure before the answer, reported to `onError`) starts runs as usual.
 - Approvals to a group chat (the adapter's `isDM` is not true), with options, and trust-gate approvals (`generic`), are not answerable in the chat, still need `approvalUrl` and are cut as without `answers`; an answerable approval ends with `Reply to this message to approve or deny.` (`CHAT_ANSWER_HINT`; without quote matching `Send a new message here (not a reply) to approve or deny.`, `CHAT_ANSWER_HINT_PLAIN`) and needs no link. An answerable approval is never cut: one that does not fit `maxTextChars` is refused before the run waits (the channel's `fits`), so the tool's `approve()` fails with a `ValidationError`; keep its title and body within the chat's limit. A reply answers an approval only if it renders whole under the channel's current options; raising `maxTextChars` or dropping `approvalUrl` can make an approval sent cut before the change answerable, so change those settings with no approvals open.
 
+## Voice messages
+
+`chatChannel({ voice: { model: 'stt/whisper-large-v3-turbo' } })` (off by default) transcribes a message whose only attachment is one audio file the platform can download, after `allowMessage` and `resolveInvoker`, and handles it as a text message: `[Voice message] ` plus the transcript. The model is a transcription model string resolved by the app's model resolver (or a `TranscriptionModel`) and must resolve when the channel starts. Options:
+
+| Option | Default | |
+|---|---|---|
+| `model` | required | A `'<provider>/<model id>'` string or a `TranscriptionModel` |
+| `maxBytes` | `CHAT_VOICE_MAX_BYTES` (10 MiB) | The largest note, by the platform's reported size before the download and by the downloaded body |
+| `maxSeconds` | `CHAT_VOICE_MAX_SECONDS` (300) | The longest note by its reported duration, checked before the download |
+| `timeoutMs` | `CHAT_VOICE_TIMEOUT_MS` (60 s) | Download and transcription together, on the engine's clock |
+| `label` | `CHAT_VOICE_LABEL` (`'[Voice message] '`) | Put before the transcript |
+
+A note that is too long or too large gets `Voice message too long: at most <N> minutes.`, one that cannot be transcribed `I could not understand the voice message.`; neither starts a run. The audio is never stored; at most two notes per channel are transcribed at once.
+
 ## Memory
 
 An agent with `conversation: true` gets one memory per chat through core's [conversation memory](https://chamvi.dev/guide/conversations): the channel binds each message through the engine's trusted conversation intake, never through a payload field. It needs the engine's conversation service (`conversationService`, on memory or `@chamvi/store-db` repositories) and the engine's `conversations: { authorize }` (`createApp({ conversations })`). The identity is the channel, the `account` alias, the chat and an audience: `direct:<sender>` for a direct chat, `group:<channel id>` for a group, so a group shares one memory among its members. Accepted message text and replies emitted to the source chat are remembered; `history: 0` is the only setting (no platform history is fetched). A platform package may name its own identity (`IChatPlatform.conversationTarget`).
@@ -234,7 +248,7 @@ Every run a chat channel starts is tainted (`untrusted: true` by default; `false
 
 ## Limits
 
-- Text only: a message with attachments or without text is refused (reported, no run). No media download.
+- Text only: a message with attachments or without text is refused (reported, no run), except a voice message with `voice`, which is transcribed into text. No other media download.
 - No history (`history: 0`), no message splitting: a message above `maxTextChars` (default `CHAT_TEXT_MAX_CHARS`, 4096 UTF-16 code units) is refused; an approval cuts only its prose (one answerable in the chat is refused instead).
 - `ChannelMessage.slot` is ignored: every message is a new chat message.
 - Delivery is at least once: a send is bounded by `timeoutMs` (default `CHAT_TIMEOUT_MS`, 30 s); a send that times out may still be delivered and a retry may send it again. A send while the channel is stopped or draining fails.
@@ -262,8 +276,8 @@ export default createApp({
 | Export | Entry |
 |---|---|
 | `chatChannel(options)`, `createChatIngressAdapter(adapter)`, `chat`, `chatAddress()`, `createChatSubscription()` | `@chamvi/chat` |
-| Types `ChatChannelOptions`, `ChatChannel`, `ChatPayload`, `ChatEvent`, `ChatIncoming`, `ChatIngress`, `ChatApprovalRef`, `IChatPlatform`, `ChatPlatformSend`, `ChatPlatformPost` | `@chamvi/chat` |
-| `CHAT_CHANNEL_NAME` `'chat'`, `CHAT_TEXT_MAX_CHARS` 4096, `CHAT_TIMEOUT_MS` 30 000, `CHAT_BODY_LIMIT_BYTES` 1 MiB, `CHAT_WEBHOOK_TIMEOUT_MS` 30 000, `CHAT_STOP_TIMEOUT_MS` 30 000, `CHAT_EVENTS`, `DEFAULT_CHAT_EVENTS`, `CHAT_ADDRESS_PREFIX` | `@chamvi/chat` |
+| Types `ChatChannelOptions`, `ChatChannel`, `ChatPayload`, `ChatEvent`, `ChatIncoming`, `ChatIngress`, `ChatApprovalRef`, `IChatPlatform`, `ChatPlatformSend`, `ChatPlatformPost`, `ChatVoiceOptions`, `ChatVoicePayload`, `ChatAudioAttachment` | `@chamvi/chat` |
+| `CHAT_CHANNEL_NAME` `'chat'`, `CHAT_TEXT_MAX_CHARS` 4096, `CHAT_TIMEOUT_MS` 30 000, `CHAT_BODY_LIMIT_BYTES` 1 MiB, `CHAT_WEBHOOK_TIMEOUT_MS` 30 000, `CHAT_STOP_TIMEOUT_MS` 30 000, `CHAT_EVENTS`, `DEFAULT_CHAT_EVENTS`, `CHAT_ADDRESS_PREFIX`, `CHAT_VOICE_MAX_BYTES` 10 MiB, `CHAT_VOICE_MAX_SECONDS` 300, `CHAT_VOICE_TIMEOUT_MS` 60 000, `CHAT_VOICE_LABEL` | `@chamvi/chat` |
 | Error codes `chat_request`, `chat_intake_failed`, `chat_stop_timeout` (`CHAT_*_ERROR_CODE`) | `@chamvi/chat` |
 | `chatModule(options)`, `ChatModule` | `@chamvi/chat/module` |
 
