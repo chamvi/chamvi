@@ -10,3 +10,6 @@ export const EFFECT: unique symbol = Symbol.for('chamvi.effect');
 
 /** Key under which the effectKey/alreadyApplied hooks hang off an effect tool. */
 export const EFFECT_HOOKS: unique symbol = Symbol.for('chamvi.effect.hooks');
+
+/** The longest name of a once() value. */
+export const ONCE_NAME_MAX_LENGTH = 128;

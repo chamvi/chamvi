@@ -181,6 +181,7 @@ function approvingHandle(decision: ApprovalDecision, requests: ApprovalRequestIn
     return {
         name: 'github',
         emit: async () => undefined,
+        direct: async () => false,
         async approve(request) {
             requests.push(request);
 

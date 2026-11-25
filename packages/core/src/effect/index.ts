@@ -5,8 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export { EFFECT } from './constants.ts';
+export { EFFECT, ONCE_NAME_MAX_LENGTH } from './constants.ts';
 export * from './define.ts';
+export { once } from './once.ts';
 export * from './service.ts';
 export type {
     EffectResult,

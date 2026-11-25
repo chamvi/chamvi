@@ -229,6 +229,7 @@ describe('public api', () => {
         'effectMarker',
         'approve',
         'outboundApproved',
+        'once',
         'toolLimitApproved',
         'runSource',
         'ChamviError',
@@ -566,6 +567,8 @@ describe('public api', () => {
     it('exports the approval timeout bounds', () => {
         expect(core.DEFAULT_APPROVAL_TIMEOUT_MS).toBe(24 * 60 * 60 * 1000);
         expect(core.APPROVAL_TIMEOUT_MAX_MS).toBe(2 ** 31 - 1);
+        expect(core.ONCE_NAME_MAX_LENGTH).toBe(128);
+        expectTypeOf<core.ChannelHandle['direct']>().toEqualTypeOf<() => Promise<boolean>>();
     });
 
     it('exports the approval option limits', () => {
