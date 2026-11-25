@@ -96,7 +96,8 @@ describe('public api', () => {
         expectTypeOf<mail.MailSendResult>().toEqualTypeOf<{
             account: string; 
             messageId: string; 
-            filed: boolean 
+            filed: boolean;
+            refused: string[] 
         }>();
         expectTypeOf<mail.MailReplyHeaders>().toEqualTypeOf<{
             messageId: string;

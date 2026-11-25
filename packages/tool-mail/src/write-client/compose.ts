@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/core';
 import { createTransport } from 'nodemailer';
 import { MAIL_EFFECT_HEADER } from './constants.ts';
 import type { MailSendRequest, MailSmtpAccount } from './types.ts';
@@ -14,6 +15,11 @@ import type { MailSendRequest, MailSmtpAccount } from './types.ts';
  * Sent. `withoutBcc()` gives the bytes that are transmitted. Nothing is read from a file or a URL.
  */
 export async function composeMail(account: MailSmtpAccount, request: MailSendRequest, date: Date): Promise<Buffer> {
+    // a backstop: the tool derives both, a line break would start a header of its own
+    if (/[\r\n]/.test(request.marker) || /[\r\n]/.test(request.messageId)) {
+        throw new ValidationError('mail_send: the marker and the Message-ID must not hold a line break.');
+    }
+
     const transport = createTransport({
         streamTransport: true,
         buffer: true,

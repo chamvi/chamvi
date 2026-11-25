@@ -119,6 +119,7 @@ describe('the write client: sending', () => {
             account: 'work',
             messageId: MESSAGE_ID,
             filed: true,
+            refused: [],
         });
 
         const filed = folderOf(folders, 'Sent').messages!.at(-1)!;
@@ -211,6 +212,7 @@ describe('the write client: sending', () => {
             account: 'work',
             messageId: MESSAGE_ID,
             filed: true,
+            refused: [],
         });
         expect(smtp.messages).toHaveLength(1);
         expect(imap.commands.some((command) => / APPEND /.test(command))).toBe(false);
@@ -229,6 +231,51 @@ describe('the write client: sending', () => {
         expect(imap.commands.some((command) => / APPEND /.test(command))).toBe(false);
     });
 
+    it('reports the recipients the server refused and sends to the others', async () => {
+        const { smtp, client } = await setupWrite(false, { smtp: { rejectRecipient: /carol/ } });
+
+        expect(await client.send(request())).toEqual({
+            account: 'work',
+            messageId: MESSAGE_ID,
+            filed: true,
+            refused: ['carol@z.test'],
+        });
+        expect(smtp.messages).toHaveLength(1);
+        expect(smtp.messages[0]!.to).toEqual(['alice@x.test', 'dave@w.test']);
+    });
+
+    it('files the Sent copy even when the run is aborted after the SMTP accept', async () => {
+        const controller = new AbortController();
+        const {
+            smtp, 
+            client, 
+            folders, 
+        } = await setupWrite(false, {
+            fake: {
+                onCommand: (line) => {
+                    if (/ LOGIN /.test(line)) {
+                        controller.abort(new Error('drain'));
+                    }
+                },
+            },
+        });
+
+        expect((await client.send(request(), controller.signal)).filed).toBe(true);
+        expect(controller.signal.aborted).toBe(true);
+        expect(smtp.messages).toHaveLength(1);
+        expect(folderOf(folders, 'Sent').messages!.at(-1)!.messageId).toBe(MESSAGE_ID);
+    });
+
+    it.each([
+        ['a marker', { marker: '<!-- chamvi:effect=x -->\r\nBcc: eve@x.test' }],
+        ['a Message-ID', { messageId: '<a@y.test>\nBcc: eve@x.test' }],
+    ])('refuses %s with a line break before any SMTP traffic', async (_, extra) => {
+        const { smtp, client } = await setupWrite(false);
+
+        await expect(client.send(request(extra))).rejects.toBeInstanceOf(ValidationError);
+        expect(smtp.commands).toEqual([]);
+    });
+
     it('answers filed: false when the APPEND is refused, and does not throw', async () => {
         const { smtp, client } = await setupWrite(false, { fake: { appendFails: true } });
 
@@ -236,6 +283,7 @@ describe('the write client: sending', () => {
             account: 'work',
             messageId: MESSAGE_ID,
             filed: false,
+            refused: [],
         });
         expect(smtp.messages).toHaveLength(1);
     });
@@ -266,10 +314,26 @@ describe('the write client: finding a sent mail', () => {
             account: 'work',
             messageId: MESSAGE_ID,
             filed: true,
+            refused: [],
         });
-        expect(await client.findSent('work', { key: 'run-1:mail_send:other', messageId: MESSAGE_ID })).toBeUndefined();
-        expect(imap.commands.some((command) => /UID SEARCH HEADER X-CHAMVI-EFFECT /i.test(command))).toBe(true);
+        expect(await client.findSent('work', { key: 'run-1:mail_send:other', messageId: '<other.chamvi@y.test>' })).toBeUndefined();
+        expect(imap.commands.some((command) => /UID SEARCH OR HEADER X-CHAMVI-EFFECT \S+ HEADER MESSAGE-ID /i.test(command))).toBe(true);
         expect(imap.commands.some((command) => / EXAMINE "?Sent"?$/.test(command))).toBe(true);
+    });
+
+    it('finds a sent mail by its Message-ID on a server that does not index custom headers', async () => {
+        const folders = genericFolders();
+
+        folderOf(folders, 'Sent').messages!.push({ uid: 8, messageId: MESSAGE_ID });
+
+        const { client } = await setupWrite(false, { fake: { folders } });
+
+        expect(await client.findSent('work', { key: KEY, messageId: MESSAGE_ID })).toEqual({
+            account: 'work',
+            messageId: MESSAGE_ID,
+            filed: true,
+            refused: [],
+        });
     });
 
     it('finds a sent mail by its Message-ID on Gmail', async () => {
@@ -283,6 +347,7 @@ describe('the write client: finding a sent mail', () => {
             account: 'work',
             messageId: MESSAGE_ID,
             filed: true,
+            refused: [],
         });
         expect(await client.findSent('work', { key: KEY, messageId: '<other.chamvi@y.test>' })).toBeUndefined();
         expect(imap.commands.some((command) => / UID SEARCH X-GM-RAW "?rfc822msgid:</.test(command))).toBe(true);
@@ -361,6 +426,31 @@ describe('the write client: failures', () => {
 
         expect(error.code).toBe(MAIL_REQUEST_ERROR_CODE);
         expect(error.message).toBe('mail_send: work: timed out');
+    });
+
+    it('says the mail may have been sent when the 250 after the handed-over message never comes', async () => {
+        const clock = new ControllableClock();
+        const { client, smtp } = await setupWrite(false, { clock, smtp: { holdMessage: true } });
+        const pending = rejection(client.send(request()));
+
+        await expect.poll(() => smtp.messages.length).toBe(1);
+        clock.advance(MAIL_TIMEOUT_MS);
+
+        const error = await pending;
+
+        expect(error.code).toBe(MAIL_REQUEST_ERROR_CODE);
+        expect(error.message).toBe('mail_send: work: timed out after the message was handed over; it may have been sent');
+    });
+
+    it('says the mail may have been sent on an abort after the message was handed over', async () => {
+        const { client, smtp } = await setupWrite(false, { smtp: { holdMessage: true } });
+        const controller = new AbortController();
+        const pending = rejection(client.send(request(), controller.signal));
+
+        await expect.poll(() => smtp.messages.length).toBe(1);
+        controller.abort(new Error('stop'));
+
+        expect((await pending).message).toBe('mail_send: work: timed out after the message was handed over; it may have been sent');
     });
 
     it('rethrows the reason of an aborted signal', async () => {

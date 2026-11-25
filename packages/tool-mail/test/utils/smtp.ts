@@ -15,6 +15,8 @@ export type FakeSmtpOptions = {
     hold?: RegExp;
     /** RCPT TO addresses matching it are refused with 550. */
     rejectRecipient?: RegExp;
+    /** Records a message but never answers its end (`.`): the client handed it over and waits for the 250. */
+    holdMessage?: boolean;
 };
 
 export type FakeSmtpMessage = {
@@ -104,7 +106,10 @@ export async function createFakeSmtp(options: FakeSmtpOptions = {}): Promise<Fak
                             raw: data.map((entry) => `${entry}\r\n`).join(''), 
                         });
                         data = undefined;
-                        write('250 2.0.0 queued\r\n');
+
+                        if (!options.holdMessage) {
+                            write('250 2.0.0 queued\r\n');
+                        }
                     } else {
                         data.push(line.startsWith('.') ? line.slice(1) : line);
                     }

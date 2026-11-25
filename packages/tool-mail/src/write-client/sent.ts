@@ -24,16 +24,17 @@ export function sentFolderOf(listed: ListResponse[]): string | undefined {
 
 /**
  * APPENDs `raw` to the account's `\Sent` folder with `\Seen`. Never throws: it runs after the SMTP accept, and a
- * throw would invite a second send. False when there is no `\Sent` folder or anything failed.
+ * throw would invite a second send. False when there is no `\Sent` folder or anything failed. Bounded by the
+ * clock timeout only, never the run's signal: a drain or cancel after the accept still files the copy a replay's
+ * `findSent` looks for.
  */
 export async function appendSent(
     pool: MailConnectionPool,
     account: MailSmtpAccount,
     raw: Buffer,
-    signal?: AbortSignal,
 ): Promise<boolean> {
     try {
-        return await pool.run('mail_send', account, signal, async (connection) => {
+        return await pool.run('mail_send', account, undefined, async (connection) => {
             const sent = sentFolderOf(await pool.folders(connection, account));
 
             if (!sent) {
@@ -49,7 +50,7 @@ export async function appendSent(
 
 /**
  * Whether the account's `\Sent` folder (EXAMINE) holds the mail of `lookup`: generic accounts by the
- * X-Chamvi-Effect header, Gmail by Message-ID (Gmail does not index custom headers). False without a `\Sent`
+ * X-Chamvi-Effect header or the Message-ID, Gmail by Message-ID (Gmail does not index custom headers). False without a `\Sent`
  * folder; a failed search throws.
  */
 export async function findSentMail(
@@ -67,7 +68,8 @@ export async function findSentMail(
 
         const criteria: SearchObject = account.gmail ?
             { gmraw: `rfc822msgid:${lookup.messageId}` } :
-            { header: { [MAIL_EFFECT_HEADER]: lookup.key } };
+            // the derived Message-ID too: not every server indexes custom headers
+            { or: [{ header: { [MAIL_EFFECT_HEADER]: lookup.key } }, { header: { 'Message-ID': lookup.messageId } }] };
 
         return openMailFolder(connection, sent, async () => {
             const uids = await connection.search(criteria, { uid: true });

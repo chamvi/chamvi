@@ -6,7 +6,7 @@
  */
 
 import type { IClock } from '@chamvi/core';
-import { ValidationError } from '@chamvi/core';
+import { ChamviError, ValidationError } from '@chamvi/core';
 import { requestError } from '../client/asserts.ts';
 import { MAIL_STALE_ID_MESSAGE, MAIL_THREAD_MAX_REFERENCES } from '../client/constants.ts';
 import { isAllowedFolder } from '../client/folders.ts';
@@ -76,22 +76,27 @@ class MailWriteClient implements IMailWriteClient {
 
         try {
             copy = await composeMail(account, request, new Date(this.timing.clock.now()));
-        } catch {
+        } catch (error) {
+            if (error instanceof ChamviError) {
+                throw error;
+            }
+
             throw requestError('mail_send', account.id, 'request failed');
         }
 
-        await sendSmtp(account, withoutBcc(copy), {
-            from: account.address,
-            to: [...request.to, ...request.cc ?? [], ...request.bcc ?? []],
-        }, this.timing, signal);
+        const recipients = [...request.to, ...request.cc ?? [], ...request.bcc ?? []];
+        const rejected = await sendSmtp(account, withoutBcc(copy), { from: account.address, to: recipients }, this.timing, signal);
+        // the request's own addresses only, never what the server wrote
+        const refused = recipients.filter((address) => rejected.has(address.toLowerCase()));
 
         // accepted: from here on nothing throws. Gmail files what it sends itself; elsewhere the copy (with Bcc) is APPENDed
-        const filed = account.gmail || await appendSent(this.pool, account, copy, signal);
+        const filed = account.gmail || await appendSent(this.pool, account, copy);
 
         return {
             account: account.id,
             messageId: request.messageId,
             filed,
+            refused,
         };
     }
 
@@ -107,7 +112,8 @@ class MailWriteClient implements IMailWriteClient {
         return found ? {
             account: account.id, 
             messageId: lookup.messageId, 
-            filed: true, 
+            filed: true,
+            refused: [],
         } : undefined;
     }
 

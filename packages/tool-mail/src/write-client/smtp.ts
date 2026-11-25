@@ -8,6 +8,7 @@
 import type { ClockTimer, IClock } from '@chamvi/core';
 import { ChamviError } from '@chamvi/core';
 import { createTransport } from 'nodemailer';
+import { isObject } from 'smob';
 import { requestError } from '../client/asserts.ts';
 import { MAIL_TIMEOUT_MS } from '../client/constants.ts';
 import { MAIL_REQUEST_ERROR_CODE } from '../errors/constants.ts';
@@ -15,9 +16,26 @@ import type { MailEnvelope, MailSmtpAccount } from './types.ts';
 
 const TIMED_OUT = Symbol('timed out');
 
-/** One transport per call, closed after it; the timeouts are a real-time backstop, the clock race decides. */
-function transportOf(account: MailSmtpAccount, timeoutMs: number) {
+const HANDED_OVER = 'timed out after the message was handed over; it may have been sent';
+
+/** The nodemailer failures that mean the connection broke or stalled, not that the server refused. */
+const CONNECTION_CODES = new Set(['ECONNECTION', 'ESOCKET', 'ETIMEDOUT', 'EDNS']);
+
+/**
+ * One transport per call, closed after it; the timeouts are a real-time backstop, the clock race decides.
+ * `onHandedOver` is called once the message stream (DATA and its terminator) ended: the transport's logger is
+ * the only place nodemailer reports it. The logger reads nothing else, stores nothing and never sees content
+ * (`debug` stays off).
+ */
+function transportOf(account: MailSmtpAccount, timeoutMs: number, onHandedOver?: () => void) {
     const { security } = account.smtp;
+    const logger = {
+        info: (entry: unknown) => {
+            if (isObject(entry) && entry.tnx === 'message' && 'outByteCount' in entry) {
+                onHandedOver?.();
+            }
+        },
+    };
 
     return createTransport({
         host: account.smtp.host,
@@ -29,7 +47,7 @@ function transportOf(account: MailSmtpAccount, timeoutMs: number) {
         connectionTimeout: timeoutMs,
         greetingTimeout: timeoutMs,
         socketTimeout: timeoutMs,
-        logger: false,
+        logger: onHandedOver ? logger : false,
         debug: false,
         disableFileAccess: true,
         disableUrlAccess: true,
@@ -37,15 +55,17 @@ function transportOf(account: MailSmtpAccount, timeoutMs: number) {
 }
 
 /** The fixed reason of a nodemailer failure, never its text (which may quote the server). */
-function reasonOf(error: unknown): string {
-    switch ((error as { code?: unknown } | undefined)?.code) {
+function reasonOf(error: unknown, handedOver: boolean): string {
+    const code = (error as { code?: unknown } | undefined)?.code;
+
+    if (typeof code === 'string' && CONNECTION_CODES.has(code)) {
+        // after the hand-over a broken connection may have lost only the 250
+        return handedOver ? HANDED_OVER : 'cannot connect';
+    }
+
+    switch (code) {
         case 'EAUTH':
             return 'login failed';
-        case 'ECONNECTION':
-        case 'ESOCKET':
-        case 'ETIMEDOUT':
-        case 'EDNS':
-            return 'cannot connect';
         case 'EENVELOPE':
             return 'recipient refused';
         default:
@@ -55,7 +75,9 @@ function reasonOf(error: unknown): string {
 
 /**
  * Sends the raw message to `envelope` over SMTP, raced against `timeoutMs` on the clock and the signal (an
- * abort rethrows its reason). Failures are `requestError('mail_send', account, reason)` with a fixed reason.
+ * abort rethrows its reason). Failures are `requestError('mail_send', account, reason)` with a fixed reason; a
+ * timeout, an abort or a broken connection after the message was handed over (before the server's 250) says it
+ * may have been sent. Resolves with the lower-cased recipients the server refused.
  */
 export async function sendSmtp(
     account: MailSmtpAccount,
@@ -63,11 +85,14 @@ export async function sendSmtp(
     envelope: MailEnvelope,
     timing: { clock: IClock; timeoutMs: number },
     signal?: AbortSignal,
-): Promise<void> {
+): Promise<Set<string>> {
     signal?.throwIfAborted();
 
+    let handedOver = false;
     const controller = new AbortController();
-    const transport = transportOf(account, timing.timeoutMs);
+    const transport = transportOf(account, timing.timeoutMs, () => {
+        handedOver = true;
+    });
     let timer: ClockTimer | undefined;
     let onAbort: (() => void) | undefined;
     const interrupted = new Promise<never>((_, reject) => {
@@ -89,9 +114,15 @@ export async function sendSmtp(
     sending.catch(() => undefined);
 
     try {
-        await Promise.race([sending, interrupted]);
+        const info = await Promise.race([sending, interrupted]);
+
+        return new Set((info.rejected ?? []).map((address) => String(address).toLowerCase()));
     } catch (error) {
         controller.abort();
+
+        if (handedOver && (error === TIMED_OUT || signal?.aborted)) {
+            throw requestError('mail_send', account.id, HANDED_OVER);
+        }
 
         if (error === TIMED_OUT) {
             throw requestError('mail_send', account.id, 'timed out');
@@ -101,7 +132,7 @@ export async function sendSmtp(
             throw signal.reason;
         }
 
-        throw requestError('mail_send', account.id, reasonOf(error));
+        throw requestError('mail_send', account.id, reasonOf(error, handedOver));
     } finally {
         timer?.clear();
 

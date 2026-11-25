@@ -74,6 +74,8 @@ export type MailSendResult = {
     messageId: string;
     /** Whether a copy is in the account's Sent folder. */
     filed: boolean;
+    /** The request's recipients the SMTP server refused (the mail went to the others). */
+    refused: string[];
 };
 
 /** The SMTP envelope of a send. */
@@ -98,8 +100,9 @@ export interface IMailWriteClient {
      */
     send(request: MailSendRequest, signal?: AbortSignal): Promise<MailSendResult>;
     /**
-     * The sent mail of `lookup` in the account's `\Sent` folder (generic: by X-Chamvi-Effect, Gmail: by
-     * Message-ID); undefined when absent, when the account cannot send or has no `\Sent`. A failed search throws.
+     * The sent mail of `lookup` in the account's `\Sent` folder (generic: by X-Chamvi-Effect or Message-ID, for
+     * servers that do not index custom headers; Gmail: by Message-ID); undefined when absent, when the account
+     * cannot send or has no `\Sent`. A failed search throws.
      */
     findSent(account: string, lookup: { key: string; messageId: string }, signal?: AbortSignal): Promise<MailSendResult | undefined>;
     /** The headers a reply to the mail `id` takes (EXAMINE, never SELECT). */

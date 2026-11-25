@@ -65,6 +65,8 @@ export type FakeImapOptions = {
     noMove?: boolean;
     /** Answers APPEND with NO (after reading its literal). */
     appendFails?: boolean;
+    /** Called with each command line as it arrives, before any answer. */
+    onCommand?: (line: string) => void;
 };
 
 export type FakeImap = {
@@ -424,6 +426,10 @@ function parseHeaders(raw: string): Record<string, string> {
 function headerOf(message: FakeMessage, name: string): string | undefined {
     const entry = Object.entries(message.headers ?? {}).find(([key]) => key.toLowerCase() === name.toLowerCase());
 
+    if (!entry && name.toLowerCase() === 'message-id') {
+        return message.messageId;
+    }
+
     return entry?.[1];
 }
 
@@ -451,16 +457,23 @@ function appended(raw: string, uid: number, flags: string[]): FakeMessage {
 }
 
 /**
- * The uids of a single-criterion search the write client sends: `HEADER <name> <value>` (substring,
- * case-insensitive name) or Gmail's `X-GM-RAW rfc822msgid:<id>` (atom or quoted); undefined for any other search.
+ * The uids of a search the write client sends: `HEADER <name> <value>` or `OR HEADER .. HEADER ..` of two
+ * (substring, case-insensitive name; Message-ID also from `messageId`) or Gmail's `X-GM-RAW rfc822msgid:<id>`
+ * (atom or quoted); undefined for any other search.
  */
 function lookup(messages: FakeMessage[], line: string): number[] | undefined {
-    const header = /^\S+ UID SEARCH HEADER (\S+) ("(?:[^"\\]|\\.)*"|\S+)$/i.exec(line);
+    const value = '("(?:[^"\\\\]|\\\\.)*"|\\S+)';
+    const header = new RegExp(`^\\S+ UID SEARCH HEADER (\\S+) ${value}$`, 'i').exec(line);
+    const either = new RegExp(`^\\S+ UID SEARCH OR HEADER (\\S+) ${value} HEADER (\\S+) ${value}$`, 'i').exec(line);
+    const matches = (message: FakeMessage, name: string, quoted: string) => headerOf(message, name)?.includes(unquote(quoted)) ?? false;
 
     if (header) {
-        const value = unquote(header[2]!);
+        return messages.filter((message) => matches(message, header[1]!, header[2]!)).map((message) => message.uid);
+    }
 
-        return messages.filter((message) => headerOf(message, header[1]!)?.includes(value)).map((message) => message.uid);
+    if (either) {
+        return messages.filter((message) => matches(message, either[1]!, either[2]!) || matches(message, either[3]!, either[4]!))
+            .map((message) => message.uid);
     }
 
     const gmail = /^\S+ UID SEARCH X-GM-RAW ("rfc822msgid:[^"]+"|rfc822msgid:\S+)$/i.exec(line);
@@ -564,6 +577,7 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
 
                 buffer = buffer.subarray(index + 2);
                 commands.push(line);
+                options.onCommand?.(line);
 
                 if (options.hold?.test(line)) {
                     continue;
