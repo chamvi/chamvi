@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.11.0](https://github.com/chamvi/chamvi/compare/v0.10.0...v0.11.0) (2026-11-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** bump authup, routup, rapiq, validup and adopt their features ([#287](https://github.com/chamvi/chamvi/issues/287))
+
+### Bug Fixes
+
+* **deps:** bump authup, routup, rapiq, validup and adopt their features ([#287](https://github.com/chamvi/chamvi/issues/287)) ([98cac0e](https://github.com/chamvi/chamvi/commit/98cac0ec18811859ced7f07dee8307b22bc3891a))
+* **deps:** bump the minorandpatch group across 1 directory with 4 updates ([#279](https://github.com/chamvi/chamvi/issues/279)) ([02cce84](https://github.com/chamvi/chamvi/commit/02cce84e56cedec3ffe38b5c19ea806c3e6065a1))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/app bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/core bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/http bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/store-memory bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/test-kit bumped from ^0.10.0 to ^0.11.0
+  * peerDependencies
+    * @chamvi/app bumped from ^0.10.0 to ^0.11.0
+    * @chamvi/core bumped from ^0.10.0 to ^0.11.0
+
 ## [0.10.0](https://github.com/chamvi/chamvi/compare/v0.9.0...v0.10.0) (2026-11-20)
 
 

@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.11.0](https://github.com/chamvi/chamvi/compare/v0.10.0...v0.11.0) (2026-11-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** bump authup, routup, rapiq, validup and adopt their features ([#287](https://github.com/chamvi/chamvi/issues/287))
+
+### Features
+
+* **store:** add the limit use aggregate for tool rate limits ([#291](https://github.com/chamvi/chamvi/issues/291)) ([15ac793](https://github.com/chamvi/chamvi/commit/15ac7930918f4b1e3a9fcc8adf1c164b8755e237))
+
+
+### Bug Fixes
+
+* **deps:** bump authup, routup, rapiq, validup and adopt their features ([#287](https://github.com/chamvi/chamvi/issues/287)) ([98cac0e](https://github.com/chamvi/chamvi/commit/98cac0ec18811859ced7f07dee8307b22bc3891a))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @chamvi/access bumped from ^0.10.0 to ^0.11.0
+
 ## [0.10.0](https://github.com/chamvi/chamvi/compare/v0.9.0...v0.10.0) (2026-11-20)
 
 
