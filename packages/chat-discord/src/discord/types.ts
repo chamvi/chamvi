@@ -24,6 +24,7 @@ import type {
     ChatApprovalRef,
     ChatChannel,
     ChatIngress,
+    ChatVoiceOptions,
 } from '@chamvi/chat';
 
 /** Who may start runs: Discord ids (snowflakes) only, never names. */
@@ -224,6 +225,12 @@ export type DiscordChatOptions = {
      * Discord has no quote matching: a native Reply never answers; a plain (non-reply) message answers only when exactly one approval is open.
      */
     answers?: ChatAnswerOptions;
+    /**
+     * Voice messages (see chatChannel's `voice`); off by default. Discord audio
+     * attachments carry no `fetchData` yet, so they stay refused as every
+     * attachment: the option is passed through for when they do.
+     */
+    voice?: ChatVoiceOptions;
     /** The connector's clock (login retry backoff, shutdown bound); default the engine's. */
     clock?: IClock;
     /** Failures nobody awaits; default console.error. Never gets the token. */

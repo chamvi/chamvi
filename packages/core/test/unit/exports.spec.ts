@@ -301,6 +301,13 @@ describe('public api', () => {
         expectTypeOf<core.IEngine['prepare']>().parameter(0).toEqualTypeOf<{ signal?: AbortSignal; agents?: readonly core.Agent[] } | undefined>();
     });
 
+    it('exports transcription model resolution', () => {
+        expectTypeOf<core.TranscriptionModelRef>().toEqualTypeOf<string | sdk.TranscriptionModel>();
+        expectTypeOf<NonNullable<core.IModelResolver['transcription']>>().toEqualTypeOf<(ref: string) => sdk.TranscriptionModel>();
+        expectTypeOf<core.IEngine['resolveTranscriptionModel']>().toEqualTypeOf<(ref: core.TranscriptionModelRef) => sdk.TranscriptionModel>();
+        expect(core).not.toHaveProperty('resolveTranscriptionModelRef');
+    });
+
     it('keeps the artifact uri prefix internal', () => {
         expect(core).not.toHaveProperty('ARTIFACT_URI_PREFIX');
     });

@@ -17,6 +17,8 @@ import { bindIngress } from '../ingress/module.ts';
 import type { ChatIncoming, IChatReceiver } from '../ingress/types.ts';
 import { createChatSubscription } from '../subscription/module.ts';
 import { createChatChecks, createChatSender } from '../outbound/module.ts';
+import { createChatVoiceLimiter } from '../voice/module.ts';
+import type { ChatVoiceRuntime } from '../voice/types.ts';
 import {
     encodeChatAddress,
     markChatChannel,
@@ -43,6 +45,8 @@ type ChatRun = {
     readonly context: ChannelContext;
     readonly controller: AbortController;
     readonly inFlight: Set<Promise<void>>;
+    /** the voice model of this start and the channel's voice limit, with `voice` */
+    readonly voice?: ChatVoiceRuntime;
     /** the intake tasks already tracked: deliveries sharing one task report its failure once */
     readonly tasks: WeakSet<Promise<void>>;
     accepting: boolean;
@@ -78,6 +82,7 @@ function createReceiver(
                     signal: run.controller.signal,
                     options,
                     out,
+                    ...(run.voice ? { voice: run.voice } : {}),
                 });
             } catch (error) {
                 task = Promise.reject(error);
@@ -210,6 +215,8 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
         platform,
     } = resolved;
     let current: ChatRun | undefined;
+    // one limit per channel, across its starts
+    const limiter = resolved.voice ? createChatVoiceLimiter() : undefined;
     const setup = {
         adapters: resolved.adapters,
         ...(resolved.approvalUrl ? { approvalUrl: resolved.approvalUrl } : {}),
@@ -235,10 +242,16 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
         // a stop still settling finishes before the next start takes the Chat
         await current?.teardown;
 
+        // a voice model that does not resolve fails the start before anything binds
+        const voice = resolved.voice && limiter ?
+            { model: context.engine.resolveTranscriptionModel(resolved.voice.model), limiter } :
+            undefined;
+
         const run: ChatRun = {
             context,
             controller: new AbortController(),
             inFlight: new Set(),
+            ...(voice ? { voice } : {}),
             tasks: new WeakSet(),
             accepting: true,
             online: false,

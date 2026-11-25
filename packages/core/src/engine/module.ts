@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { LanguageModel } from 'ai';
+import type { LanguageModel, TranscriptionModel } from 'ai';
 import { hostname } from 'node:os';
 import { pid } from 'node:process';
 import type { Agent } from '../agent/types.ts';
@@ -26,8 +26,8 @@ import type { ContextKey } from '../context/types.ts';
 import { DISPATCH_CONTEXT } from '../dispatch/constants.ts';
 import type { DispatchHost } from '../dispatch/types.ts';
 import { MODEL_CONTEXT } from '../model/constants.ts';
-import { checkDefaultModel, resolveModelRef } from '../model/module.ts';
-import type { IModelResolver, ModelRef } from '../model/types.ts';
+import { checkDefaultModel, resolveModelRef, resolveTranscriptionModelRef } from '../model/module.ts';
+import type { IModelResolver, ModelRef, TranscriptionModelRef } from '../model/types.ts';
 import type { IPeerResolver, PeerStartInput } from '../peer/types.ts';
 import { EngineSkills } from './skills/module.ts';
 import type { IEngineSkills } from './skills/types.ts';
@@ -437,6 +437,11 @@ export class Engine implements IEngine {
     /** `ref`, else the agent's model, else the default; outside a tool call (a channel's model). */
     resolveModel(ref?: ModelRef, agent?: string): LanguageModel {
         return resolveModelRef(this.registry.modelContext, ref, agent);
+    }
+
+    /** `ref` as is, or a string through EngineOptions.models' `transcription()` (a channel's voice model). */
+    resolveTranscriptionModel(ref: TranscriptionModelRef): TranscriptionModel {
+        return resolveTranscriptionModelRef(this.models, ref);
     }
 
     /** Synchronous live registry lookup; no loading, creation or I/O. Missing agents return undefined. */

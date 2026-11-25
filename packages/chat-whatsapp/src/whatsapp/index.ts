@@ -23,6 +23,8 @@ export type {
     WhatsAppConnectionStatus,
     WhatsAppConversationInput,
     WhatsAppIdentity,
+    WhatsAppMediaDownload,
+    WhatsAppMediaDownloadOptions,
     WhatsAppPairing,
     WhatsAppPolicy,
     WhatsAppSocket,

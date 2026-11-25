@@ -13,12 +13,17 @@ import {
     it,
 } from 'vitest';
 import * as pkg from '@chamvi/chat';
-import type { ModelRef } from '@chamvi/core';
+import type { ModelRef, TranscriptionModelRef } from '@chamvi/core';
+import type { Attachment } from 'chat';
 import type {
     ChatAnswerOptions,
+    ChatAudioAttachment,
     ChatChannelOptions,
+    ChatPayload,
     ChatPlatformPost,
     ChatPlatformSend,
+    ChatVoiceOptions,
+    ChatVoicePayload,
     IChatPlatform,
 } from '@chamvi/chat';
 
@@ -41,6 +46,10 @@ describe('public api', () => {
             'CHAT_STOP_TIMEOUT_MS',
             'CHAT_TEXT_MAX_CHARS',
             'CHAT_TIMEOUT_MS',
+            'CHAT_VOICE_LABEL',
+            'CHAT_VOICE_MAX_BYTES',
+            'CHAT_VOICE_MAX_SECONDS',
+            'CHAT_VOICE_TIMEOUT_MS',
             'CHAT_WEBHOOK_TIMEOUT_MS',
             'DEFAULT_CHAT_EVENTS',
             'chat',
@@ -70,6 +79,10 @@ describe('public api', () => {
         expect(pkg.CHAT_ANSWER_HINT_PLAIN).toBe('Send a new message here (not a reply) to approve or deny.');
         expect(pkg.CHAT_ANSWER_NOTICE_SEVERAL_PLAIN).toBe('Several approvals are open here. Answer them in the chamvi dashboard.');
         expect(pkg.CHAT_ANSWER_NOTICE_CLOSED).toBe('This approval is no longer open.');
+        expect(pkg.CHAT_VOICE_MAX_BYTES).toBe(10 * 1024 * 1024);
+        expect(pkg.CHAT_VOICE_MAX_SECONDS).toBe(300);
+        expect(pkg.CHAT_VOICE_TIMEOUT_MS).toBe(60_000);
+        expect(pkg.CHAT_VOICE_LABEL).toBe('[Voice message] ');
     });
 
     it('exports the platform seam types', () => {
@@ -83,6 +96,24 @@ describe('public api', () => {
     it('exports the answer options', () => {
         expectTypeOf<ChatAnswerOptions>().toEqualTypeOf<{ model?: ModelRef; timeoutMs?: number }>();
         expectTypeOf<ChatChannelOptions['answers']>().toEqualTypeOf<ChatAnswerOptions | undefined>();
+    });
+
+    it('exports the voice options and payload', () => {
+        expectTypeOf<ChatVoiceOptions>().toEqualTypeOf<{
+            model: TranscriptionModelRef;
+            maxBytes?: number;
+            maxSeconds?: number;
+            timeoutMs?: number;
+            label?: string;
+        }>();
+        expectTypeOf<ChatChannelOptions['voice']>().toEqualTypeOf<ChatVoiceOptions | undefined>();
+        expectTypeOf<ChatAudioAttachment>().toEqualTypeOf<Attachment & { durationSeconds?: number }>();
+        expectTypeOf<ChatVoicePayload>().toEqualTypeOf<{
+            mediaType: string;
+            bytes: number;
+            seconds?: number
+        }>();
+        expectTypeOf<ChatPayload['voice']>().toEqualTypeOf<ChatVoicePayload | undefined>();
     });
 
     it.each([
@@ -106,6 +137,11 @@ describe('public api', () => {
         'trackIngress',
         'isChatChannel',
         'markChatChannel',
+        'CHAT_VOICE_CONCURRENCY',
+        'CHAT_VOICE_NOTICE_UNCLEAR',
+        'createChatVoiceLimiter',
+        'isChatVoiceMessage',
+        'transcribeChatVoice',
     ])('has no %s', (name) => {
         expect(pkg).not.toHaveProperty(name);
     });

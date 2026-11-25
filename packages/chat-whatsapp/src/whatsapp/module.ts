@@ -11,7 +11,7 @@ import { Chat } from 'chat';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { Invoker } from '@chamvi/store';
 import { isObject } from 'smob';
-import { chatChannel, createChatIngressAdapter } from '@chamvi/chat';
+import { CHAT_VOICE_MAX_BYTES, chatChannel, createChatIngressAdapter } from '@chamvi/chat';
 import type { ChatIncoming, ChatPlatformPost } from '@chamvi/chat';
 import { createWhatsAppAdapter, encodeWhatsAppThread } from './adapter.ts';
 import { MESSAGE_ID_PREFIX, WHATSAPP_ADAPTER_NAME } from './constants.ts';
@@ -50,7 +50,7 @@ function assertOptions(options: WhatsAppChatOptions): void {
         }
     }
 
-    for (const key of ['onError', 'onStatus', 'socketFactory'] as const) {
+    for (const key of ['onError', 'onStatus', 'socketFactory', 'downloadMedia'] as const) {
         if (options[key] !== undefined && typeof options[key] !== 'function') {
             throw invalid(`${key} must be a function.`);
         }
@@ -99,6 +99,8 @@ export function createWhatsAppChat(options: WhatsAppChatOptions): WhatsAppChatSe
         ...(options.onStatus ? { onStatus: options.onStatus } : {}),
         onError,
         ...(options.clock ? { clock: options.clock } : {}),
+        ...(options.downloadMedia ? { downloadMedia: options.downloadMedia } : {}),
+        mediaMaxBytes: options.voice?.maxBytes ?? CHAT_VOICE_MAX_BYTES,
     });
     const ingress = createChatIngressAdapter(adapter);
     const chat = new Chat({
@@ -138,6 +140,7 @@ export function createWhatsAppChat(options: WhatsAppChatOptions): WhatsAppChatSe
         ...(options.untrusted !== undefined ? { untrusted: options.untrusted } : {}),
         ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
         ...(options.answers !== undefined ? { answers: options.answers } : {}),
+        ...(options.voice !== undefined ? { voice: options.voice } : {}),
         account: options.account,
         connect: (ctx) => adapter.connection.connect(ctx),
         disconnect: () => adapter.connection.close(),

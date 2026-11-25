@@ -100,6 +100,18 @@ CHAMVI_MODEL=router/cc/claude-opus-4-6
 
 The Vercel AI Gateway is the type `gateway`, used only when you declare a provider of it (`CHAMVI_PROVIDER_VERCEL_TYPE=gateway`, `CHAMVI_PROVIDER_VERCEL_API_KEY=...`, then `vercel/anthropic/claude-sonnet-5-5`).
 
+## Transcription models
+
+Voice messages are transcribed by an AI SDK transcription model, named like any other model (`'<provider>/<model id>'`). `openai-compatible` has no transcription models: a self-hosted speech-to-text server that speaks the OpenAI API (for example a Whisper server) is declared as `openai` with its base URL instead.
+
+```bash
+CHAMVI_PROVIDER_STT_TYPE=openai
+CHAMVI_PROVIDER_STT_BASE_URL=http://whisper:8000/v1
+CHAMVI_PROVIDER_STT_API_KEY=...
+```
+
+The model is then `stt/<id>` (for example `stt/whisper-1`). A provider without a transcription model of that id is refused with `Provider "stt" offers no transcription model "<id>".`
+
 ## In code
 
 `createApp()` takes the default model and the providers; agents name a provider or inherit the default:

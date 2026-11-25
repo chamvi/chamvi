@@ -9,6 +9,7 @@ import { DisconnectReason } from 'baileys';
 import type { BaileysEventMap } from 'baileys';
 import { InvalidRunStateError } from '@chamvi/core';
 import {
+    SILENT_LOGGER,
     WHATSAPP_AUTH_ERROR_CODE,
     WHATSAPP_CONNECTION_ERROR_CODE,
     WHATSAPP_LOGGED_OUT_ERROR_CODE,
@@ -32,17 +33,6 @@ import type {
     WhatsAppGeneration,
     WhatsAppSocket,
 } from './types.ts';
-
-/** Drops everything: Baileys' own log lines would otherwise carry pairing material and session details. */
-const SILENT_LOGGER = {
-    level: 'silent',
-    child: () => SILENT_LOGGER,
-    trace: () => undefined,
-    debug: () => undefined,
-    info: () => undefined,
-    warn: () => undefined,
-    error: () => undefined,
-};
 
 /**
  * The state of one WhatsApp connection and its lease generations: the

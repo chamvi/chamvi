@@ -6,6 +6,7 @@
  */
 
 import { jsonSchema } from 'ai';
+import { MockTranscriptionModelV4 } from 'ai/test';
 import { Events } from 'discord.js';
 import {
     afterEach,
@@ -357,6 +358,34 @@ describe('Discord inbound', () => {
         expect(value.errors.every((error) => error instanceof ValidationError)).toBe(true);
         expect(value.errors.map((error) => (error as Error).message).join('\n')).toMatch(/attachments are not supported[\s\S]*no text/);
         expect(JSON.stringify(value.errors, ['message', 'code'])).not.toContain('private caption');
+        expect(value.fetch.calls).toEqual([]);
+    });
+
+    it('with voice, an audio attachment stays refused: Discord attachments carry no fetchData', async () => {
+        const transcribed: unknown[] = [];
+        const model = new MockTranscriptionModelV4({
+            doGenerate: async (options) => {
+                transcribed.push(options.audio);
+
+                throw new Error('never called');
+            },
+        });
+        const value = await started({ patch: { voice: { model } } });
+
+        value.deliver(discordMessage({
+            attachments: [attachment({
+                name: 'voice-message.ogg',
+                contentType: 'audio/ogg',
+                url: 'https://cdn.discordapp.com/voice-message.ogg',
+                proxyURL: 'https://media.discordapp.net/voice-message.ogg',
+            })],
+        }));
+        await settle();
+
+        expect(await value.runs()).toEqual([]);
+        expect(value.errors).toHaveLength(1);
+        expect(String((value.errors[0] as Error).message)).toMatch(/attachments are not supported/);
+        expect(transcribed).toEqual([]);
         expect(value.fetch.calls).toEqual([]);
     });
 

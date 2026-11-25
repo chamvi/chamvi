@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { EmbeddingModel, LanguageModel } from 'ai';
+import type { EmbeddingModel, LanguageModel, TranscriptionModel } from 'ai';
 
 // #region public
 
@@ -15,6 +15,13 @@ import type { EmbeddingModel, LanguageModel } from 'ai';
  * used as is.
  */
 export type ModelRef = string | LanguageModel;
+
+/**
+ * A transcription (speech to text) model: `'<provider>/<model id>'`
+ * (resolved through IModelResolver.transcription()) or an AI SDK
+ * TranscriptionModel object, used as is.
+ */
+export type TranscriptionModelRef = string | TranscriptionModel;
 
 /** Turns `'<provider>/<model id>'` strings into LanguageModel (and, optionally, EmbeddingModel) objects. */
 export interface IModelResolver {
@@ -32,6 +39,13 @@ export interface IModelResolver {
      * Optional: a resolver without it hands out no embedding models.
      */
     embedding?(ref: string): EmbeddingModel;
+    /**
+     * The TranscriptionModel for `ref` (`'<provider>/<model id>'`), for
+     * packages that transcribe audio; InvalidAgentDefinitionError when it
+     * cannot resolve. Optional: a resolver without it hands out no
+     * transcription models.
+     */
+    transcription?(ref: string): TranscriptionModel;
 }
 
 /** What checkAgentModel() reads besides the agent: the engine's default and resolver. */

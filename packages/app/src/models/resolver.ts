@@ -7,7 +7,7 @@
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { NoSuchModelError } from 'ai';
-import type { EmbeddingModel, LanguageModel } from 'ai';
+import type { EmbeddingModel, LanguageModel, TranscriptionModel } from 'ai';
 import { isObject } from 'smob';
 import { BUILTIN_PROVIDERS, MODEL_SEPARATOR, PROVIDER_TYPES } from './constants.ts';
 import { defaultImporter, isPackageNotFound, providerEnvName } from './helpers/index.ts';
@@ -100,10 +100,11 @@ function notConfigured(ref: string, provider: string, subject: Subject): Invalid
  * The resolver model strings go through: every package the settings need is
  * imported up front, each provider name built once with explicit settings
  * (`apiKey`, `baseURL`, `headers`; `name` for openai-compatible), then
- * `check`, `resolve` and `embedding` are synchronous. `models` wins for its
- * ids. A package that is not installed is recorded in `errors` and thrown by
- * `check`, `resolve` and `embedding` for that provider; a provider that offers
- * no embedding model of the id (the AI SDK's NoSuchModelError) is
+ * `check`, `resolve`, `embedding` and `transcription` are synchronous.
+ * `models` wins for its ids. A package that is not installed is recorded in
+ * `errors` and thrown by each of them for that provider; a provider that
+ * offers no embedding or transcription model of the id (the AI SDK's
+ * NoSuchModelError, or no `transcriptionModel()` at all) is
  * InvalidAgentDefinitionError, any other provider error passes through. Nothing touches the AI SDK's global provider.
  */
 export async function createModelResolver(
@@ -206,6 +207,28 @@ export async function createModelResolver(
                 // only a missing model is a configuration error; any other failure keeps its diagnostics
                 if (NoSuchModelError.isInstance(error)) {
                     throw new InvalidAgentDefinitionError(`Provider "${provider}" offers no embedding model "${modelId}".`);
+                }
+
+                throw error;
+            }
+        },
+        transcription(ref: string): TranscriptionModel {
+            const { instance, modelId } = providerOf(ref, { kind: 'model' });
+            const { provider } = splitRef(ref, { kind: 'model' });
+            const missing = () => new InvalidAgentDefinitionError(
+                `Provider "${provider}" offers no transcription model "${modelId}".`,
+            );
+
+            // optional on a provider: openai-compatible has none
+            if (typeof instance.transcriptionModel !== 'function') {
+                throw missing();
+            }
+
+            try {
+                return instance.transcriptionModel(modelId) as TranscriptionModel;
+            } catch (error) {
+                if (NoSuchModelError.isInstance(error)) {
+                    throw missing();
                 }
 
                 throw error;

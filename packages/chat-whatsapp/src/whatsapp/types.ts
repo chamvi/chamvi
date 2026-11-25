@@ -28,6 +28,7 @@ import type {
     ChatApprovalRef,
     ChatChannel,
     ChatIngress,
+    ChatVoiceOptions,
 } from '@chamvi/chat';
 
 /**
@@ -150,7 +151,20 @@ export type WhatsAppSocket = {
     };
     end(error: Error | undefined): Promise<void> | void;
     sendMessage(jid: string, content: { text: string }, options?: { messageId?: string }): Promise<WAMessage | undefined>;
+    /** Renews an expired media link (a WASocket has it); without it a download is not retried. */
+    updateMediaMessage?(message: WAMessage): Promise<WAMessage>;
 };
+
+export type WhatsAppMediaDownloadOptions = {
+    /** Read at most this many bytes plus one: more is refused by the channel's size check. */
+    maxBytes: number;
+};
+
+/** Downloads a media message's bytes, bounded; default downloadWhatsAppMedia (Baileys' keys, chamvi's own fetch and decrypt). */
+export type WhatsAppMediaDownload = (message: WAMessage, socket: WhatsAppSocket, options: WhatsAppMediaDownloadOptions) => Promise<Uint8Array>;
+
+/** The fetch the download uses (internal; global fetch, tests pass a fake). */
+export type WhatsAppMediaFetch = (url: string, init: { headers: Record<string, string>; signal: AbortSignal }) => Promise<Response>;
 
 /** Makes a socket; default Baileys' makeWASocket. */
 export type WhatsAppSocketFactory = (config: UserFacingSocketConfig) => WhatsAppSocket;
@@ -183,6 +197,11 @@ export type WhatsAppChatOptions = {
      * A swipe reply matches the approval message it quotes.
      */
     answers?: ChatAnswerOptions;
+    /**
+     * Voice notes are transcribed and start runs as text (see chatChannel's `voice`); off by default.
+     * A voice note is downloaded only after the policy and `resolveInvoker` allowed it.
+     */
+    voice?: ChatVoiceOptions;
     /** The connector's clock (reconnect backoff, shutdown bound); default the engine's. */
     clock?: IClock;
     /** Failures nobody awaits; default console.error. Never gets pairing material. */
@@ -198,6 +217,8 @@ export type WhatsAppChatOptions = {
     socketOptions?: Omit<Partial<SocketConfig>, 'auth' | 'logger'>;
     /** Makes the socket; default Baileys' makeWASocket (tests pass a fake). */
     socketFactory?: WhatsAppSocketFactory;
+    /** Downloads a voice note's bytes; default chamvi's bounded fetch and decrypt (tests pass a fake). */
+    downloadMedia?: WhatsAppMediaDownload;
 };
 
 /** The chat of a conversation reference (WhatsAppChatSetup.conversation()). */
@@ -278,6 +299,10 @@ export type WhatsAppContextInfo = {
 export type WhatsAppAdapterOptions = Omit<WhatsAppConnectionOptions, 'onMessages'> & {
     account: string;
     userName: string;
+    /** default downloadWhatsAppMedia */
+    downloadMedia?: WhatsAppMediaDownload;
+    /** the download bound: `voice.maxBytes`, default `CHAT_VOICE_MAX_BYTES` */
+    mediaMaxBytes: number;
 };
 
 /** The Chat SDK adapter over one WhatsApp connection (internal). */

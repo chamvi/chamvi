@@ -16,6 +16,12 @@ import type { Chat } from 'chat';
 import type { ChatAnswerOptions, ResolvedChatAnswerOptions } from '../answer/types.ts';
 import type { ChatIncoming, ChatIngress } from '../ingress/types.ts';
 import type { ChatSubscriber } from '../subscription/types.ts';
+import type {
+    ChatVoiceOptions,
+    ChatVoicePayload,
+    ChatVoiceRuntime,
+    ResolvedChatVoiceOptions,
+} from '../voice/types.ts';
 
 /** How a message reached the bot: a direct chat, a mention in a group, any other group message. */
 export type ChatEvent = 'direct' | 'mention' | 'message';
@@ -32,6 +38,8 @@ export type ChatPayload = {
         author: { id: string; name?: string };
         sentAt?: string;
     };
+    /** Set for a transcribed voice message (`voice`), whose `message.text` is the labelled transcript. */
+    voice?: ChatVoicePayload;
 };
 
 /** What approvalUrl() gets: ids only, never a token. */
@@ -99,6 +107,13 @@ export type ChatChannelOptions = {
      * Needs `resolveInvoker`: a reply answers as the invoker it names.
      */
     answers?: ChatAnswerOptions;
+    /**
+     * Off by default. When set, a message whose only attachment is one
+     * audio file the platform can fetch is downloaded and transcribed after
+     * `allowMessage` and `resolveInvoker`, and continues as a text message
+     * (ChatVoiceOptions). The model must resolve when the channel starts.
+     */
+    voice?: ChatVoiceOptions;
     /** Platform-fetched history; only 0 (none) for now. */
     history?: 0;
     /** Bound of one outbound send; default `CHAT_TIMEOUT_MS` (30 s). */
@@ -134,6 +149,7 @@ export type ResolvedChatChannelOptions = {
     resolveInvoker?: ChatChannelOptions['resolveInvoker'];
     approvalUrl?: ChatChannelOptions['approvalUrl'];
     answers?: ResolvedChatAnswerOptions;
+    voice?: ResolvedChatVoiceOptions;
     timeoutMs: number;
     maxTextChars: number;
     onError: (error: unknown) => void;
@@ -221,8 +237,10 @@ export type ChatIntakeContext = {
     /** Aborts when the channel stops. */
     signal: AbortSignal;
     options: ResolvedChatChannelOptions;
-    /** The channel's own `out`, for the notices of answers. */
+    /** The channel's own `out`, for the notices of answers and voice messages. */
     out: NonNullable<IChannel['out']>;
+    /** The model and limit of voice messages, set when `voice` is on. */
+    voice?: ChatVoiceRuntime;
 };
 
 /** Accepts one incoming message: resolves once it is durably accepted (internal). */

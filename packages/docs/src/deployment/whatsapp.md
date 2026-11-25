@@ -85,6 +85,7 @@ const WHATSAPP_SHUTDOWN_TIMEOUT_MS: 30_000;
 | `state` | Required. The Chat SDK `StateAdapter` of the `Chat` |
 | `approvalUrl(ref)` | Required. The approval link, `ref = { runId, approvalId, agent }` (ids only) |
 | `answers` | `{ model?, timeoutMs? }`: approvals answered by a direct-chat reply (see above); off by default |
+| `voice` | `{ model, maxBytes?, maxSeconds?, timeoutMs?, label? }`: voice notes transcribed into text ([Voice notes](#voice-notes)); off by default |
 | `onPairing({ qr })` | Required. Gets the QR reference to render while the account is not paired; never a log or `onError` |
 | `onStatus(status)` | Called on every status change; a throw is reported, the change stands |
 | `name`, `untrusted`, `timeoutMs` | As for [`chatChannel()`](/reference/chat#chatchannel) |
@@ -148,6 +149,10 @@ cron.on('0 7 * * *', {
 
 A send goes out only while the connection is `connected`, as any reply.
 
+### Voice notes
+
+With `voice`, a voice note (an audio message) is downloaded only after the sender policy and `resolveInvoker` allowed it, and only when an agent subscribes to its chat event (or, with `answers`, it is a direct reply that may answer an approval). The download is chamvi's own fetch and decrypt, read to at most `voice.maxBytes` (default 10 MiB) whatever size the sender claims: the fetch is aborted once more arrived or the body fails, and a truncated or altered body (its MAC does not match) is refused. It has no deadline of its own: after the channel's `timeoutMs` abandoned it, a stalled body ends at Node's idle body timeout (300 s by default); the note is then transcribed and handled like a typed message, `[Voice message] ` plus the transcript. A note too long or not understood gets a short notice and no run; the audio is never stored or logged. Options and bounds: [Voice messages](/reference/chat#voice-messages); the model: [Transcription models](/guide/models#transcription-models).
+
 ### Delivery
 
 A send posts the raw text to the chat's jid with a message id derived from the send's key (`3EB0` + 36 hex of its SHA-256), so a retry reuses the id. Whether WhatsApp drops such a duplicate is not verified: delivery is at least once.
@@ -176,4 +181,4 @@ With your own provider, `chatModule()` contributes a `createWhatsAppChat()` chan
 - **No lossless or offline ingestion.** A message that arrives while the connector is down, or that the process loses before it is stored as runs, is not fetched later. Platform history is not read.
 - **Stop during a decrypt.** A message whose signal key commit arrives after the stop refused auth writes is not processed; Baileys may retry the commit for about 30 s, refused each time.
 - **At least once delivery.** A send that times out (30 s) may still be delivered; the retry reuses the message id, but whether WhatsApp drops the duplicate is unverified.
-- **Text only.** Messages with media are refused (reported, no run); replies are text up to 4096 characters, never split.
+- **Text only.** Messages with media are refused (reported, no run), except voice notes with `voice` ([above](#voice-notes)), which are transcribed into text; replies are text up to 4096 characters, never split.

@@ -25,10 +25,10 @@ export function chatConcurrencyKey(channel: string, payload: Pick<ChatPayload, '
 }
 
 /**
- * Whether a chat subscription takes `payload`: its adapter (when set), one of
- * its events, then its filter. A throwing filter throws.
+ * Whether a chat subscription may take `payload` before its filter: its
+ * adapter (when set) and one of its events. Never runs the filter.
  */
-export function matchesChatSubscription(subscription: ChannelSubscription, payload: ChatPayload): boolean {
+export function targetsChatSubscription(subscription: ChannelSubscription, payload: Pick<ChatPayload, 'adapter' | 'event'>): boolean {
     const { options } = subscription;
 
     if (!isObject(options)) {
@@ -39,9 +39,19 @@ export function matchesChatSubscription(subscription: ChannelSubscription, paylo
         return false;
     }
 
-    if (!Array.isArray(options.events) || !options.events.includes(payload.event)) {
+    return Array.isArray(options.events) && options.events.includes(payload.event);
+}
+
+/**
+ * Whether a chat subscription takes `payload`: targetsChatSubscription(),
+ * then its filter. A throwing filter throws.
+ */
+export function matchesChatSubscription(subscription: ChannelSubscription, payload: ChatPayload): boolean {
+    if (!targetsChatSubscription(subscription, payload)) {
         return false;
     }
 
-    return typeof options.filter === 'function' ? options.filter(payload) === true : true;
+    const { filter } = subscription.options as { filter?: unknown };
+
+    return typeof filter === 'function' ? filter(payload) === true : true;
 }

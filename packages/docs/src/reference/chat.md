@@ -23,6 +23,10 @@ const CHAT_STOP_TIMEOUT_MS: 30_000;       // waiting for messages being accepted
 const CHAT_ANSWER_TIMEOUT_MS: 15_000;     // reading one reply to an approval
 const CHAT_ANSWER_HINT: 'Reply to this message to approve or deny.';
 const CHAT_ANSWER_HINT_PLAIN: 'Send a new message here (not a reply) to approve or deny.'; // no quote matching
+const CHAT_VOICE_MAX_BYTES: 10_485_760;   // one voice message, reported or fetched (10 MiB)
+const CHAT_VOICE_MAX_SECONDS: 300;        // one voice message's reported duration
+const CHAT_VOICE_TIMEOUT_MS: 60_000;      // download and transcription of one voice message
+const CHAT_VOICE_LABEL: '[Voice message] ';
 const CHAT_REQUEST_ERROR_CODE: 'chat_request';
 const CHAT_INTAKE_FAILED_ERROR_CODE: 'chat_intake_failed';
 const CHAT_STOP_TIMEOUT_ERROR_CODE: 'chat_stop_timeout';
@@ -43,6 +47,7 @@ const CHAT_STOP_TIMEOUT_ERROR_CODE: 'chat_stop_timeout';
 | `connect({ signal, clock })`, `disconnect()` | Called on start (after the `Chat` initialized) and on stop; `connect` must settle once `signal` aborts |
 | `approvalUrl(ref)` | Required to send an approval; with `answers`, only for one with options, a trust-gate notice or one to a group |
 | `answers` | `{ model?, timeoutMs? }`: approvals answered by a reply in a direct chat ([below](#answers-in-the-chat)); off by default; needs `resolveInvoker` |
+| `voice` | `{ model, maxBytes?, maxSeconds?, timeoutMs?, label? }`: voice messages transcribed into text ([below](#voice-messages)); off by default |
 | `history` | Only `0`: no platform history is fetched |
 | `timeoutMs` | One send's bound, default `CHAT_TIMEOUT_MS` |
 | `maxTextChars` | The longest message sent (UTF-16 code units), an integer from 1 to `CHAT_TEXT_MAX_CHARS`, default `CHAT_TEXT_MAX_CHARS` (Discord passes 2000) |
@@ -77,7 +82,7 @@ A platform package builds its `Chat`, its wrapped adapter and a `chatChannel()` 
 
 ### Intake
 
-Per message, in order: the bot's own messages are skipped; ids are checked (`ValidationError`, never echoing ids or text); `allowMessage` decides; a message with attachments or without text is refused (`ValidationError` to `onError`); `resolveInvoker`; with `answers`, a reply that answers an approval stops here ([below](#answers-in-the-chat)); then every agent with a matching subscription gets one run, through the engine's trusted conversation intake for an agent with `conversation`, else a plain dispatch. The idempotency key hashes channel, adapter, thread, sender and message id, so a redelivery dedupes per agent; a plain dispatch also gets a per-chat concurrency key. A transient failure (a store write) is retried after 1 s and 2 s; an agent already accepted is not dispatched again. What still fails is reported once as `chat_intake_failed`, naming channel, adapter and agents, never the text.
+Per message, in order: the bot's own messages are skipped; ids are checked (`ValidationError`, never echoing ids or text); `allowMessage` decides; a message with attachments or without text is refused (`ValidationError` to `onError`), except a voice message with `voice`; `resolveInvoker`; a voice message is transcribed ([below](#voice-messages)); with `answers`, a reply that answers an approval stops here ([below](#answers-in-the-chat)); then every agent with a matching subscription gets one run, through the engine's trusted conversation intake for an agent with `conversation`, else a plain dispatch. The idempotency key hashes channel, adapter, thread, sender and message id, so a redelivery dedupes per agent; a plain dispatch also gets a per-chat concurrency key. A transient failure (a store write) is retried after 1 s and 2 s; an agent already accepted is not dispatched again. What still fails is reported once as `chat_intake_failed`, naming channel, adapter and agents, never the text.
 
 ### Webhooks
 
@@ -114,6 +119,30 @@ With `answers`, the owner can answer an approval by replying to it in a direct c
 
 Fixed answer words were rejected: the reply may be in any language. The agent's own model does not read it either, since an injected message could steer it.
 
+### Voice messages
+
+```ts
+type ChatVoiceOptions = {
+    model: TranscriptionModelRef; // '<provider>/<model id>' through the app's resolver, or a TranscriptionModel
+    maxBytes?: number;   // CHAT_VOICE_MAX_BYTES
+    maxSeconds?: number; // CHAT_VOICE_MAX_SECONDS
+    timeoutMs?: number;  // CHAT_VOICE_TIMEOUT_MS, download and transcription together
+    label?: string;      // CHAT_VOICE_LABEL
+};
+```
+
+With `voice`, a message whose only attachment is one audio file the platform can download (`fetchData`; WhatsApp voice notes) is transcribed and then handled as a text message whose text is `label` plus the transcript: the agent, the conversation memory and [answers](#answers-in-the-chat) see that text, so a spoken "yes" answers an approval like a typed one. The run's payload gets `voice: { mediaType, bytes, seconds? }`; the audio is held in memory only, never stored. The model must resolve when the channel starts (`InvalidAgentDefinitionError` fails the app start).
+
+- **Policy first**: nothing is downloaded before `allowMessage` allowed the message and `resolveInvoker` ran, and only when the note could go somewhere: a live agent subscribes to this channel for its adapter and event (the subscription's filter runs later, on the transcript), or, with `answers`, it is a direct message of an invoker. Otherwise it is refused like any attachment, without a notice.
+- **Bounds**: a reported duration above `maxSeconds` or size above `maxBytes` is refused before any download with `Voice message too long: at most <N> minutes.` (`1 minute.` for N = 1); a downloaded body above `maxBytes`, a failed download or transcription, an empty transcript or the timeout gets `I could not understand the voice message.` Each notice goes to the chat once per delivery (keyed by message, so a platform may drop a duplicate; nothing guarantees it, so a redelivery can post it again), the reason to `onError` (a failed download or model call as `chat_request`, a bound or an empty transcript as `validation_error`), and no run starts.
+- **Download contract**: the channel checks the downloaded size only after `fetchData` returned and cannot cancel it (it takes no signal; the timeout only abandons it). So `maxBytes` bounds memory only when the platform's `fetchData` bounds its own read to `voice.maxBytes`, as `@chamvi/chat-whatsapp` does; the Chat SDK's stock adapters download without a limit (which is why `@chamvi/chat-discord` removes theirs), so do not rely on it with such an adapter.
+- **Concurrency**: at most two voice messages per channel hold a slot (downloaded and transcribed) at once; others wait. A timed-out message releases its slot: its download is abandoned, not cancelled, and no longer counted, so a platform should bound its own download in time and bytes (`@chamvi/chat-whatsapp` aborts its fetch once the body passes `maxBytes`).
+- Without `voice`, an audio file the platform cannot download (Discord today), two attachments, or audio with anything else (typed text included) is refused like any other attachment.
+- **Order**: transcription takes seconds, so a typed message sent right after a voice note may start its run first; on WhatsApp, messages of the same batch behind a note wait for it.
+- **Checks**: the model resolves in the channel's `start`, so `chamvi start --check` does not report a bad `voice.model`; the app start does.
+
+A platform sets the reported duration as `durationSeconds` on the attachment (`ChatAudioAttachment`).
+
 ### Memory and trust
 
 An agent with `conversation` is bound to `{ account, chat, audience }`: audience `direct:<author>` for a direct chat, `group:<channel>` for a group (one memory per group). It needs the engine's `conversationService` and `conversations: { authorize }`; see [Conversation Memory](/guide/conversations). Runs are tainted by default, so `guardWhenTainted` tools ask for approval; replies to the source chat and the `defaultAddress` are exempt from the outbound gate (see [untrusted content](/guide/tools#untrusted-content-and-outbound-tools)).
@@ -132,4 +161,4 @@ Contributes the prebuilt channel to `AppToken.CHANNELS`; the engine starts and s
 
 ## Not supported yet
 
-Media (incoming attachments, outbound files), platform history, message splitting, native approval buttons and actions, and verified webhook platforms beyond the generic adapter contract. For WhatsApp's own gaps see [WhatsApp](/deployment/whatsapp#what-is-not-guaranteed), for Discord's [Discord](/deployment/discord#what-is-not-guaranteed).
+Media other than voice messages (incoming attachments, outbound files), spoken replies, platform history, message splitting, native approval buttons and actions, and verified webhook platforms beyond the generic adapter contract. For WhatsApp's own gaps see [WhatsApp](/deployment/whatsapp#what-is-not-guaranteed), for Discord's [Discord](/deployment/discord#what-is-not-guaranteed).
