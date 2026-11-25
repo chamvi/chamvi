@@ -342,6 +342,34 @@ describe('calendar_delete\'s own limit', () => {
         ].join('\n'));
     });
 
+    it('shows the recorded listing when the limit asks again in the same call', async () => {
+        const server = deleteFake();
+        const limit = (calendarWriteTools().calendar_delete as { limit?: ToolLimit }).limit!;
+        const probe = defineTool({
+            inputSchema: jsonSchema<Record<string, never>>({ type: 'object' }),
+            execute: async (_input, { context }) => [
+                await limit.detail!({ event: eventOf(TWO) }, context),
+                await limit.detail!({ event: eventOf(TWO) }, context),
+            ],
+        });
+        const write = createWriteEngine({
+            fake: server,
+            model: mockModel([{
+                parts: [{
+                    type: 'tool-call', 
+                    toolName: 'probe', 
+                    input: {}, 
+                    toolCallId: 'p1', 
+                }], 
+            }, done]),
+            tools: { probe },
+        });
+        const runId = await write.dispatch();
+        const [step] = await write.steps(runId, 'probe');
+
+        expect(step?.output).toEqual([TWO_LINE, TWO_LINE]);
+    });
+
     it('still classifies and asks after a limit approval that could show only the id', async () => {
         const server = deleteFake();
         const client = createCalendarWriteClient([WRITE_ACCOUNT], { fetch: server.fetch, timezone: 'Europe/Berlin' });

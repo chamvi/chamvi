@@ -6,7 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { jsonSchema } from 'ai';
+import { InvalidAgentDefinitionError, defineTool } from '@chamvi/core';
 import type { ToolLimit } from '@chamvi/core';
 import { mockModel } from '@chamvi/test-kit';
 import type { MockResponse } from '@chamvi/test-kit';
@@ -137,6 +138,34 @@ describe('mail_delete\'s own limit', () => {
         expect(classifier.doGenerateCalls).toHaveLength(0);
         expect(write.sent).toHaveLength(1);
         expect((await write.run(runId))?.status).toBe('completed');
+    });
+
+    it('shows the recorded listing when the limit asks again in the same call', async () => {
+        const { client } = await setupWrite(false);
+        const limit = limitOf(client)!;
+        const probe = defineTool({
+            inputSchema: jsonSchema<Record<string, never>>({ type: 'object' }),
+            execute: async (_input, { context }) => [
+                await limit.detail!({ ids: THREE }, context),
+                await limit.detail!({ ids: THREE }, context),
+            ],
+        });
+        const write = createWriteEngine({
+            client,
+            model: mockModel([{
+                parts: [{
+                    type: 'tool-call',
+                    toolName: 'probe',
+                    input: {},
+                    toolCallId: 'p1',
+                }],
+            }, done]),
+            tools: { probe },
+        });
+        const runId = await write.dispatch();
+        const [step] = await write.steps(runId, 'probe');
+
+        expect(step?.output).toEqual([LISTING, LISTING]);
     });
 
     it('lists the mails through the tools\' own client of accounts, with no client provided on the engine', async () => {

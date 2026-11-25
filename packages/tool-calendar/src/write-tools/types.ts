@@ -100,9 +100,10 @@ export type CalendarDeleteResult = {
     backup?: string;
 };
 
-/** What a delete's limit approval listed (internal): the event its listing covered. */
+/** What a delete's limit approval listed (internal): the event its listing covered and the listing itself. */
 export type CalendarDeleteShown = {
     event: string;
+    text: string;
 };
 
 /** What `calendar_delete` takes besides its client (internal). */

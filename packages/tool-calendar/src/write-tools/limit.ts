@@ -129,7 +129,6 @@ export function calendarDeleteLimitOf(
         // the approval's body: the listing line, else what the id alone tells; never a throw
         detail: async (input, ctx: ToolContext) => {
             const event = eventOf(input);
-            let text: string | undefined;
             const shown = await once<CalendarDeleteShown | null>(ctx, CALENDAR_DELETE_LISTING_ONCE, async () => {
                 try {
                     // a calendar the tools may not write to is not read (execute refuses it)
@@ -144,20 +143,14 @@ export function calendarDeleteLimitOf(
                         return null;
                     }
 
-                    text = deleteListingOf(item, client.timezone);
-
-                    return { event };
+                    return { event, text: deleteListingOf(item, client.timezone) };
                 } catch {
                     return null;
                 }
             });
 
-            if (shown === null) {
-                return fallbackListingOf(event);
-            }
-
-            // a recorded listing asked again (a changed input): its text is not kept, the id alone tells
-            return text ?? fallbackListingOf(event);
+            // asked again in the same call: the recorded listing, so what covers the call is what is shown
+            return shown === null || shown.event !== event ? fallbackListingOf(event) : shown.text;
         },
     };
 }
