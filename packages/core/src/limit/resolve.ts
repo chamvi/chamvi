@@ -10,7 +10,7 @@ import type { IEngine } from '../engine/types.ts';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import type { RunContext } from '../run/types.ts';
 import { hasToolContext } from '../tool/helpers.ts';
-import { runSource, runTainted } from '../trust/module.ts';
+import { runSource } from '../trust/module.ts';
 import { assertToolLimit } from './asserts.ts';
 import { LIMIT_APPROVAL_NOTIFICATION } from './constants.ts';
 import type { AgentLimits, LimitApprovalTarget, ToolLimit } from './types.ts';
@@ -78,8 +78,8 @@ export function resolveToolLimits(tools: ToolSet, agent: AgentLimits | undefined
 /**
  * Where a limit approval goes: the run's source channel and address when
  * that channel has `out` (as the outbound gate targets it), else the inbox
- * only. A tainted run's source gets the generic notification in place of
- * the body unless the channel reports the address as direct.
+ * only. The source gets the generic notification in place of the body
+ * unless the channel reports the address as direct.
  */
 export async function limitApprovalTarget(engine: Pick<IEngine, 'getChannel'>, run: RunContext): Promise<LimitApprovalTarget> {
     const origin = runSource({ run });
@@ -91,7 +91,8 @@ export async function limitApprovalTarget(engine: Pick<IEngine, 'getChannel'>, r
 
     const target = { channel: origin.channel, address: origin.address };
 
-    if (!await runTainted({ run }) || await channel.direct?.(origin.address) === true) {
+    // the body is private to the owner: only a direct address gets it, tainted run or not
+    if (await channel.direct?.(origin.address) === true) {
         return target;
     }
 

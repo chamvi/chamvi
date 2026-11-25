@@ -10,10 +10,11 @@ import type { StateSchema } from '../state/types.ts';
 import type { ToolContext } from '../tool/types.ts';
 import { ONCE_NAME_MAX_LENGTH } from './constants.ts';
 import { assertFrameActive, currentToolCall } from './frame.ts';
+import { stableHash } from './helpers.ts';
 
 /**
  * The value `fn` resolved the first time this tool call ran it under `name`:
- * recorded in the effect store (key `<runId>:<stepIndex>:<toolCallId>:once:<name>`),
+ * recorded in the effect store (key `once:<runId>:<stepIndex>:<hash(toolCallId)>:<name>`),
  * so a call that runs again on resume (the replay rule) gets the same value
  * instead of recomputing one that could differ. The value must be
  * JSON-serialisable; a throwing `fn` records nothing. Throws
@@ -41,7 +42,8 @@ export async function once<T, S extends StateSchema = StateSchema>(
         throw new ValidationError(`A once() name must be a string of 1 to ${ONCE_NAME_MAX_LENGTH} characters.`);
     }
 
-    const key = `${frame.runId}:${frame.stepIndex}:${frame.toolCallId}:once:${name}`;
+    // the call id hashed: a provider's id cannot run into the name, and the key stays bounded
+    const key = `once:${frame.runId}:${frame.stepIndex}:${stableHash(frame.toolCallId)}:${name}`;
     const recorded = await frame.effects.findOne(key);
 
     if (recorded) {

@@ -147,6 +147,33 @@ describe('once()', () => {
         expect(seen).toEqual(['a1', { b: 1 }, 'a2', { b: 2 }]);
     });
 
+    it('keeps calls apart whose call id and name would join to the same text', async () => {
+        const seen: unknown[] = [];
+        const first = Promise.withResolvers<void>();
+        const decide = defineTool({
+            inputSchema: z.object({ n: z.number() }),
+            execute: async ({ n }, { context }) => {
+                // the second call reads only after the first recorded its value
+                if (n === 2) {
+                    await first.promise;
+                }
+
+                // c1 'a:once:x' + 'y' and c2 'a' + 'x:once:y' both read 'a:once:x:once:y' joined
+                seen.push(await once(context, n === 1 ? 'y' : 'x:once:y', async () => `value ${n}`));
+
+                if (n === 1) {
+                    first.resolve();
+                }
+
+                return 'ok';
+            },
+        });
+
+        await runWith({ decide }, [turn(call({ n: 1 }, 'a:once:x'), call({ n: 2 }, 'a')), text('ok')]);
+
+        expect(seen).toEqual(['value 1', 'value 2']);
+    });
+
     it('refuses outside a tool call, for another run and for an invalid name', async () => {
         const ctx = { run: { runId: 'r1' } } as ToolContext;
 
