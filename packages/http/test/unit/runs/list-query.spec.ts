@@ -107,6 +107,7 @@ describe('parseRunListQuery', () => {
         ['filter[createdAt]=>=2026-11-01T00:00:00', 'no offset'],
         ['filter[createdAt]=>=2026-13-01T00:00:00Z', 'month 13'],
         ['filter[createdAt]=>=2026-02-30T00:00:00Z', 'February 30'],
+        ['filter[createdAt]=>=2026-11-01T00:00:00.0009Z', 'finer than a millisecond'],
         ['filter[createdAt]=>=2026', 'a number'],
         ['filter[createdAt]=>=yesterday', 'text'],
         ['filter[createdAt]=>=2026-11-01T00:00:00Z&filter[createdAt]=<=2026-11-02T00:00:00Z', 'a repeated bracket key'],

@@ -29,8 +29,11 @@ const RUN_LIST_SCHEMA = defineSchema({
 
 const RUN_STATUSES = new Set<string>(Object.values(RunStatus));
 
-/** An ISO 8601 instant: a calendar day, a time to the minute or finer and an offset (`Z` or `+hh:mm`). */
-const INSTANT_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/;
+/**
+ * An ISO 8601 instant: a calendar day, a time to the minute or finer (at
+ * most milliseconds, the stored precision) and an offset (`Z` or `+hh:mm`).
+ */
+const INSTANT_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 const CREATED_AT_MESSAGE = 'filter[createdAt] takes a lower (>=) and an upper (<=) bound, each an ISO 8601 instant with a time and an offset.';
 
