@@ -8,7 +8,7 @@
 import type { IClock } from '@chamvi/core';
 import type { ILogger } from '../../logger/types.ts';
 
-/** A service with expired records to remove (the lock and idempotency services). */
+/** A service with expired records to remove (the lock, idempotency and limit services). */
 export type PurgingService = {
     purgeExpired(): Promise<number>;
 };

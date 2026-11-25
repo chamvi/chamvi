@@ -55,6 +55,30 @@ Allowed structure is not a guarantee of truthful or harmless values. Returning r
 
 Shell execution is **not gated**, even when its output taints a run; it can read, write or exfiltrate. Shell command policy and classifier work (#88) are separate. Agent state remains trusted pending separate provenance work. Provider-executed tools without local `execute` are not locally gated. GitHub read tools send model-selected queries, paths and refs to the GitHub API without an outbound gate. If its operator or request logs must not receive arbitrary run data without approval, classify those readers as outbound via `trust.tools`. These controls are not a sandbox, DLP system or complete prompt-injection defense.
 
+## Limits
+
+A tool can cap how often an agent calls it. Give the tool a `limit` (a default), or the agent a `limits` entry per tool name (it replaces the tool's own limit whole, `false` turns it off):
+
+```ts
+defineModelAgent({
+    // ...
+    limits: {
+        mail_delete: {
+            max: 20,
+            windowMs: 3_600_000,
+            bucket: 'deletes',
+            weight: (input) => input.ids.length,
+        },
+    },
+});
+```
+
+`max` is the most weight the counted calls may take in a sliding window of `windowMs` (a call weighs 1 unless `weight` says more, computed on the final input). The counts are per agent and shared by every run of it; tools naming the same `bucket` count together and must agree on `max` and `windowMs`. The check runs just before `execute`, after the permission policy, the hooks and the outbound trust gate. A call counts once it passes the check, before `execute` runs, so a call that fails or is refused afterwards still counts. An [effect tool](/guide/effect-tools) replayed from its recorded result neither counts nor asks again, and a call counts once however often its run is replayed.
+
+A call over the limit follows `onExceed`. The default, `'approve'`, suspends the run with an [approval](/guide/approvals) titled `Limit reached for <tool>: <used> of <max> used in the last <window>. Allow this call?` (with ` (this call: <weight>)` after the window when the call weighs more than 1). The optional `detail(input, ctx)` text is its body. It reaches the run's source chat only when the run is untainted or the channel reports the address as a direct chat (`IChannel.direct`); otherwise the source gets the generic `A tool call over its limit requires review in the approval inbox.` and the body stays in the inbox and the API. A destination that cannot show the approval (the channel's `fits` refuses it) fails the call as a tool error instead of leaving the run waiting. An approved call runs and counts, a denied one fails as a tool error. `'deny'` refuses the call as a tool error without asking. A decision stands when the run replays, whatever the count has become; a call whose final input changed is a new request.
+
+Limits need the engine's `limitService` (`@chamvi/app` provides it). A `limits` key that names no tool of the agent's tool set, a limit on a tool without `execute`, a limit without a `limitService` and buckets that disagree are an `InvalidAgentDefinitionError`, at registration for a static tool set, else when the run assembles its tools.
+
 ## Errors go back to the model
 
 When a tool throws, the AI SDK turns the error into a tool error result and the model sees it on its next call. It can retry, try something else or give up. The run does not fail, and the step is recorded as a `tool` step with `error: { code, message }`.

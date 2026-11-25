@@ -6,6 +6,10 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 
 chamvi moves to routup 6.5 and authup 1.0.0-beta.77. An app that pinned `ioredis` for the `ERESOLVE` described under 0.9 can drop the `overrides` entry: `@authup/server-adapter-kit` no longer peers `ioredis`. When the `authup()` authenticator cannot reach authup (introspection, the verifier's token, the JWKs), a request answers 503 instead of 401, so the dashboard no longer signs out during an authup outage.
 
+### Tool limits
+
+Per-tool rate limits ([Limits](/guide/tools#limits)): `limit` on a tool, `limits` on an agent, the `limitService` of the engine and `AppToken.LIMIT_REPOSITORY`/`LIMIT_SERVICE`. One store migration, `LimitUses1795552285096`, adds the table `chamvi_limit_uses` and runs like any other (`CHAMVI_MIGRATE`, `chamvi migrate`). A custom store module must register `AppToken.LIMIT_REPOSITORY` (an `ILimitRepository`, proven by `describeLimitRepositoryContract()` of `@chamvi/test-kit`); the app builds the `LimitService` from it and purges it with the lock and idempotency services. An engine built by hand needs `limitService` when an agent declares limits or one of its tools carries a `limit`.
+
 ### Breaking changes
 
 | Change | Before | Replacement |
@@ -185,7 +189,7 @@ List endpoints and test support for it, new: `defineSchema()`, `decodeQuery()` a
 
 ### Writing a third-party store
 
-Implement each port of `@chamvi/store` on your storage. A port is the generic entity port `IEntityRepository<T>` on the port's stored type, plus at most one finder (`IRunRepository.findByWaitKind`, `IStateDocumentRepository.findContaining`, `IArtifactRepository.readData`, `ILockRepository` and `IIdempotencyRepository` `removeExpiredBy(time)`, `IConnectionRepository.findFence`) and the child repositories of connections and conversations, bound to the parent's transaction. A repository decides nothing: no status or owner compare, limit, default, time stamp or choice of error.
+Implement each port of `@chamvi/store` on your storage. A port is the generic entity port `IEntityRepository<T>` on the port's stored type, plus at most one finder (`IRunRepository.findByWaitKind`, `IStateDocumentRepository.findContaining`, `IArtifactRepository.readData`, `ILockRepository` and `IIdempotencyRepository` `removeExpiredBy(time)`, `ILimitRepository` `sumWeight(scope, since)` and `removeCreatedBefore(time)`, `IConnectionRepository.findFence`) and the child repositories of connections and conversations, bound to the parent's transaction. A repository decides nothing: no status or owner compare, limit, default, time stamp or choice of error.
 
 - `findMany(query)` runs a rapiq query (fields, filters, sorts, pagination) and resolves `{ data, meta: { total, limit?, offset? } }`; with a field selection it reads those fields only. A row it read with a field selection is refused by `upsert` and `upsertMany` (it would clear the other columns); `save` of it writes only what changed.
 - `findOneById`, `findOneBy(where)`, `findManyBy(where)`: an `EntityWhere<T>` holds a value, `null` or an array of values (any of) per property; inside `transaction(fn)` a single-row read locks the row until the transaction ends.

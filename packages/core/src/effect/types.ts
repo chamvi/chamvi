@@ -9,7 +9,8 @@ import type { Tool, ToolExecutionOptions } from 'ai';
 import type { IEffectRepository } from '@chamvi/store';
 import type { AgentHooks } from '../agent/types.ts';
 import type { IRunArtifacts } from '../artifact/types.ts';
-import type { CallSuspendRequest } from '../engine/execute/types.ts';
+import type { ApprovalRequest, CallSuspendRequest } from '../engine/execute/types.ts';
+import type { ToolLimitOptions } from '../limit/types.ts';
 import type { StateSchema } from '../state/types.ts';
 import type { AgentTrust, ToolContext } from '../tool/types.ts';
 import type { EFFECT, EFFECT_HOOKS } from './constants.ts';
@@ -49,6 +50,11 @@ export type ToolCallFrame = {
     effects: Pick<IEffectService, 'findOne' | 'save'>;
     /** The run's artifacts, where approve() checks the artifact ids a request names. */
     artifacts?: IRunArtifacts;
+    /**
+     * Asks the channel of an approval request whether it can deliver it,
+     * before the call suspends (a throw is the tool's error); absent: unchecked.
+     */
+    fitsApproval?: (request: ApprovalRequest) => Promise<void>;
     /** Set by the approve() or waitForDispatch() that suspended the call; the wrapper answers it with a placeholder. */
     suspended?: CallSuspendRequest;
     /** True while a streaming tool's body runs: approve() and waitForDispatch() are refused there. */
@@ -66,6 +72,11 @@ export type ToolCallFrame = {
 export type WrapToolsOptions = {
     trust?: AgentTrust;
     /**
+     * The agent's limits and the engine they are enforced with; a limited
+     * tool without them fails the wrap (InvalidAgentDefinitionError).
+     */
+    limits?: ToolLimitOptions;
+    /**
      * Re-checks every call: a refused one throws ToolNotAllowedError, a
      * rejecting one FatalToolError (the run fails).
      */
@@ -78,6 +89,8 @@ export type WrapToolsOptions = {
      * that never reaches a checkpoint.
      */
     onSuspend?: (request: CallSuspendRequest) => void;
+    /** Checks that the channel of an approval request can deliver it (`ToolCallFrame.fitsApproval`). */
+    fitsApproval?: (request: ApprovalRequest) => Promise<void>;
     /** The checkpoint step index of the step whose calls run now (read per call); default 0. */
     stepIndex?: () => number;
     /**

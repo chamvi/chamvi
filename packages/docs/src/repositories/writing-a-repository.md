@@ -58,13 +58,14 @@ Every repository port has a suite of its own in `@chamvi/test-kit` (`describeRun
 - **Decide nothing.** The services compare statuses, owners and times and choose the errors; a repository stores what it is handed and reports the six storage errors. It takes no clock and never calls the database's `now()`.
 - **Lock on a single-row read in a transaction.** `transaction(fn)` hands `fn` a repository bound to it; `findOneById` and `findOneBy` through it lock the row until the transaction ends (`FOR UPDATE`, or `FOR NO KEY UPDATE` for runs and conversations on PostgreSQL), so a service's read, check and save never interleave with another caller's.
 - **Revive dates.** `Run`, `Step`, `Checkpoint` and `WaitPoint` carry `Date` values (`createdAt`, `trigger.receivedAt`, `waiting.expiresAt`, `claim.expiresAt`, ...). Return them as `Date` objects.
+- **Sum limit uses in one read.** `ILimitRepository.sumWeight(scope, since)` resolves the summed `weight` of the uses of `scope` created strictly after `since` (0 when there is none), whatever the window; `removeCreatedBefore(time)` deletes the uses created at or before `time` and resolves how many. `describeLimitRepositoryContract` proves both boundaries.
 - **Store messages as they are.** Checkpoint messages are AI SDK `ModelMessage` arrays; store them as JSON without reshaping.
 - **Only the latest checkpoint is read.** Keeping older ones is optional.
 - **Keep artifact bytes apart from their metadata.** `findOne` and `find` should not load the bytes; only `read` needs them. Checkpoints refer to artifacts by id, never carry their bytes.
 
 ## Register it with an app
 
-Give `@chamvi/app` a module named `ModuleName.STORE` that registers each repository under its token (`AppToken.RUN_REPOSITORY`, `STEP_REPOSITORY`, `CHECKPOINT_REPOSITORY`, `EFFECT_REPOSITORY`, `ARTIFACT_REPOSITORY`, `STATE_REPOSITORY`, `STATE_DOCUMENT_REPOSITORY`, `LOCK_REPOSITORY`, `IDEMPOTENCY_REPOSITORY`, `AGENT_REVISION_REPOSITORY`; `CONNECTION_REPOSITORY` and `CONVERSATION_REPOSITORY` optional) and, if it likes, `STORE_KIND`. Listed in `createApp({ modules })`, it replaces the built-in store module; the app builds every service from the registered repositories in the same setup step. A missing required token fails the setup with `InvalidAgentDefinitionError` naming it.
+Give `@chamvi/app` a module named `ModuleName.STORE` that registers each repository under its token (`AppToken.RUN_REPOSITORY`, `STEP_REPOSITORY`, `CHECKPOINT_REPOSITORY`, `EFFECT_REPOSITORY`, `ARTIFACT_REPOSITORY`, `STATE_REPOSITORY`, `STATE_DOCUMENT_REPOSITORY`, `LOCK_REPOSITORY`, `IDEMPOTENCY_REPOSITORY`, `LIMIT_REPOSITORY`, `AGENT_REVISION_REPOSITORY`; `CONNECTION_REPOSITORY` and `CONVERSATION_REPOSITORY` optional) and, if it likes, `STORE_KIND`. Listed in `createApp({ modules })`, it replaces the built-in store module; the app builds every service from the registered repositories in the same setup step. A missing required token fails the setup with `InvalidAgentDefinitionError` naming it.
 
 ## Time in tests
 

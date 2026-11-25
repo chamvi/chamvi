@@ -24,6 +24,7 @@ import type {
     IConversationRepository,
     IEffectRepository,
     IIdempotencyRepository,
+    ILimitRepository,
     ILockRepository,
     IRunRepository,
     IStateDocumentRepository,
@@ -114,6 +115,36 @@ describe('public api', () => {
         }
     });
 
+    it('serves tool limit uses through a service over the repository port of @chamvi/store', () => {
+        expectTypeOf<core.EngineOptions['limitService']>().toEqualTypeOf<core.ILimitService | undefined>();
+        expectTypeOf<core.IEngine['limitService']>().toEqualTypeOf<core.ILimitService | undefined>();
+        expectTypeOf<core.LimitServiceContext['repository']>().toEqualTypeOf<ILimitRepository>();
+        expectTypeOf<core.LimitService['used']>().toEqualTypeOf<(scope: string, windowMs: number) => Promise<number>>();
+        expectTypeOf<core.LimitService['has']>().toEqualTypeOf<(scope: string, key: string) => Promise<boolean>>();
+        expectTypeOf<core.LimitService['record']>()
+            .toEqualTypeOf<(scope: string, key: string, weight: number) => Promise<void>>();
+        expectTypeOf<core.LimitService['purgeExpired']>().toEqualTypeOf<(now?: Date) => Promise<number>>();
+        expectTypeOf<core.AgentLimits>().toEqualTypeOf<Record<string, core.ToolLimit | false>>();
+        expectTypeOf<core.ToolLimit['onExceed']>().toEqualTypeOf<'approve' | 'deny' | undefined>();
+        expectTypeOf<core.ModelAgentDefinition['limits']>().toEqualTypeOf<core.AgentLimits | undefined>();
+        expectTypeOf<core.SimpleAgentDefinition['limits']>().toEqualTypeOf<undefined>();
+
+        expect(core.LIMIT_LOCK_TTL_MS).toBe(10_000);
+        expect(core.LIMIT_LOCK_RETRY_MS).toBe(100);
+
+        // the validation stays internal, the port and the memory repository live in @chamvi/store and @chamvi/store-memory
+        for (const name of [
+            'assertToolLimit',
+            'assertAgentLimits',
+            'enforceToolLimit',
+            'bindToolLimits',
+            'MemoryLimitRepository',
+            'ILimitRepository',
+        ]) {
+            expect(core).not.toHaveProperty(name);
+        }
+    });
+
     it('leaves permission checks to @chamvi/access', () => {
         for (const name of ['hasPermission', 'matchesPermission', 'toolPermission', 'PERMISSION_ALL', 'can', 'Permission']) {
             expect(core).not.toHaveProperty(name);
@@ -188,6 +219,7 @@ describe('public api', () => {
         'CheckpointService',
         'EffectService',
         'IdempotencyService',
+        'LimitService',
         'LockService',
         'RunService',
         'StateService',

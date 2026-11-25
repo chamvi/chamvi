@@ -5,11 +5,18 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Agent, RemoteAgent } from '../../agent/types.ts';
+import type {
+    Agent,
+    ModelAgent,
+    RemoteAgent,
+    SimpleAgent,
+} from '../../agent/types.ts';
 import { assertAgentKind, assertRemoteAgent, conversationKey } from '../../agent/asserts.ts';
 import { assertConcurrencyMaxRuns } from '../../channel/concurrency.ts';
 import { assertDispatchRoles } from '../../dispatch/helpers/index.ts';
 import { InvalidAgentDefinitionError } from '../../errors/index.ts';
+import { assertAgentLimits, assertLimitedTools } from '../../limit/asserts.ts';
+import { resolveToolLimits } from '../../limit/resolve.ts';
 import { checkAgentModel } from '../../model/module.ts';
 import type { ModelContext } from '../../model/types.ts';
 import { agentCancelReason } from './helpers.ts';
@@ -261,7 +268,8 @@ export class EngineRegistry implements IEngineRegistry {
 
     /**
      * Refuses an agent the engine cannot run: one whose kind is unknown or
-     * disagrees with its definition, or one subscribing to a channel it does not have.
+     * disagrees with its definition, one subscribing to a channel it does not have,
+     * or one whose tool limits the engine cannot enforce.
      * `commit: false` (checkAgent()) keeps the skill check free of state changes.
      */
     assertRegistrable(agent: Agent, options: { commit?: boolean } = {}): void {
@@ -270,6 +278,10 @@ export class EngineRegistry implements IEngineRegistry {
 
         if (agent.kind === 'model') {
             checkAgentModel(agent, { model: this.ctx.model, models: this.ctx.models });
+        }
+
+        if (agent.kind !== 'remote') {
+            this.assertLimits(agent);
         }
 
         if (agent.kind === 'remote') {
@@ -293,6 +305,33 @@ export class EngineRegistry implements IEngineRegistry {
         }
 
         this.ctx.skills.checkAgent(agent, options);
+    }
+
+    /**
+     * A model agent's `limits` pass defineModelAgent()'s checks again (a
+     * hand-built one skipped them), and ones that are not all false need a
+     * limit service. A static tool set is resolved as wrapToolsForRun
+     * resolves it, so its tools' own limits without a limit service and
+     * buckets that disagree are refused now, not at the first run.
+     */
+    protected assertLimits(agent: ModelAgent | SimpleAgent): void {
+        const { tools, state } = agent.definition;
+        const limits = agent.kind === 'model' ? agent.definition.limits : undefined;
+        const skills = agent.kind === 'model' ? agent.definition.skills : undefined;
+
+        assertAgentLimits(limits);
+        // factories, state and skills can add tools: their names are checked once assembled
+        assertLimitedTools(agent.name, limits, typeof tools === 'function' || state || skills?.length ? undefined : tools ?? {});
+
+        const limited = Object.values(limits ?? {}).some((limit) => limit !== false);
+
+        if (limited && !this.ctx.limitService) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent.name}" declares limits but the engine has no limit service.`);
+        }
+
+        if (typeof tools !== 'function') {
+            resolveToolLimits(tools ?? {}, limits, !!this.ctx.limitService);
+        }
     }
 
     /**

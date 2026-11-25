@@ -13,6 +13,7 @@ import { assertOwnDispatchRoles } from '../dispatch/helpers/index.ts';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { assertInstructions } from '../message/helpers.ts';
 import { REMOTE_TIMEOUT_DEFAULT_MS } from '../peer/constants.ts';
+import { assertLimitedTools } from '../limit/asserts.ts';
 import { assertAgentTrust } from '../trust/asserts.ts';
 import { snapshotSkillInputs } from '../skill/helpers.ts';
 import type { StateSchema } from '../state/types.ts';
@@ -141,6 +142,7 @@ function buildAgentDefinition<S extends StateSchema>(
         def.tools ?? {};
 
     assertAgentTrust(def.trust, completeTools);
+    assertLimitedTools(def.name, def.limits, completeTools);
     assertConcurrencyMaxRuns(def.concurrencyMaxRuns, `Agent "${def.name}" concurrencyMaxRuns`);
     assertSubtreeBudget(def.name, def.budget);
     conversationKey(def);

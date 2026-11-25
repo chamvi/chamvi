@@ -12,12 +12,14 @@ import { checkConversation, conversationFor } from '../../../conversation/contex
 import { bindDispatchTools } from '../../../dispatch/bind.ts';
 import { assertNoDispatchCollision, assertOwnDispatchRoles } from '../../../dispatch/helpers/index.ts';
 import { wrapToolsForRun } from '../../../effect/wrap.ts';
+import { assertApprovalFits } from '../../approvals/message.ts';
 import { ToolNotAllowedError } from '../../../errors/index.ts';
+import { assertLimitedTools } from '../../../limit/asserts.ts';
 import type { RunContext } from '../../../run/types.ts';
 import { createStateTools } from '../../../state/tools.ts';
 import { hasToolContext } from '../../../tool/helpers.ts';
 import { assertAgentTrust } from '../../../trust/asserts.ts';
-import type { AssembleToolsOptions, ExecuteContext } from '../types.ts';
+import type { ApprovalRequest, AssembleToolsOptions, ExecuteContext } from '../types.ts';
 
 /**
  * The tools handed to the agent: generated state tools (when the agent declares
@@ -75,6 +77,7 @@ export async function assembleTools(
     if (!userTools && !schema && !Object.keys(ctx.skills?.tools ?? {}).length) {
         ctx.skills?.checkTools({});
         assertAgentTrust(ctx.agent.definition.trust, {});
+        assertLimitedTools(ctx.agent.name, ctx.agent.definition.limits, {});
 
         if (agentToolsContext) {
             assertToolsContext(ctx.agent.name, {}, agentToolsContext);
@@ -107,6 +110,11 @@ export async function assembleTools(
 
     const toolsContext: Record<string, unknown> = {};
     const ended = () => gate.ended;
+    const fitsApproval = (request: ApprovalRequest) => assertApprovalFits(ctx.engine, ctx.clock, runContext, request);
+    const limits = {
+        agent: ctx.agent.definition.limits,
+        engine: ctx.engine,
+    };
 
     for (const [name, tool] of Object.entries(tools)) {
         if (hasToolContext(tool)) {
@@ -127,6 +135,8 @@ export async function assembleTools(
             tools: wrapToolsForRun(tools, toolContext, ctx.effectService, {
                 hooks,
                 trust: ctx.agent.definition.trust,
+                limits,
+                fitsApproval,
                 onSuspend,
                 stepIndex,
                 ended,
@@ -145,6 +155,8 @@ export async function assembleTools(
             allow,
             hooks,
             trust: ctx.agent.definition.trust,
+            limits,
+            fitsApproval,
             onSuspend,
             stepIndex,
             ended,

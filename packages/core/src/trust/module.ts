@@ -48,6 +48,23 @@ export function runSource(ctx: Pick<ToolContext, 'run'>): RunSource | undefined 
     return source ? { ...source } : undefined;
 }
 
+/**
+ * Whether the run is tainted, after a taint write in flight settled.
+ * Without an execution-bound trust context (or after a failed write) the
+ * answer is conservatively true.
+ */
+export async function runTainted(ctx: Pick<ToolContext, 'run'>): Promise<boolean> {
+    const state = ctx?.run ? executions.get(ctx.run) : undefined;
+
+    if (!state) {
+        return true;
+    }
+
+    await state.pending?.catch(() => undefined);
+
+    return state.failed === true || state.taint !== undefined;
+}
+
 /** Persistence failure is fatal to the execution, never a usable tool result. */
 export function assertTrust(run: RunContext, required = false): void {
     const state = executions.get(run);

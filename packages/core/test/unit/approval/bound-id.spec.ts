@@ -23,9 +23,13 @@ function frame(overrides: Partial<ToolCallFrame> = {}): ToolCallFrame {
     };
 }
 
-async function pendingId(call: ToolCallFrame, binding?: string): Promise<string> {
+async function pendingId(call: ToolCallFrame, binding?: string, unordered?: boolean): Promise<string> {
     try {
-        await runToolCall(call, () => requestApproval({ title: 'Review', binding }));
+        await runToolCall(call, () => requestApproval({
+            title: 'Review',
+            binding,
+            ...(unordered ? { unordered } : {}),
+        }));
     } catch (error) {
         if (error instanceof SuspendSignal && error.request.kind === 'approval') {
             return error.request.approvalId;
@@ -84,5 +88,20 @@ describe('bound approval ids', () => {
 
         expect(await pendingId(call)).toBe(`2:${call.toolCallId}:0`);
         expect(await pendingId(call)).toBe(`2:${call.toolCallId}:1`);
+    });
+
+    it('an unordered bound approval takes no ordinal and keeps its id whatever was asked before', async () => {
+        const call = frame({ toolCallId: 'send' });
+        const id = await pendingId(call, 'limit', true);
+
+        expect(call.boundApprovals ?? 0).toBe(0);
+        expect(call.approvals).toBe(0);
+        expect(await pendingId(frame({
+            toolCallId: 'send',
+            boundApprovals: 3,
+            approvals: 2,
+        }), 'limit', true)).toBe(id);
+        expect(id).toMatch(/^bound:/);
+        expect(await pendingId(frame({ toolCallId: 'send' }), 'limit')).not.toBe(id);
     });
 });

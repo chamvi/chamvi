@@ -16,7 +16,7 @@ import { createChatIntake } from '../intake/module.ts';
 import { bindIngress } from '../ingress/module.ts';
 import type { ChatIncoming, IChatReceiver } from '../ingress/types.ts';
 import { createChatSubscription } from '../subscription/module.ts';
-import { createChatSender } from '../outbound/module.ts';
+import { createChatChecks, createChatSender } from '../outbound/module.ts';
 import {
     encodeChatAddress,
     markChatChannel,
@@ -194,6 +194,8 @@ function teardown(run: ChatRun, options: ResolvedChatChannelOptions): Promise<vo
  * from `stop` on it sends nothing (`chat_request`). Approvals go out as a
  * link of `approvalUrl` (required for them, except one without options
  * to a direct chat with `answers`, which ends with `CHAT_ANSWER_HINT`), never as buttons.
+ * `fits` refuses before the call suspends an approval `out` would refuse
+ * (createChatChecks()); `direct` tells a direct chat by the adapter's `isDM`.
  *
  * Runs it starts are untrusted unless `untrusted: false`. Only incoming
  * messages reach chamvi: the Chat has no handlers of chamvi's, so an action
@@ -208,17 +210,20 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
         platform,
     } = resolved;
     let current: ChatRun | undefined;
-    const out = createChatSender({
-        name,
+    const setup = {
         adapters: resolved.adapters,
         ...(resolved.approvalUrl ? { approvalUrl: resolved.approvalUrl } : {}),
         ...(resolved.answers ? { answers: resolved.answers } : {}),
         ...(platform?.sentMessageId ? { quotes: true } : {}),
-        timeoutMs: resolved.timeoutMs,
         maxTextChars: resolved.maxTextChars,
+        ...(platform?.prepare ? { prepare: (input: ChatPlatformSend) => platform.prepare!(input) } : {}),
+    };
+    const out = createChatSender({
+        name,
+        ...setup,
+        timeoutMs: resolved.timeoutMs,
         // started, and connected as far as the transport knows
         online: () => (current?.online && (platform?.online ? platform.online() : true) ? current.context.engine.clock : undefined),
-        ...(platform?.prepare ? { prepare: (input: ChatPlatformSend) => platform.prepare!(input) } : {}),
         onError: resolved.onError,
     });
 
@@ -290,6 +295,7 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
             }
         },
         out,
+        ...createChatChecks(setup),
         on: (subscriptionOptions) => createChatSubscription(name, subscriptionOptions, adapterNames),
         to: (target) => encodeChatAddress(target, adapterNames),
     });

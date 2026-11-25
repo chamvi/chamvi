@@ -24,7 +24,12 @@ import type {
     ModelRef,
 } from '@chamvi/core';
 import { ControllableClock, approvalModel, textModel } from '@chamvi/test-kit';
-import { customProvider, generateText, jsonSchema } from 'ai';
+import {
+    customProvider,
+    generateText,
+    jsonSchema,
+    tool,
+} from 'ai';
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
 import {
@@ -151,6 +156,24 @@ describe('engineModule', () => {
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toBe('triaged');
+    });
+
+    it('passes the limit service to the engine, so an agent with limits registers', async () => {
+        const agent = defineModelAgent({
+            name: 'triage',
+            model: textModel(),
+            instructions: 'x',
+            tools: { search: tool({ inputSchema: jsonSchema({ type: 'object' }), execute: async () => 'ok' }) },
+            limits: { search: { max: 1, windowMs: 1_000 } },
+        });
+        const { harness } = build({ mode: 'job', agents: [agent] });
+
+        await harness.setup();
+
+        const engine = harness.container.resolve(AppToken.ENGINE);
+
+        expect(engine.limitService).toBe(harness.container.resolve(AppToken.LIMIT_SERVICE));
+        expect(engine.getAgent('triage')).toBe(agent);
     });
 
     it('job mode builds but does not start', async () => {

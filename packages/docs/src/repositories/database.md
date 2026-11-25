@@ -12,7 +12,7 @@ npm install @chamvi/store-db typeorm pg
 
 <<< @/snippets/store-db.ts#setup
 
-Every aggregate is a repository of its own over the same `DataSource`, the ports' repositories `DatabaseRunRepository`, `DatabaseStepRepository`, `DatabaseCheckpointRepository`, `DatabaseEffectRepository`, `DatabaseArtifactRepository`, `DatabaseStateRepository`, `DatabaseStateDocumentRepository`, `DatabaseIdempotencyRepository`, `DatabaseLockRepository`, `DatabaseAgentRevisionRepository`, `DatabaseConnectionRepository` and `DatabaseConversationRepository` (each `new ...(dataSource)`, the services of `@chamvi/core` on them; the connection repository's `entries` and `secrets` share its manager in a transaction, and `findFence` reads the lease's lock row `FOR SHARE`; the conversation repository's `items`, `notes` and `operations` share its manager too, and its locked read takes `FOR NO KEY UPDATE`, which does not hold off the rows referencing the conversation). The repositories take an initialized `DataSource` and never initialize or destroy it. The database must exist; create it beforehand, for example with `createDatabase()` from `typeorm-extension`.
+Every aggregate is a repository of its own over the same `DataSource`, the ports' repositories `DatabaseRunRepository`, `DatabaseStepRepository`, `DatabaseCheckpointRepository`, `DatabaseEffectRepository`, `DatabaseArtifactRepository`, `DatabaseStateRepository`, `DatabaseStateDocumentRepository`, `DatabaseIdempotencyRepository`, `DatabaseLimitRepository`, `DatabaseLockRepository`, `DatabaseAgentRevisionRepository`, `DatabaseConnectionRepository` and `DatabaseConversationRepository` (each `new ...(dataSource)`, the services of `@chamvi/core` on them; the connection repository's `entries` and `secrets` share its manager in a transaction, and `findFence` reads the lease's lock row `FOR SHARE`; the conversation repository's `items`, `notes` and `operations` share its manager too, and its locked read takes `FOR NO KEY UPDATE`, which does not hold off the rows referencing the conversation). The repositories take an initialized `DataSource` and never initialize or destroy it. The database must exist; create it beforehand, for example with `createDatabase()` from `typeorm-extension`.
 
 On shutdown, drain the engine before destroying the data source:
 
@@ -40,6 +40,7 @@ The baseline `1794096000000-uuid-baseline.ts` (`UuidBaseline1794096000000`) crea
 | `chamvi_conversation_notes` | Explicit notes | PK `id`; unique `(scope_id, generation, key)`; `expires_at`; `run_id` |
 | `chamvi_conversation_operations` | Note operation receipts | PK `id`; unique `(scope_id, generation, operation_id)`; `(scope_id, created_at, operation_id)`; `run_id` |
 | `chamvi_idempotency_keys` | Intake keys | PK `id`; unique `(scope, key)`; `expires_at` |
+| `chamvi_limit_uses` | Counted tool-limit uses | PK `id`; unique `(scope, key)`; index `(scope, created_at)`; `created_at` |
 | `chamvi_locks` | Keyed leases | PK `id`; unique `key`; `expires_at`; `token` (bigint) |
 | `chamvi_lock_tokens` | The last fencing token issued | PK `id` (the one row `1`); `value` (bigint) |
 | `chamvi_effects` | Recorded effect results | PK `id`; unique `key` |
@@ -69,11 +70,11 @@ Conversation rows, active owners, transcript items, notes and operation receipts
 
 ## Housekeeping
 
-Expired idempotency keys and locks never block anyone, but they stay in their tables until purged:
+Expired idempotency keys, locks and limit uses never block anyone, but they stay in their tables until purged:
 
 <<< @/snippets/store-db.ts#purge
 
-`engine.idempotencyService.purgeExpired(now?)` and `engine.lockService.purgeExpired(now?)` each delete their expired rows (one `DELETE ... WHERE expires_at <= now`, through `removeExpiredBy`) and return the number removed. The default time comes from the clock. Effects have no expiry and are never purged. Direct engine users schedule both as above; the app's built-in store module schedules them with `CHAMVI_PURGE_INTERVAL_MS`.
+`engine.idempotencyService.purgeExpired(now?)` and `engine.lockService.purgeExpired(now?)` each delete their expired rows (one `DELETE ... WHERE expires_at <= now`, through `removeExpiredBy`) and return the number removed. `engine.limitService.purgeExpired(now?)` (an engine built with a `limitService`) deletes the limit uses no window counts any more: those created at least the longest window a limit accepts (`APPROVAL_TIMEOUT_MAX_MS`, about 24.8 days) before `now` (one `DELETE ... WHERE created_at <= ...`, through `removeCreatedBefore`). The default time comes from the clock. Effects have no expiry and are never purged. Direct engine users schedule both as above; the app's built-in store module schedules them with `CHAMVI_PURGE_INTERVAL_MS`.
 
 ## Differences from memory repositories
 

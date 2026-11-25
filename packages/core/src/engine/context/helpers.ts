@@ -13,7 +13,7 @@ import { Conversations } from '../../conversation/module.ts';
 import type { IConversations } from '../../conversation/types.ts';
 import { InvalidAgentDefinitionError } from '../../errors/index.ts';
 import type { EngineEvent, EngineOptions } from '../types.ts';
-import type { EngineContext } from './types.ts';
+import type { EngineContext, EngineServices } from './types.ts';
 
 /** The conversation capability of EngineOptions.conversations, which needs a conversation service. */
 export function createEngineConversations(opts: EngineOptions): IConversations | undefined {
@@ -92,5 +92,23 @@ export function subscribeEngineEvent<T extends EngineEvent['type']>(
 
     return () => {
         listeners.delete(wrapped);
+    };
+}
+
+/** The services of an engine (or anything holding them), each by its own name: what its context shares. */
+export function engineServicesOf(source: EngineServices): EngineServices {
+    return {
+        runService: source.runService,
+        stepService: source.stepService,
+        checkpointService: source.checkpointService,
+        effectService: source.effectService,
+        artifactService: source.artifactService,
+        stateService: source.stateService,
+        agentRevisionService: source.agentRevisionService,
+        lockService: source.lockService,
+        idempotencyService: source.idempotencyService,
+        connectionService: source.connectionService,
+        conversationService: source.conversationService,
+        limitService: source.limitService,
     };
 }

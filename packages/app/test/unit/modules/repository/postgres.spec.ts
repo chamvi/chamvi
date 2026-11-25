@@ -10,6 +10,7 @@ import { createServer } from 'node:net';
 import type { AddressInfo, Socket } from 'node:net';
 import { inspect } from 'node:util';
 import {
+    APPROVAL_TIMEOUT_MAX_MS,
     AgentRevisionService,
     ArtifactService,
     CheckpointService,
@@ -432,13 +433,29 @@ describePostgres('storeModule on Postgres', () => {
         await harness.setup();
 
         await harness.container.resolve(AppToken.LOCK_SERVICE).acquire('lock', 'owner', 1000);
+
+        // two uses no window counts any more (created the longest window a limit can have ago) and a recent one
+        const uses = harness.container.resolve(AppToken.LIMIT_REPOSITORY);
+
+        for (const key of ['r1:0:c1', 'r1:0:c2']) {
+            await uses.save(uses.create({
+                id: randomUUID(),
+                scope: 'a:search',
+                key,
+                weight: 1,
+                createdAt: new Date(-APPROVAL_TIMEOUT_MAX_MS),
+            }));
+        }
+
+        await harness.container.resolve(AppToken.LIMIT_SERVICE).record('a:search', 'r1:0:c3', 1);
         await runHooks(harness.container, 'started');
         clock.advance(DEFAULT_PURGE_INTERVAL_MS);
 
-        // the lock service's purge, then the idempotency service's
+        // the lock service's purge, then the idempotency service's, then the limit service's
         await vi.waitFor(() => {
-            expect(logger.entries.find((entry) => entry.level === 'debug')).toMatchObject({ results: [1, 0] });
+            expect(logger.entries.find((entry) => entry.level === 'debug')).toMatchObject({ results: [1, 0, 2] });
         });
+        expect(await uses.findOneBy({ scope: 'a:search', key: 'r1:0:c3' })).not.toBeNull();
 
         await runHooks(harness.container, 'stopping');
         await harness.stop();

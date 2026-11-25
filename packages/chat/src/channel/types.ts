@@ -191,6 +191,8 @@ export interface IChatPlatform {
      * throw of the post is a `chat_request`; a post that settles after the
      * channel stopped waiting is reported to `onError`). Default the
      * adapter's `postMessage(threadId, { raw: text })`, which takes no signal.
+     * It must have no side effect before its post is called: the channel's
+     * `fits` calls it to check a target and discards the post.
      */
     prepare?(input: ChatPlatformSend): ChatPlatformPost;
     /**

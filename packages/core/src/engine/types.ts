@@ -28,6 +28,7 @@ import type { IConnectionService } from '../connection/types.ts';
 import type { ICheckpointService } from '../checkpoint/types.ts';
 import type { IEffectService } from '../effect/types.ts';
 import type { IIdempotencyService } from '../idempotency/types.ts';
+import type { ILimitService } from '../limit/types.ts';
 import type { ILockService } from '../lock/types.ts';
 import type { IRunService } from '../run/types.ts';
 import type { IStateService } from '../state/types.ts';
@@ -59,6 +60,11 @@ export interface IEngine extends IContextProvider {
      * (`createHttpApp`) reads them through it.
      */
     readonly connectionService: IConnectionService | undefined;
+    /**
+     * The counted uses of tool limits over the limit repository, when the
+     * engine has it; an agent with `limits` needs it.
+     */
+    readonly limitService: ILimitService | undefined;
     /**
      * Conversations over the conversation repository, when the store keeps
      * them; the conversation capability (`conversations`) needs it.
@@ -188,6 +194,12 @@ export type EngineOptions = {
      * fence reads the lock rows `lockService` writes.
      */
     connectionService?: IConnectionService;
+    /**
+     * The counted uses of tool limits (optional): an agent with non-empty
+     * `limits` is refused without it; built on the engine's clock, its
+     * check locks through `lockService`.
+     */
+    limitService?: ILimitService;
     /**
      * Conversations, when the store keeps them (optional): required by the
      * conversation capability (`conversations`), built on the engine's

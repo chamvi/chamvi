@@ -15,6 +15,7 @@ import type {
     UserModelMessage,
 } from 'ai';
 import type { ChannelSubscription } from '../channel/types.ts';
+import type { AgentLimits } from '../limit/types.ts';
 import type { ModelRef } from '../model/types.ts';
 import type { Budget, RunContext } from '../run/types.ts';
 import type { StateSchema } from '../state/types.ts';
@@ -129,6 +130,13 @@ export type ModelAgentDefinition<S extends StateSchema = StateSchema> = {
     trust?: AgentTrust;
 
     /**
+     * Per tool name, a rate limit replacing the tool's own `limit`, or
+     * false to turn it off. A non-empty record needs an engine with a
+     * `limitService`.
+     */
+    limits?: AgentLimits;
+
+    /**
      * Per tool name, the context of a tool that is not chamvi's (e.g. a
      * third-party tool with its own `contextSchema`), passed through unchanged
      * by reference to every call of every run: treat it as immutable. An entry
@@ -222,6 +230,7 @@ export type SimpleAgentDefinition<S extends StateSchema = StateSchema, T extends
     output?: never;
     conversation?: never;
     toolsContext?: never;
+    limits?: never;
 };
 
 /**
@@ -271,6 +280,7 @@ export type RemoteAgentDefinition = {
     budget?: never;
     conversation?: never;
     toolsContext?: never;
+    limits?: never;
 };
 
 export type AgentDefinition<S extends StateSchema = StateSchema> = ModelAgentDefinition<S> | SimpleAgentDefinition<S> | RemoteAgentDefinition;

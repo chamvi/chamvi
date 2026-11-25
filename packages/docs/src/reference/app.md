@@ -62,7 +62,7 @@ Read by `readConfig(env, { mode, dev })` once per lifecycle; the optional module
 | `CHAMVI_LOG_LEVEL` | config | `error`, `warn`, `info`, `debug` | `info` | never |
 | `DATABASE_URL` | store | `postgres://...` | unset: memory repositories (warned outside dev) | `migrate`; any multi-replica or CronJob deployment |
 | `CHAMVI_MIGRATE` | store | bool | `true` | never |
-| `CHAMVI_PURGE_INTERVAL_MS` | store | int, `0` disables | `3600000` (the lock and idempotency services' `purgeExpired()`, on `engine.clock`) | never |
+| `CHAMVI_PURGE_INTERVAL_MS` | store | int, `0` disables | `3600000` (the lock, idempotency and limit services' `purgeExpired()`, on `engine.clock`) | never |
 | `CHAMVI_MAX_CONCURRENT_RUNS` | engine | int >= 1 | `4` | never |
 | `CHAMVI_SCHEDULER` | scheduler | bool | `true`; `false` starts no in-process cron (CronJob mode; `cron.on()` subscriptions still validate) | never |
 | `CHAMVI_AGENTS_DIR` | agents | path of a directory, relative to the working directory | unset: `./agents` when it is a directory, else no [agent folders](/guide/agent-folders) | |

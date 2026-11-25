@@ -14,6 +14,7 @@ import {
     EffectService,
     IdempotencyService,
     InvalidAgentDefinitionError,
+    LimitService,
     LockService,
     RunService,
     StateService,
@@ -36,6 +37,7 @@ const REQUIRED_REPOSITORIES = [
     'STATE_DOCUMENT_REPOSITORY',
     'LOCK_REPOSITORY',
     'IDEMPOTENCY_REPOSITORY',
+    'LIMIT_REPOSITORY',
     'AGENT_REVISION_REPOSITORY',
 ] as const;
 
@@ -44,7 +46,7 @@ const REQUIRED_REPOSITORIES = [
  * under its token, on the app clock, and registers it under its own token.
  * The connection and conversation services only when their repository is
  * registered. In start mode (not a check) with a positive purge interval it
- * also contributes the purge of the lock and idempotency services to
+ * also contributes the purge of the lock, idempotency and limit services to
  * `AppToken.COMPONENTS` (`store-purge`), which the components module starts
  * and stops.
  */
@@ -62,6 +64,7 @@ function registerServices(container: IContainer): void {
 
     const lockService = new LockService({ repository: container.resolve(AppToken.LOCK_REPOSITORY), clock });
     const idempotencyService = new IdempotencyService({ repository: container.resolve(AppToken.IDEMPOTENCY_REPOSITORY), clock });
+    const limitService = new LimitService({ repository: container.resolve(AppToken.LIMIT_REPOSITORY), clock });
 
     container.register(AppToken.RUN_SERVICE, { useValue: new RunService({ repository: container.resolve(AppToken.RUN_REPOSITORY), clock }) });
     container.register(AppToken.STEP_SERVICE, { useValue: new StepService({ repository: container.resolve(AppToken.STEP_REPOSITORY) }) });
@@ -79,6 +82,7 @@ function registerServices(container: IContainer): void {
     });
     container.register(AppToken.LOCK_SERVICE, { useValue: lockService });
     container.register(AppToken.IDEMPOTENCY_SERVICE, { useValue: idempotencyService });
+    container.register(AppToken.LIMIT_SERVICE, { useValue: limitService });
 
     const agentRevisionService = new AgentRevisionService({ repository: container.resolve(AppToken.AGENT_REVISION_REPOSITORY) });
 
@@ -106,7 +110,7 @@ function registerServices(container: IContainer): void {
         useValue: {
             name: PURGE_COMPONENT_NAME,
             component: createPurgeComponent({
-                services: [lockService, idempotencyService],
+                services: [lockService, idempotencyService, limitService],
                 clock,
                 intervalMs: config.store.purgeIntervalMs,
                 logger,

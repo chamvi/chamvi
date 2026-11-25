@@ -9,6 +9,7 @@ import type { ApprovalWaitPoint, Run } from '@chamvi/store';
 import { RunStatus } from '@chamvi/store';
 import { ChamviError, ChannelNotFoundError, ErrorCode } from '../../errors/index.ts';
 import { deliverOnce } from '../notify/module.ts';
+import { approvalMessageOf } from './message.ts';
 import type { ApprovalDeliveryContext } from './types.ts';
 
 /**
@@ -66,29 +67,7 @@ export async function deliverApprovalMessage(ctx: ApprovalDeliveryContext, run: 
 
                 return current !== undefined && !current.notifiedAt;
             },
-            send: (signal) => channel.out!({
-                kind: 'approval',
-                key,
-                runId: run.id,
-                agent: run.agent,
-                title: waiting.title,
-                body: waiting.notification ?? waiting.body ?? '',
-                ...(waiting.notification !== undefined ? { generic: true as const } : {}),
-                ...(waiting.slot !== undefined ? { slot: waiting.slot } : {}),
-                approvalId: waiting.approvalId,
-                expiresAt: waiting.expiresAt,
-                // artifacts stay in the inbox and the API, never in a channel message
-                ...(waiting.options !== undefined ?
-                    {
-                        options: waiting.options.map((option) => ({
-                            id: option.id,
-                            label: option.label,
-                            ...(option.detail !== undefined ? { detail: option.detail } : {}),
-                        })),
-                    } :
-                    {}),
-                ...(waiting.multiple === true ? { multiple: true } : {}),
-            }, waiting.address ?? '', { signal, trigger: run.trigger }),
+            send: (signal) => channel.out!(approvalMessageOf(run, waiting), waiting.address ?? '', { signal, trigger: run.trigger }),
             record: async (signal) => {
                 // answered meanwhile: nothing left to record
                 if (!currentWait(await ctx.runService.findOne(run.id))) {

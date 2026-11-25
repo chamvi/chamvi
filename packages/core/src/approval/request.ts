@@ -134,6 +134,15 @@ export function reserveApproval(request: ApprovalRequestInput): ApprovalReservat
 }
 
 /**
+ * The id of an `unordered` bound approval of the call `frame` (internal):
+ * the call and the binding alone, so a caller can read its recorded
+ * decision before deciding whether to ask.
+ */
+export function unorderedApprovalId(frame: Pick<ApprovalReservation['frame'], 'stepIndex' | 'toolCallId'>, binding: string): string {
+    return `bound:${stableHash([frame.stepIndex, frame.toolCallId, binding])}`;
+}
+
+/**
  * The approval logic behind approve() and ChannelHandle.approve(): the n-th
  * request of the current tool call has the id `<stepIndex>:<toolCallId>:<n>`
  * (the step index of the model step that made the call, so a call id a
@@ -141,9 +150,16 @@ export function reserveApproval(request: ApprovalRequestInput): ApprovalReservat
  * recorded for it is returned, otherwise the call is suspended (the request
  * is stashed on the frame and a SuspendSignal thrown). Sends nothing.
  * `reservation` is a plain ordinal reserveApproval() took for this request.
+ * An `unordered` bound request takes no ordinal: its id is the call and the
+ * binding alone, so a request a replay skips (a tool limit no longer
+ * exceeded) shifts no later bound approval of the call.
  */
 export async function requestApproval(
-    request: ApprovalRequestInput & { binding?: string; notification?: string },
+    request: ApprovalRequestInput & {
+        binding?: string;
+        notification?: string;
+        unordered?: boolean;
+    },
     target: {
         channel?: string;
         address?: string;
@@ -161,6 +177,9 @@ export async function requestApproval(
             choice,
             ordinal,
         } = reservation);
+    } else if (request.binding && request.unordered) {
+        ({ frame, choice } = checkFrame(request));
+        ordinal = -1;
     } else {
         ({ frame, choice } = checkFrame(request));
         // taken before any await, so the ordinals follow the order of the calls
@@ -169,9 +188,13 @@ export async function requestApproval(
     }
 
     // Bound automatic ids regardless of provider call-id length; ordinary replay ids stay unchanged.
-    const approvalId = request.binding ?
-        `bound:${stableHash([frame.stepIndex, frame.toolCallId, ordinal, request.binding])}` :
-        `${frame.stepIndex}:${frame.toolCallId}:${ordinal}`;
+    let approvalId = `${frame.stepIndex}:${frame.toolCallId}:${ordinal}`;
+
+    if (request.binding) {
+        approvalId = ordinal < 0 ?
+            unorderedApprovalId(frame, request.binding) :
+            `bound:${stableHash([frame.stepIndex, frame.toolCallId, ordinal, request.binding])}`;
+    }
 
     const recorded = await frame.effects.findOne(approvalDecisionKey(frame.runId, approvalId));
 
@@ -196,6 +219,9 @@ export async function requestApproval(
         ...(target.slot !== undefined ? { slot: target.slot } : {}),
         timeoutMs: request.timeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS,
     };
+
+    // a destination that cannot deliver the request refuses it now: the tool gets the error, nothing waits
+    await frame.fitsApproval?.(pending);
 
     // the first suspension of the call wins, also when the tool catches the signal
     frame.suspended ??= pending;
