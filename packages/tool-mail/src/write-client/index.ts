@@ -5,4 +5,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export type { MailSmtpNormalized, MailSmtpSettings, MailWriteAccount } from './types.ts';
+export { createMailWriteClient } from './module.ts';
+export type {
+    IMailWriteClient,
+    MailReplyHeaders,
+    MailSendRequest,
+    MailSendResult,
+    MailSmtpNormalized,
+    MailSmtpSettings,
+    MailWriteAccount,
+    MailWriteAccountView,
+} from './types.ts';

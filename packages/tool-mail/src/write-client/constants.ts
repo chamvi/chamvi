@@ -14,3 +14,6 @@ export const MAIL_SMTP_PORTS = {
     starttls: 587,
     plain: 25,
 } as const;
+
+/** The header every sent mail carries: `effectMarker(key)` of the send, found again in Sent by `findSent`. */
+export const MAIL_EFFECT_HEADER = 'X-Chamvi-Effect';

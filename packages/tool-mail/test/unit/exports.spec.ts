@@ -18,6 +18,7 @@ describe('public api', () => {
     it('exports the tools, the client, the context pair and the limits', () => {
         expect(mail.mailTools).toBeTypeOf('function');
         expect(mail.createMailClient).toBeTypeOf('function');
+        expect(mail.createMailWriteClient).toBeTypeOf('function');
         expect(mail.provideMailContext).toBeTypeOf('function');
         expect(mail.injectMailContext).toBeTypeOf('function');
         expect(mail.encodeMailId).toBeTypeOf('function');
@@ -65,6 +66,7 @@ describe('public api', () => {
             'MAIL_ZIP_PART_MAX_BYTES',
             'MAIL_ZIP_TOTAL_MAX_BYTES',
             'createMailClient',
+            'createMailWriteClient',
             'encodeMailId',
             'injectMailContext',
             'mailTools',
@@ -85,6 +87,25 @@ describe('public api', () => {
             port: number; 
             security: 'tls' | 'starttls' | 'plain' 
         }>();
+        expectTypeOf<mail.MailWriteAccountView>().toEqualTypeOf<{
+            id: string;
+            address: string;
+            gmail: boolean;
+            smtp: boolean;
+        }>();
+        expectTypeOf<mail.MailSendResult>().toEqualTypeOf<{
+            account: string; 
+            messageId: string; 
+            filed: boolean 
+        }>();
+        expectTypeOf<mail.MailReplyHeaders>().toEqualTypeOf<{
+            messageId: string;
+            references: string[];
+            from: string;
+            subject: string;
+        }>();
+        expectTypeOf<mail.MailSendRequest['marker']>().toEqualTypeOf<string>();
+        expectTypeOf<ReturnType<typeof mail.createMailWriteClient>>().toEqualTypeOf<mail.IMailWriteClient>();
         expectTypeOf<NonNullable<module.ToolMailModuleOptions['accounts']>>().toEqualTypeOf<mail.MailWriteAccount[]>();
     });
 

@@ -25,6 +25,7 @@ import { verifyMailLogin } from '../client/login.ts';
 import type { MailAccount } from '../client/types.ts';
 import { normalizeAccount } from '../options/module.ts';
 import { normalizeSmtp } from '../write-client/asserts.ts';
+import { verifySmtpLogin } from '../write-client/smtp.ts';
 import type { MailSmtpSettings, MailWriteAccount } from '../write-client/types.ts';
 import {
     MAIL_ACCOUNTS_VARIABLE,
@@ -130,8 +131,17 @@ export function mailConnectionDefinition(): ConnectionTypeDefinition {
             },
         ],
         uniqueId: (values) => String(values.address ?? '').toLowerCase(),
-        // saved values only; the account id is not part of a login
-        test: (values, signal) => verifyMailLogin(normalizeAccount(toAccount('test', values), 'Mail account'), signal),
+        // saved values only; the account id is not part of a login. SMTP after IMAP, when the account sends
+        test: async (values, signal) => {
+            const account = toAccount('test', values);
+            const normalized = normalizeAccount(account, 'Mail account');
+
+            await verifyMailLogin(normalized, signal);
+
+            if (account.smtp !== undefined) {
+                await verifySmtpLogin({ ...normalized, smtp: normalizeSmtp(account.smtp, 'Mail account.smtp') }, signal);
+            }
+        },
     };
 }
 
