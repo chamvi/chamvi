@@ -28,6 +28,7 @@ import type {
     ChatApprovalRef,
     ChatChannel,
     ChatIngress,
+    ChatVoiceOptions,
 } from '@chamvi/chat';
 
 /**
@@ -150,7 +151,12 @@ export type WhatsAppSocket = {
     };
     end(error: Error | undefined): Promise<void> | void;
     sendMessage(jid: string, content: { text: string }, options?: { messageId?: string }): Promise<WAMessage | undefined>;
+    /** Renews an expired media link (a WASocket has it); without it a download is not retried. */
+    updateMediaMessage?(message: WAMessage): Promise<WAMessage>;
 };
+
+/** Downloads a media message's bytes; default Baileys' downloadMediaMessage over the socket. */
+export type WhatsAppMediaDownload = (message: WAMessage, socket: WhatsAppSocket) => Promise<Uint8Array>;
 
 /** Makes a socket; default Baileys' makeWASocket. */
 export type WhatsAppSocketFactory = (config: UserFacingSocketConfig) => WhatsAppSocket;
@@ -183,6 +189,11 @@ export type WhatsAppChatOptions = {
      * A swipe reply matches the approval message it quotes.
      */
     answers?: ChatAnswerOptions;
+    /**
+     * Voice notes are transcribed and start runs as text (see chatChannel's `voice`); off by default.
+     * A voice note is downloaded only after the policy and `resolveInvoker` allowed it.
+     */
+    voice?: ChatVoiceOptions;
     /** The connector's clock (reconnect backoff, shutdown bound); default the engine's. */
     clock?: IClock;
     /** Failures nobody awaits; default console.error. Never gets pairing material. */
@@ -198,6 +209,8 @@ export type WhatsAppChatOptions = {
     socketOptions?: Omit<Partial<SocketConfig>, 'auth' | 'logger'>;
     /** Makes the socket; default Baileys' makeWASocket (tests pass a fake). */
     socketFactory?: WhatsAppSocketFactory;
+    /** Downloads a voice note's bytes; default Baileys' downloadMediaMessage (tests pass a fake). */
+    downloadMedia?: WhatsAppMediaDownload;
 };
 
 /** The chat of a conversation reference (WhatsAppChatSetup.conversation()). */
@@ -278,6 +291,8 @@ export type WhatsAppContextInfo = {
 export type WhatsAppAdapterOptions = Omit<WhatsAppConnectionOptions, 'onMessages'> & {
     account: string;
     userName: string;
+    /** default downloadWhatsAppMedia */
+    downloadMedia?: WhatsAppMediaDownload;
 };
 
 /** The Chat SDK adapter over one WhatsApp connection (internal). */

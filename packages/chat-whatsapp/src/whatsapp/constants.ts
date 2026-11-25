@@ -39,3 +39,14 @@ export const WHATSAPP_LOGGED_OUT_ERROR_CODE = 'whatsapp_logged_out';
 
 /** The prefix of the message ids chamvi derives (Baileys' own ids start so too). */
 export const MESSAGE_ID_PREFIX = '3EB0';
+
+/** Drops everything: Baileys' own log lines would otherwise carry pairing material and session details. */
+export const SILENT_LOGGER = {
+    level: 'silent',
+    child: () => SILENT_LOGGER,
+    trace: () => undefined,
+    debug: () => undefined,
+    info: () => undefined,
+    warn: () => undefined,
+    error: () => undefined,
+};

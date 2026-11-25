@@ -336,6 +336,8 @@ export function createDiscordChat(options: DiscordChatOptions): DiscordChatSetup
         ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
         // no sentMessageId and no quote matching: a native Reply never answers, a plain message only when exactly one approval is open
         ...(options.answers !== undefined ? { answers: options.answers } : {}),
+        // no fetchData on Discord attachments yet: a voice message stays refused
+        ...(options.voice !== undefined ? { voice: options.voice } : {}),
         account: options.account,
         maxTextChars: DISCORD_TEXT_MAX_CHARS,
         connect: (ctx) => connection.connect({ signal: ctx.signal, clock: options.clock ?? ctx.clock }),

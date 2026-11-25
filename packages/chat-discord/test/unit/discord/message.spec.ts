@@ -203,6 +203,18 @@ describe('toChatMessage', () => {
         expect(message.links).toEqual(parsed.links);
     });
 
+    it('drops the fetchData the adapter sets on attachments, so nothing is ever downloaded', () => {
+        const target = adapter();
+        const raw = discordMessage({ attachments: [attachment({ contentType: 'audio/ogg', name: 'voice-message.ogg' })] });
+
+        expect(typeof target.parseMessage(toApiMessage(raw)).attachments[0]?.fetchData).toBe('function');
+
+        const [audio] = toChatMessage(target, raw, identity(raw)).attachments;
+
+        expect(audio).toMatchObject({ type: 'audio', mimeType: 'audio/ogg' });
+        expect(audio).not.toHaveProperty('fetchData');
+    });
+
     it('marks an unaddressed message as no mention, definitively', () => {
         const target = adapter();
         const raw = discordMessage({ content: '@chamvi hi', mentions: {} });

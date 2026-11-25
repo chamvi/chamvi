@@ -176,7 +176,7 @@ Subscriptions, replies, approvals, memory and trust follow [`@chamvi/chat`](http
 
 ## Limits
 
-- Text only, no media download, no history, no message splitting (`CHAT_TEXT_MAX_CHARS`), as for every chat channel.
+- Text only, no history, no message splitting (`CHAT_TEXT_MAX_CHARS`), as for every chat channel. Media is refused and never downloaded, except a voice note with `voice: { model }` (see `@chamvi/chat`'s `voice`): it is downloaded only after the policy and `resolveInvoker` allowed it, transcribed and starts a run as text; its bytes are never stored or logged.
 - Delivery is at least once: each send carries a WhatsApp message id derived from the message key, so a retry reuses it; whether WhatsApp drops such a duplicate is not verified.
 - No lossless or offline ingestion. A message that arrives while the connector is down, or that the process loses before it is stored, is not fetched later.
 
@@ -225,7 +225,7 @@ With a provider of your own, `chatModule({ channel: setup.channel })` of `@chamv
 | `createWhatsAppChat(options)` | `{ chat, ingress, channel, status(), reset(), conversation() }` |
 | `createStoreWhatsAppAuth({ vault, connection, owner?, leaseTtlMs? })` | The store-backed `IWhatsAppAuthProvider`; `WHATSAPP_CONNECTION_TYPE` `'whatsapp'` |
 | `whatsappModule(options)` (`/module`) | `WhatsAppModule { channel, handle, on(), to(), conversation(), status(), reset() }`, `WhatsAppModuleOptions` |
-| Types `WhatsAppChatOptions`, `WhatsAppChatSetup`, `StoreWhatsAppAuthOptions`, `WhatsAppPolicy`, `WhatsAppIdentity`, `IWhatsAppAuthProvider`, `WhatsAppAuthLease`, `WhatsAppPairing`, `WhatsAppConnectionStatus`, `WhatsAppSocket`, `WhatsAppSocketFactory` | |
+| Types `WhatsAppChatOptions`, `WhatsAppChatSetup`, `StoreWhatsAppAuthOptions`, `WhatsAppPolicy`, `WhatsAppIdentity`, `IWhatsAppAuthProvider`, `WhatsAppAuthLease`, `WhatsAppPairing`, `WhatsAppConnectionStatus`, `WhatsAppSocket`, `WhatsAppSocketFactory`, `WhatsAppMediaDownload` | |
 | `WHATSAPP_ADAPTER_NAME` `'whatsapp'`, `WHATSAPP_RECONNECT`, `WHATSAPP_SHUTDOWN_TIMEOUT_MS` 30 000 | |
 | Error codes `whatsapp_auth`, `whatsapp_connection`, `whatsapp_logged_out` (`WHATSAPP_*_ERROR_CODE`) | |
 

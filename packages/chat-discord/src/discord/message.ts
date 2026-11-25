@@ -93,7 +93,15 @@ export function toChatMessage(adapter: DiscordAdapter, message: DiscordInboundMe
         raw: parsed.raw,
         author: parsed.author,
         metadata: parsed.metadata,
-        attachments: parsed.attachments,
+        // the pinned adapter gives every attachment a fetchData (an unbounded download through the global
+        // fetch): dropped, so a Discord audio attachment stays refused, also with `voice`
+        attachments: parsed.attachments.map((attachment) => {
+            const copy = { ...attachment };
+
+            delete copy.fetchData;
+
+            return copy;
+        }),
         replyTo: parsed.replyTo ?? quotedOf(message, identity.chat),
         isMention: identity.mentioned,
         links: parsed.links,

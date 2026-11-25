@@ -24,9 +24,10 @@ import type {
 import { ChamviError, ValidationError } from '@chamvi/core';
 import { isObject } from 'smob';
 import { CHAT_REQUEST_ERROR_CODE } from '@chamvi/chat';
+import type { ChatAudioAttachment } from '@chamvi/chat';
 import { WHATSAPP_ADAPTER_NAME } from './constants.ts';
 import { createWhatsAppConnection } from './connection.ts';
-import { contextInfoOf } from './helpers/index.ts';
+import { contextInfoOf, downloadWhatsAppMedia } from './helpers/index.ts';
 import { resolveIdentity } from './policy.ts';
 import type {
     WhatsAppAdapter,
@@ -37,7 +38,11 @@ import type {
 
 const THREAD_PREFIX = `${WHATSAPP_ADAPTER_NAME}:`;
 
-/** The media kinds a message may carry: refused by the intake, never downloaded. */
+/**
+ * The media kinds a message may carry: refused by the intake and never
+ * downloaded, except audio (a voice note), which the channel may download on
+ * demand (`fetchData`) once the policy allowed it.
+ */
 const MEDIA = [
     ['imageMessage', 'image'],
     ['videoMessage', 'video'],
@@ -47,8 +52,14 @@ const MEDIA = [
     ['stickerMessage', 'image'],
 ] as const;
 
-/** What the adapter reads of a media message: its type and caption, never its bytes. */
-type MediaFields = { mimetype?: string | null; caption?: string | null };
+/** What the adapter reads of a media message: its type and caption, and of audio its size and duration; never its bytes. */
+type MediaFields = {
+    mimetype?: string | null;
+    caption?: string | null;
+    /** a number or a protobuf Long */
+    fileLength?: Parameters<typeof toNumber>[0];
+    seconds?: number | null;
+};
 
 function unsupported(method: string): ChamviError {
     return new ChamviError({
@@ -77,8 +88,26 @@ export function decodeWhatsAppThread(threadId: string): string {
     return jid;
 }
 
-/** The text and the media of a message's content; undefined for content that is neither (reactions, protocol messages). */
-function readContent(content: WAMessageContent | undefined): { text: string; attachments: Attachment[] } | undefined {
+/** What a voice note adds to its audio attachment: the reported size and duration, and the lazy download. */
+function audioFieldsOf(media: MediaFields, fetchData: () => Promise<Buffer>): Partial<ChatAudioAttachment> {
+    const size = media.fileLength === null || media.fileLength === undefined ? 0 : toNumber(media.fileLength);
+
+    return {
+        ...(Number.isFinite(size) && size > 0 ? { size } : {}),
+        ...(typeof media.seconds === 'number' && media.seconds > 0 ? { durationSeconds: media.seconds } : {}),
+        fetchData,
+    };
+}
+
+/**
+ * The text and the media of a message's content; undefined for content that
+ * is neither (reactions, protocol messages). `fetchAudio` downloads the
+ * message's audio when called: never here.
+ */
+function readContent(
+    content: WAMessageContent | undefined,
+    fetchAudio: () => Promise<Buffer>,
+): { text: string; attachments: Attachment[] } | undefined {
     if (!content) {
         return undefined;
     }
@@ -93,6 +122,7 @@ function readContent(content: WAMessageContent | undefined): { text: string; att
             attachments.push({
                 type,
                 ...(typeof media.mimetype === 'string' ? { mimeType: media.mimetype } : {}),
+                ...(field === 'audioMessage' ? audioFieldsOf(media, fetchAudio) : {}),
             });
             caption ??= typeof media.caption === 'string' ? media.caption : undefined;
         }
@@ -184,7 +214,12 @@ export function createWhatsAppAdapter(options: WhatsAppAdapterOptions): WhatsApp
 
     const handle = async (socket: WhatsAppSocket, raw: WAMessage): Promise<void> => {
         const content = normalizeMessageContent(raw.message);
-        const read = readContent(content);
+        const download = options.downloadMedia ?? downloadWhatsAppMedia;
+        const read = readContent(content, async () => {
+            const bytes = await download(raw, socket);
+
+            return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        });
         const remote = raw.key.remoteJid;
         const { id } = raw.key;
 
