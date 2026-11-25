@@ -1,6 +1,6 @@
 {
     "name": "@chamvi/http-kit",
-    "version": "0.11.0",
+    "version": "0.12.0",
     "type": "module",
     "description": "Typed HTTP client for the chamvi API, with a hook that adds and refreshes the bearer token.",
     "author": {
@@ -59,13 +59,13 @@
         "smob": "^1.6.2"
     },
     "devDependencies": {
-        "@chamvi/core": "^0.11.0",
-        "@chamvi/http": "^0.11.0",
-        "@chamvi/store": "^0.11.0"
+        "@chamvi/core": "^0.12.0",
+        "@chamvi/http": "^0.12.0",
+        "@chamvi/store": "^0.12.0"
     },
     "peerDependencies": {
-        "@chamvi/core": "^0.11.0",
-        "@chamvi/http": "^0.11.0",
-        "@chamvi/store": "^0.11.0"
+        "@chamvi/core": "^0.12.0",
+        "@chamvi/http": "^0.12.0",
+        "@chamvi/store": "^0.12.0"
     }
 }

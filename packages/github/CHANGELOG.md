@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.12.0](https://github.com/chamvi/chamvi/compare/v0.11.0...v0.12.0) (2026-11-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* name env variables after what they configure ([#310](https://github.com/chamvi/chamvi/issues/310))
+
+### Features
+
+* name env variables after what they configure ([#310](https://github.com/chamvi/chamvi/issues/310)) ([64628eb](https://github.com/chamvi/chamvi/commit/64628eb27c4543e8bad96c0318f769b3c6b67231))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/app bumped from ^0.11.0 to ^0.12.0
+    * @chamvi/core bumped from ^0.11.0 to ^0.12.0
+    * @chamvi/http bumped from ^0.11.0 to ^0.12.0
+    * @chamvi/store bumped from ^0.11.0 to ^0.12.0
+    * @chamvi/store-memory bumped from ^0.11.0 to ^0.12.0
+    * @chamvi/test-kit bumped from ^0.11.0 to ^0.12.0
+  * peerDependencies
+    * @chamvi/app bumped from ^0.11.0 to ^0.12.0
+    * @chamvi/core bumped from ^0.11.0 to ^0.12.0
+    * @chamvi/http bumped from ^0.11.0 to ^0.12.0
+    * @chamvi/store bumped from ^0.11.0 to ^0.12.0
+
 ## [0.11.0](https://github.com/chamvi/chamvi/compare/v0.10.0...v0.11.0) (2026-11-25)
 
 
