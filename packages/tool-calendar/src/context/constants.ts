@@ -7,5 +7,8 @@
 
 import { defineContextKey } from '@chamvi/core';
 import type { ICalendarClient } from '../client/types.ts';
+import type { ICalendarWriteClient } from '../write-client/types.ts';
 
 export const CALENDAR_CONTEXT = defineContextKey<ICalendarClient>('calendar');
+
+export const CALENDAR_WRITE_CONTEXT = defineContextKey<ICalendarWriteClient>('calendar-write');

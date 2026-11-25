@@ -42,7 +42,7 @@ function inZone(wall: Temporal.PlainDateTime, zone: string): Temporal.Instant | 
  * in that zone when it is an IANA id (a non-IANA VTIMEZONE keeps its own
  * rules); any other floating time is read in `zone`. Never the process zone.
  */
-function instantOf(time: IcalTime, tzid: string | undefined, zone: string): Temporal.Instant {
+export function instantOf(time: IcalTime, tzid: string | undefined, zone: string): Temporal.Instant {
     if (time.isDate) {
         return Temporal.PlainDate.from({
             year: time.year,
@@ -70,7 +70,8 @@ function instantOf(time: IcalTime, tzid: string | undefined, zone: string): Temp
     return wall.toZonedDateTime(zone).toInstant();
 }
 
-function format(time: IcalTime, tzid: string | undefined, zone: string): string {
+/** `time` as `calendar_events` prints it: ISO with the offset of `zone` (read by `instantOf`), or the plain date. */
+export function formatEventTime(time: IcalTime, tzid: string | undefined, zone: string): string {
     if (time.isDate) {
         return Temporal.PlainDate.from({
             year: time.year,
@@ -177,12 +178,13 @@ function eventOf(
     const attendees = attendeesOf(item, context.user);
 
     return {
+        ...(context.id && { id: context.id }),
         calendar: context.calendar ?? '',
         uid: textOf(item, 'uid') ?? '',
-        ...(occurrence.recurrenceId && { recurrenceId: format(occurrence.recurrenceId.time, occurrence.recurrenceId.tzid, zone) }),
+        ...(occurrence.recurrenceId && { recurrenceId: formatEventTime(occurrence.recurrenceId.time, occurrence.recurrenceId.tzid, zone) }),
         title: cut(textOf(item, 'summary') ?? '', CALENDAR_FIELD_MAX_CHARS),
-        start: format(occurrence.start, startTzid, zone),
-        end: format(occurrence.end, endTzid, zone),
+        start: formatEventTime(occurrence.start, startTzid, zone),
+        end: formatEventTime(occurrence.end, endTzid, zone),
         allDay: occurrence.start.isDate,
         ...(location && { location: cut(location, CALENDAR_FIELD_MAX_CHARS) }),
         ...(description && { description: cut(description, CALENDAR_DESCRIPTION_MAX_CHARS) }),

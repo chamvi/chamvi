@@ -12,8 +12,12 @@ import { isObject } from 'smob';
 import { createCalendarClient } from '../client/module.ts';
 import type { ICalendarClient } from '../client/types.ts';
 import { createUnconfiguredCalendarClient } from '../client/unconfigured.ts';
-import { provideCalendarContext } from '../context/module.ts';
+import { provideCalendarContext, provideCalendarWriteContext } from '../context/module.ts';
 import { normalizeAccounts, normalizeClientOptions } from '../options/module.ts';
+import { CALENDAR_DEFAULT_TIMEZONE } from '../options/constants.ts';
+import { createCalendarWriteClient } from '../write-client/module.ts';
+import type { ICalendarWriteClient } from '../write-client/types.ts';
+import { createUnconfiguredCalendarWriteClient } from '../write-client/unconfigured.ts';
 import { CALENDAR_CONNECTION_TYPE, TOOL_CALENDAR_MODULE_NAME } from './constants.ts';
 import { readCalendarEnvEntries, readCalendarTimezoneFromEnv } from './helpers.ts';
 import { calendarConnectionDefinition, loadCalendarAccounts } from './type.ts';
@@ -53,6 +57,8 @@ export class ToolCalendarModule implements IModule {
     protected timezone: string | undefined;
 
     protected client: ICalendarClient | undefined;
+
+    protected writeClient: ICalendarWriteClient | undefined;
 
     constructor(options: ToolCalendarModuleOptions = {}) {
         if (!isObject(options)) {
@@ -105,27 +111,39 @@ export class ToolCalendarModule implements IModule {
             },
         });
 
-        const client = loaded.accounts.length > 0 ?
-            createCalendarClient(loaded.accounts, {
-                clock: container.resolve(AppToken.CLOCK),
-                ...(this.timezone !== undefined && { timezone: this.timezone }),
-                ...(this.options.fetch !== undefined && { fetch: this.options.fetch }),
-            }) :
+        const options = {
+            clock: container.resolve(AppToken.CLOCK),
+            ...(this.timezone !== undefined && { timezone: this.timezone }),
+            ...(this.options.fetch !== undefined && { fetch: this.options.fetch }),
+        };
+        const configured = loaded.accounts.length > 0;
+        // the same accounts and options: the write client has its own sessions and guarded fetch
+        const client = configured ?
+            createCalendarClient(loaded.accounts, options) :
             createUnconfiguredCalendarClient(CALENDAR_CONNECTION_TYPE);
+        const writeClient = configured ?
+            createCalendarWriteClient(loaded.accounts, options) :
+            createUnconfiguredCalendarWriteClient(CALENDAR_CONNECTION_TYPE, this.timezone ?? CALENDAR_DEFAULT_TIMEZONE);
 
         this.client = client;
+        this.writeClient = writeClient;
 
         container.registerMany(AppToken.LIFECYCLE_HOOKS, {
             useValue: {
                 name: this.name,
-                engineCreated: (engine) => provideCalendarContext(engine, client),
-                drained: () => client.close(),
+                engineCreated: (engine) => {
+                    provideCalendarContext(engine, client);
+                    provideCalendarWriteContext(engine, writeClient);
+                },
+                drained: async () => {
+                    await Promise.all([client.close(), writeClient.close()]);
+                },
             },
         });
     }
 
     async teardown(): Promise<void> {
-        await this.client?.close();
+        await Promise.all([this.client?.close(), this.writeClient?.close()]);
     }
 }
 

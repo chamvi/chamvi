@@ -21,13 +21,13 @@ const NO_ARTIFACTS: IRunArtifacts = {
     list: async () => [],
 };
 
-/** A ToolContext of a run, with `client` provided as the engine would (none without it). */
-export function toolContext(client?: ICalendarClient, signal?: AbortSignal): ToolContext {
+/** A ToolContext of the run `runId`, with `client` provided as the engine would (none without it). */
+export function toolContext(client?: ICalendarClient, signal?: AbortSignal, runId = 'run-1'): ToolContext {
     const ctx: ToolContext = {
         // the calendar tools reach no channel
         channels: {} as ToolContext['channels'],
         run: {
-            runId: 'run-1',
+            runId,
             agent: 'planner',
             trigger: {
                 id: 'env-1',
@@ -50,8 +50,8 @@ export function toolContext(client?: ICalendarClient, signal?: AbortSignal): Too
     return ctx;
 }
 
-/** Calls `tools[name].execute` as the AI SDK does, with the context. */
-export async function callTool<T = unknown>(tools: ToolSet, name: string, input: unknown, ctx: ToolContext): Promise<T> {
+/** Calls `tools[name].execute` as the AI SDK does, with the context (as the call `toolCallId`). */
+export async function callTool<T = unknown>(tools: ToolSet, name: string, input: unknown, ctx: ToolContext, toolCallId = 'call-1'): Promise<T> {
     const execute = tools[name]?.execute as ((i: unknown, o: unknown) => Promise<unknown>) | undefined;
 
     if (!execute) {
@@ -59,7 +59,7 @@ export async function callTool<T = unknown>(tools: ToolSet, name: string, input:
     }
 
     return await execute(input, {
-        toolCallId: 'call-1',
+        toolCallId,
         messages: [],
         context: ctx,
     }) as T;

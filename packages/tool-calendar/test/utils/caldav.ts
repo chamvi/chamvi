@@ -11,6 +11,13 @@ export const FAKE_CALDAV_URL = 'https://caldav.icloud.com';
 const PARTITION = 'https://p42-caldav.icloud.com';
 const HOME = '/123/calendars/';
 
+/** A resource of a calendar: its last path segment, iCalendar text and ETag (`''`: none given). */
+export type FakeObject = {
+    name: string;
+    ics: string;
+    etag: string;
+};
+
 export type FakeCalendar = {
     /** The last path segment of the calendar URL. */
     slug: string;
@@ -20,8 +27,15 @@ export type FakeCalendar = {
     components?: string[];
     /** A VTIMEZONE text as `calendar-timezone`. */
     timezone?: string;
-    /** ICS resources of the calendar; every REPORT returns all of them. */
-    objects: string[];
+    /** CalendarServer sharing in `resourcetype`: `shared` (shared with this user) or `shared-owner` (this user shares it). */
+    sharing?: 'shared' | 'shared-owner';
+    /** The `DAV:owner` principal href (the user's own is `/123/principal/`). */
+    owner?: string;
+    /**
+     * Resources of the calendar; every REPORT returns all of them. A string is
+     * `{ name: 'event-<index>.ics', ics, etag: '"<index>"' }`.
+     */
+    objects: (string | FakeObject)[];
 };
 
 export type FakeRequest = {
@@ -29,6 +43,10 @@ export type FakeRequest = {
     url: string;
     depth: string | null;
     authorization: string | null;
+    /** Every header, names lower-cased. */
+    headers: Record<string, string>;
+    /** The request's `redirect` mode, when it set one. */
+    redirect?: string;
     body: string;
 };
 
@@ -41,6 +59,24 @@ export type FakeCalDav = {
     status?: number;
     /** Never answer until the request's signal aborts. */
     hang: boolean;
+    /** The principal's `calendar-user-address-set` (default none). */
+    addresses: string[];
+    /** `false`: a GET of an object answers without an `ETag` header. */
+    etagOnGet?: boolean;
+    /** Answer every request of `method` on an object URL with `status` (a 3xx with `location`). */
+    fail?: {
+        method: string; 
+        status: number; 
+        location?: string 
+    };
+    /** Runs before a request on an object URL is answered (a test changes the event there). */
+    before?: (request: FakeRequest) => void;
+    /** Answer a calendar's own sharing read (a PROPFIND naming `owner`) with this status. */
+    sharingStatus?: number;
+    /** `false`: a PUT answers `201` without an `ETag` header. */
+    putEtag?: boolean;
+    /** Counts the PUTs that stored an object (their ETags are `"w<n>"`). */
+    writes: number;
 };
 
 function multistatus(body: string): string {
@@ -68,15 +104,91 @@ function calendarProps(calendar: FakeCalendar): string {
         `<d:displayname>${escapeXml(calendar.name)}</d:displayname>`,
         calendar.color ? `<ic:calendar-color>${calendar.color}</ic:calendar-color>` : '',
         calendar.timezone ? `<c:calendar-timezone>${escapeXml(calendar.timezone)}</c:calendar-timezone>` : '',
-        '<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>',
+        `<d:resourcetype><d:collection/><c:calendar/>${calendar.sharing ? `<cs:${calendar.sharing}/>` : ''}</d:resourcetype>`,
+        calendar.owner ? `<d:owner><d:href>${escapeXml(calendar.owner)}</d:href></d:owner>` : '',
         `<c:supported-calendar-component-set>${components}</c:supported-calendar-component-set>`,
     ].join('');
+}
+
+/** The calendar's resources, strings expanded to their default name and ETag. */
+export function fakeObjectsOf(calendar: FakeCalendar): FakeObject[] {
+    return calendar.objects.map((object, index) => (typeof object === 'string' ?
+        {
+            name: `event-${index}.ics`, 
+            ics: object, 
+            etag: `"${index}"`, 
+        } :
+        object));
 }
 
 function hang(signal: AbortSignal | null | undefined): Promise<Response> {
     return new Promise((_resolve, reject) => {
         signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
     });
+}
+
+/**
+ * The answer to a request on the object `name` of `calendar`: `fail` first;
+ * a PUT creates (`412` on an existing name with `If-None-Match: *`), a DELETE
+ * removes (`404` absent, `412` on another `If-Match`), a GET reads, else 404.
+ */
+function objectResponse(fake: FakeCalDav, calendar: FakeCalendar, name: string, request: FakeRequest): Response {
+    fake.before?.(request);
+
+    if (fake.fail && fake.fail.method === request.method) {
+        return new Response('<error>refused by the server</error>', {
+            status: fake.fail.status,
+            headers: fake.fail.location ? { location: fake.fail.location } : {},
+        });
+    }
+
+    const objects = fakeObjectsOf(calendar);
+    const object = objects.find((item) => item.name === name);
+
+    if (request.method === 'PUT') {
+        if (object && request.headers['if-none-match'] === '*') {
+            return new Response('<error>exists</error>', { status: 412 });
+        }
+
+        fake.writes++;
+
+        const etag = `"w${fake.writes}"`;
+
+        // strings become objects first, so removing or adding one keeps the names of the others
+        calendar.objects = [...objects.filter((item) => item.name !== name), {
+            name, 
+            ics: request.body, 
+            etag, 
+        }];
+
+        return new Response(null, { status: 201, headers: fake.putEtag === false ? {} : { etag } });
+    }
+
+    if (request.method === 'DELETE') {
+        if (!object) {
+            return new Response('not found', { status: 404 });
+        }
+
+        if (request.headers['if-match'] !== object.etag) {
+            return new Response('<error>changed</error>', { status: 412 });
+        }
+
+        calendar.objects = objects.filter((item) => item !== object);
+
+        return new Response(null, { status: 204 });
+    }
+
+    if (request.method === 'GET' && object) {
+        return new Response(object.ics, {
+            status: 200,
+            headers: {
+                'content-type': 'text/calendar; charset=utf-8',
+                ...(fake.etagOnGet !== false && object.etag && { etag: object.etag }),
+            },
+        });
+    }
+
+    return new Response('not found', { status: 404 });
 }
 
 /**
@@ -91,18 +203,24 @@ export function createFakeCalDav(calendars: FakeCalendar[] = []): FakeCalDav {
         requests,
         calendars,
         hang: false,
+        addresses: [],
+        writes: 0,
         fetch: async (input, init) => {
             const url = new URL(input instanceof Request ? input.url : String(input));
             const method = (init?.method ?? 'GET').toUpperCase();
             const headers = new Headers(init?.headers);
 
-            requests.push({
+            const request: FakeRequest = {
                 method,
                 url: url.href,
                 depth: headers.get('depth'),
                 authorization: headers.get('authorization'),
+                headers: Object.fromEntries(headers.entries()),
+                ...(init?.redirect && { redirect: init.redirect }),
                 body: typeof init?.body === 'string' ? init.body : '',
-            });
+            };
+
+            requests.push(request);
 
             init?.signal?.throwIfAborted();
 
@@ -128,6 +246,12 @@ export function createFakeCalDav(calendars: FakeCalendar[] = []): FakeCalDav {
                 return xml(ok('/', '<d:current-user-principal><d:href>/123/principal/</d:href></d:current-user-principal>'));
             }
 
+            if (path === '/123/principal/' && method === 'PROPFIND' && request.body.includes('calendar-user-address-set')) {
+                const hrefs = fake.addresses.map((address) => `<d:href>${escapeXml(address)}</d:href>`).join('');
+
+                return xml(ok('/123/principal/', `<c:calendar-user-address-set>${hrefs}</c:calendar-user-address-set>`));
+            }
+
             if (path === '/123/principal/' && method === 'PROPFIND') {
                 return xml(ok('/123/principal/', `<c:calendar-home-set><d:href xmlns:d="DAV:">${PARTITION}:443${HOME}</d:href></c:calendar-home-set>`));
             }
@@ -140,15 +264,31 @@ export function createFakeCalDav(calendars: FakeCalendar[] = []): FakeCalDav {
 
             const calendar = calendars.find((item) => path === `${HOME}${item.slug}/`);
 
+            // a Depth 0 read of the calendar's own sharing (resourcetype and owner)
+            if (calendar && method === 'PROPFIND' && request.body.includes('owner')) {
+                if (fake.sharingStatus !== undefined) {
+                    return new Response('<error>unavailable</error>', { status: fake.sharingStatus });
+                }
+
+                return xml(ok(path, calendarProps(calendar)));
+            }
+
             if (calendar && method === 'PROPFIND') {
                 return xml(ok(path, '<d:supported-report-set><d:supported-report><d:report><c:calendar-query/></d:report></d:supported-report></d:supported-report-set>'));
             }
 
+            const owner = calendars.find((item) => path.startsWith(`${HOME}${item.slug}/`) && path.length > `${HOME}${item.slug}/`.length);
+
+            if (owner) {
+                return objectResponse(fake, owner, path.slice(`${HOME}${owner.slug}/`.length), request);
+            }
+
             if (calendar && method === 'REPORT') {
-                return xml(calendar.objects.map((ics, index) => ok(
-                    `${path}event-${index}.ics`,
-                    `<d:getetag>"${index}"</d:getetag><c:calendar-data>${escapeXml(ics)}</c:calendar-data>`,
-                )).join(''));
+                return xml(fakeObjectsOf(calendar).map((object) => {
+                    const etag = object.etag ? `<d:getetag>${escapeXml(object.etag)}</d:getetag>` : '';
+
+                    return ok(`${path}${object.name}`, `${etag}<c:calendar-data>${escapeXml(object.ics)}</c:calendar-data>`);
+                }).join(''));
             }
 
             return new Response('not found', { status: 404 });

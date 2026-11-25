@@ -5,6 +5,56 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import ICAL from 'ical.js';
+
+export type ParsedAttendee = {
+    address: string;
+    role?: string;
+    partstat?: string;
+    rsvp?: string;
+};
+
+export type ParsedEvent = {
+    uid?: string;
+    title?: string;
+    location?: string;
+    description?: string;
+    organizer?: string;
+    attendees: ParsedAttendee[];
+};
+
+function stringOf(value: unknown): string | undefined {
+    return typeof value === 'string' ? value : undefined;
+}
+
+/** The first VEVENT of `ics` as ical.js reads it (TEXT values unescaped). */
+export function parseEvent(ics: string): ParsedEvent {
+    const vevent = new ICAL.Component(ICAL.parse(ics) as unknown[]).getFirstSubcomponent('vevent');
+
+    if (!vevent) {
+        throw new TypeError('no VEVENT');
+    }
+
+    return {
+        uid: stringOf(vevent.getFirstPropertyValue('uid')),
+        title: stringOf(vevent.getFirstPropertyValue('summary')),
+        location: stringOf(vevent.getFirstPropertyValue('location')),
+        description: stringOf(vevent.getFirstPropertyValue('description')),
+        organizer: stringOf(vevent.getFirstPropertyValue('organizer')),
+        attendees: vevent.getAllProperties('attendee').map((property) => ({
+            address: String(property.getFirstValue()),
+            role: stringOf(property.getParameter('role')),
+            partstat: stringOf(property.getParameter('partstat')),
+            rsvp: stringOf(property.getParameter('rsvp')),
+        })),
+    };
+}
+
+/** `ics` with its folded lines joined. */
+export function unfold(ics: string): string {
+    return ics.replaceAll(/\r\n[ \t]/g, '');
+}
+
 /** A VCALENDAR of the given lines (CRLF). */
 export function calendar(...lines: string[]): string {
     return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//chamvi//test//EN', ...lines, 'END:VCALENDAR', ''].join('\r\n');

@@ -2,7 +2,7 @@
     "name": "@chamvi/tool-calendar",
     "version": "0.10.0",
     "type": "module",
-    "description": "Read-only calendar tools for chamvi agents: list calendars and expanded events over CalDAV, without ever changing a calendar.",
+    "description": "Read and write calendar tools for chamvi agents: list calendars and expanded events, create and delete events over CalDAV; the read client never changes a calendar.",
     "author": {
         "name": "Peter Placzek",
         "email": "contact@tada5hi.net",

@@ -11,9 +11,11 @@ import {
     expect,
     it,
 } from 'vitest';
+import { jsonSchema } from 'ai';
 import {
     InvalidAgentDefinitionError,
     defineModelAgent,
+    defineTool,
 } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { mockModel } from '@chamvi/test-kit';
@@ -30,7 +32,12 @@ import {
 import type { IModule } from '@chamvi/app';
 import { buildModuleHarness, createModuleHarness, memoryStoreModule } from '@chamvi/app/testing';
 import type { ModuleHarness, ModuleHarnessOptions } from '@chamvi/app/testing';
-import { calendarTools } from '@chamvi/tool-calendar';
+import {
+    calendarTools,
+    calendarWriteTools,
+    injectCalendarContext,
+    injectCalendarWriteContext,
+} from '@chamvi/tool-calendar';
 import type { CalendarEventsToolResult } from '@chamvi/tool-calendar';
 import {
     CALENDAR_ACCOUNTS_VARIABLE,
@@ -120,6 +127,41 @@ async function runPlanner(harness: ModuleHarness) {
     return { run, step };
 }
 
+/** An agent calling `tool` with `input` once per run (`runs` runs), with `tools`. */
+function callingAgent(tool: string, input: unknown, tools: Record<string, unknown>, runs = 1): Agent {
+    return defineModelAgent({
+        name: 'caller',
+        instructions: 'Call.',
+        model: mockModel(Array.from({ length: runs }, (_, index): MockResponse[] => [
+            {
+                parts: [{
+                    type: 'tool-call',
+                    toolName: tool,
+                    input,
+                    toolCallId: `t${index}`,
+                }],
+            },
+            { parts: [{ type: 'text', text: 'Done.' }] },
+        ]).flat()),
+        tools: tools as never,
+    });
+}
+
+/** Runs `caller` once and gives its first step of `tool`. */
+async function toolStepOf(harness: ModuleHarness, tool: string) {
+    const engine = harness.container.resolve(AppToken.ENGINE);
+    const { runId } = await engine.dispatch({
+        agent: 'caller',
+        trigger: 'http',
+        channel: 'http',
+        payload: {},
+    });
+
+    await engine.idle();
+
+    return (await engine.stepService.find(runId)).find((entry) => entry.kind === 'tool' && entry.name === tool);
+}
+
 describe('toolCalendarModule()', () => {
     it('is named chamvi:tool-calendar and needs the config, store and engine modules', () => {
         const module = toolCalendarModule({ env: {} });
@@ -201,6 +243,69 @@ describe('toolCalendarModule()', () => {
 
         expect(step?.error).toBeUndefined();
         expect(logins()).toBe(2);
+    });
+
+    it('provides the read and the write client of the same accounts', async () => {
+        const server = fake();
+        const probe = defineTool({
+            inputSchema: jsonSchema<Record<string, never>>({ type: 'object' }),
+            execute: async (_input, { context }) => ({
+                read: (await injectCalendarContext(context).calendars()).map((view) => view.calendar),
+                write: await injectCalendarWriteContext(context).calendar('me-icloud-com:home'),
+            }),
+        });
+        const harness = await harnessOf(toolCalendarModule({ env: ENV, fetch: server.fetch }), { agents: [callingAgent('probe', {}, { probe })] });
+        const step = await toolStepOf(harness, 'probe');
+
+        expect(step?.error).toBeUndefined();
+        expect(step?.output).toEqual({
+            read: ['me-icloud-com:home'],
+            write: {
+                calendar: 'me-icloud-com:home',
+                account: 'me-icloud-com',
+                name: 'Home',
+                url: 'https://p42-caldav.icloud.com/123/calendars/home/',
+            },
+        });
+    });
+
+    it('makes calendar_create fail with connection_not_configured without accounts', async () => {
+        const harness = await harnessOf(toolCalendarModule({ env: {} }), {
+            agents: [callingAgent('calendar_create', {
+                calendar: 'me:home',
+                title: 'Planning',
+                start: '2026-11-05T09:00',
+                end: '2026-11-05T10:00',
+            }, calendarWriteTools())],
+        });
+        const step = await toolStepOf(harness, 'calendar_create');
+
+        expect(step?.error).toMatchObject({ code: 'connection_not_configured' });
+    });
+
+    it('closes both clients once the engine drained: the next calls log in again', async () => {
+        const server = fake();
+        const probe = defineTool({
+            inputSchema: jsonSchema<Record<string, never>>({ type: 'object' }),
+            execute: async (_input, { context }) => {
+                await injectCalendarContext(context).calendars();
+                await injectCalendarWriteContext(context).calendar('me-icloud-com:home');
+
+                return null;
+            },
+        });
+        const harness = await harnessOf(toolCalendarModule({ env: ENV, fetch: server.fetch }), { agents: [callingAgent('probe', {}, { probe }, 2)] });
+        const logins = () => server.requests.filter((request) => new URL(request.url).pathname === '/123/principal/' &&
+            !request.body.includes('calendar-user-address-set')).length;
+
+        await toolStepOf(harness, 'probe');
+        // one login per client
+        expect(logins()).toBe(2);
+
+        await runHooks(harness.container, 'drained');
+        await toolStepOf(harness, 'probe');
+
+        expect(logins()).toBe(4);
     });
 
     it('checks the env when the factory is called, never echoing a password', () => {

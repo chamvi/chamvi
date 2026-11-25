@@ -60,25 +60,26 @@ export function mailDeleteLimitOf(source: MailWriteClientSource, settings: MailD
         // the approval's body: the listing, else what the ids alone tell; never a throw
         detail: async (input, ctx: ToolContext) => {
             const ids = idsOf(input);
-            let text: string | undefined;
             const shown = await once<MailDeleteShown | null>(ctx, MAIL_DELETE_LISTING_ONCE, async () => {
                 try {
                     const listing = await source(ctx).describe(ids, ctx.run.signal);
 
-                    text = deleteListingOf(listing.mails);
-
-                    return { ids: [...listing.mails.map((mail) => mail.id), ...listing.missing] };
+                    return {
+                        ids: [...listing.mails.map((mail) => mail.id), ...listing.missing],
+                        text: deleteListingOf(listing.mails),
+                    };
                 } catch {
                     return null;
                 }
             });
 
-            if (shown === null) {
-                return fallbackListingOf(ids);
-            }
+            // asked again in the same call: the recorded listing, so what covers the call is what is shown;
+            // a changed input gets what its ids alone tell
+            const listed = new Set(shown?.ids ?? []);
+            const covered = shown !== null && ids.every((id) => listed.has(id));
 
-            // a recorded listing asked again (a changed input): its text is not kept, the ids alone tell
-            return text ?? fallbackListingOf(ids);
+            // a record of an earlier version holds the ids only
+            return covered && typeof shown?.text === 'string' ? shown.text : fallbackListingOf(ids);
         },
     };
 }

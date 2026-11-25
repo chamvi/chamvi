@@ -50,9 +50,11 @@ export type MailDeleteLimitSettings = {
     bucket?: string;
 };
 
-/** What a delete's limit approval showed (internal): the ids its listing covered. */
+/** What a delete's limit approval showed (internal): the ids its listing covered and the listing itself. */
 export type MailDeleteShown = {
     ids: string[];
+    /** Absent in a record of an earlier version. */
+    text?: string;
 };
 
 /** The write client a tool call uses: the given one, or the one provided on the engine. */

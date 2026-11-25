@@ -5,8 +5,8 @@
 <h1 align="center">@chamvi/tool-calendar</h1>
 
 <p align="center">
-    <b>Read-only calendar tools for chamvi agents.</b><br>
-    Calendars and expanded events over CalDAV (iCloud, Nextcloud, Fastmail, ...), without ever changing a calendar.
+    <b>Calendar tools for chamvi agents.</b><br>
+    Calendars and expanded events over CalDAV (iCloud, Nextcloud, Fastmail, ...), plus guarded create and delete tools; the read tools never change a calendar.
 </p>
 
 <p align="center">
@@ -22,6 +22,7 @@
 - [Usage](#usage)
 - [The tools](#the-tools)
 - [Read-only](#read-only)
+- [Writing](#writing)
 - [In an app](#in-an-app)
 - [Privacy](#privacy)
 - [Untrusted content](#untrusted-content)
@@ -79,8 +80,9 @@ For iCloud, `user` is the Apple ID and `password` an app-specific password (appl
 | Tool | Input | Result |
 |---|---|---|
 | `calendar_list` | none | `{ calendars: [{ calendar, account, name, color?, timezone? }] }` |
-| `calendar_events` | `{ from, to, calendar?, limit? }` | `{ events: [{ calendar, uid, recurrenceId?, title, start, end, allDay, location?, description?, status?, organizer?, attendees? }], truncated }` |
+| `calendar_events` | `{ from, to, calendar?, limit? }` | `{ events: [{ calendar, uid, id?, recurrenceId?, title, start, end, allDay, location?, description?, status?, organizer?, attendees? }], truncated }` |
 
+- `id` names the event for `calendar_delete` (calendar, resource and ETag); an event without one cannot be deleted.
 - `calendar` ids are `<account>:<last path segment of the calendar URL>`. Only calendars that hold events (`VEVENT`) are listed; reminder lists are skipped.
 - `from` and `to` are ISO dates (`2026-11-05`, midnight in the configured zone) or date-times; `to` is exclusive, after `from` and at most 92 days later.
 - Recurring events are expanded here, not by the server: moved occurrences replace their slot, `EXDATE`s are dropped, cancelled ones are kept with `status: 'CANCELLED'`.
@@ -91,11 +93,39 @@ A malformed input is a `ValidationError` tool error; a failed request (wrong cre
 
 ## Read-only
 
-The tools never change a calendar, whatever the model asks for. Every request goes through a fetch that lets only `PROPFIND`, `REPORT` and `GET` pass; any other method throws before a request is sent. There is no tool that writes, and the client has no method that would.
+`calendarTools()` never changes a calendar, whatever the model asks for. Every request goes through a fetch that lets only `PROPFIND`, `REPORT` and `GET` pass; any other method throws before a request is sent. There is no tool that writes in that client, and it has no method that would.
+
+## Writing
+
+`calendarWriteTools()` adds `calendar_create` and `calendar_delete` over a separate client with its own guarded fetch (`PROPFIND`, `GET`, `PUT`, `DELETE` only, no redirects on writes, event resources only directly inside a listed calendar):
+
+```ts
+import { calendarWriteTools } from '@chamvi/tool-calendar';
+
+const tools = {
+    ...calendarTools(),
+    ...calendarWriteTools({ deleteLimit: { max: 20 } }),
+};
+```
+
+| Tool | Input | Result |
+|---|---|---|
+| `calendar_create` | `{ calendar, title, start, end, allDay?, location?, description?, attendees? }` | `{ calendar, uid, event?, start, end, allDay, invited }` |
+| `calendar_delete` | `{ event, series? }` | `{ event, calendar, status: 'deleted' \| 'missing', backup? }` |
+
+- **Create.** The event is stored with a UID and name derived from the call, so a replay finds it instead of creating twice. Times without an offset are read in the configured zone, shown to you in it and sent as UTC (or plain dates when `allDay`). With `attendees` the call always asks first, showing the sender (`From:`), every attendee and the whole description; invitations go out from the first calendar address of the account. Addresses are plain printable ASCII. Without attendees it runs without an approval. Every create, invitations included, counts in its own limit: 20 events an hour (bucket `creates`), the call over it asks.
+- **Delete.** The limit (default 20 an hour, bucket `deletes`) runs first and its approval lists the event; an approval that listed it covers the call. A call that passed the limit counts even when it is then refused. Then the event is read; a changed event, or a repeating one without `series: true`, is refused. An event that repeats, has other attendees or another organizer, sits in a calendar someone shares with you, or has not ended always asks; the listing names who the server may notify. Only your own ended one-person events in your own calendars go to a classifier model (`classifier: { model }`, default the agent's), which answers `routine` or `ask`, and any failure asks. Approvals go to the source chat only when it is a direct chat, else to the inbox and API.
+- **Backup.** Before `DELETE` the event's iCalendar is saved as a run artifact (`text/calendar`) and its id is `backup` in the result. To restore, download it and import it into the calendar.
+- **Shared limit bucket.** `calendar_delete` and `mail_delete` count in the same bucket `deletes`: with both on one agent their `deleteLimit` must be equal, else the run fails when the tools are bound.
+- **Setup.** The engine needs a limit service (`engine.limitService`) unless `createLimit` and `deleteLimit` are `false`.
+- **Shared calendars.** `calendars: ['icloud:work']` limits where the tools write; any other calendar is refused before a request. A create without attendees in a calendar shared with other people is visible to its members, bounded only by the create limit. A shared calendar is recognized only when the server says so (CalendarServer sharing or `DAV:owner`); one that reports neither counts as your own.
+- **Accepted risks.** A server that sends weak ETags makes every delete refuse as changed (nothing is deleted). The client trusts the calendar addresses the server returns and discovery follows redirects, as the read side does.
+
+The write tools reuse the accounts and `CHAMVI_CALENDAR_*` variables of the read tools; `toolCalendarModule()` provides both clients.
 
 ## In an app
 
-`toolCalendarModule()` from `@chamvi/tool-calendar/module` builds one client for the app from the environment and provides it to the engine, so agents use `calendarTools()` without accounts:
+`toolCalendarModule()` from `@chamvi/tool-calendar/module` builds one client for the app from the environment and provides it to the engine, so agents use `calendarTools()` and `calendarWriteTools()` without accounts:
 
 ```ts
 import { createApp, defineModelAgent } from '@chamvi/app';
@@ -132,7 +162,7 @@ Tool results stay in the run store: the steps and checkpoints of a run hold the 
 
 ## Untrusted content
 
-Event titles, descriptions and invites are written by other people and can carry text written for the model. The tool descriptions say the result is untrusted data; say it in the agent's instructions too. Both tools declare `trust: { taint: true }`: a result taints the run, so chamvi's outbound gates ask before a later outbound tool runs.
+Event titles, descriptions and invites are written by other people and can carry text written for the model. The tool descriptions say the result is untrusted data; say it in the agent's instructions too. The read tools declare `trust: { taint: true }`: a result taints the run, so chamvi's outbound gates ask before a later outbound tool runs. The write tools do not taint; they are gated by the approvals above.
 
 ## Options
 
@@ -147,6 +177,15 @@ Event titles, descriptions and invites are written by other people and can carry
 | `fetch` | the global `fetch` | The fetch requests go through (a proxy, tests) |
 | `clock` | `systemClock` | Timers |
 
+`calendarWriteTools(options)` takes the same, with `client` an `ICalendarWriteClient`, and:
+
+| Option | Default | |
+|---|---|---|
+| `classifier` | the agent's model | `{ model? }` that judges a routine delete |
+| `createLimit` | 20 an hour, bucket `creates` | `{ max?, windowMs?, bucket? }`, or `false` |
+| `deleteLimit` | 20 an hour, bucket `deletes` | as `createLimit`; equal to `mailWriteTools()`'s when both share the bucket |
+| `calendars` | every listed calendar | The calendar ids the tools may write to |
+
 Every option is checked when the factory is called (`InvalidAgentDefinitionError`).
 
 ## API
@@ -155,6 +194,10 @@ Every option is checked when the factory is called (`InvalidAgentDefinitionError
 |---|---|---|
 | `calendarTools` | function | `{ calendar_list, calendar_events }` |
 | `createCalendarClient` | function | The read-only `ICalendarClient` the tools use |
+| `calendarWriteTools` | function | `{ calendar_create, calendar_delete }` |
+| `createCalendarWriteClient` | function | The `ICalendarWriteClient` the write tools use |
+| `provideCalendarWriteContext`, `injectCalendarWriteContext` | function | The same for the write client |
+| `CALENDAR_CREATE_LIMIT_MAX`, `CALENDAR_DELETE_LIMIT_MAX` | constant | `20`, `20` (windows `3_600_000`, buckets `'creates'`, `'deletes'`) |
 | `provideCalendarContext`, `injectCalendarContext` | function | Provide a client on the engine, read it in a tool |
 | `CALENDAR_REQUEST_ERROR_CODE` | constant | `'calendar_request'` |
 | `CALENDAR_DEFAULT_TIMEZONE`, `CALENDAR_TIMEOUT_MS` | constant | `'Europe/Berlin'`, `30_000` |

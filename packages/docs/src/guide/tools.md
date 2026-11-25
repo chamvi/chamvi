@@ -143,7 +143,7 @@ A model has no clock: tell it in the instructions to call `current_time` before 
 
 ## Mail and calendar tools
 
-[`@chamvi/tool-mail`](/reference/tool-mail) reads mail over IMAP (Gmail, dovecot, Cyrus, ...): `mail_accounts`, `mail_search`, `mail_get` (the text body, invite summaries, the attachment list), `mail_attachment` (the text of a PDF, docx, xlsx, pptx or text file) and `mail_thread`. `mailWriteTools()` adds `mail_send` (SMTP, always approved with the whole mail) and `mail_delete` (moves to Trash, never expunges; limited by its own limit (`deleteLimit`, default 20 an hour), a classifier and approvals), needs an account with `smtp` settings and an engine with a `limitService`. [`@chamvi/tool-calendar`](/reference/tool-calendar) reads calendars over CalDAV (iCloud, Fastmail, Nextcloud, ...): `calendar_list` and `calendar_events`, recurring events expanded in one time zone (default `Europe/Berlin`). Both are **read-only on the wire**: folders are opened with `EXAMINE` and bodies fetched with `BODY.PEEK`, so no mail is moved, flagged or marked read; the CalDAV client sends only `PROPFIND`, `REPORT` and `GET`. Gmail and iCloud need an app password, not the account password.
+[`@chamvi/tool-mail`](/reference/tool-mail) reads mail over IMAP (Gmail, dovecot, Cyrus, ...): `mail_accounts`, `mail_search`, `mail_get` (the text body, invite summaries, the attachment list), `mail_attachment` (the text of a PDF, docx, xlsx, pptx or text file) and `mail_thread`. `mailWriteTools()` adds `mail_send` (SMTP, always approved with the whole mail) and `mail_delete` (moves to Trash, never expunges; limited by its own limit (`deleteLimit`, default 20 an hour), a classifier and approvals), needs an account with `smtp` settings and an engine with a `limitService`. [`@chamvi/tool-calendar`](/reference/tool-calendar) reads calendars over CalDAV (iCloud, Fastmail, Nextcloud, ...): `calendar_list` and `calendar_events`, recurring events expanded in one time zone (default `Europe/Berlin`). `calendarWriteTools()` adds `calendar_create` (always approved when it invites someone, limited by `createLimit`, default 20 an hour) and `calendar_delete` (checks the event is unchanged, saves a backup artifact first, asks for repeating, shared or unfinished events, classifies the rest, limited by `deleteLimit` in the bucket `deletes` it shares with `mail_delete`: set both equal), over a write client of its own that sends only `PROPFIND`, `GET`, `PUT` and `DELETE`; `calendars` limits where it writes. The read tools are **read-only on the wire**: folders are opened with `EXAMINE` and bodies fetched with `BODY.PEEK`, so no mail is moved, flagged or marked read; the CalDAV read client sends only `PROPFIND`, `REPORT` and `GET`. Gmail and iCloud need an app password, not the account password.
 
 <<< @/snippets/tool-mail.ts#agent
 
@@ -153,7 +153,11 @@ An agent that also writes:
 
 <<< @/snippets/tool-calendar.ts#agent
 
-Every tool declares `trust: { taint: true }`: mails and invites are written by other people. A failed request is a tool error with code `mail_request` or `calendar_request` and a generic message naming the tool and the account, never the server's text or a credential.
+Writing, next to the mail write tools:
+
+<<< @/snippets/tool-calendar.ts#write
+
+Every read tool declares `trust: { taint: true }`: mails and invites are written by other people. A failed request is a tool error with code `mail_request` or `calendar_request` and a generic message naming the tool and the account, never the server's text or a credential.
 
 In an app, `toolMailModule()` and `toolCalendarModule()` read the accounts from `CHAMVI_MAIL_ACCOUNTS` and `CHAMVI_CALENDAR_ACCOUNTS` with one `..._<ID>_PASSWORD` (or `..._PASSWORD_FILE`) per account and provide one client on the engine, so agents use `mailTools()` and `calendarTools()` without accounts (see [Apps & Modules](/guide/app#modules)).
 
