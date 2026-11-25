@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { LanguageModel } from 'ai';
+import type { LanguageModel, TranscriptionModel } from 'ai';
 import { isObject } from 'smob';
 import type { Agent } from '../agent/types.ts';
 import { inject } from '../context/module.ts';
@@ -14,7 +14,13 @@ import type { StateSchema } from '../state/types.ts';
 import type { ToolContext } from '../tool/types.ts';
 import { noModelMessage, toLanguageModel } from './asserts.ts';
 import { MODEL_CONTEXT } from './constants.ts';
-import type { ModelCheckOptions, ModelContext, ModelRef } from './types.ts';
+import type {
+    IModelResolver,
+    ModelCheckOptions,
+    ModelContext,
+    ModelRef,
+    TranscriptionModelRef,
+} from './types.ts';
 
 const SHAPE = 'must be a "<provider>/<model>" string or a LanguageModel object.';
 const NO_RESOLVER = 'but the engine has no model resolver (EngineOptions.models); pass a LanguageModel object.';
@@ -105,6 +111,40 @@ export function resolveModelRef(
     }
 
     return toLanguageModel(wanted, context.models, agent ?? '');
+}
+
+/**
+ * The TranscriptionModel for `ref`: an object as is, a string through
+ * `models.transcription()`. A string without a resolver, a resolver without
+ * transcription models, or a ref it refuses is an
+ * InvalidAgentDefinitionError. Shared by IEngine.resolveTranscriptionModel().
+ */
+export function resolveTranscriptionModelRef(
+    models: IModelResolver | undefined,
+    ref: TranscriptionModelRef,
+): TranscriptionModel {
+    if (typeof ref !== 'string') {
+        return ref;
+    }
+
+    if (!models) {
+        throw new InvalidAgentDefinitionError(
+            `The transcription model string "${ref}" needs a model resolver (EngineOptions.models).`,
+        );
+    }
+
+    if (!models.transcription) {
+        throw new InvalidAgentDefinitionError(
+            `The transcription model "${ref}" cannot resolve: the model resolver hands out no transcription models.`,
+        );
+    }
+
+    try {
+        return models.transcription(ref);
+    } catch (error) {
+        const message = Error.isError(error) ? error.message : String(error);
+        throw new InvalidAgentDefinitionError(`Transcription model "${ref}" could not be resolved: ${message}`);
+    }
 }
 
 /**

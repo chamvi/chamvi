@@ -6,4 +6,9 @@
  */
 
 export { checkAgentModel, resolveModel } from './module.ts';
-export type { IModelResolver, ModelCheckOptions, ModelRef } from './types.ts';
+export type {
+    IModelResolver,
+    ModelCheckOptions,
+    ModelRef,
+    TranscriptionModelRef,
+} from './types.ts';

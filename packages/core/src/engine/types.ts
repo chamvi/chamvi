@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { LanguageModel } from 'ai';
+import type { LanguageModel, TranscriptionModel } from 'ai';
 import type { Agent } from '../agent/types.ts';
 import type { ArtifactInput, IArtifactService  } from '../artifact/types.ts';
 import type { ChannelContext, DispatchResult, IChannel } from '../channel/types.ts';
@@ -20,7 +20,7 @@ import type {
     Step,
     TriggerEnvelope,
 } from '@chamvi/store';
-import type { IModelResolver, ModelRef } from '../model/types.ts';
+import type { IModelResolver, ModelRef, TranscriptionModelRef } from '../model/types.ts';
 import type { IPeerResolver, PeerStartInput } from '../peer/types.ts';
 import type { SkillInput } from '../skill/types.ts';
 import type { IAgentRevisionService } from '../agent-revision/types.ts';
@@ -96,6 +96,13 @@ export interface IEngine extends IContextProvider {
      * it is an InvalidAgentDefinitionError.
      */
     resolveModel(ref?: ModelRef, agent?: string): LanguageModel;
+    /**
+     * The TranscriptionModel for `ref` (e.g. a channel's voice model): an
+     * object as is, a string through EngineOptions.models' `transcription()`;
+     * without a resolver or transcription models it is an
+     * InvalidAgentDefinitionError.
+     */
+    resolveTranscriptionModel(ref: TranscriptionModelRef): TranscriptionModel;
     getAgent(name: string): Agent | undefined;
     listAgents(): Agent[];
     channelContext(channel: IChannel): ChannelContext;
