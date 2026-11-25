@@ -10,7 +10,7 @@ import type { PeerOutgoing } from '../auth/types.ts';
 
 /**
  * How a peer's calls are recognized: the id of the static token principal it
- * uses here (a `CHAMVI_TOKENS` entry), or the authup client it signs in as.
+ * uses here (a `TOKENS` entry), or the authup client it signs in as.
  */
 export type PeerIncoming = { token: string } | { authupClient: string };
 

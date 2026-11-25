@@ -36,7 +36,7 @@ type Preset = NonNullable<ResolveConnectionInput['preset']>;
 
 type LoadInput = {
     definition: ConnectionTypeDefinition;
-    /** The accounts of the `accounts` option (`pinned`) or of `CHAMVI_CALENDAR_ACCOUNTS`. */
+    /** The accounts of the `accounts` option (`pinned`) or of `CALENDAR_ACCOUNTS`. */
     declared: readonly CalendarEnvEntry[];
     pinned: boolean;
     env: Env;

@@ -297,7 +297,7 @@ describe('githubModule', () => {
         expect(fixture.comments.get('octo/demo#7')?.[0]?.body).toContain('Latest status');
     });
 
-    it('links approvals to the UI of CHAMVI_PUBLIC_URL', async () => {
+    it('links approvals to the UI of PUBLIC_URL', async () => {
         const gh = createGithubApp({
             appId: '1',
             privateKey: fake.privateKey,
@@ -312,7 +312,7 @@ describe('githubModule', () => {
         fake.issues.set('octo/demo#7', { number: 7, state: 'open' });
 
         const harness = await createModuleHarness({
-            env: { CHAMVI_PUBLIC_URL: 'https://chamvi.example' },
+            env: { PUBLIC_URL: 'https://chamvi.example' },
             modules: [configModule({ logger: createRecordingLogger() }), storeModule(), githubModule({ app: gh, env: {} })],
         });
 
@@ -356,7 +356,7 @@ describe('githubModule', () => {
         });
         const harness = await createModuleHarness({
             env: {
-                CHAMVI_TOKENS: TOKENS,
+                TOKENS,
                 HOST: '127.0.0.1',
                 PORT: String(port),
             },
@@ -412,7 +412,7 @@ describe('githubModule', () => {
         });
         const harness = await createModuleHarness({
             env: {
-                CHAMVI_TOKENS: TOKENS,
+                TOKENS,
                 HOST: '127.0.0.1',
                 PORT: String(port),
             },

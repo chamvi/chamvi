@@ -11,8 +11,8 @@ import { normalizeOptions } from '../../../src/options/module.ts';
 import { utilityTools } from '@chamvi/tool-utils';
 
 describe('options', () => {
-    it('option beats CHAMVI_TIMEZONE beats UTC', () => {
-        const env = { CHAMVI_TIMEZONE: 'Europe/Paris' };
+    it('option beats TIMEZONE beats UTC', () => {
+        const env = { TIMEZONE: 'Europe/Paris' };
 
         expect(normalizeOptions({ timezone: 'Europe/Berlin', env }).timezone).toBe('Europe/Berlin');
         expect(normalizeOptions({ env }).timezone).toBe('Europe/Paris');
@@ -24,8 +24,8 @@ describe('options', () => {
         expect(() => normalizeOptions({ timezone: 'Berlin', env: {} })).toThrow(InvalidAgentDefinitionError);
     });
 
-    it('invalid env names CHAMVI_TIMEZONE', () => {
-        expect(() => normalizeOptions({ env: { CHAMVI_TIMEZONE: 'Nowhere/Land' } })).toThrow(/CHAMVI_TIMEZONE/);
+    it('invalid env names TIMEZONE', () => {
+        expect(() => normalizeOptions({ env: { TIMEZONE: 'Nowhere/Land' } })).toThrow(/TIMEZONE/);
     });
 
     it('unknown include name is named', () => {

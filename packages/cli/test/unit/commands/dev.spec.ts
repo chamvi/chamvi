@@ -124,7 +124,7 @@ describe('dev', () => {
         ]);
         // stdin is a pipe only this process writes: it closes when this process dies, which ends the group
         expect(call.options).toMatchObject({ cwd: FIXTURE_APP, stdio: ['pipe', 'inherit', 'inherit'] });
-        expect((call.options.env as Record<string, string>).CHAMVI_DEV_LINK).toBe('1');
+        expect((call.options.env as Record<string, string>).DEV_LINK).toBe('1');
 
         child.end(0);
         await running;
@@ -135,7 +135,7 @@ describe('dev', () => {
         const app = await copyFixtureApp();
 
         try {
-            await writeFile(path.join(app.cwd, '.env'), 'CHAMVI_LOG_LEVEL=info\n');
+            await writeFile(path.join(app.cwd, '.env'), 'LOG_LEVEL=info\n');
 
             const running = dev([], app.cwd);
             const call = await spawned(running);

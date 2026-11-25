@@ -83,9 +83,9 @@ function errorOf(fn: () => unknown): Error {
 }
 
 const STT_ENV = {
-    CHAMVI_PROVIDER_STT_TYPE: 'openai',
-    CHAMVI_PROVIDER_STT_BASE_URL: 'http://whisper:8000/v1',
-    CHAMVI_PROVIDER_STT_API_KEY: 'k',
+    PROVIDER_STT_TYPE: 'openai',
+    PROVIDER_STT_BASE_URL: 'http://whisper:8000/v1',
+    PROVIDER_STT_API_KEY: 'k',
 };
 
 describe('createModelResolver: transcription()', () => {

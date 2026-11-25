@@ -77,7 +77,7 @@ function build(conversations?: AppOptions['conversations'], store?: (registry: T
     };
 }
 
-const env = { CHAMVI_TOKENS: TOKENS };
+const env = { TOKENS };
 
 describe('app conversation capability', () => {
     it('disabled_default_keeps_memory_inactive', async () => {

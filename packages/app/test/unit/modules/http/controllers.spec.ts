@@ -129,7 +129,7 @@ async function build(options: {
         env: {
             HOST: '127.0.0.1',
             PORT: String(port),
-            CHAMVI_TOKENS: TOKENS,
+            TOKENS,
             ...(options.mode === 'migrate' && { DATABASE_URL: 'postgres://u:p@127.0.0.1:1/db' }),
         },
         agents: [triage],
@@ -238,7 +238,7 @@ describe('AppToken.HTTP_CONTROLLERS', () => {
                 env: {
                     HOST: '127.0.0.1',
                     PORT: String(port),
-                    CHAMVI_TOKENS: TOKENS,
+                    TOKENS,
                 },
             };
         }
@@ -342,7 +342,7 @@ describe('AppToken.OPENAPI_DOCUMENTS', () => {
             env: {
                 HOST: '127.0.0.1',
                 PORT: String(await freePort()),
-                CHAMVI_TOKENS: TOKENS,
+                TOKENS,
             },
         }));
 

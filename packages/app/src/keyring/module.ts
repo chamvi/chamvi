@@ -12,7 +12,7 @@ import { ENV_ENCRYPTION_KEYS } from './constants.ts';
 import { keyringUnsetError } from './helpers.ts';
 
 /**
- * The keyring of `CHAMVI_ENCRYPTION_KEYS`. InvalidAgentDefinitionError when
+ * The keyring of `ENCRYPTION_KEYS`. InvalidAgentDefinitionError when
  * it is unset or malformed; the message names the variable and the problem,
  * never a key or any part of the value.
  */

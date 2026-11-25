@@ -168,13 +168,13 @@ export default createApp({
 
 | Variable | |
 |---|---|
-| `CHAMVI_MAIL_ACCOUNTS` | A JSON array of `{ "id"?, "address", "host", "port"?, "security"?, "folders"?, "gmail"?, "smtp"?: { "host", "port"?, "security"? } }`. `id` defaults to the address with `@` and `.` as `-` (`me@gmail.com` is `me-gmail-com`). |
-| `CHAMVI_MAIL_<ID>_USER` | The account's user; default the address. `<ID>` is the id upper-cased, `-` as `_`. |
-| `CHAMVI_MAIL_<ID>_PASSWORD` | Required. |
+| `MAIL_ACCOUNTS` | A JSON array of `{ "id"?, "address", "host", "port"?, "security"?, "folders"?, "gmail"?, "smtp"?: { "host", "port"?, "security"? } }`. `id` defaults to the address with `@` and `.` as `-` (`me@gmail.com` is `me-gmail-com`). |
+| `MAIL_<ID>_USER` | The account's user; default the address. `<ID>` is the id upper-cased, `-` as `_`. |
+| `MAIL_<ID>_PASSWORD` | Required. |
 
-`USER` and `PASSWORD` can also be read from a file: `CHAMVI_MAIL_<ID>_PASSWORD_FILE=/run/secrets/gmail` (a mounted Secret; one trailing newline is trimmed). Setting both forms is an error. This applies to an account listed in `CHAMVI_MAIL_ACCOUNTS`; for an account that exists only in the store both forms are ignored.
+`USER` and `PASSWORD` can also be read from a file: `MAIL_<ID>_PASSWORD_FILE=/run/secrets/gmail` (a mounted Secret; one trailing newline is trimmed). Setting both forms is an error. This applies to an account listed in `MAIL_ACCOUNTS`; for an account that exists only in the store both forms are ignored.
 
-Accounts saved in the dashboard (connection type `mail`) take the same SMTP settings as the fields `smtpHost`, `smtpPort` and `smtpSecurity`; saving one logs in to SMTP after IMAP. The module reads the variables when it is called; a malformed value fails the boot with an `InvalidAgentDefinitionError` that names the variable and the index, never a value. Accounts saved in the dashboard's connection store are added at start: a variable wins per field for an account listed in `CHAMVI_MAIL_ACCOUNTS`, while an account that exists only in the store never reads a `CHAMVI_MAIL_<ID>_*` variable (the start warns naming it). Without any account the tools return a `connection_not_configured` tool error. The `accounts` option replaces the variable and the store. Connections are logged out once the engine drained; `migrate` does nothing.
+Accounts saved in the dashboard (connection type `mail`) take the same SMTP settings as the fields `smtpHost`, `smtpPort` and `smtpSecurity`; saving one logs in to SMTP after IMAP. The module reads the variables when it is called; a malformed value fails the boot with an `InvalidAgentDefinitionError` that names the variable and the index, never a value. Accounts saved in the dashboard's connection store are added at start: a variable wins per field for an account listed in `MAIL_ACCOUNTS`, while an account that exists only in the store never reads a `MAIL_<ID>_*` variable (the start warns naming it). Without any account the tools return a `connection_not_configured` tool error. The `accounts` option replaces the variable and the store. Connections are logged out once the engine drained; `migrate` does nothing.
 
 ## Privacy
 

@@ -39,7 +39,7 @@ export type MigrationOperationInput = {
     name?: string;
     /** `DATABASE_URL`: the database `run`, `revert`, `status` and `drift` work on. */
     url?: string;
-    /** `CHAMVI_MIGRATION_DATABASE_URL`: the throwaway database `generate` builds the schema in. */
+    /** `MIGRATION_DATABASE_URL`: the throwaway database `generate` builds the schema in. */
     scratchUrl?: string;
     /** One line of the command's output (no URL, no parameter, no row ever reaches it). */
     write(line: string): void;
@@ -63,7 +63,7 @@ export type MigrationTarget = {
     store: boolean;
 };
 
-/** `CHAMVI_MIGRATION_DATABASE_URL`, parsed once: every step of `generate` connects with these. */
+/** `MIGRATION_DATABASE_URL`, parsed once: every step of `generate` connects with these. */
 export type ScratchDatabase = {
     /** The scratch database's name. */
     name: string;

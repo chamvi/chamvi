@@ -20,20 +20,20 @@ export const STORE_DATABASE = 'store';
 export const DATABASE_LOCK_PREFIX = 'chamvi:db:';
 
 /** The variable naming the throwaway database `generate` builds the schema in (development only). */
-export const MIGRATION_DATABASE_URL_VARIABLE = 'CHAMVI_MIGRATION_DATABASE_URL';
+export const MIGRATION_DATABASE_URL_VARIABLE = 'MIGRATION_DATABASE_URL';
 
 /** A generated migration's class name, before its timestamp. */
 export const MIGRATION_CLASS_NAME_PATTERN = /^[A-Z][A-Za-z0-9]{0,99}$/;
 
 /**
- * The database name of `CHAMVI_MIGRATION_DATABASE_URL`: a plain name with
+ * The database name of `MIGRATION_DATABASE_URL`: a plain name with
  * no percent-encoding, so TypeORM (which drops and creates it by the raw
  * spelling) and the driver (which connects to the decoded one) name the
  * same database.
  */
 export const SCRATCH_DATABASE_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,62}$/;
 
-/** The query parameters `CHAMVI_MIGRATION_DATABASE_URL` may carry; any other is refused. */
+/** The query parameters `MIGRATION_DATABASE_URL` may carry; any other is refused. */
 export const SCRATCH_ALLOWED_PARAMETERS: readonly string[] = ['sslmode', 'application_name'];
 
 /** The scratch URL's `sslmode` values and the driver's `ssl` option each becomes (`disable`: none). */

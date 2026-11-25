@@ -69,6 +69,6 @@ Any 2xx resolves. Every other status throws a `ChamviError` with `code` `opencla
 function openclawModule(options?: OpenclawModuleOptions): IModule; // name 'chamvi:channel:<name>', default name 'openclaw'
 ```
 
-Reads `OPENCLAW_BASE_URL`, `OPENCLAW_HOOKS_TOKEN`, `OPENCLAW_CHANNEL`, `OPENCLAW_TO` (required), `OPENCLAW_HOOKS_PATH`, `OPENCLAW_AGENT_ID` and `OPENCLAW_ACCOUNT_ID` from `options.env ?? process.env` when it is called (options win), defaults `approvalUrl` to the dashboard link from `CHAMVI_PUBLIC_URL` and contributes the channel to the app's channels (`AppToken.CHANNELS`), so the engine registers it and tools reach it with `ctx.channels.findOne(name)`. `@chamvi/app` is an optional peer: the main entry never imports it.
+Reads `OPENCLAW_BASE_URL`, `OPENCLAW_HOOKS_TOKEN`, `OPENCLAW_CHANNEL`, `OPENCLAW_TO` (required), `OPENCLAW_HOOKS_PATH`, `OPENCLAW_AGENT_ID` and `OPENCLAW_ACCOUNT_ID` from `options.env ?? process.env` when it is called (options win), defaults `approvalUrl` to the dashboard link from `PUBLIC_URL` and contributes the channel to the app's channels (`AppToken.CHANNELS`), so the engine registers it and tools reach it with `ctx.channels.findOne(name)`. `@chamvi/app` is an optional peer: the main entry never imports it.
 
 <<< ../../../channel-openclaw/src/module/types.ts{ts}

@@ -15,7 +15,7 @@ import { injectSandboxContext } from '@chamvi/sandbox';
 
 // every factory reads its env when it is called (GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, ...)
 const githubApp = githubModule();
-// CHAMVI_SANDBOX_PROVIDER, when set, wins over the option
+// SANDBOX_PROVIDER, when set, wins over the option
 const sandbox = sandboxModule({
     provider: 'docker',
     allowRepo: (url) => url.startsWith('https://github.com/acme/'),
@@ -66,7 +66,7 @@ export default createApp({
         githubApp,
         // attached to the engine on start, closed after the engine drained
         sandbox,
-        // the channel named 'openclaw', approval links from CHAMVI_PUBLIC_URL
+        // the channel named 'openclaw', approval links from PUBLIC_URL
         openclawModule(),
         // the dashboard at /ui
         uiModule(),

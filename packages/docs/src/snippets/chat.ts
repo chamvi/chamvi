@@ -198,7 +198,7 @@ export const whatsappApp = createApp({
 // #endregion whatsapp-module
 
 // #region whatsapp-store
-// the session lives sealed in the app store, under CHAMVI_ENCRYPTION_KEYS
+// the session lives sealed in the app store, under ENCRYPTION_KEYS
 const phone = whatsappModule({
     // the connection: its lease, its sealed entries, /connections/whatsapp in the dashboard
     connection: 'whatsapp',
@@ -210,7 +210,7 @@ const phone = whatsappModule({
         kind: 'whatsapp',
         bindings: [],
     }),
-    // approvalUrl defaults to the dashboard under CHAMVI_PUBLIC_URL
+    // approvalUrl defaults to the dashboard under PUBLIC_URL
 });
 
 export const phoneAssistant = defineModelAgent({
@@ -278,7 +278,7 @@ export const discordApp = createApp({
 // #endregion discord-module
 
 // #region discord-app-module
-// no token in code: CHAMVI_DISCORD_* or the dashboard configure the bot
+// no token in code: DISCORD_* or the dashboard configure the bot
 const discordBot = discordModule({
     state,
     resolveInvoker: (identity) => ({

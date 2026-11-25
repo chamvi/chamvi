@@ -53,13 +53,13 @@ const accounts = (value: unknown) => JSON.stringify(value);
 describe('readCalendarAccountsFromEnv()', () => {
     it('reads nothing without the variable', () => {
         expect(readCalendarAccountsFromEnv({})).toBeUndefined();
-        expect(readCalendarAccountsFromEnv({ CHAMVI_CALENDAR_ACCOUNTS: '' })).toBeUndefined();
+        expect(readCalendarAccountsFromEnv({ CALENDAR_ACCOUNTS: '' })).toBeUndefined();
     });
 
     it('defaults the id from the address and the user to the address', () => {
         expect(readCalendarAccountsFromEnv({
-            CHAMVI_CALENDAR_ACCOUNTS: accounts([{ url: 'https://caldav.icloud.com', address: 'Admin@tada5hi.net' }]),
-            CHAMVI_CALENDAR_ADMIN_TADA5HI_NET_PASSWORD: PASSWORD,
+            CALENDAR_ACCOUNTS: accounts([{ url: 'https://caldav.icloud.com', address: 'Admin@tada5hi.net' }]),
+            CALENDAR_ADMIN_TADA5HI_NET_PASSWORD: PASSWORD,
         })).toEqual([{
             id: 'admin-tada5hi-net',
             url: 'https://caldav.icloud.com',
@@ -70,9 +70,9 @@ describe('readCalendarAccountsFromEnv()', () => {
 
     it('takes an explicit id and a user variable', () => {
         expect(readCalendarAccountsFromEnv({
-            CHAMVI_CALENDAR_ACCOUNTS: accounts([{ id: 'work', url: 'https://dav.example.com/' }]),
-            CHAMVI_CALENDAR_WORK_USER: 'peter',
-            CHAMVI_CALENDAR_WORK_PASSWORD: PASSWORD,
+            CALENDAR_ACCOUNTS: accounts([{ id: 'work', url: 'https://dav.example.com/' }]),
+            CALENDAR_WORK_USER: 'peter',
+            CALENDAR_WORK_PASSWORD: PASSWORD,
         })).toEqual([{
             id: 'work',
             url: 'https://dav.example.com/',
@@ -87,12 +87,12 @@ describe('readCalendarAccountsFromEnv()', () => {
         await writeFile(file, `${PASSWORD}\n`);
 
         expect(readCalendarAccountsFromEnv({
-            CHAMVI_CALENDAR_ACCOUNTS: accounts([{
+            CALENDAR_ACCOUNTS: accounts([{
                 id: 'me', 
                 url: 'https://caldav.icloud.com', 
                 address: 'me@icloud.com', 
             }]),
-            CHAMVI_CALENDAR_ME_PASSWORD_FILE: file,
+            CALENDAR_ME_PASSWORD_FILE: file,
         })?.[0]?.password).toBe(PASSWORD);
     });
 
@@ -102,34 +102,34 @@ describe('readCalendarAccountsFromEnv()', () => {
         await writeFile(file, PASSWORD);
 
         const error = errorOf(() => readCalendarAccountsFromEnv({
-            CHAMVI_CALENDAR_ACCOUNTS: accounts([{
+            CALENDAR_ACCOUNTS: accounts([{
                 id: 'me', 
                 url: 'https://caldav.icloud.com', 
                 address: 'me@icloud.com', 
             }]),
-            CHAMVI_CALENDAR_ME_PASSWORD: PASSWORD,
-            CHAMVI_CALENDAR_ME_PASSWORD_FILE: file,
+            CALENDAR_ME_PASSWORD: PASSWORD,
+            CALENDAR_ME_PASSWORD_FILE: file,
         }));
 
-        expect(error.message).toContain('CHAMVI_CALENDAR_ME_PASSWORD');
-        expect(error.message).toContain('CHAMVI_CALENDAR_ME_PASSWORD_FILE');
+        expect(error.message).toContain('CALENDAR_ME_PASSWORD');
+        expect(error.message).toContain('CALENDAR_ME_PASSWORD_FILE');
     });
 
     it('refuses an unreadable _FILE without echoing its content', () => {
         const error = errorOf(() => readCalendarAccountsFromEnv({
-            CHAMVI_CALENDAR_ACCOUNTS: accounts([{
+            CALENDAR_ACCOUNTS: accounts([{
                 id: 'me', 
                 url: 'https://caldav.icloud.com', 
                 address: 'me@icloud.com', 
             }]),
-            CHAMVI_CALENDAR_ME_PASSWORD_FILE: join(dir, 'missing'),
+            CALENDAR_ME_PASSWORD_FILE: join(dir, 'missing'),
         }));
 
-        expect(error.message).toContain('CHAMVI_CALENDAR_ME_PASSWORD_FILE');
+        expect(error.message).toContain('CALENDAR_ME_PASSWORD_FILE');
     });
 
     it('leaves a missing password to setup', () => {
-        const [account] = readCalendarAccountsFromEnv({ CHAMVI_CALENDAR_ACCOUNTS: accounts([{ url: 'https://caldav.icloud.com', address: 'admin@tada5hi.net' }]) }) ?? [];
+        const [account] = readCalendarAccountsFromEnv({ CALENDAR_ACCOUNTS: accounts([{ url: 'https://caldav.icloud.com', address: 'admin@tada5hi.net' }]) }) ?? [];
 
         expect(account?.password).toBeUndefined();
         expect(account?.url).toBe('https://caldav.icloud.com');
@@ -137,27 +137,27 @@ describe('readCalendarAccountsFromEnv()', () => {
 
     it('leaves a user without an address to setup', () => {
         const [account] = readCalendarAccountsFromEnv({
-            CHAMVI_CALENDAR_ACCOUNTS: accounts([{ id: 'work', url: 'https://dav.example.com/' }]),
-            CHAMVI_CALENDAR_WORK_PASSWORD: PASSWORD,
+            CALENDAR_ACCOUNTS: accounts([{ id: 'work', url: 'https://dav.example.com/' }]),
+            CALENDAR_WORK_PASSWORD: PASSWORD,
         }) ?? [];
 
         expect(account?.user).toBeUndefined();
     });
 
     it('names the variable for bad JSON', () => {
-        const error = errorOf(() => readCalendarAccountsFromEnv({ CHAMVI_CALENDAR_ACCOUNTS: `[{"password":"${PASSWORD}"` }));
+        const error = errorOf(() => readCalendarAccountsFromEnv({ CALENDAR_ACCOUNTS: `[{"password":"${PASSWORD}"` }));
 
-        expect(error.message).toContain('CHAMVI_CALENDAR_ACCOUNTS');
+        expect(error.message).toContain('CALENDAR_ACCOUNTS');
     });
 
     it.each([
-        ['not an array', { url: 'https://caldav.icloud.com' }, 'CHAMVI_CALENDAR_ACCOUNTS must be'],
-        ['not an object', ['me'], 'CHAMVI_CALENDAR_ACCOUNTS[0]'],
-        ['no id and no address', [{ url: 'https://caldav.icloud.com' }], 'CHAMVI_CALENDAR_ACCOUNTS[0].id'],
-        ['a bad id', [{ id: 'Me_1', url: 'https://caldav.icloud.com' }], 'CHAMVI_CALENDAR_ACCOUNTS[0].id'],
-        ['a bad address', [{ address: 42, url: 'https://caldav.icloud.com' }], 'CHAMVI_CALENDAR_ACCOUNTS[0].address'],
-        ['a bad url', [{ id: 'me', url: 'ftp://caldav.icloud.com' }], 'CHAMVI_CALENDAR_ACCOUNTS[0].url'],
-        ['no url', [{ id: 'me' }], 'CHAMVI_CALENDAR_ACCOUNTS[0].url'],
+        ['not an array', { url: 'https://caldav.icloud.com' }, 'CALENDAR_ACCOUNTS must be'],
+        ['not an object', ['me'], 'CALENDAR_ACCOUNTS[0]'],
+        ['no id and no address', [{ url: 'https://caldav.icloud.com' }], 'CALENDAR_ACCOUNTS[0].id'],
+        ['a bad id', [{ id: 'Me_1', url: 'https://caldav.icloud.com' }], 'CALENDAR_ACCOUNTS[0].id'],
+        ['a bad address', [{ address: 42, url: 'https://caldav.icloud.com' }], 'CALENDAR_ACCOUNTS[0].address'],
+        ['a bad url', [{ id: 'me', url: 'ftp://caldav.icloud.com' }], 'CALENDAR_ACCOUNTS[0].url'],
+        ['no url', [{ id: 'me' }], 'CALENDAR_ACCOUNTS[0].url'],
         [
             'a duplicate id',
             [{
@@ -165,12 +165,12 @@ describe('readCalendarAccountsFromEnv()', () => {
                 url: 'https://caldav.icloud.com', 
                 address: 'me@icloud.com', 
             }, { address: 'me', url: 'https://caldav.icloud.com' }],
-            'CHAMVI_CALENDAR_ACCOUNTS[1].id',
+            'CALENDAR_ACCOUNTS[1].id',
         ],
     ])('refuses %s', (_, value, message) => {
         const error = errorOf(() => readCalendarAccountsFromEnv({
-            CHAMVI_CALENDAR_ACCOUNTS: accounts(value),
-            CHAMVI_CALENDAR_ME_PASSWORD: PASSWORD,
+            CALENDAR_ACCOUNTS: accounts(value),
+            CALENDAR_ME_PASSWORD: PASSWORD,
         }));
 
         expect(error.message).toContain(message);
@@ -180,12 +180,12 @@ describe('readCalendarAccountsFromEnv()', () => {
 describe('readCalendarTimezoneFromEnv()', () => {
     it('reads an IANA zone or UTC', () => {
         expect(readCalendarTimezoneFromEnv({})).toBeUndefined();
-        expect(readCalendarTimezoneFromEnv({ CHAMVI_CALENDAR_TIMEZONE: 'America/New_York' })).toBe('America/New_York');
-        expect(readCalendarTimezoneFromEnv({ CHAMVI_CALENDAR_TIMEZONE: 'UTC' })).toBe('UTC');
+        expect(readCalendarTimezoneFromEnv({ CALENDAR_TIMEZONE: 'America/New_York' })).toBe('America/New_York');
+        expect(readCalendarTimezoneFromEnv({ CALENDAR_TIMEZONE: 'UTC' })).toBe('UTC');
     });
 
     it('refuses another value, naming the variable', () => {
-        expect(() => readCalendarTimezoneFromEnv({ CHAMVI_CALENDAR_TIMEZONE: 'W. Europe Standard Time' }))
-            .toThrow(/CHAMVI_CALENDAR_TIMEZONE/);
+        expect(() => readCalendarTimezoneFromEnv({ CALENDAR_TIMEZONE: 'W. Europe Standard Time' }))
+            .toThrow(/CALENDAR_TIMEZONE/);
     });
 });

@@ -20,7 +20,7 @@ const triage = defineModelAgent({
 
 // chamvi start | run-job | migrate load this default export
 export default createApp({
-    // the default model; CHAMVI_MODEL overrides it, ANTHROPIC_API_KEY configures the provider
+    // the default model; MODEL overrides it, ANTHROPIC_API_KEY configures the provider
     model: 'anthropic/claude-sonnet-5-5',
     agents: [triage],
     // tools write to it with ctx.channels.findOneOrFail('console').emit(...)

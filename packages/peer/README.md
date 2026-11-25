@@ -57,7 +57,7 @@ export function createPeers(options: { clock?: IClock; fetch?: typeof fetch } = 
             dev: {
                 // the peer's public URL: its origin plus its basePath
                 url: 'https://dev.example',
-                // the bearer this app sends to dev (a static token of dev's CHAMVI_TOKENS)
+                // the bearer this app sends to dev (a static token of dev's TOKENS)
                 outgoing: { token: CHAMVI_PEER_DEV_TOKEN },
                 // dev calls this app as the static token principal "peer-dev"
                 incoming: { token: 'peer-dev' },
@@ -75,7 +75,7 @@ export function createPeers(options: { clock?: IClock; fetch?: typeof fetch } = 
 
 ## Module
 
-In an app on [`@chamvi/app`](../app/README.md), add `peerModule()` from `@chamvi/peer/module` to the app's `modules`. It takes the same options, with `clock` and `approvalUrl` optional overrides (defaults: the app's clock and `approvalUrlOf(config)`, the dashboard link from `CHAMVI_PUBLIC_URL`), registers the resolver as `AppToken.PEERS`, and the engine module passes it to the engine:
+In an app on [`@chamvi/app`](../app/README.md), add `peerModule()` from `@chamvi/peer/module` to the app's `modules`. It takes the same options, with `clock` and `approvalUrl` optional overrides (defaults: the app's clock and `approvalUrlOf(config)`, the dashboard link from `PUBLIC_URL`), registers the resolver as `AppToken.PEERS`, and the engine module passes it to the engine:
 
 ```typescript
 import { createApp } from '@chamvi/app';
@@ -101,7 +101,7 @@ The options are checked when `peerModule()` is called. A remote agent naming a p
 ## Credentials
 
 - **Outgoing** `{ token }`: a fixed bearer, the secret of a static token at the peer. `{ authup: { url, clientId, clientSecret } }`: an authup client; the bearer comes from client credentials at `<url>/token`, cached on the clock until 30 s (`PEER_TOKEN_REFRESH_MARGIN_MS`) before its `expires_in`, and fetched afresh once when the peer answers 401.
-- **Incoming** `{ token: '<principal id>' }`: the id of the static token principal the peer uses here (a `CHAMVI_TOKENS` entry with narrow permissions). `{ authupClient: '<client id>' }`: the authup client the peer signs in as. Two peers cannot share one.
+- **Incoming** `{ token: '<principal id>' }`: the id of the static token principal the peer uses here (a `TOKENS` entry with narrow permissions). `{ authupClient: '<client id>' }`: the authup client the peer signs in as. Two peers cannot share one.
 - Every request goes to the peer's own origin and never follows a redirect, so the bearer reaches no other host. No secret appears in an error message.
 
 ## Errors

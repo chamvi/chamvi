@@ -14,7 +14,7 @@ An agent is a folder below `agents/` holding an `agent.ts` that default-exports 
 
 <<< @/snippets/first-agent/agent.ts#agent
 
-No entry file is needed: without `src/index.ts`, `chamvi` runs the default app, `createApp({})` configured by env alone, with its agents from `./agents` (or `CHAMVI_AGENTS_DIR`), and says so on stderr. See [Agent Folders](/guide/agent-folders) for imports, prompts and helpers next to `agent.ts`.
+No entry file is needed: without `src/index.ts`, `chamvi` runs the default app, `createApp({})` configured by env alone, with its agents from `./agents` (or `AGENTS_DIR`), and says so on stderr. See [Agent Folders](/guide/agent-folders) for imports, prompts and helpers next to `agent.ts`.
 
 ## 2. Something must start a run
 
@@ -31,7 +31,7 @@ Agents without a `model` take the app's default. One provider, one model, in a `
 
 ```bash
 # .env
-CHAMVI_MODEL=anthropic/claude-sonnet-5-5
+MODEL=anthropic/claude-sonnet-5-5
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
@@ -43,13 +43,13 @@ A string names a provider the app declared; nothing falls back to a gateway. See
 
 ```bash
 npx chamvi dev     # .env loaded, restarts on code changes
-npx chamvi start   # production: needs CHAMVI_TOKENS
+npx chamvi start   # production: needs TOKENS
 ```
 
-`chamvi dev` without `CHAMVI_TOKENS` generates a random token with every chamvi permission (`"*"`) and logs it once (a warning), so you can call the API right away. `chamvi start` refuses to start without an authenticator: set `CHAMVI_TOKENS` to a JSON list, each `value` at least 16 characters. Generate the value, never copy one from a page:
+`chamvi dev` without `TOKENS` generates a random token with every chamvi permission (`"*"`) and logs it once (a warning), so you can call the API right away. `chamvi start` refuses to start without an authenticator: set `TOKENS` to a JSON list, each `value` at least 16 characters. Generate the value, never copy one from a page:
 
 ```bash
-export CHAMVI_TOKENS="[{ \"value\": \"$(openssl rand -hex 32)\", \"id\": \"ops\", \"permissions\": \"*\" }]"
+export TOKENS="[{ \"value\": \"$(openssl rand -hex 32)\", \"id\": \"ops\", \"permissions\": \"*\" }]"
 ```
 
 Both listen on port 3000 (`PORT`). Without `DATABASE_URL` runs live in memory: a restart loses them (see [database store](/repositories/database) for Postgres).
@@ -60,11 +60,11 @@ The default app has no dashboard. Add an entry that includes `uiModule()` (`npm 
 
 <<< @/snippets/first-agent/index.ts#dashboard
 
-`chamvi dev` runs `src/index.ts` directly; for `chamvi start`, build it first: `chamvi build` writes `dist/index.mjs`. Both need `tsdown` (`npm install --save-dev tsdown`, an optional peer of `@chamvi/cli`), which also transforms the TypeScript entry `chamvi dev` loads; the built entry `chamvi start` runs needs no tsdown. The dashboard is at `/ui`; sign in with a token from `CHAMVI_TOKENS` (or the dev token). See [Dashboard](/guide/ui).
+`chamvi dev` runs `src/index.ts` directly; for `chamvi start`, build it first: `chamvi build` writes `dist/index.mjs`. Both need `tsdown` (`npm install --save-dev tsdown`, an optional peer of `@chamvi/cli`), which also transforms the TypeScript entry `chamvi dev` loads; the built entry `chamvi start` runs needs no tsdown. The dashboard is at `/ui`; sign in with a token from `TOKENS` (or the dev token). See [Dashboard](/guide/ui).
 
 ## 6. Editing a folder cancels its runs
 
-`start` watches `agents/`: a changed folder is reloaded within two poll intervals (`CHAMVI_AGENTS_POLL_MS`, 5 s), and every unsettled run of the agent (`queued`, `running`, `waiting`, `interrupted`) is cancelled, once across replicas. Each such run stores `{ code: 'agent_replaced', message }` as its error, and the app logs `agent reloaded` with the cancelled run ids; deleting the folder does the same with `agent_removed`.
+`start` watches `agents/`: a changed folder is reloaded within two poll intervals (`AGENTS_POLL_MS`, 5 s), and every unsettled run of the agent (`queued`, `running`, `waiting`, `interrupted`) is cancelled, once across replicas. Each such run stores `{ code: 'agent_replaced', message }` as its error, and the app logs `agent reloaded` with the cancelled run ids; deleting the folder does the same with `agent_removed`.
 
 Docs and editor leftovers do not count: `README*`, `CHANGELOG*`, `NOTES*`, `LICENSE*`, `*~`, `*.swp`, `*.swo`, `*.bak`, `*.orig`, `.DS_Store` and dot-files are left out of the folder hash (a `.ts` or `.json` always counts). Settle runs waiting for an approval before you edit an agent, and before you upgrade chamvi. A `run-job` never reloads; see [Jobs never reload](/guide/agent-folders#jobs-never-reload).
 
@@ -77,4 +77,4 @@ npx chamvi build          # only with an entry file (step 5): build exits 2 with
 npx chamvi start --check  # with the production or staging env
 ```
 
-It needs what a start needs (`CHAMVI_TOKENS`, the provider keys, `DATABASE_URL`). It exits 0 with `chamvi: start check passed`, 2 for a configuration error or an agent folder with a load issue (one per stderr line, never a value), 1 when the store is unreachable or has pending migrations a start would not apply. See [Check before you deploy](/guide/models#check-before-you-deploy).
+It needs what a start needs (`TOKENS`, the provider keys, `DATABASE_URL`). It exits 0 with `chamvi: start check passed`, 2 for a configuration error or an agent folder with a load issue (one per stderr line, never a value), 1 when the store is unreachable or has pending migrations a start would not apply. See [Check before you deploy](/guide/models#check-before-you-deploy).

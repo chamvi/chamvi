@@ -74,10 +74,10 @@ describe('readModelSettings', () => {
             expect(settings.configFile).toBe(join(cwd, 'chamvi.json'));
         });
 
-        it('lets CHAMVI_MODEL override file and code', async () => {
+        it('lets MODEL override file and code', async () => {
             await writeConfig({ model: 'a/m2' });
 
-            const { settings } = await read({ model: 'a/m1', env: { CHAMVI_MODEL: 'a/m3' } });
+            const { settings } = await read({ model: 'a/m1', env: { MODEL: 'a/m3' } });
 
             expect(settings.model).toEqual({ ref: 'a/m3', source: 'env' });
         });
@@ -94,7 +94,7 @@ describe('readModelSettings', () => {
         it('merges per field across sources', async () => {
             const { settings, issues } = await read({
                 providers: { router: { type: 'openai-compatible', baseURL: 'http://router:20128/v1' } },
-                env: { CHAMVI_PROVIDER_ROUTER_API_KEY: 'sk-router' },
+                env: { PROVIDER_ROUTER_API_KEY: 'sk-router' },
             });
 
             expect(issues).toEqual([]);
@@ -125,7 +125,7 @@ describe('readModelSettings', () => {
                         baseURL: 'http://x:1/v1',
                     },
                 },
-                env: { CHAMVI_PROVIDER_P_TYPE: 'anthropic', CHAMVI_PROVIDER_P_API_KEY: 'sk-env' },
+                env: { PROVIDER_P_TYPE: 'anthropic', PROVIDER_P_API_KEY: 'sk-env' },
             });
 
             expect(issues).toEqual([]);
@@ -145,7 +145,7 @@ describe('readModelSettings', () => {
         it('drops a lower source apiKey on a type change', async () => {
             const { settings, issues } = await read({
                 providers: { p: { type: 'anthropic', apiKey: 'sk-code' } },
-                env: { CHAMVI_PROVIDER_P_TYPE: 'openai-compatible', CHAMVI_PROVIDER_P_BASE_URL: 'http://x:1/v1' },
+                env: { PROVIDER_P_TYPE: 'openai-compatible', PROVIDER_P_BASE_URL: 'http://x:1/v1' },
             });
 
             expect(issues).toEqual([]);
@@ -180,7 +180,7 @@ describe('readModelSettings', () => {
                         headers: { 'X-Team': 'a', 'X-Other': { env: 'OTHER' } },
                     },
                 },
-                env: { CHAMVI_PROVIDER_R_HEADER_X_TEAM: 'b', OTHER: 'o' },
+                env: { PROVIDER_R_HEADER_X_TEAM: 'b', OTHER: 'o' },
             });
 
             expect(issues).toEqual([]);
@@ -196,8 +196,8 @@ describe('readModelSettings', () => {
         it('declares an env-only provider through _TYPE', async () => {
             const { settings, issues } = await read({
                 env: {
-                    CHAMVI_PROVIDER_TEAM_A_TYPE: 'anthropic',
-                    CHAMVI_PROVIDER_TEAM_A_API_KEY: 'sk-a',
+                    PROVIDER_TEAM_A_TYPE: 'anthropic',
+                    PROVIDER_TEAM_A_API_KEY: 'sk-a',
                 },
             });
 
@@ -211,13 +211,26 @@ describe('readModelSettings', () => {
         });
 
         it('refuses a variable of a provider no source declares', async () => {
-            const { settings, issues } = await read({ env: { CHAMVI_PROVIDER_ROUTR_API_KEY: 'sk-secret-value' } });
+            const { settings, issues } = await read({ env: { PROVIDER_ROUTR_API_KEY: 'sk-secret-value' } });
 
             expect(issues).toEqual([{
                 provider: 'routr',
-                message: 'CHAMVI_PROVIDER_ROUTR_API_KEY names provider "routr", which no source declares; ' +
-                    'set CHAMVI_PROVIDER_ROUTR_TYPE or fix the name.',
+                message: 'PROVIDER_ROUTR_API_KEY names provider "routr", which no source declares; ' +
+                    'set PROVIDER_ROUTR_TYPE or fix the name.',
             }]);
+            expect(settings.providers.size).toBe(0);
+        });
+
+        it('ignores PROVIDER_* variables without a provider field (k8s service links, an app\'s own)', async () => {
+            const { settings, issues } = await read({
+                env: {
+                    PROVIDER_GATEWAY_SERVICE_HOST: '10.0.0.1',
+                    PROVIDER_GATEWAY_PORT: 'tcp://10.0.0.1:80',
+                    PROVIDER_URL: 'https://example.com',
+                },
+            });
+
+            expect(issues).toEqual([]);
             expect(settings.providers.size).toBe(0);
         });
 
@@ -227,7 +240,7 @@ describe('readModelSettings', () => {
                     a: { type: 'openai-compatible', baseURL: 'http://a:1/v1' },
                     'a-header': { type: 'openai-compatible', baseURL: 'http://b:1/v1' },
                 },
-                env: { CHAMVI_PROVIDER_A_HEADER_API_KEY: 'sk-ah' },
+                env: { PROVIDER_A_HEADER_API_KEY: 'sk-ah' },
             });
 
             expect(issues).toEqual([]);
@@ -239,7 +252,7 @@ describe('readModelSettings', () => {
         it('lets a declared name win over _TYPE discovery', async () => {
             const { settings, issues } = await read({
                 providers: { a: { type: 'openai-compatible', baseURL: 'http://a:1/v1' } },
-                env: { CHAMVI_PROVIDER_A_HEADER_X_TYPE: 'v' },
+                env: { PROVIDER_A_HEADER_X_TYPE: 'v' },
             });
 
             expect(issues).toEqual([]);
@@ -250,9 +263,9 @@ describe('readModelSettings', () => {
         it('binds the other variables of an env-only provider', async () => {
             const { settings, issues } = await read({
                 env: {
-                    CHAMVI_PROVIDER_ROUTER_TYPE: 'openai-compatible',
-                    CHAMVI_PROVIDER_ROUTER_BASE_URL: 'http://9router:20128/v1',
-                    CHAMVI_PROVIDER_ROUTER_HEADER_X_TEAM: 'a',
+                    PROVIDER_ROUTER_TYPE: 'openai-compatible',
+                    PROVIDER_ROUTER_BASE_URL: 'http://9router:20128/v1',
+                    PROVIDER_ROUTER_HEADER_X_TEAM: 'a',
                 },
             });
 
@@ -265,30 +278,30 @@ describe('readModelSettings', () => {
         });
 
         it('refuses an unknown type without echoing it', async () => {
-            const { issues } = await read({ env: { CHAMVI_PROVIDER_X_TYPE: 'nope-type' } });
+            const { issues } = await read({ env: { PROVIDER_X_TYPE: 'nope-type' } });
 
             expect(issues).toHaveLength(1);
             expect(issues[0]?.provider).toBe('x');
-            expect(issues[0]?.message).toContain('CHAMVI_PROVIDER_X_TYPE');
+            expect(issues[0]?.message).toContain('PROVIDER_X_TYPE');
             expect(JSON.stringify(issues)).not.toContain('nope-type');
         });
 
         it('refuses a bad base URL naming the variable', async () => {
             const { settings, issues } = await read({
                 env: {
-                    CHAMVI_PROVIDER_R_TYPE: 'openai-compatible',
-                    CHAMVI_PROVIDER_R_BASE_URL: 'http://user:pw@x/v1',
+                    PROVIDER_R_TYPE: 'openai-compatible',
+                    PROVIDER_R_BASE_URL: 'http://user:pw@x/v1',
                 },
             });
 
             expect(issues).toHaveLength(1);
-            expect(issues[0]?.message).toContain('CHAMVI_PROVIDER_R_BASE_URL');
+            expect(issues[0]?.message).toContain('PROVIDER_R_BASE_URL');
             expect(JSON.stringify(issues)).not.toContain('pw@');
             expect(settings.providers.has('r')).toBe(false);
         });
 
         it('treats an empty variable as unset', async () => {
-            const { issues, settings } = await read({ env: { CHAMVI_PROVIDER_ROUTR_API_KEY: '' } });
+            const { issues, settings } = await read({ env: { PROVIDER_ROUTR_API_KEY: '' } });
 
             expect(issues).toEqual([]);
             expect(settings.providers.size).toBe(0);
@@ -362,11 +375,11 @@ describe('readModelSettings', () => {
 
     describe('requirements', () => {
         it('needs an apiKey for a key-bearing type', async () => {
-            const { settings, issues } = await read({ env: { CHAMVI_PROVIDER_TEAM_A_TYPE: 'anthropic' } });
+            const { settings, issues } = await read({ env: { PROVIDER_TEAM_A_TYPE: 'anthropic' } });
 
             expect(issues).toEqual([{
                 provider: 'team-a',
-                message: 'Provider "team-a" (anthropic) needs CHAMVI_PROVIDER_TEAM_A_API_KEY.',
+                message: 'Provider "team-a" (anthropic) needs PROVIDER_TEAM_A_API_KEY.',
             }]);
             expect(settings.providers.has('team-a')).toBe(false);
         });
@@ -383,7 +396,7 @@ describe('readModelSettings', () => {
 
             expect(issues).toHaveLength(1);
             expect(issues[0]?.provider).toBe('local');
-            expect(issues[0]?.message).toContain('CHAMVI_PROVIDER_LOCAL_BASE_URL');
+            expect(issues[0]?.message).toContain('PROVIDER_LOCAL_BASE_URL');
         });
 
         it('reports an unset { env } secret and leaves the provider out', async () => {
@@ -404,7 +417,7 @@ describe('readModelSettings', () => {
         it('collects every issue', async () => {
             const { issues } = await read({
                 providers: { a: { type: 'anthropic' }, b: { type: 'openai' } },
-                env: { CHAMVI_PROVIDER_ROUTR_API_KEY: 'x' },
+                env: { PROVIDER_ROUTR_API_KEY: 'x' },
             });
 
             expect(issues.map((issue) => issue.provider).sort()).toEqual(['a', 'b', 'routr']);
@@ -424,11 +437,11 @@ describe('readModelSettings', () => {
     });
 
     describe('config file', () => {
-        it('reads CHAMVI_CONFIG_FILE relative to cwd', async () => {
+        it('reads CONFIG_FILE relative to cwd', async () => {
             await mkdir(join(cwd, 'conf'));
             await writeConfig({ providers: { r: { type: 'openai-compatible', baseURL: 'http://r:1/v1' } } }, 'conf/c.json');
 
-            const { settings, issues } = await read({ env: { CHAMVI_CONFIG_FILE: 'conf/c.json' } });
+            const { settings, issues } = await read({ env: { CONFIG_FILE: 'conf/c.json' } });
 
             expect(issues).toEqual([]);
             expect(settings.configFile).toBe(join(cwd, 'conf/c.json'));
@@ -436,10 +449,10 @@ describe('readModelSettings', () => {
         });
 
         it('reports a named missing file', async () => {
-            const { issues } = await read({ env: { CHAMVI_CONFIG_FILE: join(cwd, 'missing.json') } });
+            const { issues } = await read({ env: { CONFIG_FILE: join(cwd, 'missing.json') } });
 
             expect(issues).toHaveLength(1);
-            expect(issues[0]?.message).toContain('CHAMVI_CONFIG_FILE');
+            expect(issues[0]?.message).toContain('CONFIG_FILE');
         });
 
         it('reports bad JSON', async () => {
@@ -499,8 +512,8 @@ describe('readModelSettings', () => {
                 },
             },
             env: {
-                CHAMVI_PROVIDER_ROUTR_API_KEY: 'sk-env-secret',
-                CHAMVI_PROVIDER_Q_TYPE: 'secret-type',
+                PROVIDER_ROUTR_API_KEY: 'sk-env-secret',
+                PROVIDER_Q_TYPE: 'secret-type',
             },
         });
 
@@ -646,10 +659,10 @@ describe('readConfigFileAgents', () => {
         await expect(readConfigFileAgents({}, cwd)).resolves.toEqual(['a']);
     });
 
-    it('reads CHAMVI_CONFIG_FILE relative to the cwd', async () => {
+    it('reads CONFIG_FILE relative to the cwd', async () => {
         await mkdir(join(cwd, 'config'));
         await writeFile(join(cwd, 'config/app.json'), JSON.stringify({ agents: ['b'] }));
-        await expect(readConfigFileAgents({ CHAMVI_CONFIG_FILE: 'config/app.json' }, cwd)).resolves.toEqual(['b']);
+        await expect(readConfigFileAgents({ CONFIG_FILE: 'config/app.json' }, cwd)).resolves.toEqual(['b']);
     });
 
     it('has none without a file', async () => {
@@ -671,10 +684,10 @@ describe('readConfigFileAgents', () => {
         await expect(readConfigFileAgents({}, cwd)).rejects.toThrow(message);
     });
 
-    it('names CHAMVI_CONFIG_FILE for a named file', async () => {
+    it('names CONFIG_FILE for a named file', async () => {
         await writeFile(join(cwd, 'app.json'), JSON.stringify({ agents: ['./x'] }));
-        await expect(readConfigFileAgents({ CHAMVI_CONFIG_FILE: 'app.json' }, cwd)).rejects.toThrow(
-            'CHAMVI_CONFIG_FILE: app.json: agents[0] is no bare package specifier',
+        await expect(readConfigFileAgents({ CONFIG_FILE: 'app.json' }, cwd)).rejects.toThrow(
+            'CONFIG_FILE: app.json: agents[0] is no bare package specifier',
         );
     });
 });

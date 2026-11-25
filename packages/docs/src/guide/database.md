@@ -32,9 +32,9 @@ What the module does depends on `DATABASE_URL` and on what the app is doing:
 
 | | With `DATABASE_URL` (PostgreSQL) | Without it (SQLite in memory) |
 |---|---|---|
-| `start`, `runJob` | Connects, runs the pending migrations under the lock `chamvi:db:<name>` (with `CHAMVI_MIGRATE=false` a pending migration fails the start) | Creates the tables from the entities; the rows live as long as the process. Refused when `NODE_ENV` is `production` |
+| `start`, `runJob` | Connects, runs the pending migrations under the lock `chamvi:db:<name>` (with `MIGRATE=false` a pending migration fails the start) | Creates the tables from the entities; the rows live as long as the process. Refused when `NODE_ENV` is `production` |
 | `migrate` (`chamvi migrate`) | Migrates after chamvi's store | Refused: `DATABASE_URL` is required |
-| `check` (`chamvi start --check`) | Connects and writes nothing; pending migrations fail only with `CHAMVI_MIGRATE=false`, as the store's do | As at start |
+| `check` (`chamvi start --check`) | Connects and writes nothing; pending migrations fail only with `MIGRATE=false`, as the store's do | As at start |
 
 The data source closes after the engine drained, so a module may still use it in its own `drained` hook (register that hook in `setup`). A database failure is a `DatabaseUnavailableError` naming the operation and the driver's code, never the URL, a statement's parameters or a row; a configuration mistake (a refused option, SQLite in production, an entity TypeORM refuses, a date column whose type could not be derived) is an `InvalidAgentDefinitionError` and makes `chamvi start` and `chamvi start --check` exit 2.
 
@@ -99,11 +99,11 @@ PostgreSQL takes its schema from the migrations only; generate each one from the
 
 ```bash
 # development only: a PostgreSQL database the command creates, migrates, compares and drops
-export CHAMVI_MIGRATION_DATABASE_URL=postgres://dev:dev@localhost:5432/ticket_scratch
+export MIGRATION_DATABASE_URL=postgres://dev:dev@localhost:5432/ticket_scratch
 npx chamvi migration generate --name TicketInit
 ```
 
-`generate` reads the TypeScript source entry (default `src/index.ts`), writes `<timestamp>-ticket-init.ts` with the class `TicketInit<timestamp>` into `migrationsDirectory`, or prints `no changes`. Add the class to `migrations`. It refuses a scratch URL that names the database of `DATABASE_URL`, and it is refused when `NODE_ENV` is `production`: `CHAMVI_MIGRATION_DATABASE_URL` is never a deployment variable.
+`generate` reads the TypeScript source entry (default `src/index.ts`), writes `<timestamp>-ticket-init.ts` with the class `TicketInit<timestamp>` into `migrationsDirectory`, or prints `no changes`. Add the class to `migrations`. It refuses a scratch URL that names the database of `DATABASE_URL`, and it is refused when `NODE_ENV` is `production`: `MIGRATION_DATABASE_URL` is never a deployment variable.
 
 A start migrates under the lock `chamvi:db:<name>` (replicas starting at once wait for each other; each migration runs once), and so does `chamvi migrate`. In CI, against a service PostgreSQL:
 

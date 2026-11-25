@@ -202,7 +202,7 @@ describe('ConnectionConfigService', () => {
         const { service } = setup({
             declared: (definition) => [declare(definition, 'mail-work')],
             keyring: () => {
-                throw new InvalidAgentDefinitionError('CHAMVI_ENCRYPTION_KEYS is not set.');
+                throw new InvalidAgentDefinitionError('ENCRYPTION_KEYS is not set.');
             },
         });
         const promise = service.update('mail-work', {
@@ -212,7 +212,7 @@ describe('ConnectionConfigService', () => {
         }, writer);
 
         await expect(promise).rejects.toMatchObject({ status: 409 });
-        await expect(promise).rejects.toThrow('CHAMVI_ENCRYPTION_KEYS');
+        await expect(promise).rejects.toThrow('ENCRYPTION_KEYS');
     });
 
     it('refuses deleting a declared connection (409) and deletes a stored account as the principal', async () => {

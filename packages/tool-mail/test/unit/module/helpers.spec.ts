@@ -50,13 +50,13 @@ const accounts = (value: unknown) => JSON.stringify(value);
 describe('readMailAccountsFromEnv()', () => {
     it('reads nothing without the variable', () => {
         expect(readMailAccountsFromEnv({})).toBeUndefined();
-        expect(readMailAccountsFromEnv({ CHAMVI_MAIL_ACCOUNTS: '' })).toBeUndefined();
+        expect(readMailAccountsFromEnv({ MAIL_ACCOUNTS: '' })).toBeUndefined();
     });
 
     it('defaults the id from the address and the user to the address', () => {
         expect(readMailAccountsFromEnv({
-            CHAMVI_MAIL_ACCOUNTS: accounts([{ address: 'Admin@tada5hi.net', host: 'mail.tada5hi.net' }]),
-            CHAMVI_MAIL_ADMIN_TADA5HI_NET_PASSWORD: PASSWORD,
+            MAIL_ACCOUNTS: accounts([{ address: 'Admin@tada5hi.net', host: 'mail.tada5hi.net' }]),
+            MAIL_ADMIN_TADA5HI_NET_PASSWORD: PASSWORD,
         })).toEqual([{
             id: 'admin-tada5hi-net',
             host: 'mail.tada5hi.net',
@@ -68,7 +68,7 @@ describe('readMailAccountsFromEnv()', () => {
 
     it('takes an explicit id, a user variable and the connection fields', () => {
         expect(readMailAccountsFromEnv({
-            CHAMVI_MAIL_ACCOUNTS: accounts([{
+            MAIL_ACCOUNTS: accounts([{
                 id: 'work',
                 address: 'peter@example.com',
                 host: 'imap.example.com',
@@ -77,8 +77,8 @@ describe('readMailAccountsFromEnv()', () => {
                 folders: ['INBOX', 'Archive'],
                 gmail: false,
             }]),
-            CHAMVI_MAIL_WORK_USER: 'peter',
-            CHAMVI_MAIL_WORK_PASSWORD: PASSWORD,
+            MAIL_WORK_USER: 'peter',
+            MAIL_WORK_PASSWORD: PASSWORD,
         })).toEqual([{
             id: 'work',
             host: 'imap.example.com',
@@ -94,7 +94,7 @@ describe('readMailAccountsFromEnv()', () => {
 
     it('copies the smtp settings of an entry', () => {
         expect(readMailAccountsFromEnv({
-            CHAMVI_MAIL_ACCOUNTS: accounts([{
+            MAIL_ACCOUNTS: accounts([{
                 id: 'work',
                 address: 'peter@example.com',
                 host: 'imap.example.com',
@@ -104,7 +104,7 @@ describe('readMailAccountsFromEnv()', () => {
                     security: 'starttls', 
                 },
             }]),
-            CHAMVI_MAIL_WORK_PASSWORD: PASSWORD,
+            MAIL_WORK_PASSWORD: PASSWORD,
         })).toEqual([{
             id: 'work',
             host: 'imap.example.com',
@@ -121,16 +121,16 @@ describe('readMailAccountsFromEnv()', () => {
 
     it('refuses an smtp entry without a host, naming the field exactly', () => {
         const error = errorOf(() => readMailAccountsFromEnv({
-            CHAMVI_MAIL_ACCOUNTS: accounts([{
+            MAIL_ACCOUNTS: accounts([{
                 id: 'me',
                 address: 'me@x.test',
                 host: 'imap.x.test',
                 smtp: { port: 587 },
             }]),
-            CHAMVI_MAIL_ME_PASSWORD: PASSWORD,
+            MAIL_ME_PASSWORD: PASSWORD,
         }));
 
-        expect(error.message).toBe('CHAMVI_MAIL_ACCOUNTS[0].smtp.host must be a non-empty string.');
+        expect(error.message).toBe('MAIL_ACCOUNTS[0].smtp.host must be a non-empty string.');
     });
 
     it('reads a _FILE variant, trimming one trailing newline', async () => {
@@ -139,12 +139,12 @@ describe('readMailAccountsFromEnv()', () => {
         await writeFile(file, `${PASSWORD}\n`);
 
         expect(readMailAccountsFromEnv({
-            CHAMVI_MAIL_ACCOUNTS: accounts([{
+            MAIL_ACCOUNTS: accounts([{
                 id: 'me',
                 address: 'me@gmail.com',
                 host: 'imap.gmail.com',
             }]),
-            CHAMVI_MAIL_ME_PASSWORD_FILE: file,
+            MAIL_ME_PASSWORD_FILE: file,
         })?.[0]?.password).toBe(PASSWORD);
     });
 
@@ -154,91 +154,91 @@ describe('readMailAccountsFromEnv()', () => {
         await writeFile(file, PASSWORD);
 
         const error = errorOf(() => readMailAccountsFromEnv({
-            CHAMVI_MAIL_ACCOUNTS: accounts([{
+            MAIL_ACCOUNTS: accounts([{
                 id: 'me',
                 address: 'me@gmail.com',
                 host: 'imap.gmail.com',
             }]),
-            CHAMVI_MAIL_ME_PASSWORD: PASSWORD,
-            CHAMVI_MAIL_ME_PASSWORD_FILE: file,
+            MAIL_ME_PASSWORD: PASSWORD,
+            MAIL_ME_PASSWORD_FILE: file,
         }));
 
-        expect(error.message).toContain('CHAMVI_MAIL_ME_PASSWORD');
-        expect(error.message).toContain('CHAMVI_MAIL_ME_PASSWORD_FILE');
+        expect(error.message).toContain('MAIL_ME_PASSWORD');
+        expect(error.message).toContain('MAIL_ME_PASSWORD_FILE');
     });
 
     it('refuses an unreadable _FILE', () => {
         const error = errorOf(() => readMailAccountsFromEnv({
-            CHAMVI_MAIL_ACCOUNTS: accounts([{
+            MAIL_ACCOUNTS: accounts([{
                 id: 'me',
                 address: 'me@gmail.com',
                 host: 'imap.gmail.com',
             }]),
-            CHAMVI_MAIL_ME_PASSWORD_FILE: join(dir, 'missing'),
+            MAIL_ME_PASSWORD_FILE: join(dir, 'missing'),
         }));
 
-        expect(error.message).toContain('CHAMVI_MAIL_ME_PASSWORD_FILE');
+        expect(error.message).toContain('MAIL_ME_PASSWORD_FILE');
     });
 
     it('leaves a missing password to setup', () => {
-        const [account] = readMailAccountsFromEnv({ CHAMVI_MAIL_ACCOUNTS: accounts([{ address: 'admin@tada5hi.net', host: 'mail.tada5hi.net' }]) }) ?? [];
+        const [account] = readMailAccountsFromEnv({ MAIL_ACCOUNTS: accounts([{ address: 'admin@tada5hi.net', host: 'mail.tada5hi.net' }]) }) ?? [];
 
         expect(account?.password).toBeUndefined();
         expect(account?.host).toBe('mail.tada5hi.net');
     });
 
     it('names the variable for bad JSON', () => {
-        const error = errorOf(() => readMailAccountsFromEnv({ CHAMVI_MAIL_ACCOUNTS: `[{"password":"${PASSWORD}"` }));
+        const error = errorOf(() => readMailAccountsFromEnv({ MAIL_ACCOUNTS: `[{"password":"${PASSWORD}"` }));
 
-        expect(error.message).toContain('CHAMVI_MAIL_ACCOUNTS');
+        expect(error.message).toContain('MAIL_ACCOUNTS');
     });
 
     it.each([
-        ['not an array', { address: 'me@x.test', host: 'imap.x.test' }, 'CHAMVI_MAIL_ACCOUNTS must be'],
-        ['not an object', ['me'], 'CHAMVI_MAIL_ACCOUNTS[0]'],
-        ['no address', [{ id: 'me', host: 'imap.x.test' }], 'CHAMVI_MAIL_ACCOUNTS[0].address'],
+        ['not an array', { address: 'me@x.test', host: 'imap.x.test' }, 'MAIL_ACCOUNTS must be'],
+        ['not an object', ['me'], 'MAIL_ACCOUNTS[0]'],
+        ['no address', [{ id: 'me', host: 'imap.x.test' }], 'MAIL_ACCOUNTS[0].address'],
         ['a bad id', [{
             id: 'Me_1',
             address: 'me@x.test',
             host: 'imap.x.test',
-        }], 'CHAMVI_MAIL_ACCOUNTS[0].id'],
-        ['no host', [{ id: 'me', address: 'me@x.test' }], 'CHAMVI_MAIL_ACCOUNTS[0].host'],
+        }], 'MAIL_ACCOUNTS[0].id'],
+        ['no host', [{ id: 'me', address: 'me@x.test' }], 'MAIL_ACCOUNTS[0].host'],
         ['a bad port', [{
             id: 'me',
             address: 'me@x.test',
             host: 'imap.x.test',
             port: 'x',
-        }], 'CHAMVI_MAIL_ACCOUNTS[0].port'],
+        }], 'MAIL_ACCOUNTS[0].port'],
         ['a bad security', [{
             id: 'me',
             address: 'me@x.test',
             host: 'imap.x.test',
             security: 'ssl',
-        }], 'CHAMVI_MAIL_ACCOUNTS[0].security'],
+        }], 'MAIL_ACCOUNTS[0].security'],
         ['bad folders', [{
             id: 'me',
             address: 'me@x.test',
             host: 'imap.x.test',
             folders: 'INBOX',
-        }], 'CHAMVI_MAIL_ACCOUNTS[0].folders'],
+        }], 'MAIL_ACCOUNTS[0].folders'],
         ['a bad gmail', [{
             id: 'me',
             address: 'me@x.test',
             host: 'imap.x.test',
             gmail: 'yes',
-        }], 'CHAMVI_MAIL_ACCOUNTS[0].gmail'],
+        }], 'MAIL_ACCOUNTS[0].gmail'],
         ['a bad smtp', [{
             id: 'me',
             address: 'me@x.test',
             host: 'imap.x.test',
             smtp: 'smtp.x.test',
-        }], 'CHAMVI_MAIL_ACCOUNTS[0].smtp must be an object.'],
+        }], 'MAIL_ACCOUNTS[0].smtp must be an object.'],
         ['a bad smtp port', [{
             id: 'me',
             address: 'me@x.test',
             host: 'imap.x.test',
             smtp: { host: 'smtp.x.test', port: 0 },
-        }], 'CHAMVI_MAIL_ACCOUNTS[0].smtp.port'],
+        }], 'MAIL_ACCOUNTS[0].smtp.port'],
         [
             'a duplicate id',
             [{
@@ -246,12 +246,12 @@ describe('readMailAccountsFromEnv()', () => {
                 address: 'me@x.test',
                 host: 'imap.x.test',
             }, { address: 'me', host: 'imap.x.test' }],
-            'CHAMVI_MAIL_ACCOUNTS[1].id',
+            'MAIL_ACCOUNTS[1].id',
         ],
     ])('refuses %s', (_, value, message) => {
         const error = errorOf(() => readMailAccountsFromEnv({
-            CHAMVI_MAIL_ACCOUNTS: accounts(value),
-            CHAMVI_MAIL_ME_PASSWORD: PASSWORD,
+            MAIL_ACCOUNTS: accounts(value),
+            MAIL_ME_PASSWORD: PASSWORD,
         }));
 
         expect(error.message).toContain(message);

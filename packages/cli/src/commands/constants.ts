@@ -5,16 +5,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-/** CHAMVI_FORCE_EXIT_MS default (C4). */
+/** FORCE_EXIT_MS default (C4). */
 export const FORCE_EXIT_MS = 90_000;
 
-/** CHAMVI_FORCE_EXIT_MS default under `start --dev` (C3). */
+/** FORCE_EXIT_MS default under `start --dev` (C3). */
 export const DEV_FORCE_EXIT_MS = 15_000;
 
-export const FORCE_EXIT_VARIABLE = 'CHAMVI_FORCE_EXIT_MS';
+export const FORCE_EXIT_VARIABLE = 'FORCE_EXIT_MS';
 
 /** Set by `chamvi dev` on its child: `start --dev` then links to it through stdin (`CliContext.linkToParent`). */
-export const DEV_LINK_VARIABLE = 'CHAMVI_DEV_LINK';
+export const DEV_LINK_VARIABLE = 'DEV_LINK';
 
 /** The dotenv file `start --dev` reads from the working directory. */
 export const DOTENV_FILE = '.env';

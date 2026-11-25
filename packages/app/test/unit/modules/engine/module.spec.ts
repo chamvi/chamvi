@@ -366,11 +366,11 @@ describe('engineModule', () => {
         expect(model.doStreamCalls).toHaveLength(1);
     });
 
-    it('CHAMVI_MODEL gives an agent without model its model', async () => {
+    it('MODEL gives an agent without model its model', async () => {
         const model = textModel('from default');
         const { harness } = build({
             agents: [agentWith(undefined)],
-            env: { CHAMVI_MODEL: 'test/m' },
+            env: { MODEL: 'test/m' },
             models: { test: customProvider({ languageModels: { m: model } }) },
         });
 
@@ -384,12 +384,12 @@ describe('engineModule', () => {
         expect((await engine.getRun(runId))?.output).toBe('from default');
     });
 
-    it('CHAMVI_MODEL overrides the code default', async () => {
+    it('MODEL overrides the code default', async () => {
         const fromEnv = textModel('from env');
         const fromCode = textModel('from code');
         const { harness } = build({
             agents: [agentWith(undefined)],
-            env: { CHAMVI_MODEL: 'test/env' },
+            env: { MODEL: 'test/env' },
             model: 'test/code',
             models: { test: customProvider({ languageModels: { env: fromEnv, code: fromCode } }) },
         });
@@ -427,7 +427,7 @@ describe('engineModule', () => {
 
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
         expect(error.message).toContain('ANTHROPIC_API_KEY');
-        expect(error.message).toContain('CHAMVI_PROVIDER_ANTHROPIC_TYPE');
+        expect(error.message).toContain('PROVIDER_ANTHROPIC_TYPE');
     });
 
     it('an agent without model and no default fails setup', async () => {
@@ -435,22 +435,22 @@ describe('engineModule', () => {
         const error = await rejectionOf(harness.setup());
 
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-        expect(error.message).toContain('CHAMVI_MODEL');
+        expect(error.message).toContain('MODEL');
     });
 
     it('every settings issue fails setup in one error', async () => {
         const { harness } = build({
             agents: [agentWith(textModel())],
             env: {
-                CHAMVI_PROVIDER_ROUTR_API_KEY: 'k',
-                CHAMVI_PROVIDER_LOCAL_TYPE: 'nope',
+                PROVIDER_ROUTR_API_KEY: 'k',
+                PROVIDER_LOCAL_TYPE: 'nope',
             },
         });
         const error = await rejectionOf(harness.setup());
 
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-        expect(error.message).toContain('CHAMVI_PROVIDER_ROUTR_API_KEY');
-        expect(error.message).toContain('CHAMVI_PROVIDER_LOCAL_TYPE');
+        expect(error.message).toContain('PROVIDER_ROUTR_API_KEY');
+        expect(error.message).toContain('PROVIDER_LOCAL_TYPE');
         expect(error.message).not.toContain('"k"');
     });
 

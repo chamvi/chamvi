@@ -100,7 +100,7 @@ async function serve(input: ServeInput = {}) {
     });
     const harness = await createModuleHarness({
         env: {
-            CHAMVI_TOKENS: JSON.stringify([{
+            TOKENS: JSON.stringify([{
                 value: TOKEN,
                 id: 'ops',
                 permissions: '*',
@@ -170,12 +170,12 @@ function discordApi(status = 200): { fetch: typeof fetch; calls: Recorded[] } {
 }
 
 const ENV = {
-    CHAMVI_DISCORD_TOKEN: SENTINEL_TOKEN,
-    CHAMVI_DISCORD_APPLICATION_ID: APP_ID,
-    CHAMVI_DISCORD_GUILDS: GUILD,
-    CHAMVI_DISCORD_USERS: ALICE,
+    DISCORD_TOKEN: SENTINEL_TOKEN,
+    DISCORD_APPLICATION_ID: APP_ID,
+    DISCORD_GUILDS: GUILD,
+    DISCORD_USERS: ALICE,
 };
-const PUBLIC = { CHAMVI_PUBLIC_URL: 'https://chamvi.example' };
+const PUBLIC = { PUBLIC_URL: 'https://chamvi.example' };
 
 describe('the Discord connection test', () => {
     it('calls GET /users/@me with the bot token', async () => {
@@ -198,8 +198,8 @@ describe('the Discord connection test', () => {
         const { call } = await serve({
             moduleEnv: {
                 ...ENV,
-                CHAMVI_DISCORD_EU_TOKEN: 'eu-token',
-                CHAMVI_DISCORD_EU_APPLICATION_ID: APP_ID,
+                DISCORD_EU_TOKEN: 'eu-token',
+                DISCORD_EU_APPLICATION_ID: APP_ID,
             },
             appEnv: PUBLIC,
             patch: { fetch: first.fetch, apiUrl: 'https://discord.test/api' },

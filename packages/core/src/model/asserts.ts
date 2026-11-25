@@ -13,7 +13,7 @@ import type { IModelResolver, ModelRef } from './types.ts';
  * The refusal for an agent without a model when the engine has no default.
  */
 export function noModelMessage(agent: string): string {
-    return `Agent "${agent}" has no model and the engine sets no default (EngineOptions.model; CHAMVI_MODEL in @chamvi/app).`;
+    return `Agent "${agent}" has no model and the engine sets no default (EngineOptions.model; MODEL in @chamvi/app).`;
 }
 
 /**

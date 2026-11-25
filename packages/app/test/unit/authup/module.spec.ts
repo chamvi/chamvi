@@ -52,8 +52,8 @@ import { freePort } from '../../utils/port.ts';
 
 const AUTHUP_ENV = {
     AUTHUP_URL: 'https://auth.example.com/api',
-    AUTHUP_CLIENT_ID: 'chamvi',
-    AUTHUP_CLIENT_SECRET: 'client-secret-value',
+    AUTHUP_SERVER_CLIENT_ID: 'chamvi',
+    AUTHUP_SERVER_CLIENT_SECRET: 'client-secret-value',
 };
 
 /** A verifier answering `authup-token` with a global user token carrying `grants`, and `plain-token` with no grants. */
@@ -119,7 +119,7 @@ async function served(options: AuthupModuleOptions) {
     const logger = createRecordingLogger();
     const harness = await createHarness({
         env: {
-            CHAMVI_TOKENS: TOKENS,
+            TOKENS,
             HOST: '127.0.0.1',
             PORT: String(port),
         },
@@ -183,7 +183,7 @@ describe('authupModule', () => {
         expect(module.dependencies).toEqual(['chamvi:config', { name: 'chamvi:ui', optional: true }]);
     });
 
-    it.each(['AUTHUP_URL', 'AUTHUP_CLIENT_SECRET'])('requires %s without a verifier', (name) => {
+    it.each(['AUTHUP_URL', 'AUTHUP_SERVER_CLIENT_SECRET'])('requires %s without a verifier', (name) => {
         expect(() => authupModule({ env: { ...AUTHUP_ENV, [name]: '' } }))
             .toThrow(new InvalidAgentDefinitionError(`${name} is required.`));
     });
@@ -206,9 +206,9 @@ describe('authupModule', () => {
             .toThrow(new InvalidAgentDefinitionError('authup: realm must be a non-empty string.'));
     });
 
-    it('builds a verifier from the three variables, or without AUTHUP_CLIENT_ID', () => {
+    it('builds a verifier from the three variables, or without AUTHUP_SERVER_CLIENT_ID', () => {
         expect(() => authupModule({ env: AUTHUP_ENV })).not.toThrow();
-        expect(() => authupModule({ env: { ...AUTHUP_ENV, AUTHUP_CLIENT_ID: '' } })).not.toThrow();
+        expect(() => authupModule({ env: { ...AUTHUP_ENV, AUTHUP_SERVER_CLIENT_ID: '' } })).not.toThrow();
         expect(() => authupModule({
             env: {},
             url: AUTHUP_ENV.AUTHUP_URL,
@@ -321,8 +321,8 @@ describe('authupModule', () => {
         const { request, logger } = await served({
             env: {
                 AUTHUP_URL: authup.url,
-                AUTHUP_CLIENT_ID: 'chamvi',
-                AUTHUP_CLIENT_SECRET: 'client-secret-value',
+                AUTHUP_SERVER_CLIENT_ID: 'chamvi',
+                AUTHUP_SERVER_CLIENT_SECRET: 'client-secret-value',
             },
         });
 
@@ -342,8 +342,8 @@ describe('authupModule', () => {
         const { request, logger } = await served({
             env: {
                 AUTHUP_URL: authup.url,
-                AUTHUP_CLIENT_ID: 'chamvi',
-                AUTHUP_CLIENT_SECRET: 'client-secret-value',
+                AUTHUP_SERVER_CLIENT_ID: 'chamvi',
+                AUTHUP_SERVER_CLIENT_SECRET: 'client-secret-value',
             },
         });
 
@@ -492,8 +492,8 @@ describe('authupModule deadline', () => {
             timeoutMs: 1000,
             env: {
                 AUTHUP_URL: authup.url,
-                AUTHUP_CLIENT_ID: 'chamvi',
-                AUTHUP_CLIENT_SECRET: 'client-secret-value',
+                AUTHUP_SERVER_CLIENT_ID: 'chamvi',
+                AUTHUP_SERVER_CLIENT_SECRET: 'client-secret-value',
             },
         }, clock);
         const introspections = () => authup.requests.filter((route) => route === 'POST /token/introspect').length;

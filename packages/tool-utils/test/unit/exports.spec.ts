@@ -10,7 +10,7 @@ import * as utils from '@chamvi/tool-utils';
 
 describe('public api', () => {
     it('exports the factory, the names and the variable', () => {
-        expect(utils.TIMEZONE_VARIABLE).toBe('CHAMVI_TIMEZONE');
+        expect(utils.TIMEZONE_VARIABLE).toBe('TIMEZONE');
         expect(utils.UTILITY_TOOL_NAMES).toEqual([
             'current_time',
             'time_convert',

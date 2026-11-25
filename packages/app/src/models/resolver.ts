@@ -85,7 +85,7 @@ function splitRef(ref: string, subject: Subject): { provider: string; modelId: s
 }
 
 function notConfigured(ref: string, provider: string, subject: Subject): InvalidAgentDefinitionError {
-    const envName = `CHAMVI_PROVIDER_${providerEnvName(provider)}`;
+    const envName = `PROVIDER_${providerEnvName(provider)}`;
     const builtin = BUILTIN_PROVIDERS.find((entry) => entry.id === provider);
     const set = builtin ?
         `Set ${builtin.apiKey}, or ${envName}_TYPE and ${envName}_API_KEY` :

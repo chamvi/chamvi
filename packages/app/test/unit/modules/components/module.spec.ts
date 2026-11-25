@@ -129,7 +129,7 @@ async function setup(modules: IModule[], options: {
     const harness = await createHarness({
         mode: options.mode,
         check: options.check,
-        env: { CHAMVI_DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS), ...options.env },
+        env: { DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS), ...options.env },
         modules: [configModule({ clock, logger }), componentsModule(), ...modules],
     });
 
@@ -211,7 +211,7 @@ describe('componentsModule', () => {
         const clock = new ControllableClock();
 
         const error = await rejectionOf(createHarness({
-            env: { CHAMVI_DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS) },
+            env: { DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS) },
             modules: [
                 configModule({ clock, logger: createRecordingLogger(clock) }),
                 componentsModule(),
@@ -335,9 +335,9 @@ describe('componentsModule', () => {
                 env: {
                     HOST: '127.0.0.1',
                     PORT: String(port),
-                    CHAMVI_TOKENS: TOKENS,
-                    CHAMVI_READINESS_DELAY_MS: '0',
-                    CHAMVI_DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS),
+                    TOKENS,
+                    READINESS_DELAY_MS: '0',
+                    DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS),
                 },
             });
             expect(events).toEqual(['alpha start', 'stuck start']);
@@ -392,11 +392,11 @@ describe('componentsModule', () => {
                 env: {
                     HOST: '127.0.0.1',
                     PORT: String(port),
-                    CHAMVI_TOKENS: TOKENS,
-                    CHAMVI_READINESS_DELAY_MS: '0',
-                    CHAMVI_DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS),
+                    TOKENS,
+                    READINESS_DELAY_MS: '0',
+                    DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS),
                     // the server close adds nothing: only the components and the drain count
-                    CHAMVI_CLOSE_TIMEOUT_MS: '0',
+                    CLOSE_TIMEOUT_MS: '0',
                 },
             });
 
@@ -464,11 +464,11 @@ describe('componentsModule', () => {
             env: {
                 HOST: '127.0.0.1',
                 PORT: String(port),
-                CHAMVI_TOKENS: TOKENS,
-                CHAMVI_READINESS_DELAY_MS: '0',
-                CHAMVI_DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS),
+                TOKENS,
+                READINESS_DELAY_MS: '0',
+                DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS),
                 // the server close adds nothing: only the components and the drain count
-                CHAMVI_CLOSE_TIMEOUT_MS: '0',
+                CLOSE_TIMEOUT_MS: '0',
             },
         });
 

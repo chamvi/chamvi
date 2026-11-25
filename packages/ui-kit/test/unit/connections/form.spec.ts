@@ -197,10 +197,10 @@ async function mount(options: {
 
 describe('ConnectionForm', () => {
     it('renders a locked field with Set from <VARIABLE>', async () => {
-        const form = await mount({ current: withField(view(), 'user', { source: { kind: 'env', variable: 'CHAMVI_MAIL_WORK_USER' } }) });
+        const form = await mount({ current: withField(view(), 'user', { source: { kind: 'env', variable: 'MAIL_WORK_USER' } }) });
 
         expect(form.field('user').textContent).toContain('Set from');
-        expect(form.field('user').textContent).toContain('CHAMVI_MAIL_WORK_USER');
+        expect(form.field('user').textContent).toContain('MAIL_WORK_USER');
         expect(form.input('user')).toBeNull();
     });
 
@@ -229,12 +229,12 @@ describe('ConnectionForm', () => {
     it('locks a secret set from the environment without Replace or Clear', async () => {
         const form = await mount({
             current: withField(view(), 'password', {
-                source: { kind: 'env', variable: 'CHAMVI_MAIL_WORK_PASSWORD' },
+                source: { kind: 'env', variable: 'MAIL_WORK_PASSWORD' },
                 set: true,
             }),
         });
 
-        expect(form.field('password').textContent).toContain('CHAMVI_MAIL_WORK_PASSWORD');
+        expect(form.field('password').textContent).toContain('MAIL_WORK_PASSWORD');
         expect(form.field('password').querySelectorAll('button')).toHaveLength(0);
     });
 
@@ -301,7 +301,7 @@ describe('ConnectionForm', () => {
     it('leaves a locked field out of the settings', async () => {
         const put = vi.fn(() => view());
         const form = await mount({
-            current: withField(view(), 'user', { source: { kind: 'env', variable: 'CHAMVI_MAIL_WORK_USER' } }),
+            current: withField(view(), 'user', { source: { kind: 'env', variable: 'MAIL_WORK_USER' } }),
             routes: { 'PUT /connections/mail-work/config': put },
         });
 
@@ -675,14 +675,14 @@ describe('ConnectionForm', () => {
         const form = await mount({
             routes: {
                 'PUT /connections/mail-work/config': () => {
-                    throw new ApiError(409, 'conflict', 'CHAMVI_ENCRYPTION_KEYS is not set');
+                    throw new ApiError(409, 'conflict', 'ENCRYPTION_KEYS is not set');
                 },
             },
         });
 
         await form.submit();
 
-        expect(form.root.textContent).toContain('CHAMVI_ENCRYPTION_KEYS is not set');
+        expect(form.root.textContent).toContain('ENCRYPTION_KEYS is not set');
     });
 
     it('offers delete only when deletable', async () => {
@@ -796,7 +796,7 @@ describe('ConnectionForm', () => {
     });
 
     it('warns when another field comes from the environment', async () => {
-        const form = await mount({ current: withField(view({ deletable: true }), 'user', { source: { kind: 'env', variable: 'CHAMVI_MAIL_WORK_USER' } }) });
+        const form = await mount({ current: withField(view({ deletable: true }), 'user', { source: { kind: 'env', variable: 'MAIL_WORK_USER' } }) });
 
         form.button('Clear')!.click();
         await flush();
@@ -809,9 +809,9 @@ describe('ConnectionForm', () => {
 
         expect(incomplete.root.querySelector('[data-testid="connection-state"]')?.textContent).toContain('Incomplete: Password missing.');
 
-        const refused = await mount({ current: view({ state: 'incomplete', reason: 'CHAMVI_PUBLIC_URL is required.' }) });
+        const refused = await mount({ current: view({ state: 'incomplete', reason: 'PUBLIC_URL is required.' }) });
 
-        expect(refused.root.querySelector('[data-testid="connection-state"]')?.textContent).toContain('CHAMVI_PUBLIC_URL');
+        expect(refused.root.querySelector('[data-testid="connection-state"]')?.textContent).toContain('PUBLIC_URL');
 
         const empty = await mount({ current: view({ state: 'not_configured' }) });
 
@@ -900,7 +900,7 @@ describe('ConnectionForm', () => {
         it('says the change cannot be made for a secret from the environment', async () => {
             const form = await mount({
                 type: BOUND,
-                current: withField(view(), 'password', { source: { kind: 'env', variable: 'CHAMVI_MAIL_WORK_PASSWORD' } }),
+                current: withField(view(), 'password', { source: { kind: 'env', variable: 'MAIL_WORK_PASSWORD' } }),
             });
 
             form.type(form.input('host')!, 'other.example.com');

@@ -89,7 +89,7 @@ describe('public api', () => {
     it('exports the migration commands\' operations, the store\'s --database and the scratch variable', () => {
         expect(pkg.MIGRATION_OPERATIONS).toEqual(['generate', 'run', 'revert', 'status', 'drift']);
         expect(pkg.STORE_DATABASE).toBe('store');
-        expect(pkg.MIGRATION_DATABASE_URL_VARIABLE).toBe('CHAMVI_MIGRATION_DATABASE_URL');
+        expect(pkg.MIGRATION_DATABASE_URL_VARIABLE).toBe('MIGRATION_DATABASE_URL');
         expect(pkg.DATABASE_LOCK_PREFIX).toBe('chamvi:db:');
     });
 

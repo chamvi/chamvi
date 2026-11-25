@@ -186,7 +186,7 @@ The message carries no token and no MCP call, only the approval link:
 
 ## With @chamvi/app
 
-`openclawModule()` from `@chamvi/channel-openclaw/module` reads `OPENCLAW_BASE_URL`, `OPENCLAW_HOOKS_TOKEN`, `OPENCLAW_CHANNEL`, `OPENCLAW_TO`, `OPENCLAW_HOOKS_PATH`, `OPENCLAW_AGENT_ID` and `OPENCLAW_ACCOUNT_ID` when it is called, links approvals to the dashboard from `CHAMVI_PUBLIC_URL` and contributes the channel (module `chamvi:channel:<name>`); tools reach it with `ctx.channels.findOne(name)`. `@chamvi/app` is an optional peer; the main entry never imports it.
+`openclawModule()` from `@chamvi/channel-openclaw/module` reads `OPENCLAW_BASE_URL`, `OPENCLAW_HOOKS_TOKEN`, `OPENCLAW_CHANNEL`, `OPENCLAW_TO`, `OPENCLAW_HOOKS_PATH`, `OPENCLAW_AGENT_ID` and `OPENCLAW_ACCOUNT_ID` when it is called, links approvals to the dashboard from `PUBLIC_URL` and contributes the channel (module `chamvi:channel:<name>`); tools reach it with `ctx.channels.findOne(name)`. `@chamvi/app` is an optional peer; the main entry never imports it.
 
 ```ts
 import { createApp } from '@chamvi/app';

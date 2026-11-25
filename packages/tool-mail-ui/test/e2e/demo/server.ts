@@ -14,12 +14,12 @@ import { E2E_PORT, E2E_TOKEN } from './constants.ts';
 const env = {
     HOST: '127.0.0.1',
     PORT: String(E2E_PORT),
-    CHAMVI_TOKENS: JSON.stringify([{
+    TOKENS: JSON.stringify([{
         value: E2E_TOKEN,
         id: 'e2e',
         permissions: '*',
     }]),
-    CHAMVI_ENCRYPTION_KEYS: `e2e:${Buffer.alloc(32, 7).toString('base64')}`,
+    ENCRYPTION_KEYS: `e2e:${Buffer.alloc(32, 7).toString('base64')}`,
 };
 
 const app = createApp({

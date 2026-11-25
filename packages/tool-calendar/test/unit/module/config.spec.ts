@@ -133,7 +133,7 @@ function envOf(extra: Record<string, unknown> = {}): Record<string, string> {
             address: 'work@icloud.com',
             ...extra,
         }]),
-        CHAMVI_CALENDAR_WORK_PASSWORD: PASSWORD,
+        CALENDAR_WORK_PASSWORD: PASSWORD,
     };
 }
 
@@ -316,7 +316,7 @@ describe('toolCalendarModule() configuration', () => {
         expect(work.resolved.values.url).toBe(FAKE_CALDAV_URL);
         expect(work.resolved.sources.url).toEqual({ kind: 'env', variable: CALENDAR_ACCOUNTS_VARIABLE });
         expect(work.resolved.sources.user).toEqual({ kind: 'store' });
-        expect(work.resolved.sources.password).toEqual({ kind: 'env', variable: 'CHAMVI_CALENDAR_WORK_PASSWORD' });
+        expect(work.resolved.sources.password).toEqual({ kind: 'env', variable: 'CALENDAR_WORK_PASSWORD' });
     });
 
     it('an env-declared account is listed locked and not deletable', async () => {
@@ -330,7 +330,7 @@ describe('toolCalendarModule() configuration', () => {
         expect(work.resolved.state).toBe('configured');
         expect(work.resolved.sources.url).toEqual({ kind: 'env', variable: CALENDAR_ACCOUNTS_VARIABLE });
         expect(work.resolved.sources.address).toEqual({ kind: 'env', variable: CALENDAR_ACCOUNTS_VARIABLE });
-        expect(work.resolved.sources.password).toEqual({ kind: 'env', variable: 'CHAMVI_CALENDAR_WORK_PASSWORD' });
+        expect(work.resolved.sources.password).toEqual({ kind: 'env', variable: 'CALENDAR_WORK_PASSWORD' });
         expect(providerOf(harness).creatable()).toBe(true);
     });
 
@@ -382,15 +382,15 @@ describe('toolCalendarModule() configuration', () => {
         const harness = await harnessOf({
             store,
             agents: [listAgent()],
-            options: { fetch: server.fetch, env: { CHAMVI_CALENDAR_HOME_USER: 'env-user', CHAMVI_CALENDAR_HOME_PASSWORD: PASSWORD } },
+            options: { fetch: server.fetch, env: { CALENDAR_HOME_USER: 'env-user', CALENDAR_HOME_PASSWORD: PASSWORD } },
         });
 
         await runList(harness);
 
         expect(authorizationsOf(server)).toEqual(new Set([basic('home@icloud.com', STORED_PASSWORD)]));
         expect(connectionOf(harness, 'calendar-home').resolved.sources).toMatchObject({ user: { kind: 'unset' }, password: { kind: 'store' } });
-        expect(logLines.join('\n')).toContain('CHAMVI_CALENDAR_HOME_USER');
-        expect(logLines.join('\n')).toContain('CHAMVI_CALENDAR_HOME_PASSWORD');
+        expect(logLines.join('\n')).toContain('CALENDAR_HOME_USER');
+        expect(logLines.join('\n')).toContain('CALENDAR_HOME_PASSWORD');
         expect(logLines.join('\n')).not.toContain('env-user');
         expect(logLines.join('\n')).not.toContain(PASSWORD);
     });
@@ -402,7 +402,7 @@ describe('toolCalendarModule() configuration', () => {
 
         const harness = await harnessOf({
             store,
-            options: { env: { CHAMVI_CALENDAR_HOME_USER: 'env-user', CHAMVI_CALENDAR_HOME_PASSWORD: PASSWORD } },
+            options: { env: { CALENDAR_HOME_USER: 'env-user', CALENDAR_HOME_PASSWORD: PASSWORD } },
         });
 
         expect(connectionOf(harness, 'calendar-home').resolved).toMatchObject({ state: 'incomplete', missing: ['password'] });
@@ -422,7 +422,7 @@ describe('toolCalendarModule() configuration', () => {
                         url: FAKE_CALDAV_URL,
                         address: 'long@icloud.com',
                     }]),
-                    [`CHAMVI_CALENDAR_${id.toUpperCase().replaceAll('-', '_')}_PASSWORD`]: PASSWORD,
+                    [`CALENDAR_${id.toUpperCase().replaceAll('-', '_')}_PASSWORD`]: PASSWORD,
                 },
             },
         });
@@ -579,8 +579,8 @@ describe('toolCalendarModule() configuration', () => {
         await expect(harnessOf({
             store,
             check: true,
-            options: { env: { ...envOf(), CHAMVI_CALENDAR_WORK_PASSWORD: '' } },
-        })).rejects.toThrow(/CHAMVI_CALENDAR_WORK_PASSWORD/);
+            options: { env: { ...envOf(), CALENDAR_WORK_PASSWORD: '' } },
+        })).rejects.toThrow(/CALENDAR_WORK_PASSWORD/);
     });
 
     it('an unreadable stored account is listed failed and not used; the app starts and the env account works', async () => {
@@ -618,7 +618,7 @@ describe('toolCalendarModule() configuration', () => {
             store,
             keyring: createKeyring([{ id: 'k1', key: randomBytes(32) }]),
             agents: [listAgent()],
-            options: { env: { ...envOf(), CHAMVI_CALENDAR_WORK_PASSWORD: '' } },
+            options: { env: { ...envOf(), CALENDAR_WORK_PASSWORD: '' } },
         });
 
         expect(connectionOf(harness, 'calendar-work').resolved.state).toBe('failed');
@@ -724,17 +724,17 @@ describe('toolCalendarModule() configuration', () => {
         };
 
         expect(() => toolCalendarModule({ env })).not.toThrow();
-        await expect(harnessOf({ store: storeOf(), options: { env } })).rejects.toThrow(/CHAMVI_CALENDAR_WORK_PASSWORD/);
+        await expect(harnessOf({ store: storeOf(), options: { env } })).rejects.toThrow(/CALENDAR_WORK_PASSWORD/);
     });
 
     it('a declared account with no user and no address fails in setup naming the user variable', async () => {
         const env = {
             [CALENDAR_ACCOUNTS_VARIABLE]: JSON.stringify([{ id: 'work', url: FAKE_CALDAV_URL }]),
-            CHAMVI_CALENDAR_WORK_PASSWORD: PASSWORD,
+            CALENDAR_WORK_PASSWORD: PASSWORD,
         };
 
         expect(() => toolCalendarModule({ env })).not.toThrow();
-        await expect(harnessOf({ store: storeOf(), options: { env } })).rejects.toThrow(/CHAMVI_CALENDAR_WORK_USER/);
+        await expect(harnessOf({ store: storeOf(), options: { env } })).rejects.toThrow(/CALENDAR_WORK_USER/);
     });
 
     it('a declared account with no user and no address takes the user from the store', async () => {
@@ -747,7 +747,7 @@ describe('toolCalendarModule() configuration', () => {
             options: {
                 env: {
                     [CALENDAR_ACCOUNTS_VARIABLE]: JSON.stringify([{ id: 'work', url: FAKE_CALDAV_URL }]),
-                    CHAMVI_CALENDAR_WORK_PASSWORD: PASSWORD,
+                    CALENDAR_WORK_PASSWORD: PASSWORD,
                 },
             },
         });
@@ -755,7 +755,7 @@ describe('toolCalendarModule() configuration', () => {
         expect(connectionOf(harness, 'calendar-work').resolved.sources.user).toEqual({ kind: 'store' });
     });
 
-    it('an invalid CHAMVI_CALENDAR_ACCOUNTS still throws at the factory', () => {
+    it('an invalid CALENDAR_ACCOUNTS still throws at the factory', () => {
         expect(() => toolCalendarModule({ env: { [CALENDAR_ACCOUNTS_VARIABLE]: '{' } })).toThrow(InvalidAgentDefinitionError);
         expect(() => toolCalendarModule({ env: { [CALENDAR_ACCOUNTS_VARIABLE]: '{' } })).toThrow(new RegExp(CALENDAR_ACCOUNTS_VARIABLE));
     });

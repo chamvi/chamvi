@@ -88,7 +88,7 @@ afterEach(async () => {
 });
 
 /** The env of a dashboard client `client` signing in at `url`. */
-const dashboardEnv = (client: string, url = 'https://auth.example.com/api') => ({ AUTHUP_URL: url, CHAMVI_UI_AUTHUP_CLIENT_ID: client });
+const dashboardEnv = (client: string, url = 'https://auth.example.com/api') => ({ AUTHUP_URL: url, AUTHUP_CLIENT_ID: client });
 
 async function fakeAuthup(clients: FakeAuthupClient[] | undefined, hold?: (route: string) => boolean) {
     const authup = await createFakeAuthup({
@@ -103,8 +103,8 @@ async function fakeAuthup(clients: FakeAuthupClient[] | undefined, hold?: (route
         authup,
         env: {
             ...dashboardEnv('dashboard', authup.url),
-            AUTHUP_CLIENT_ID: 'chamvi',
-            AUTHUP_CLIENT_SECRET: 'client-secret-value',
+            AUTHUP_SERVER_CLIENT_ID: 'chamvi',
+            AUTHUP_SERVER_CLIENT_SECRET: 'client-secret-value',
         },
         lookups: () => authup.requests.filter((route) => route === 'GET /clients').length,
     };
@@ -181,7 +181,7 @@ describe('authupModule permission owner', () => {
         const { harness, login } = harnessOf({
             ...injected,
             permissionOwner: 'client',
-            env: { CHAMVI_UI_AUTHUP_CLIENT_ID: OWNER },
+            env: { AUTHUP_CLIENT_ID: OWNER },
         });
 
         await harness.setup();
@@ -291,7 +291,7 @@ describe('authupModule permission owner', () => {
         const { authup, lookups } = await fakeAuthup([{ ...DASHBOARD, name: 'chamvi' }]);
         const { harness, login } = harnessOf(byName({
             AUTHUP_URL: authup.url,
-            AUTHUP_CLIENT_SECRET: 'client-secret-value',
+            AUTHUP_SERVER_CLIENT_SECRET: 'client-secret-value',
         }));
 
         await harness.setup();
@@ -310,7 +310,7 @@ describe('authupModule permission owner', () => {
         };
         const { harness, login } = harnessOf(byName({
             AUTHUP_URL: authup.url,
-            AUTHUP_CLIENT_SECRET: 'client-secret-value',
+            AUTHUP_SERVER_CLIENT_SECRET: 'client-secret-value',
         }), { modules: [tokensOnly] });
 
         await harness.setup();

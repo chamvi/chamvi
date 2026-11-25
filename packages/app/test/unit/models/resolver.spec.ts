@@ -191,7 +191,7 @@ describe('createModelResolver', () => {
             expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
             expect(error.message).toBe(
                 'Agent "triage" uses provider "anthropic", which is not configured. ' +
-                'Set ANTHROPIC_API_KEY, or CHAMVI_PROVIDER_ANTHROPIC_TYPE and CHAMVI_PROVIDER_ANTHROPIC_API_KEY, ' +
+                'Set ANTHROPIC_API_KEY, or PROVIDER_ANTHROPIC_TYPE and PROVIDER_ANTHROPIC_API_KEY, ' +
                 'or declare it in chamvi.json.',
             );
             expect(() => resolver.resolve('anthropic/m')).toThrow(InvalidAgentDefinitionError);
@@ -210,11 +210,11 @@ describe('createModelResolver', () => {
 
         expect(errorOf(() => resolver.check('team-a/m', 'triage')).message).toBe(
             'Agent "triage" uses provider "team-a", which is not configured. ' +
-            'Set CHAMVI_PROVIDER_TEAM_A_TYPE and CHAMVI_PROVIDER_TEAM_A_API_KEY, or declare it in chamvi.json.',
+            'Set PROVIDER_TEAM_A_TYPE and PROVIDER_TEAM_A_API_KEY, or declare it in chamvi.json.',
         );
         expect(errorOf(() => resolver.check('team-a/m')).message).toBe(
             'The default model "team-a/m" uses provider "team-a", which is not configured. ' +
-            'Set CHAMVI_PROVIDER_TEAM_A_TYPE and CHAMVI_PROVIDER_TEAM_A_API_KEY, or declare it in chamvi.json.',
+            'Set PROVIDER_TEAM_A_TYPE and PROVIDER_TEAM_A_API_KEY, or declare it in chamvi.json.',
         );
     });
 
@@ -223,7 +223,7 @@ describe('createModelResolver', () => {
 
         expect(errorOf(() => resolver.resolve('team-a/m')).message).toBe(
             'The model "team-a/m" uses provider "team-a", which is not configured. ' +
-            'Set CHAMVI_PROVIDER_TEAM_A_TYPE and CHAMVI_PROVIDER_TEAM_A_API_KEY, or declare it in chamvi.json.',
+            'Set PROVIDER_TEAM_A_TYPE and PROVIDER_TEAM_A_API_KEY, or declare it in chamvi.json.',
         );
         expect(errorOf(() => resolver.resolve('gpt')).message).toBe('The model "gpt" must be "<provider>/<model>".');
     });

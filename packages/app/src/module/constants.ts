@@ -104,7 +104,7 @@ export const APP_ERROR_CODE = {
     STOPPED: 'app_stopped',
     IN_USE: 'app_in_use',
     STOP_FAILED: 'app_stop_failed',
-    /** A check (`IApp.check()`) found migrations a start would not apply (`CHAMVI_MIGRATE=false`). */
+    /** A check (`IApp.check()`) found migrations a start would not apply (`MIGRATE=false`). */
     STORE_NOT_MIGRATED: 'store_not_migrated',
     /** A job's agent is a package agent that did not load, check or prepare, or a package failed before its agents were known. */
     PACKAGE_AGENT_FAILED: 'package_agent_failed',
@@ -116,5 +116,5 @@ export const SCHEMA_BEHIND_SQLSTATES: readonly string[] = ['42P01', '42703'];
 /** The authup realm (name or id) the server and dashboard clients live in, unless `AUTHUP_REALM` names another. */
 export const AUTHUP_REALM_DEFAULT = 'master';
 
-/** The public authup client the dashboard signs in with, unless `CHAMVI_UI_AUTHUP_CLIENT_ID` names another. */
-export const UI_AUTHUP_CLIENT_ID_DEFAULT = 'chamvi';
+/** The public authup client the dashboard signs in with, unless `AUTHUP_CLIENT_ID` names another. */
+export const AUTHUP_CLIENT_ID_DEFAULT = 'chamvi';

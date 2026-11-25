@@ -113,9 +113,9 @@ describe('peerModule', () => {
         expect(harness.container.resolve(AppToken.ENGINE).peers).toBe(peers);
     });
 
-    it('takes the approval link from CHAMVI_PUBLIC_URL', async () => {
+    it('takes the approval link from PUBLIC_URL', async () => {
         const { harness } = harnessOf({
-            env: { CHAMVI_PUBLIC_URL: 'https://agents.example' },
+            env: { PUBLIC_URL: 'https://agents.example' },
             modules: [peerModule({ peers: PEERS })],
         });
 
@@ -125,7 +125,7 @@ describe('peerModule', () => {
             .toBe('https://agents.example/ui/approvals?run=r1&approval=0%3Ac1%3A0');
     });
 
-    it('carries no approval link without CHAMVI_PUBLIC_URL', async () => {
+    it('carries no approval link without PUBLIC_URL', async () => {
         const { harness } = harnessOf({ modules: [peerModule({ peers: PEERS })] });
 
         await harness.setup();
@@ -164,7 +164,7 @@ describe('peerModule', () => {
     it('IApp.check() refuses a remote agent naming an unconfigured peer, and passes a configured one', async () => {
         const clock = new ControllableClock(NOW);
         const env = {
-            CHAMVI_TOKENS: JSON.stringify([{
+            TOKENS: JSON.stringify([{
                 value: 'a-static-token-of-length',
                 id: 'ops',
                 permissions: '*',

@@ -8,6 +8,6 @@
 import type { StaticToken } from '@chamvi/http';
 
 export type StaticTokensModuleOptions = {
-    /** Default `CHAMVI_TOKENS`. */
+    /** Default `TOKENS`. */
     tokens?: StaticToken[];
 };

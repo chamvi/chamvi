@@ -64,13 +64,13 @@ function needsKeyring(seen: unknown[] = []): IModule {
 
 describe('the keyring', () => {
     it('names the variable', () => {
-        expect(ENV_ENCRYPTION_KEYS).toBe('CHAMVI_ENCRYPTION_KEYS');
+        expect(ENV_ENCRYPTION_KEYS).toBe('ENCRYPTION_KEYS');
     });
 
-    it('is parsed from CHAMVI_ENCRYPTION_KEYS, the first key active', async () => {
+    it('is parsed from ENCRYPTION_KEYS, the first key active', async () => {
         const seen: unknown[] = [];
         const harness = keep(buildHarness({
-            env: { CHAMVI_ENCRYPTION_KEYS: `k2:${K2},k1:${K1}` },
+            env: { ENCRYPTION_KEYS: `k2:${K2},k1:${K1}` },
             modules: [configModule(), needsKeyring(seen)],
         }));
 
@@ -94,24 +94,24 @@ describe('the keyring', () => {
         await harness.setup();
 
         expect(() => harness.container.resolve(AppToken.KEYRING)).toThrow(InvalidAgentDefinitionError);
-        expect(() => harness.container.resolve(AppToken.KEYRING)).toThrow(/CHAMVI_ENCRYPTION_KEYS is not set/);
+        expect(() => harness.container.resolve(AppToken.KEYRING)).toThrow(/ENCRYPTION_KEYS is not set/);
 
         const failing = keep(buildHarness({ modules: [configModule(), needsKeyring()] }));
 
-        await expect(failing.setup()).rejects.toThrow(/CHAMVI_ENCRYPTION_KEYS is not set/);
+        await expect(failing.setup()).rejects.toThrow(/ENCRYPTION_KEYS is not set/);
     });
 
     it('a check reports a malformed value without echoing it', async () => {
         const value = `k1:${K1.slice(0, 20)}`;
         const harness = keep(buildHarness({
             check: true,
-            env: { CHAMVI_ENCRYPTION_KEYS: value },
+            env: { ENCRYPTION_KEYS: value },
             modules: [configModule(), needsKeyring()],
         }));
         const error = await harness.setup().then(() => undefined, (rejection: unknown) => rejection as Error);
 
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-        expect(error!.message).toMatch(/^CHAMVI_ENCRYPTION_KEYS: /);
+        expect(error!.message).toMatch(/^ENCRYPTION_KEYS: /);
         expect(error!.message).not.toContain(K1.slice(0, 20));
         expect(JSON.stringify(error)).not.toContain(K1.slice(0, 20));
     });
@@ -142,7 +142,7 @@ describe('connection handles', () => {
             env: {
                 HOST: '127.0.0.1',
                 PORT: String(port),
-                CHAMVI_TOKENS: TOKENS,
+                TOKENS,
             },
             agents: [defineModelAgent({
                 name: 'triage',

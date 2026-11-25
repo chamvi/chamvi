@@ -87,7 +87,7 @@ async function build(options: { agents?: Agent[]; modules?: IModule[] } = {}) {
         env: {
             HOST: '127.0.0.1',
             PORT: String(port),
-            CHAMVI_TOKENS: TOKENS,
+            TOKENS,
         },
         agents: options.agents ?? [triage()],
         modules: [

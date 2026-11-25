@@ -21,13 +21,13 @@ const UTILITY_TOOL_NAMES: readonly [
 
 ```ts
 type UtilityToolsOptions = {
-    timezone?: string;   // IANA zone; wins over CHAMVI_TIMEZONE, which wins over UTC
+    timezone?: string;   // IANA zone; wins over TIMEZONE, which wins over UTC
     include?: UtilityToolName[]; // default all tools; an empty list is refused
-    env?: Record<string, string | undefined>; // where CHAMVI_TIMEZONE is read, default process.env
+    env?: Record<string, string | undefined>; // where TIMEZONE is read, default process.env
 };
 ```
 
-Options are checked when the factory is called: an invalid zone (naming the `timezone` option or `CHAMVI_TIMEZONE`) and an unknown or empty `include` throw `InvalidAgentDefinitionError`. A factory called at module scope fails at startup, one called inside `tools: (ctx) => ...` fails that execution.
+Options are checked when the factory is called: an invalid zone (naming the `timezone` option or `TIMEZONE`) and an unknown or empty `include` throw `InvalidAgentDefinitionError`. A factory called at module scope fails at startup, one called inside `tools: (ctx) => ...` fails that execution.
 
 ## Tools
 
@@ -47,7 +47,7 @@ Options are checked when the factory is called: an invalid zone (naming the `tim
 - `run_info` returns `scheduledAt` only for a run of the `cron` channel whose payload holds an ISO `scheduledAt`. It never returns the payload, attachments, idempotency or concurrency keys, invoker permissions or `parent.source`.
 - Every failure is a tool error naming the bad input. No tool is gated or taints the run.
 
-## CHAMVI_TIMEZONE
+## TIMEZONE
 
 The default zone for dates, an IANA id such as `Europe/Berlin`. Optional; without it and without the `timezone` option dates are read in UTC.
 

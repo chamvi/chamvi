@@ -121,8 +121,8 @@ describe('schedulerModule', () => {
         expect(await runs(harness)).toHaveLength(1);
     });
 
-    it('CHAMVI_SCHEDULER=false contributes a cron channel that fires nothing', async () => {
-        const harness = await setup({ env: { CHAMVI_SCHEDULER: 'false' } });
+    it('SCHEDULER=false contributes a cron channel that fires nothing', async () => {
+        const harness = await setup({ env: { SCHEDULER: 'false' } });
         const channel = harness.container.resolve(AppToken.ENGINE).getChannel('cron');
 
         expect(channel?.name).toBe('cron');

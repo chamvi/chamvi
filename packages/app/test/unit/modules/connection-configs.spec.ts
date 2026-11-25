@@ -93,7 +93,7 @@ function recordingEnv(values: Env): { env: Env; reads: string[] } {
 }
 
 describe('AppToken.CONNECTION_CONFIGS', () => {
-    it('does not read CHAMVI_ENCRYPTION_KEYS until a secret is touched', async () => {
+    it('does not read ENCRYPTION_KEYS until a secret is touched', async () => {
         const {
             store, 
             clock, 
@@ -126,7 +126,7 @@ describe('AppToken.CONNECTION_CONFIGS', () => {
         const { store, clock } = createSeeds();
         const configs = await boot(store, clock);
 
-        await expect(configs.create('mail-work', 'mail', {})).rejects.toThrow(/CHAMVI_ENCRYPTION_KEYS is not set/);
+        await expect(configs.create('mail-work', 'mail', {})).rejects.toThrow(/ENCRYPTION_KEYS is not set/);
         await expect(configs.describe('mail-work')).resolves.toBeUndefined();
     });
 
@@ -215,7 +215,7 @@ describe('AppToken.CONNECTION_CONFIGS in a job', () => {
 
         const configs = await boot(store, clock, { mode: 'job', job: { agent: 'triage' } });
 
-        await expect(configs.read('mail-work')).rejects.toThrow(/CHAMVI_ENCRYPTION_KEYS is not set/);
+        await expect(configs.read('mail-work')).rejects.toThrow(/ENCRYPTION_KEYS is not set/);
     });
 });
 

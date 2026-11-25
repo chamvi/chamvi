@@ -47,7 +47,7 @@ describe('connectionProblem', () => {
     it('says what is missing or why, and nothing for a configured one', () => {
         expect(connectionProblem({ state: 'not_configured' })).toBe('Not configured yet.');
         expect(connectionProblem({ state: 'incomplete', missing: ['Password', 'Host'] })).toBe('Incomplete: Password, Host missing.');
-        expect(connectionProblem({ state: 'incomplete', reason: 'CHAMVI_PUBLIC_URL is required.' })).toBe('Incomplete: CHAMVI_PUBLIC_URL is required.');
+        expect(connectionProblem({ state: 'incomplete', reason: 'PUBLIC_URL is required.' })).toBe('Incomplete: PUBLIC_URL is required.');
         expect(connectionProblem({ state: 'failed', reason: 'The stored secrets cannot be read (decryption_failed).' })).toBe('Failed: The stored secrets cannot be read (decryption_failed).');
         expect(connectionProblem({ state: 'failed' })).toBe('Failed.');
         expect(connectionProblem({ state: 'configured' })).toBeUndefined();

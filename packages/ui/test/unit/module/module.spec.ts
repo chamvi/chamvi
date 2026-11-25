@@ -49,10 +49,10 @@ async function served(env: Record<string, string> = {}, basePath = '') {
     const port = await freePort();
     const harness = await createModuleHarness({
         env: {
-            CHAMVI_TOKENS: TOKENS,
+            TOKENS,
             HOST: '127.0.0.1',
             PORT: String(port),
-            ...(basePath && { CHAMVI_BASE_PATH: basePath }),
+            ...(basePath && { BASE_PATH: basePath }),
         },
         agents: [defineModelAgent({
             name: 'triage',
@@ -107,18 +107,18 @@ describe('uiModule', () => {
         });
     });
 
-    it('follows CHAMVI_BASE_PATH', async () => {
+    it('follows BASE_PATH', async () => {
         const { response, config } = await served({}, '/api');
 
         expect(response.status).toBe(200);
         expect(config).toMatchObject({ apiBase: '/api', uiBase: '/api/ui' });
     });
 
-    it('authup login with CHAMVI_UI_AUTHUP_CLIENT_ID', async () => {
+    it('authup login with AUTHUP_CLIENT_ID', async () => {
         const { config } = await served({
             AUTHUP_URL: 'https://auth.example.com/api',
-            CHAMVI_UI_AUTHUP_CLIENT_ID: 'chamvi-ui',
-            CHAMVI_UI_AUTHUP_REALM_ID: 'tenant',
+            AUTHUP_CLIENT_ID: 'chamvi-ui',
+            AUTHUP_REALM: 'tenant',
         });
 
         expect(config?.auth).toEqual({
@@ -144,13 +144,13 @@ describe('uiModule', () => {
         });
     });
 
-    it('CHAMVI_UI_AUTHUP_CLIENT_ID without AUTHUP_URL names AUTHUP_URL', () => {
-        expect(() => uiModule({ env: { CHAMVI_UI_AUTHUP_CLIENT_ID: 'chamvi-ui' } }))
+    it('AUTHUP_CLIENT_ID without AUTHUP_URL names AUTHUP_URL', () => {
+        expect(() => uiModule({ env: { AUTHUP_CLIENT_ID: 'chamvi-ui' } }))
             .toThrow(new InvalidAgentDefinitionError('AUTHUP_URL is required.'));
     });
 
     it('an explicit auth option skips the env', () => {
-        expect(() => uiModule({ env: { CHAMVI_UI_AUTHUP_CLIENT_ID: 'chamvi-ui' }, auth: { tokens: true } })).not.toThrow();
+        expect(() => uiModule({ env: { AUTHUP_CLIENT_ID: 'chamvi-ui' }, auth: { tokens: true } })).not.toThrow();
     });
 });
 
@@ -190,10 +190,10 @@ describe('uiModule with a registered page', () => {
         });
         const harness = await createModuleHarness({
             env: {
-                CHAMVI_TOKENS: TOKENS,
+                TOKENS,
                 HOST: '127.0.0.1',
                 PORT: String(port),
-                ...(basePath && { CHAMVI_BASE_PATH: basePath }),
+                ...(basePath && { BASE_PATH: basePath }),
             },
             agents: [defineModelAgent({
                 name: 'triage',

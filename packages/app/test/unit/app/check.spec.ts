@@ -126,7 +126,7 @@ async function envFor(extra: Record<string, string> = {}) {
         env: {
             HOST: '127.0.0.1',
             PORT: String(port),
-            CHAMVI_TOKENS: TOKENS,
+            TOKENS,
             ...extra,
         },
     };
@@ -217,7 +217,7 @@ describe('App.check', () => {
 
         const { store, writes } = recordingRepository(memory);
         const { app } = build({ store, clock });
-        const { env } = await envFor({ CHAMVI_AGENTS_DIR: dir.path });
+        const { env } = await envFor({ AGENTS_DIR: dir.path });
 
         await expect(app.check({ env })).resolves.toEqual({ issues: [] });
 
@@ -232,7 +232,7 @@ describe('App.check', () => {
         await writeTree(dir.path, { 'triage/agent.ts': 'export default 42;\n' });
 
         const { app } = build();
-        const { env } = await envFor({ CHAMVI_AGENTS_DIR: dir.path });
+        const { env } = await envFor({ AGENTS_DIR: dir.path });
 
         const { issues } = await app.check({ env });
 
@@ -244,7 +244,7 @@ describe('App.check', () => {
         await writeTree(dir.path, { 'triage/agent.ts': agentFile('v1', 'test/model', 'triage', ['{ channel: \'github\', id: \'github:issues\', options: {} }']) });
 
         const { app } = build();
-        const { env } = await envFor({ CHAMVI_AGENTS_DIR: dir.path });
+        const { env } = await envFor({ AGENTS_DIR: dir.path });
 
         const { issues } = await app.check({ env });
 
@@ -291,11 +291,11 @@ describe('App.check', () => {
         expect(error.message).toContain('0 0 * * 1/2');
     });
 
-    it('rejects without CHAMVI_TOKENS outside dev', async () => {
+    it('rejects without TOKENS outside dev', async () => {
         const { app } = build({ agents: [triage] });
         const { env } = await envFor();
 
-        delete (env as Record<string, string | undefined>).CHAMVI_TOKENS;
+        delete (env as Record<string, string | undefined>).TOKENS;
 
         const error = await rejectionOf(app.check({ env }));
 
@@ -449,7 +449,7 @@ describe('App.check', () => {
 
     it('does not wait the readiness delay', async () => {
         const { app } = build({ agents: [triage] });
-        const { env } = await envFor({ CHAMVI_READINESS_DELAY_MS: '60000' });
+        const { env } = await envFor({ READINESS_DELAY_MS: '60000' });
 
         const started = Date.now();
 

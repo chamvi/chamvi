@@ -41,9 +41,9 @@ import { createAgentsWatcher } from './watcher.ts';
 
 /**
  * The agent packages (createApp's specifiers, then `chamvi.json` `agents`,
- * then `CHAMVI_AGENTS`; loaded once in `onReady`, before the folders, code
+ * then `AGENTS`; loaded once in `onReady`, before the folders, code
  * agents winning a name, then the earlier package) and the agents dir
- * (`CHAMVI_AGENTS_DIR`, else `./agents` when that is a directory; start and
+ * (`AGENTS_DIR`, else `./agents` when that is a directory; start and
  * job mode, nothing in migrate mode). Without a dir or a package an app
  * without agents passed in code starts empty (a warning). With one, `setup` registers `AGENT_ISSUES` and (start mode outside a check)
  * contributes the package retries as the component `agents-packages` and
@@ -54,7 +54,7 @@ import { createAgentsWatcher } from './watcher.ts';
  * complete); in start mode a marker without a folder, code or package agent
  * removes that agent, also without a dir, unless a package did not load,
  * whose stored package markers also keep folders of their name out), and the
- * watcher polls every `CHAMVI_AGENTS_POLL_MS` once the components module
+ * watcher polls every `AGENTS_POLL_MS` once the components module
  * started it until that stops it, awaiting a reload in flight (the package
  * retries alike, on the same poll ticks). A job never cancels:
  * a revision conflict of the job's own agent fails the job

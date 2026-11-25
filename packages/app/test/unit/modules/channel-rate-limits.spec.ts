@@ -47,7 +47,7 @@ describe('httpModule channel policies', () => {
             env: {
                 HOST: '127.0.0.1',
                 PORT: String(port),
-                CHAMVI_TOKENS: TOKENS,
+                TOKENS,
             },
             agents: [defineModelAgent({
                 name: 'echo',

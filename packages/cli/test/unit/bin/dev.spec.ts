@@ -81,11 +81,11 @@ describe('bin dev', () => {
     });
 
     it('dev restarts on a .env change', async () => {
-        await writeFile(path.join(app.cwd, '.env'), 'CHAMVI_LOG_LEVEL=info\n');
+        await writeFile(path.join(app.cwd, '.env'), 'LOG_LEVEL=info\n');
         cli = dev();
         await cli.waitForOutput((output) => count(output, LISTENING) === 1);
 
-        await untilRestart(cli, 2, (i) => writeFile(path.join(app.cwd, '.env'), `CHAMVI_LOG_LEVEL=info\nCHAMVI_DRAIN_TIMEOUT_MS=${1000 + i}\n`));
+        await untilRestart(cli, 2, (i) => writeFile(path.join(app.cwd, '.env'), `LOG_LEVEL=info\nDRAIN_TIMEOUT_MS=${1000 + i}\n`));
 
         process.kill(-cli.child.pid!, 'SIGINT');
         expect((await cli.exited(15_000)).code).toBe(0);

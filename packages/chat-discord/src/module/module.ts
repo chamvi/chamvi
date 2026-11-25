@@ -197,7 +197,7 @@ export class DiscordModule implements IModule {
 
             try {
                 if (!approvalUrl) {
-                    throw invalid('approvalUrl is required, or CHAMVI_PUBLIC_URL for the dashboard\'s approvals page.');
+                    throw invalid('approvalUrl is required, or PUBLIC_URL for the dashboard\'s approvals page.');
                 }
 
                 this.chat = this.build(resolved, approvalUrl, logger);

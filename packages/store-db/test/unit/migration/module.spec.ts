@@ -115,14 +115,14 @@ describe('runMigrationOperation without a database server', () => {
         await expect(migrateDatabase({ migrations: [] } as never, { lockName: lockName as never })).rejects.toThrow(DatabaseOptionsError);
     });
 
-    it('generate refuses without CHAMVI_MIGRATION_DATABASE_URL', async () => {
+    it('generate refuses without MIGRATION_DATABASE_URL', async () => {
         const input = recordedInput({
             operation: 'generate',
             descriptors: [notesDescriptor()],
             name: 'Init',
         });
 
-        await expect(runMigrationOperation(input)).rejects.toThrow(/CHAMVI_MIGRATION_DATABASE_URL is required/);
+        await expect(runMigrationOperation(input)).rejects.toThrow(/MIGRATION_DATABASE_URL is required/);
     });
 
     it.each([undefined, 'add-rating', 'addRating', ''])('generate refuses the name %j', async (name) => {

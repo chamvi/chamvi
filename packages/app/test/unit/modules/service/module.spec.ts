@@ -500,9 +500,9 @@ describe('the services of the store step', () => {
         await harness.stop();
     });
 
-    it('no purge component when CHAMVI_PURGE_INTERVAL_MS=0', async () => {
+    it('no purge component when PURGE_INTERVAL_MS=0', async () => {
         const { module, calls } = purgingStore();
-        const { harness, clock } = await setup({ store: module, env: { CHAMVI_PURGE_INTERVAL_MS: '0' } });
+        const { harness, clock } = await setup({ store: module, env: { PURGE_INTERVAL_MS: '0' } });
 
         expect(harness.container.resolveAll(AppToken.COMPONENTS)).toEqual([]);
         clock.advance(DEFAULT_PURGE_INTERVAL_MS * 3);

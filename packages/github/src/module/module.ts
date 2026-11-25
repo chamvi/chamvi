@@ -347,7 +347,7 @@ export class GithubModule implements IModule {
 /**
  * A GitHub App module: `name` (default `github`) names its connection,
  * default channel and env prefix (`GITHUB_*` for the default,
- * `CHAMVI_GITHUB_<NAME>_*` otherwise), `agents` the agents it serves (none: the
+ * `GITHUB_<NAME>_*` otherwise), `agents` the agents it serves (none: the
  * fallback). See `GithubModule`.
  */
 export function githubModule(options?: GithubModuleOptions): GithubModule {

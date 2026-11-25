@@ -13,7 +13,7 @@ Memory repositories live in one process, so replicas cannot share them. Running 
 A `waiting` run holds no slot. A long approval wait does not block other work.
 
 ::: warning TypeScript option rename
-The engine option is now `concurrencyMaxRuns`, replacing `maxConcurrentRuns` (a breaking TypeScript API change). Update engine configuration objects when upgrading. The deployment environment variable remains `CHAMVI_MAX_CONCURRENT_RUNS`; its name, default and local-engine scope are unchanged.
+The engine option is now `concurrencyMaxRuns`, replacing `maxConcurrentRuns` (a breaking TypeScript API change). Update engine configuration objects when upgrading. The deployment environment variable remains `MAX_CONCURRENT_RUNS`; its name, default and local-engine scope are unchanged.
 :::
 
 ## Shared agent and subscription ceilings
@@ -30,7 +30,7 @@ The scheduler checks queued work in FIFO order, skipping blocked runs so eligibl
 
 Numerical admission uses the store lock `admission:<agent>` around the count, claim and transition to `running`, also for uncapped sibling subscriptions. All replicas must use compatible agent definitions; ceilings are read from live definitions, not saved onto each run. Like the concurrency-key lock, the admission guarantee assumes its store operations finish inside the lock TTL (`claimTtlMs`), not an arbitrarily stalled database operation.
 
-`EngineOptions.concurrencyMaxRuns` and the app's `CHAMVI_MAX_CONCURRENT_RUNS` remain **per engine**, not fleet-wide. For example, two engines with four local slots can execute eight runs in total, but an agent ceiling of three permits at most three running runs of that agent across their shared store.
+`EngineOptions.concurrencyMaxRuns` and the app's `MAX_CONCURRENT_RUNS` remain **per engine**, not fleet-wide. For example, two engines with four local slots can execute eight runs in total, but an agent ceiling of three permits at most three running runs of that agent across their shared store.
 
 GitHub's default per-issue concurrency key and cron's `overlap` policy are separate controls: keys serialize related work, overlap decides whether a cron tick dispatches, and numerical caps bound execution capacity.
 

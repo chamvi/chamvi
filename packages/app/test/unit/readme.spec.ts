@@ -29,7 +29,7 @@ describe('README example', () => {
 
         await app.start({
             env: {
-                CHAMVI_TOKENS: JSON.stringify([{
+                TOKENS: JSON.stringify([{
                     value: 'a-static-token-of-16+',
                     id: 'ops',
                     permissions: '*',

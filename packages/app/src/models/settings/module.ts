@@ -25,7 +25,7 @@ import type { ProviderLayer, SettingIssues } from './types.ts';
 
 /**
  * The app's model settings, layered per provider name and field: env over the
- * config file (`CHAMVI_CONFIG_FILE`, else `./chamvi.json` when it exists) over
+ * config file (`CONFIG_FILE`, else `./chamvi.json` when it exists) over
  * code. Collects every issue; a provider with an issue is left out. No issue
  * holds a secret value.
  */

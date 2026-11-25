@@ -18,6 +18,7 @@ The `@tada5hi/*` config packages are the source of truth for lint, TS and commit
 ## Code Style
 
 - ESM only (`"type": "module"`), Node >= 26.0.0 (CI runs Node 26 only).
+- Env names say what they configure: chamvi's own bare (`MODEL`), external ones by system (`GITHUB_*`), never `GIT_*` (#302).
 - Configured agent/contributed instructions use core `AgentInstructions`; preserve native SDK role-specific content and provider options. Only the leading system run goes into SDK `instructions`; later configured blocks stay transient and ordered. Manual skills catalog instructions remain strings.
 - `@chamvi/ui`'s app, its kit and the `*-ui` pages ship to Vite's default browser target (Safari 16.4, Firefox 114) without polyfills: no ES2025 iterator helpers (`map.entries().toArray()`; use `Array.from`; lint enforced); `mountPage()` polyfills `toWellFormed`. Its Unicorn override keeps `instanceof Error` (no `Error.isError`). The `Uint8Array` base64/hex rules are off globally: request input relies on Buffer's lenient base64 decoding (`Uint8Array.fromBase64()` throws) and the dashboard target lacks those APIs; keep Buffer.
 - 4-space indent (also JSON and YAML), LF, UTF-8, final newline, trailing whitespace trimmed except in Markdown (see `.editorconfig`).

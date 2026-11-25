@@ -15,7 +15,7 @@ import { envJson } from '../env/index.ts';
 import { TOKEN_VALUE_MIN_LENGTH } from './constants.ts';
 import type { AppConfig, ApprovalRef } from './types.ts';
 
-const TOKENS = 'CHAMVI_TOKENS';
+const TOKENS = 'TOKENS';
 
 /**
  * A token's `permissions`: `"*"` (every chamvi permission, unrestricted) or
@@ -41,7 +41,7 @@ function readPermissions(input: unknown): readonly PermissionBinding[] | '*' | u
 }
 
 /**
- * CHAMVI_TOKENS as static tokens. Messages name the index, never a token value.
+ * TOKENS as static tokens. Messages name the index, never a token value.
  */
 export function readTokens(env: Env): StaticToken[] | undefined {
     const input = envJson(env, TOKENS);
@@ -99,7 +99,7 @@ export function readTokens(env: Env): StaticToken[] | undefined {
 
 /**
  * The token-less UI approval link (`<publicUrl><basePath>/ui/approvals?run=&approval=`),
- * or undefined without CHAMVI_PUBLIC_URL.
+ * or undefined without PUBLIC_URL.
  */
 export function approvalUrlOf(config: AppConfig): ((ref: ApprovalRef) => string) | undefined {
     const { publicUrl, basePath } = config.http;

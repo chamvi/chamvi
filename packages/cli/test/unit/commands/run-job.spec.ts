@@ -28,7 +28,7 @@ describe('run-job', () => {
     });
 
     async function runJob(args: string[]) {
-        await runCli(['run-job', ...args], fake.context({ env: { CHAMVI_DRAIN_TIMEOUT_MS: '1000' } }));
+        await runCli(['run-job', ...args], fake.context({ env: { DRAIN_TIMEOUT_MS: '1000' } }));
     }
 
     it('completed exits 0', async () => {
@@ -53,8 +53,8 @@ describe('run-job', () => {
         async function runSkilled(agent: string) {
             await runCli(['run-job', agent, '--entry', fixture('skilled')], fake.context({
                 env: {
-                    CHAMVI_DRAIN_TIMEOUT_MS: '1000',
-                    CHAMVI_AGENTS_DIR: agentsDir,
+                    DRAIN_TIMEOUT_MS: '1000',
+                    AGENTS_DIR: agentsDir,
                 },
             }));
         }
@@ -78,7 +78,7 @@ describe('run-job', () => {
     });
 
     it('exits 1 when an agent package that may hold the agent did not load', async () => {
-        await runCli(['run-job', 'greeter', '--entry', fixture('app')], fake.context({ env: { CHAMVI_DRAIN_TIMEOUT_MS: '1000', CHAMVI_AGENTS: '@chamvi-fixture/missing-agents' } }));
+        await runCli(['run-job', 'greeter', '--entry', fixture('app')], fake.context({ env: { DRAIN_TIMEOUT_MS: '1000', AGENTS: '@chamvi-fixture/missing-agents' } }));
         expect(fake.exitCodes).toEqual([1]);
         expect(fake.stderr.join('')).toContain('@chamvi-fixture/missing-agents');
     });

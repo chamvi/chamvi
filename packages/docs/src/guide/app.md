@@ -37,9 +37,13 @@ npm install --save-dev tsdown   # for chamvi build and a TypeScript entry
 }
 ```
 
+## Env variables
+
+An env variable is named after what it configures. chamvi's own settings have no prefix (`MODEL`, `TOKENS`, `PUBLIC_URL`, `MAIL_ACCOUNTS`, `SANDBOX_PROVIDER`), a setting for an external system carries that system's name (`AUTHUP_URL`, `GITHUB_APP_ID`, `DISCORD_TOKEN`, `OPENCLAW_BASE_URL`, `ANTHROPIC_API_KEY`), and conventional names keep their meaning (`PORT`, `HOST`, `DATABASE_URL`, `NODE_ENV`).
+
 ## Models
 
-An agent's `model` is optional: without one it uses the app's default (`CHAMVI_MODEL`, `chamvi.json` or `createApp({ model })`). Model strings `'<provider>/<model id>'` resolve through the providers the app declares (env, `chamvi.json`, `createApp({ providers })`), never through the Vercel Gateway or the AI SDK's global provider; `chamvi start --check` checks them before a deploy. See [Pick a Model](/guide/models).
+An agent's `model` is optional: without one it uses the app's default (`MODEL`, `chamvi.json` or `createApp({ model })`). Model strings `'<provider>/<model id>'` resolve through the providers the app declares (env, `chamvi.json`, `createApp({ providers })`), never through the Vercel Gateway or the AI SDK's global provider; `chamvi start --check` checks them before a deploy. See [Pick a Model](/guide/models).
 
 ## Modules
 
@@ -48,12 +52,12 @@ Modules are [orkos](https://github.com/tada5hi/orkos) `IModule`s on an [eldin](h
 | Module | Does |
 |---|---|
 | `configModule()` | Reads every variable once ([environment](/reference/app#environment)) and registers the config, the clock and the JSON line logger |
-| `storeModule()` | The database repositories over `DATABASE_URL`, migrated unless `CHAMVI_MIGRATE=false`; without `DATABASE_URL` memory repositories (warned outside dev). The app builds every service from the registered repositories, plus the `store-purge` component: hourly `purgeExpired()` of the lock, idempotency and limit services (also on memory). A module of the same name that registers the repository tokens replaces it |
-| `staticTokensModule()` | The `staticTokens()` authenticator from `CHAMVI_TOKENS` |
+| `storeModule()` | The database repositories over `DATABASE_URL`, migrated unless `MIGRATE=false`; without `DATABASE_URL` memory repositories (warned outside dev). The app builds every service from the registered repositories, plus the `store-purge` component: hourly `purgeExpired()` of the lock, idempotency and limit services (also on memory). A module of the same name that registers the repository tokens replaces it |
+| `staticTokensModule()` | The `staticTokens()` authenticator from `TOKENS` |
 | `engineModule()` | Reads the [model settings](/guide/models) (env, `chamvi.json`, code) into the default model and the provider resolver, builds the `Engine` (which checks every agent's model) with every contributed channel (`AppToken.CHANNELS`) and starts it, which starts the channels |
-| `agentsModule()` | Loads the [agent packages](/guide/agent-packages) (createApp's specifiers, `chamvi.json`, `CHAMVI_AGENTS`) and the [agent folders](/guide/agent-folders) of `CHAMVI_AGENTS_DIR` (else `./agents` when it exists) before the engine starts and watches the folders (the `agents-watcher` component; a package whose skill preparation failed retries in `agents-packages`); an app with no agent at all starts with a warning |
+| `agentsModule()` | Loads the [agent packages](/guide/agent-packages) (createApp's specifiers, `chamvi.json`, `AGENTS`) and the [agent folders](/guide/agent-folders) of `AGENTS_DIR` (else `./agents` when it exists) before the engine starts and watches the folders (the `agents-watcher` component; a package whose skill preparation failed retries in `agents-packages`); an app with no agent at all starts with a warning |
 | `componentsModule()` | Runs every [component](#background-components) (`AppToken.COMPONENTS`) in start mode, after the engine and before the server listens, and stops them in the `stopping` phase, before the drain |
-| `schedulerModule()` | The `cron` channel (`cronChannel()` from `@chamvi/channel-cron`); `CHAMVI_SCHEDULER=false` leaves firing to Kubernetes CronJobs and `chamvi run-job` (`cron.on()` subscriptions still validate) |
+| `schedulerModule()` | The `cron` channel (`cronChannel()` from `@chamvi/channel-cron`); `SCHEDULER=false` leaves firing to Kubernetes CronJobs and `chamvi run-job` (`cron.on()` subscriptions still validate) |
 | `httpModule()` | The `http`, `mcp` and `webhook` channels, `createHttpApp()` with every contributed route and authenticator, mounting every contributed channel with an `in` at `/channels/<name>`, the graceful shutdown, `serve()` on `HOST`:`PORT` |
 
 An app's own tables live in a [database module](/guide/database) (`databaseModule()` of `@chamvi/app`): its own data source on the same `DATABASE_URL`, its own migrations, never chamvi's store.
@@ -70,16 +74,16 @@ The optional modules ship with the package they configure, on its `/module` subp
 | `uiModule()` | `@chamvi/ui/module` | the [dashboard](/guide/ui) at `<basePath>/ui` | |
 | `knowledgeModule({ collections?, repository?, owner?, embeddingModel?, routes? })` | `@chamvi/knowledge/module` | `.knowledge` (`IKnowledge`): the declared and [managed](/guide/knowledge#managed-collections) knowledge collections, indexed in the background once the app started; the REST routes under `<basePath>/knowledge` | `injectKnowledgeContext(ctx)` |
 | `vectorStoreModule({ url? })` | `@chamvi/store-db-vector` | the knowledge collections in PostgreSQL with pgvector (the database `vector`, its own migrations), the repository `knowledgeModule()` uses when it gets no `repository` of its own ([Storage](/guide/knowledge#storage)) | |
-| `toolMailModule({ accounts?, env? })` | `@chamvi/tool-mail/module` | one read-only IMAP client from `CHAMVI_MAIL_ACCOUNTS` and `CHAMVI_MAIL_<ID>_PASSWORD`, logged out after the engine drained | `injectMailContext(ctx)` |
-| `toolCalendarModule({ accounts?, timezone?, fetch?, env? })` | `@chamvi/tool-calendar/module` | one read-only CalDAV client from `CHAMVI_CALENDAR_ACCOUNTS`, `CHAMVI_CALENDAR_<ID>_PASSWORD` and `CHAMVI_CALENDAR_TIMEZONE` | `injectCalendarContext(ctx)` |
+| `toolMailModule({ accounts?, env? })` | `@chamvi/tool-mail/module` | one read-only IMAP client from `MAIL_ACCOUNTS` and `MAIL_<ID>_PASSWORD`, logged out after the engine drained | `injectMailContext(ctx)` |
+| `toolCalendarModule({ accounts?, timezone?, fetch?, env? })` | `@chamvi/tool-calendar/module` | one read-only CalDAV client from `CALENDAR_ACCOUNTS`, `CALENDAR_<ID>_PASSWORD` and `CALENDAR_TIMEZONE` | `injectCalendarContext(ctx)` |
 | `authupModule()`, `oidcModule(options)` | `@chamvi/app/authup` | the `authup()` and `oidc()` authenticators, after the static tokens; `authupModule()` reads the permission catalog and chamvi's realm with its own client (see [Permissions and authup](/guide/permissions#authup)) | |
 | `consoleChannelModule({ name?, write? })` | `@chamvi/app` | the `consoleChannel()` named `console` (out only) | `ctx.channels.findOne('console')` |
 
 Channel names are unique per app, so `openclawModule()` beside `openclawModule({ name: 'ops' })` contributes two channels (`ctx.channels.findOne('ops')`); two channels of one name fail the setup with `InvalidAgentDefinitionError`. `@chamvi/app/authup` stays in the app package, since `@chamvi/http` cannot depend on `@chamvi/app`.
 
-With `CHAMVI_PUBLIC_URL` set, the GitHub and OpenClaw modules link approvals to the dashboard: `<CHAMVI_PUBLIC_URL><basePath>/ui/approvals?run=<runId>&approval=<approvalId>`, without a token. A missing required variable throws `InvalidAgentDefinitionError` naming it, from the factory or, for a module that also reads the connection store, from `setup` (a GitHub module with nothing set starts idle instead); no message ever echoes a value.
+With `PUBLIC_URL` set, the GitHub and OpenClaw modules link approvals to the dashboard: `<PUBLIC_URL><basePath>/ui/approvals?run=<runId>&approval=<approvalId>`, without a token. A missing required variable throws `InvalidAgentDefinitionError` naming it, from the factory or, for a module that also reads the connection store, from `setup` (a GitHub module with nothing set starts idle instead); no message ever echoes a value.
 
-`CHAMVI_TIMEZONE` (an IANA zone such as `Europe/Berlin`, default `UTC`) sets the zone `utilityTools()` from `@chamvi/tool-utils` reads dates in; it is read when the factory is called, and an invalid zone throws `InvalidAgentDefinitionError`. It is optional and needs no module.
+`TIMEZONE` (an IANA zone such as `Europe/Berlin`, default `UTC`) sets the zone `utilityTools()` from `@chamvi/tool-utils` reads dates in; it is read when the factory is called, and an invalid zone throws `InvalidAgentDefinitionError`. It is optional and needs no module.
 
 ## Setup contributes, onReady consumes
 
@@ -103,12 +107,12 @@ So a contribution never depends on module order. A module that resolves `ENGINE`
 
 `app.stop()` is memoized and also stops a start still setting up (which then never listens):
 
-1. `/readyz` answers 503, then `CHAMVI_READINESS_DELAY_MS` (0)
-2. the `stopping` hooks, in setup order: the components stop among them, up to `CHAMVI_DRAIN_TIMEOUT_MS` (a component that does not stop in time is logged and `stop()` rejects)
+1. `/readyz` answers 503, then `READINESS_DELAY_MS` (0)
+2. the `stopping` hooks, in setup order: the components stop among them, up to `DRAIN_TIMEOUT_MS` (a component that does not stop in time is logged and `stop()` rejects)
 3. the app's closers (SSE streams, MCP waits)
 4. `server.close()`
-5. `engine.drain()`: every channel's `stop()` first, then the runs get what remains of the same `CHAMVI_DRAIN_TIMEOUT_MS` (30 s) budget, which began with the components' stop: the two together never take longer than one timeout
-6. up to `CHAMVI_CLOSE_TIMEOUT_MS` (5 s) for the close, then `server.close(true)`
+5. `engine.drain()`: every channel's `stop()` first, then the runs get what remains of the same `DRAIN_TIMEOUT_MS` (30 s) budget, which began with the components' stop: the two together never take longer than one timeout
+6. up to `CLOSE_TIMEOUT_MS` (5 s) for the close, then `server.close(true)`
 7. the workspace manager closes (with `sandboxModule`, up to 30 s)
 8. the database modules' data sources (after the `drained` hooks) and the store's data source are closed
 

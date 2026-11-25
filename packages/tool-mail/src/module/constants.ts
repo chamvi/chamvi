@@ -8,10 +8,10 @@
 export const TOOL_MAIL_MODULE_NAME = 'chamvi:tool-mail';
 
 /** A JSON array of `{ id?, address, host, port?, security?, folders?, gmail?, smtp? }`, read by `toolMailModule()`. */
-export const MAIL_ACCOUNTS_VARIABLE = 'CHAMVI_MAIL_ACCOUNTS';
+export const MAIL_ACCOUNTS_VARIABLE = 'MAIL_ACCOUNTS';
 
-/** The prefix of an account's credential variables: `CHAMVI_MAIL_<ID>_USER`, `..._PASSWORD`. */
-export const MAIL_VARIABLE_PREFIX = 'CHAMVI_MAIL_';
+/** The prefix of an account's credential variables: `MAIL_<ID>_USER`, `..._PASSWORD`. */
+export const MAIL_VARIABLE_PREFIX = 'MAIL_';
 
 /** The connection type of a mail account; its stored name is `mail-<id>`. */
 export const MAIL_CONNECTION_TYPE = 'mail';

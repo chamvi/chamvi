@@ -95,21 +95,21 @@ The tools use `client`, else a client of `accounts`, else the write client the m
 function toolMailModule(options?: ToolMailModuleOptions): ToolMailModule; // 'chamvi:tool-mail'
 
 type ToolMailModuleOptions = {
-    env?: Record<string, string | undefined>; // where CHAMVI_MAIL_* is read, default process.env
-    accounts?: MailWriteAccount[];             // given, CHAMVI_MAIL_ACCOUNTS is not read
+    env?: Record<string, string | undefined>; // where MAIL_* is read, default process.env
+    accounts?: MailWriteAccount[];             // given, MAIL_ACCOUNTS is not read
 };
 
 const TOOL_MAIL_MODULE_NAME: 'chamvi:tool-mail';
-const MAIL_ACCOUNTS_VARIABLE: 'CHAMVI_MAIL_ACCOUNTS';
+const MAIL_ACCOUNTS_VARIABLE: 'MAIL_ACCOUNTS';
 ```
 
 | Variable | |
 |---|---|
-| `CHAMVI_MAIL_ACCOUNTS` | A JSON array of `{ "id"?, "address", "host", "port"?, "security"?, "folders"?, "gmail"?, "smtp"?: { "host", "port"?, "security"? } }`; `id` defaults to the address with `@` and `.` as `-` |
-| `CHAMVI_MAIL_<ID>_USER` | The account's user, default the address; `<ID>` is the id upper-cased, `-` as `_` |
-| `CHAMVI_MAIL_<ID>_PASSWORD` | Required |
+| `MAIL_ACCOUNTS` | A JSON array of `{ "id"?, "address", "host", "port"?, "security"?, "folders"?, "gmail"?, "smtp"?: { "host", "port"?, "security"? } }`; `id` defaults to the address with `@` and `.` as `-` |
+| `MAIL_<ID>_USER` | The account's user, default the address; `<ID>` is the id upper-cased, `-` as `_` |
+| `MAIL_<ID>_PASSWORD` | Required |
 
-For an account listed in `CHAMVI_MAIL_ACCOUNTS` each credential can come from a file instead: `CHAMVI_MAIL_<ID>_PASSWORD_FILE` (one trailing newline trimmed; setting both forms is an error). The variables are read and checked when the factory is called; an error names the variable and index, never a value. Accounts stored in the connection store (added on the dashboard through [`toolMailUiModule()`](/guide/ui#connection-pages)) are added at start (`accounts` pins the set). For an account listed in `CHAMVI_MAIL_ACCOUNTS` a variable wins per field over its stored value, and a password in neither env nor store fails at startup naming the variable. An account that exists only in the store takes every value from the store: a `CHAMVI_MAIL_<ID>_*` variable named after it is ignored with a warning naming the variable, and a missing password lists it `incomplete`. Without any account the context stays provided and tools return a `connection_not_configured` tool error. In start and job mode and a check it builds one client on the app's clock, provides it on the engine (`injectMailContext(ctx)`) and logs out once the engine drained; migrate mode does nothing.
+For an account listed in `MAIL_ACCOUNTS` each credential can come from a file instead: `MAIL_<ID>_PASSWORD_FILE` (one trailing newline trimmed; setting both forms is an error). The variables are read and checked when the factory is called; an error names the variable and index, never a value. Accounts stored in the connection store (added on the dashboard through [`toolMailUiModule()`](/guide/ui#connection-pages)) are added at start (`accounts` pins the set). For an account listed in `MAIL_ACCOUNTS` a variable wins per field over its stored value, and a password in neither env nor store fails at startup naming the variable. An account that exists only in the store takes every value from the store: a `MAIL_<ID>_*` variable named after it is ignored with a warning naming the variable, and a missing password lists it `incomplete`. Without any account the context stays provided and tools return a `connection_not_configured` tool error. In start and job mode and a check it builds one client on the app's clock, provides it on the engine (`injectMailContext(ctx)`) and logs out once the engine drained; migrate mode does nothing.
 
 ## Types
 
