@@ -30,7 +30,8 @@ export function calendarEventsTool(client: ICalendarClient | undefined): Tool<Ca
             `(at most ${CALENDAR_DESCRIPTION_MAX_CHARS} characters), status (CANCELLED ones are kept), organizer and ` +
             'attendees (count and your own status). Title, location and organizer are cut at ' +
             `${CALENDAR_FIELD_MAX_CHARS} characters. Times are ISO with the offset of the configured zone; ` +
-            `all-day events give plain dates. truncated says more events matched than limit. ${UNTRUSTED_NOTE}`,
+            'all-day events give plain dates. id identifies the event for calendar_delete (for a repeating event: the whole series). ' +
+            `truncated says more events matched than limit. ${UNTRUSTED_NOTE}`,
         inputSchema: objectSchema<CalendarEventsToolInput>({
             from: {
                 type: 'string',

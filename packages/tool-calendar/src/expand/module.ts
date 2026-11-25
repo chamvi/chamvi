@@ -177,6 +177,7 @@ function eventOf(
     const attendees = attendeesOf(item, context.user);
 
     return {
+        ...(context.id && { id: context.id }),
         calendar: context.calendar ?? '',
         uid: textOf(item, 'uid') ?? '',
         ...(occurrence.recurrenceId && { recurrenceId: format(occurrence.recurrenceId.time, occurrence.recurrenceId.tzid, zone) }),

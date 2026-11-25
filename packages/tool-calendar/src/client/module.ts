@@ -7,7 +7,8 @@
 
 import { ChamviError, ValidationError } from '@chamvi/core';
 import { createDAVClient } from 'tsdav';
-import type { DAVCalendar } from 'tsdav';
+import type { DAVCalendar, DAVCalendarObject } from 'tsdav';
+import { encodeCalendarEventId } from '../event-id/module.ts';
 import { expandEvents } from '../expand/module.ts';
 import type { CalendarEvent, CalendarRange } from '../expand/types.ts';
 import { normalizeAccounts, normalizeClientOptions } from '../options/module.ts';
@@ -63,6 +64,37 @@ function viewOf(account: CalendarAccount, calendar: DAVCalendar): CalendarView {
         ...(typeof calendarColor === 'string' && calendarColor.length > 0 && { color: calendarColor }),
         ...(timezone && { timezone }),
     };
+}
+
+/**
+ * The event id of `object`: only when its URL is a direct child of the
+ * calendar's URL and the server gave it an ETag.
+ */
+function idOf(entry: CalendarEntry, object: DAVCalendarObject): string | undefined {
+    if (typeof object.etag !== 'string' || object.etag.length === 0 || !URL.canParse(object.url) || !URL.canParse(entry.dav.url)) {
+        return undefined;
+    }
+
+    const url = new URL(object.url);
+    const parent = new URL(entry.dav.url.endsWith('/') ? entry.dav.url : `${entry.dav.url}/`);
+    const name = url.pathname.slice(parent.pathname.length);
+
+    if (
+        url.origin !== parent.origin ||
+        url.search.length > 0 ||
+        url.hash.length > 0 ||
+        !url.pathname.startsWith(parent.pathname) ||
+        name.length === 0 ||
+        name.includes('/')
+    ) {
+        return undefined;
+    }
+
+    return encodeCalendarEventId({
+        calendar: entry.view.calendar, 
+        name, 
+        etag: object.etag, 
+    });
 }
 
 /** The start of `event` as epoch milliseconds (an all-day event at midnight in `zone`). */
@@ -172,10 +204,13 @@ class CalendarClient implements ICalendarClient {
                     continue;
                 }
 
+                const id = idOf(entry, object);
+
                 try {
                     events.push(...expandEvents(object.data, range, this.options.timezone, {
                         calendar: entry.view.calendar,
                         user: state.account.user,
+                        ...(id && { id }),
                     }));
                 } catch {
                     // a resource that is not iCalendar holds no event to show

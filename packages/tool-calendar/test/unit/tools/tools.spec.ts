@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { ChamviError } from '@chamvi/core';
 import { calendarTools, createCalendarClient } from '@chamvi/tool-calendar';
+import { encodeCalendarEventId } from '../../../src/event-id/module.ts';
 import { FAKE_CALDAV_URL, createFakeCalDav } from '../../utils/caldav.ts';
 import { calendar, vevent, weeklyStandup } from '../../utils/ics.ts';
 import { callTool, toolContext } from '../../utils/tools.ts';
@@ -79,6 +80,59 @@ describe('calendarTools', () => {
             ['2026-11-09T14:00:00+01:00', 'Standup moved'],
         ]);
         expect(result.truncated).toBe(false);
+    });
+
+    it('gives each event the id of its resource and version, every occurrence the series\' id', async () => {
+        const tools = calendarTools({ accounts: [ACCOUNT], fetch: fake().fetch });
+        const result = await callTool<{ events: { uid: string; id?: string }[] }>(
+            tools,
+            'calendar_events',
+            { from: '2026-10-19', to: '2026-12-01' },
+            toolContext(),
+        );
+        const standup = encodeCalendarEventId({
+            calendar: 'me:home', 
+            name: 'event-0.ics', 
+            etag: '"0"', 
+        });
+        const holiday = encodeCalendarEventId({
+            calendar: 'me:home', 
+            name: 'event-1.ics', 
+            etag: '"1"', 
+        });
+        const occurrences = result.events.filter((event) => event.uid === 'standup');
+
+        expect(occurrences.length).toBeGreaterThan(1);
+        expect(occurrences.every((event) => event.id === standup)).toBe(true);
+        expect(result.events.find((event) => event.uid === 'holiday')?.id).toBe(holiday);
+        expect(tools.calendar_events?.description).toContain('id identifies the event for calendar_delete (for a repeating event: the whole series).');
+    });
+
+    it('gives no id to an object the server lists without an etag', async () => {
+        const server = createFakeCalDav([{
+            slug: 'home',
+            name: 'Home',
+            objects: [{
+                name: 'no-etag.ics',
+                etag: '',
+                ics: calendar(vevent(
+                    'UID:plain',
+                    'DTSTART;VALUE=DATE:20261109',
+                    'DTEND;VALUE=DATE:20261110',
+                    'SUMMARY:Plain',
+                )),
+            }],
+        }]);
+        const tools = calendarTools({ accounts: [ACCOUNT], fetch: server.fetch });
+        const result = await callTool<{ events: { uid: string; id?: string }[] }>(
+            tools,
+            'calendar_events',
+            { from: '2026-11-09', to: '2026-11-10' },
+            toolContext(),
+        );
+
+        expect(result.events).toHaveLength(1);
+        expect(result.events[0]).not.toHaveProperty('id');
     });
 
     it('uses the timezone option', async () => {

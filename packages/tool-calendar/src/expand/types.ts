@@ -12,6 +12,8 @@ export type CalendarEventAttendees = {
 };
 
 export type CalendarEvent = {
+    /** Pass to calendar_delete: the event's resource and version; every occurrence of a series carries the series' id. */
+    id?: string;
     /** `<account>:<calendar>`, as `calendar_list` gives it. */
     calendar: string;
     uid: string;
@@ -43,4 +45,6 @@ export type ExpandContext = {
     calendar?: string;
     /** The account user, to find its own attendee status. */
     user?: string;
+    /** The `id` of every event (the resource's event id); none without it. */
+    id?: string;
 };

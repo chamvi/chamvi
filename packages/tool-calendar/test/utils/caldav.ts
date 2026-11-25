@@ -11,6 +11,13 @@ export const FAKE_CALDAV_URL = 'https://caldav.icloud.com';
 const PARTITION = 'https://p42-caldav.icloud.com';
 const HOME = '/123/calendars/';
 
+/** A resource of a calendar: its last path segment, iCalendar text and ETag (`''`: none given). */
+export type FakeObject = {
+    name: string;
+    ics: string;
+    etag: string;
+};
+
 export type FakeCalendar = {
     /** The last path segment of the calendar URL. */
     slug: string;
@@ -20,8 +27,11 @@ export type FakeCalendar = {
     components?: string[];
     /** A VTIMEZONE text as `calendar-timezone`. */
     timezone?: string;
-    /** ICS resources of the calendar; every REPORT returns all of them. */
-    objects: string[];
+    /**
+     * Resources of the calendar; every REPORT returns all of them. A string is
+     * `{ name: 'event-<index>.ics', ics, etag: '"<index>"' }`.
+     */
+    objects: (string | FakeObject)[];
 };
 
 export type FakeRequest = {
@@ -29,6 +39,10 @@ export type FakeRequest = {
     url: string;
     depth: string | null;
     authorization: string | null;
+    /** Every header, names lower-cased. */
+    headers: Record<string, string>;
+    /** The request's `redirect` mode, when it set one. */
+    redirect?: string;
     body: string;
 };
 
@@ -73,6 +87,17 @@ function calendarProps(calendar: FakeCalendar): string {
     ].join('');
 }
 
+/** The calendar's resources, strings expanded to their default name and ETag. */
+export function fakeObjectsOf(calendar: FakeCalendar): FakeObject[] {
+    return calendar.objects.map((object, index) => (typeof object === 'string' ?
+        {
+            name: `event-${index}.ics`, 
+            ics: object, 
+            etag: `"${index}"`, 
+        } :
+        object));
+}
+
 function hang(signal: AbortSignal | null | undefined): Promise<Response> {
     return new Promise((_resolve, reject) => {
         signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
@@ -101,6 +126,8 @@ export function createFakeCalDav(calendars: FakeCalendar[] = []): FakeCalDav {
                 url: url.href,
                 depth: headers.get('depth'),
                 authorization: headers.get('authorization'),
+                headers: Object.fromEntries(headers.entries()),
+                ...(init?.redirect && { redirect: init.redirect }),
                 body: typeof init?.body === 'string' ? init.body : '',
             });
 
@@ -145,10 +172,11 @@ export function createFakeCalDav(calendars: FakeCalendar[] = []): FakeCalDav {
             }
 
             if (calendar && method === 'REPORT') {
-                return xml(calendar.objects.map((ics, index) => ok(
-                    `${path}event-${index}.ics`,
-                    `<d:getetag>"${index}"</d:getetag><c:calendar-data>${escapeXml(ics)}</c:calendar-data>`,
-                )).join(''));
+                return xml(fakeObjectsOf(calendar).map((object) => {
+                    const etag = object.etag ? `<d:getetag>${escapeXml(object.etag)}</d:getetag>` : '';
+
+                    return ok(`${path}${object.name}`, `${etag}<c:calendar-data>${escapeXml(object.ics)}</c:calendar-data>`);
+                }).join(''));
             }
 
             return new Response('not found', { status: 404 });
