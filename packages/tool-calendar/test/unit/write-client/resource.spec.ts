@@ -35,7 +35,7 @@ describe('resourceUrlOf', () => {
     });
 
     it('refuses anything else before a request', () => {
-        for (const name of ['', '.', '..', '%2e%2e', '%2E', 'a/b.ics', 'a?b', 'a#b', 'a\\b', '//evil.test/x', 'x'.repeat(256)]) {
+        for (const name of ['', '.', '..', '%2e%2e', '%2E', 'a/b.ics', 'a?b', 'a#b', 'a\\b', '//evil.test/x', 'x'.repeat(256), '..%2Fwork%2Fx.ics', '%2E%2E%2Fx.ics', 'a%5Cb.ics', '%2fx.ics', '%E0%A4%A.ics', 'a%00b.ics', 'a\u0001b.ics']) {
             expect(() => resourceUrlOf(VIEW, name), name).toThrow(ValidationError);
         }
 

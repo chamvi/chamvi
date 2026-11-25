@@ -10,8 +10,8 @@ import { CALENDAR_WRITE_ALLOWED_METHODS } from './constants.ts';
 
 /**
  * `inner` restricted to `CALENDAR_WRITE_ALLOWED_METHODS`. A PUT must carry
- * `If-None-Match: *` and no `If-Match` (create only, never update), a DELETE a
- * non-empty `If-Match`; both take a string or URL (never a `Request`, which
+ * `If-None-Match: *` and no `If-Match` (create only, never update), a DELETE an
+ * `If-Match` of one version (not `*`, no list); both take a string or URL (never a `Request`, which
  * carries its own headers and redirect mode) and are sent with
  * `redirect: 'manual'`. Each refusal is a `calendar_request` error before
  * anything is sent.
@@ -39,8 +39,9 @@ export function writeGuardedFetch(inner: typeof fetch): typeof fetch {
             throw calendarError('calendar: PUT must carry If-None-Match: * and no If-Match');
         }
 
-        if (method === 'DELETE' && (ifMatch === null || ifMatch.trim().length === 0)) {
-            throw calendarError('calendar: DELETE must carry If-Match');
+        // one concrete version: never the wildcard or a list, which would delete whatever is there
+        if (method === 'DELETE' && (ifMatch === null || ifMatch.trim().length === 0 || ifMatch.trim() === '*' || ifMatch.includes(','))) {
+            throw calendarError('calendar: DELETE must carry If-Match with one version');
         }
 
         return inner(input, {

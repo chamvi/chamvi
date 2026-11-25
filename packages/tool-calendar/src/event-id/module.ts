@@ -22,10 +22,56 @@ function partValid(text: string): boolean {
     return text.length > 0 && text.length <= CALENDAR_EVENT_ID_PART_MAX_CHARS;
 }
 
+// C0 and C1 control characters
+// eslint-disable-next-line no-control-regex
+const CONTROL = /[\u0000-\u001F\u007F-\u009F]/;
+
+/**
+ * Whether `name` is a resource name a write may use: 1 to 255 characters, not
+ * `.`/`..`, without `/`, `\`, `?`, `#` or a control character, and no encoded
+ * slash, backslash or dot (`%2F`, `%5C`, `%2E`, any case); decoded it must be
+ * valid and hold none of these either, so a decoding server cannot map it
+ * outside the calendar.
+ */
+export function isSafeResourceName(name: unknown): name is string {
+    if (
+        typeof name !== 'string' ||
+        !partValid(name) ||
+        /[/\\?#]/.test(name) ||
+        CONTROL.test(name) ||
+        /%(?:2f|5c|2e)/i.test(name)
+    ) {
+        return false;
+    }
+
+    let decoded: string;
+
+    try {
+        decoded = decodeURIComponent(name);
+    } catch {
+        return false;
+    }
+
+    return decoded !== '.' &&
+        decoded !== '..' &&
+        !decoded.startsWith('../') &&
+        !/[/\\?#]/.test(decoded) &&
+        !CONTROL.test(decoded);
+}
+
+/** Whether `etag` is a single, concrete version: not `*`, no list (`,`), no control character. */
+export function isSafeEventEtag(etag: unknown): etag is string {
+    return typeof etag === 'string' &&
+        partValid(etag) &&
+        etag.trim() !== '*' &&
+        !etag.includes(',') &&
+        !CONTROL.test(etag);
+}
+
 /**
  * The parts of an event id (ValidationError `CALENDAR_EVENT_ID_MESSAGE` for
  * anything `encodeCalendarEventId` would not give back, an empty part, a name
- * with `/` or a name or ETag above 255 characters).
+ * `isSafeResourceName` refuses or an ETag `isSafeEventEtag` refuses).
  */
 export function parseCalendarEventId(id: unknown): CalendarEventRef {
     if (typeof id === 'string') {
@@ -41,9 +87,8 @@ export function parseCalendarEventId(id: unknown): CalendarEventRef {
             if (
                 account.length > 0 &&
                 slug.length > 0 &&
-                partValid(name) &&
-                partValid(etag) &&
-                !name.includes('/') &&
+                isSafeResourceName(name) &&
+                isSafeEventEtag(etag) &&
                 encodeCalendarEventId({
                     calendar, 
                     name, 

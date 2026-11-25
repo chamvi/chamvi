@@ -82,6 +82,9 @@ describe('writeGuardedFetch', () => {
             { method: 'DELETE' },
             { method: 'DELETE', headers: { 'If-Match': '' } },
             { method: 'DELETE', headers: { 'If-None-Match': '*' } },
+            { method: 'DELETE', headers: { 'If-Match': '*' } },
+            { method: 'DELETE', headers: { 'If-Match': ' * ' } },
+            { method: 'DELETE', headers: { 'If-Match': '"a", "b"' } },
         ];
 
         for (const init of refused) {

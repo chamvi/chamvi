@@ -8,7 +8,7 @@
 import { ChamviError, ValidationError } from '@chamvi/core';
 import { createDAVClient } from 'tsdav';
 import type { DAVCalendar, DAVCalendarObject } from 'tsdav';
-import { encodeCalendarEventId } from '../event-id/module.ts';
+import { encodeCalendarEventId, isSafeEventEtag, isSafeResourceName } from '../event-id/module.ts';
 import { expandEvents } from '../expand/module.ts';
 import type { CalendarEvent, CalendarRange } from '../expand/types.ts';
 import { normalizeAccounts, normalizeClientOptions } from '../options/module.ts';
@@ -68,10 +68,11 @@ function viewOf(account: CalendarAccount, calendar: DAVCalendar): CalendarView {
 
 /**
  * The event id of `object`: only when its URL is a direct child of the
- * calendar's URL and the server gave it an ETag.
+ * calendar's URL with a name a delete may use and the server gave it a
+ * concrete ETag; otherwise the event keeps no id.
  */
 function idOf(entry: CalendarEntry, object: DAVCalendarObject): string | undefined {
-    if (typeof object.etag !== 'string' || object.etag.length === 0 || !URL.canParse(object.url) || !URL.canParse(entry.dav.url)) {
+    if (!isSafeEventEtag(object.etag) || !URL.canParse(object.url) || !URL.canParse(entry.dav.url)) {
         return undefined;
     }
 
@@ -84,8 +85,7 @@ function idOf(entry: CalendarEntry, object: DAVCalendarObject): string | undefin
         url.search.length > 0 ||
         url.hash.length > 0 ||
         !url.pathname.startsWith(parent.pathname) ||
-        name.length === 0 ||
-        name.includes('/')
+        !isSafeResourceName(name)
     ) {
         return undefined;
     }

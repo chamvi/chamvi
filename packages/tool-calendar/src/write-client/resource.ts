@@ -10,8 +10,9 @@ import { ValidationError } from '@chamvi/core';
 import { calendarError } from '../client/asserts.ts';
 import type { CalendarAccount } from '../client/types.ts';
 import { CALENDAR_EVENT_ID_MESSAGE } from '../event-id/constants.ts';
+import { isSafeResourceName } from '../event-id/module.ts';
 import { basicAuthorizationOf } from './asserts.ts';
-import { CALENDAR_EVENT_MAX_BYTES, CALENDAR_RESOURCE_NAME_MAX_CHARS } from './constants.ts';
+import { CALENDAR_EVENT_MAX_BYTES } from './constants.ts';
 import type { CalendarResourceRequest, CalendarWriteView } from './types.ts';
 
 /** A base no request goes to: `assertResourceName` resolves names against it before any lookup. */
@@ -19,20 +20,12 @@ const PROBE_BASE = 'https://calendar.invalid/calendar/';
 
 /**
  * `name` as a resource name a write may use (ValidationError
- * `CALENDAR_EVENT_ID_MESSAGE`, before any request): 1 to 255 characters, not
- * `.`/`..`, without `/`, `?`, `#` or `\`, and nothing the URL parser would
- * rewrite (`%2e%2e`).
+ * `CALENDAR_EVENT_ID_MESSAGE`, before any request): `isSafeResourceName`
+ * (no encoded slash, backslash or dot either) and nothing the URL parser
+ * would rewrite.
  */
 export function assertResourceName(name: string): void {
-    if (
-        typeof name !== 'string' ||
-        name.length === 0 ||
-        name.length > CALENDAR_RESOURCE_NAME_MAX_CHARS ||
-        name === '.' ||
-        name === '..' ||
-        /[/?#\\]/.test(name) ||
-        new URL(`./${name}`, PROBE_BASE).href !== `${PROBE_BASE}${name}`
-    ) {
+    if (!isSafeResourceName(name) || new URL(`./${name}`, PROBE_BASE).href !== `${PROBE_BASE}${name}`) {
         throw new ValidationError(CALENDAR_EVENT_ID_MESSAGE);
     }
 }

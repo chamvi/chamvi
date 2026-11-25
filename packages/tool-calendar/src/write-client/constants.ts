@@ -21,9 +21,6 @@ export const CALENDAR_ADDRESS_PATTERN = /^[^\s@<>(),;:"\\]+@[^\s@<>(),;:"\\]+\.[
 /** The refusal of a calendar id that names no listed VEVENT calendar. */
 export const CALENDAR_UNKNOWN_MESSAGE = 'calendar is unknown: take one from calendar_list.';
 
-/** The longest resource name a write names, in characters. */
-export const CALENDAR_RESOURCE_NAME_MAX_CHARS = 255;
-
 /** The PRODID of every created event. */
 export const CALENDAR_PRODID = '-//chamvi//tool-calendar//EN';
 

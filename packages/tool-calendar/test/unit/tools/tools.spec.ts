@@ -135,6 +135,54 @@ describe('calendarTools', () => {
         expect(result.events[0]).not.toHaveProperty('id');
     });
 
+    it('gives no id to an object whose name or version a delete could not use safely', async () => {
+        const ics = (uid: string) => calendar(vevent(`UID:${uid}`, 'DTSTART;VALUE=DATE:20261109', 'DTEND;VALUE=DATE:20261110', `SUMMARY:${uid}`));
+        const server = createFakeCalDav([{
+            slug: 'home',
+            name: 'Home',
+            objects: [
+                {
+                    name: '..%2Fwork%2Fx.ics', 
+                    ics: ics('encoded'), 
+                    etag: '"1"', 
+                },
+                {
+                    name: 'star.ics', 
+                    ics: ics('star'), 
+                    etag: '*', 
+                },
+                {
+                    name: 'list.ics', 
+                    ics: ics('list'), 
+                    etag: '"a", "b"', 
+                },
+                {
+                    name: 'fine%20name.ics', 
+                    ics: ics('fine'), 
+                    etag: '"2"', 
+                },
+            ],
+        }]);
+        const tools = calendarTools({ accounts: [ACCOUNT], fetch: server.fetch });
+        const result = await callTool<{ events: { uid: string; id?: string }[] }>(
+            tools,
+            'calendar_events',
+            { from: '2026-11-09', to: '2026-11-10' },
+            toolContext(),
+        );
+        const ids = Object.fromEntries(result.events.map((event) => [event.uid, event.id]));
+
+        expect(Object.keys(ids).sort()).toEqual(['encoded', 'fine', 'list', 'star']);
+        expect(ids.encoded).toBeUndefined();
+        expect(ids.star).toBeUndefined();
+        expect(ids.list).toBeUndefined();
+        expect(ids.fine).toBe(encodeCalendarEventId({
+            calendar: 'me:home', 
+            name: 'fine%20name.ics', 
+            etag: '"2"', 
+        }));
+    });
+
     it('uses the timezone option', async () => {
         const tools = calendarTools({
             accounts: [ACCOUNT],
