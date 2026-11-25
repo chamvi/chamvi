@@ -14,6 +14,7 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
+    InvalidRunStateError,
     TimeoutError,
     ValidationError,
     defineModelAgent,
@@ -28,6 +29,7 @@ import type {
     ChatPayload,
     ChatVoiceOptions,
 } from '@chamvi/chat';
+import { inspect } from 'node:util';
 import { mockModel, textModel } from '@chamvi/test-kit';
 import type { Attachment } from 'chat';
 import { createTextMessage } from '../../utils/adapter.ts';
@@ -58,6 +60,8 @@ type Note = {
     durationSeconds?: number;
     /** what fetchData returns; default AUDIO */
     data?: Buffer;
+    /** fetchData rejects with it */
+    fetchError?: Error;
     /** no fetchData at all */
     unfetchable?: boolean;
     /** attachments after the audio one */
@@ -75,6 +79,10 @@ function voiceNote(note: Note, fetches: string[]) {
         ...(note.unfetchable ? {} : {
             fetchData: async () => {
                 fetches.push(note.id);
+
+                if (note.fetchError) {
+                    throw note.fetchError;
+                }
 
                 return note.data ?? AUDIO;
             },
@@ -228,14 +236,20 @@ describe('voice messages in chat intake', () => {
         expect(ctx.model.calls).toEqual([]);
         expect(await ctx.fixture.runs()).toEqual([]);
         expect(ctx.fixture.errors).toEqual([expect.any(ValidationError)]);
+        expect((ctx.fixture.errors[0] as Error).message).toMatch(/longer than 300s/);
+        expect((ctx.fixture.errors[0] as Error).message).not.toMatch(/bytes/);
     });
 
-    it('names at least one minute in the too-long notice', async () => {
-        const ctx = await setup({ voice: { maxSeconds: 59 } });
+    it.each([
+        [59, 'Voice message too long: at most 1 minute.'],
+        [119, 'Voice message too long: at most 1 minute.'],
+        [120, 'Voice message too long: at most 2 minutes.'],
+    ])('names the whole minutes of maxSeconds %i, at least one', async (maxSeconds, notice) => {
+        const ctx = await setup({ voice: { maxSeconds } });
 
-        await ctx.fixture.adapter.deliver(ctx.note({ id: 'v-1', durationSeconds: 60 }));
+        await ctx.fixture.adapter.deliver(ctx.note({ id: 'v-1', durationSeconds: maxSeconds + 1 }));
 
-        expect(ctx.posted()).toEqual(['Voice message too long: at most 1 minutes.']);
+        expect(ctx.posted()).toEqual([notice]);
     });
 
     it('refuses above maxBytes by reported size without downloading', async () => {
@@ -244,6 +258,8 @@ describe('voice messages in chat intake', () => {
         await ctx.fixture.adapter.deliver(ctx.note({ id: 'v-1', size: 17 }));
 
         expect(ctx.posted()).toEqual([NOTICE_LONG]);
+        expect((ctx.fixture.errors[0] as Error).message).toMatch(/larger than 16 bytes/);
+        expect((ctx.fixture.errors[0] as Error).message).not.toMatch(/\d+s\b/);
         expect(ctx.fetches).toEqual([]);
         expect(ctx.model.calls).toEqual([]);
         expect(await ctx.fixture.runs()).toEqual([]);
@@ -281,7 +297,45 @@ describe('voice messages in chat intake', () => {
         expect(await ctx.fixture.runs()).toEqual([]);
         // one call: no retries on real timers
         expect(ctx.model.calls).toHaveLength(1);
-        expect(ctx.fixture.errors).toEqual([failure]);
+        expect(ctx.fixture.errors).toEqual([expect.any(ValidationError)]);
+        expect((ctx.fixture.errors[0] as Error).message).toContain('Error: stt down');
+    });
+
+    it('reports a model error without its request body', async () => {
+        const failure = Object.assign(new Error('provider refused'), {
+            name: 'AI_APICallError',
+            requestBodyValues: { audio: 'secret-audio-base64' },
+        });
+        const ctx = await setup({ model: transcriptionModel(failure) });
+
+        await ctx.fixture.adapter.deliver(ctx.note({ id: 'v-1' }));
+
+        expect(ctx.posted()).toEqual([NOTICE_UNCLEAR]);
+        expect(ctx.fixture.errors).toHaveLength(1);
+
+        const [reported] = ctx.fixture.errors as [Error];
+
+        expect(reported).toBeInstanceOf(ValidationError);
+        expect(reported).not.toBe(failure);
+        expect(reported.message).toContain('AI_APICallError: provider refused');
+        expect(reported.cause).toBeUndefined();
+        expect(JSON.stringify(reported)).not.toContain('secret-audio-base64');
+        expect(inspect(reported, { depth: 10, showHidden: true })).not.toContain('secret-audio-base64');
+        expect(inspect(reported, { depth: 10, showHidden: true })).not.toContain('requestBodyValues');
+    });
+
+    it('reports a failed download as a chamvi error', async () => {
+        const failure = Object.assign(new Error('media gone'), { body: 'secret-audio-base64' });
+        const ctx = await setup();
+
+        await ctx.fixture.adapter.deliver(ctx.note({ id: 'v-1', fetchError: failure }));
+
+        expect(ctx.posted()).toEqual([NOTICE_UNCLEAR]);
+        expect(ctx.model.calls).toEqual([]);
+        expect(ctx.fixture.errors).toEqual([expect.any(ValidationError)]);
+        expect((ctx.fixture.errors[0] as Error).message).toContain('media gone');
+        expect(inspect(ctx.fixture.errors[0], { depth: 10, showHidden: true })).not.toContain('secret-audio-base64');
+        expect(await ctx.fixture.runs()).toEqual([]);
     });
 
     it('keys the notice per message', async () => {
@@ -370,6 +424,42 @@ describe('voice messages in chat intake', () => {
         await Promise.all(deliveries);
 
         expect(ctx.posted()).toEqual([NOTICE_UNCLEAR, NOTICE_UNCLEAR, NOTICE_UNCLEAR]);
+    });
+
+    it('releases the slots and rethrows the stop reason when the channel stops', async () => {
+        const model = transcriptionModel('hang', 'hang', 'nach dem Neustart');
+        const ctx = await setup({ model });
+
+        const deliveries = ['v-1', 'v-2', 'v-3'].map((id) => ctx.fixture.adapter.deliver(ctx.note({ id })).catch((caught: unknown) => caught));
+
+        await vi.waitFor(() => expect(model.calls).toHaveLength(2));
+        await flush();
+        // v-3 waits for a slot
+        expect(ctx.fetches).toEqual(['v-1', 'v-2']);
+
+        await ctx.fixture.engine.stop();
+
+        const outcomes = await Promise.all(deliveries);
+
+        expect(outcomes).toEqual([
+            expect.any(InvalidRunStateError),
+            expect.any(InvalidRunStateError),
+            expect.any(InvalidRunStateError),
+        ]);
+        expect(outcomes.every((outcome) => (outcome as Error).message.includes('stopped'))).toBe(true);
+        expect(model.calls.every((call) => call.abortSignal?.aborted)).toBe(true);
+        expect(ctx.fetches).toEqual(['v-1', 'v-2']);
+        expect(ctx.posted()).toEqual([]);
+        expect(await ctx.fixture.runs()).toEqual([]);
+
+        // both slots are free again: a note after a restart is transcribed at once
+        await ctx.fixture.engine.start();
+        await ctx.fixture.adapter.deliver(ctx.note({ id: 'v-4' }));
+
+        const runs = await ctx.fixture.runs();
+
+        expect(runs).toHaveLength(1);
+        expect((runs[0]!.trigger.payload as ChatPayload).message.text).toBe('[Voice message] nach dem Neustart');
     });
 
     it('a voice reply answers the single open approval', async () => {

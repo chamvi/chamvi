@@ -21,6 +21,7 @@ import type {
 
 const MEDIA_TYPE_MAX_LENGTH = 255;
 const MEDIA_TYPE_UNKNOWN = 'application/octet-stream';
+const ERROR_DETAIL_MAX_LENGTH = 500;
 
 /** What one download and transcription gave: the transcript and its size, or the failure to report. */
 type ChatVoiceHeard = { text: string; bytes: number } | { error: unknown };
@@ -107,7 +108,9 @@ export function isChatVoiceMessage(incoming: ChatIncoming, options: ResolvedChat
 
 function chatVoiceNoticeText(notice: ChatVoiceNotice, voice: ResolvedChatVoiceOptions): string {
     if (notice === 'long') {
-        return `Voice message too long: at most ${Math.max(1, Math.floor(voice.maxSeconds / 60))} minutes.`;
+        const minutes = Math.max(1, Math.floor(voice.maxSeconds / 60));
+
+        return `Voice message too long: at most ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`;
     }
 
     return CHAT_VOICE_NOTICE_UNCLEAR;
@@ -174,6 +177,19 @@ function untilAborted<T>(promise: PromiseLike<T>, signal: AbortSignal): Promise<
     return Promise.race([promise, aborted]).finally(release);
 }
 
+/**
+ * A failed download or transcription as a chamvi error naming only the
+ * original's name and message (cut), never the original: a provider error
+ * may carry the request body, and with it the audio.
+ */
+function chatVoiceFailure(options: ResolvedChatChannelOptions, error: unknown): ValidationError {
+    const name = Error.isError(error) ? error.name : typeof error;
+    const message = Error.isError(error) ? error.message : '';
+    const detail = `${name}${message ? `: ${message}` : ''}`;
+
+    return new ValidationError(`Chat channel "${options.name}" could not transcribe a voice message (${detail.length > ERROR_DETAIL_MAX_LENGTH ? `${detail.slice(0, ERROR_DETAIL_MAX_LENGTH)}...` : detail}).`);
+}
+
 function toBytes(data: unknown): Uint8Array | undefined {
     if (data instanceof Uint8Array) {
         return data;
@@ -235,7 +251,7 @@ async function hearChatVoice(ctx: ChatIntakeContext, audio: ChatAudioAttachment)
             throw ctx.signal.reason;
         }
 
-        return { error: timeout.signal.aborted ? timeout.signal.reason : error };
+        return { error: timeout.signal.aborted ? timeout.signal.reason : chatVoiceFailure(options, error) };
     } finally {
         timer.clear();
     }
@@ -264,9 +280,17 @@ export async function transcribeChatVoice(
         audio.durationSeconds :
         undefined;
 
-    if ((seconds !== undefined && seconds > voice.maxSeconds) || (typeof audio.size === 'number' && audio.size > voice.maxBytes)) {
+    let bound: string | undefined;
+
+    if (seconds !== undefined && seconds > voice.maxSeconds) {
+        bound = `it is longer than ${voice.maxSeconds}s`;
+    } else if (typeof audio.size === 'number' && audio.size > voice.maxBytes) {
+        bound = `it is larger than ${voice.maxBytes} bytes`;
+    }
+
+    if (bound) {
         await refuseChatVoice(ctx, payload, address, 'long', new ValidationError(
-            `Chat channel "${options.name}" refused a voice message of adapter "${payload.adapter}": it exceeds ${voice.maxSeconds}s or ${voice.maxBytes} bytes.`,
+            `Chat channel "${options.name}" refused a voice message of adapter "${payload.adapter}": ${bound}.`,
         ));
 
         return undefined;
