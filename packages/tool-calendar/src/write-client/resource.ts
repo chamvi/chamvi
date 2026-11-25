@@ -11,7 +11,7 @@ import { calendarError } from '../client/asserts.ts';
 import type { CalendarAccount } from '../client/types.ts';
 import { CALENDAR_EVENT_ID_MESSAGE } from '../event-id/constants.ts';
 import { basicAuthorizationOf } from './asserts.ts';
-import { CALENDAR_RESOURCE_NAME_MAX_CHARS } from './constants.ts';
+import { CALENDAR_EVENT_MAX_BYTES, CALENDAR_RESOURCE_NAME_MAX_CHARS } from './constants.ts';
 import type { CalendarResourceRequest, CalendarWriteView } from './types.ts';
 
 /**
@@ -58,4 +58,47 @@ export function resourceRequest(fetch: typeof globalThis.fetch, account: Calenda
 /** The tool error of an unexpected answer: 401 and 403 `not permitted`, any other (a 3xx too) `request failed`. */
 export function statusError(tool: string, account: string, status: number): ChamviError {
     return calendarError(`${tool}: ${account}: ${status === 401 || status === 403 ? 'not permitted' : 'request failed'}`);
+}
+
+/**
+ * The body of `response`, at most `CALENDAR_EVENT_MAX_BYTES` (by its
+ * `content-length` and by the bytes read): above, `<tool>: <account>: too
+ * large`, the rest unread.
+ */
+export async function readResourceBody(response: Response, tool: string, account: string): Promise<Uint8Array> {
+    const length = Number(response.headers.get('content-length') ?? '0');
+
+    if (length > CALENDAR_EVENT_MAX_BYTES || !response.body) {
+        await response.body?.cancel();
+
+        if (length > CALENDAR_EVENT_MAX_BYTES) {
+            throw calendarError(`${tool}: ${account}: too large`);
+        }
+
+        return new Uint8Array();
+    }
+
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+
+    for await (const chunk of response.body) {
+        size += chunk.byteLength;
+
+        if (size > CALENDAR_EVENT_MAX_BYTES) {
+            throw calendarError(`${tool}: ${account}: too large`);
+        }
+
+        chunks.push(chunk);
+    }
+
+    return Buffer.concat(chunks);
+}
+
+/** Drops the body of an answer whose content is not used. */
+export async function discardBody(response: Response): Promise<void> {
+    try {
+        await response.body?.cancel();
+    } catch {
+        // nothing to free
+    }
 }

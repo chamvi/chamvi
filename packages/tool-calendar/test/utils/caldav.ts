@@ -67,6 +67,10 @@ export type FakeCalDav = {
     };
     /** Runs before a request on an object URL is answered (a test changes the event there). */
     before?: (request: FakeRequest) => void;
+    /** `false`: a PUT answers `201` without an `ETag` header. */
+    putEtag?: boolean;
+    /** Counts the PUTs that stored an object (their ETags are `"w<n>"`). */
+    writes: number;
 };
 
 function multistatus(body: string): string {
@@ -116,7 +120,11 @@ function hang(signal: AbortSignal | null | undefined): Promise<Response> {
     });
 }
 
-/** The answer to a request on the object `name` of `calendar`: `fail` first, then a GET of the resource, else 404. */
+/**
+ * The answer to a request on the object `name` of `calendar`: `fail` first;
+ * a PUT creates (`412` on an existing name with `If-None-Match: *`), a DELETE
+ * removes (`404` absent, `412` on another `If-Match`), a GET reads, else 404.
+ */
 function objectResponse(fake: FakeCalDav, calendar: FakeCalendar, name: string, request: FakeRequest): Response {
     fake.before?.(request);
 
@@ -127,7 +135,41 @@ function objectResponse(fake: FakeCalDav, calendar: FakeCalendar, name: string, 
         });
     }
 
-    const object = fakeObjectsOf(calendar).find((item) => item.name === name);
+    const objects = fakeObjectsOf(calendar);
+    const object = objects.find((item) => item.name === name);
+
+    if (request.method === 'PUT') {
+        if (object && request.headers['if-none-match'] === '*') {
+            return new Response('<error>exists</error>', { status: 412 });
+        }
+
+        fake.writes++;
+
+        const etag = `"w${fake.writes}"`;
+
+        // strings become objects first, so removing or adding one keeps the names of the others
+        calendar.objects = [...objects.filter((item) => item.name !== name), {
+            name, 
+            ics: request.body, 
+            etag, 
+        }];
+
+        return new Response(null, { status: 201, headers: fake.putEtag === false ? {} : { etag } });
+    }
+
+    if (request.method === 'DELETE') {
+        if (!object) {
+            return new Response('not found', { status: 404 });
+        }
+
+        if (request.headers['if-match'] !== object.etag) {
+            return new Response('<error>changed</error>', { status: 412 });
+        }
+
+        calendar.objects = objects.filter((item) => item !== object);
+
+        return new Response(null, { status: 204 });
+    }
 
     if (request.method === 'GET' && object) {
         return new Response(object.ics, {
@@ -155,6 +197,7 @@ export function createFakeCalDav(calendars: FakeCalendar[] = []): FakeCalDav {
         calendars,
         hang: false,
         addresses: [],
+        writes: 0,
         fetch: async (input, init) => {
             const url = new URL(input instanceof Request ? input.url : String(input));
             const method = (init?.method ?? 'GET').toUpperCase();

@@ -7,4 +7,10 @@
 
 export { CALENDAR_EVENT_MAX_BYTES, CALENDAR_WRITE_ALLOWED_METHODS } from './constants.ts';
 export { createCalendarWriteClient } from './module.ts';
-export type { CalendarWriteView, ICalendarWriteClient } from './types.ts';
+export type {
+    CalendarCreateRequest,
+    CalendarCreateResult,
+    CalendarTime,
+    CalendarWriteView,
+    ICalendarWriteClient,
+} from './types.ts';

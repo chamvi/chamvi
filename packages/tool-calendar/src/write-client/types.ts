@@ -22,6 +22,42 @@ export type CalendarWriteView = {
 /** A listed calendar of a write session: its view and tsdav's record. */
 export type CalendarWriteEntry = { view: CalendarWriteView; dav: DAVCalendar };
 
+/** A time of an event: a plain date (all-day) or an instant. */
+export type CalendarTime = { kind: 'date'; date: Temporal.PlainDate } | { kind: 'instant'; instant: Temporal.Instant };
+
+/** One event to create: the tool checked every field. */
+export type CalendarCreateRequest = {
+    /** A calendar id of `calendar_list`. */
+    calendar: string;
+    /** `calendarResourceOf(key).uid`. */
+    uid: string;
+    /** `calendarResourceOf(key).name`: the resource the event is stored as. */
+    name: string;
+    title: string;
+    start: CalendarTime;
+    /** Exclusive; a date for an all-day event. */
+    end: CalendarTime;
+    location?: string;
+    description?: string;
+    /** The address invitations come from; required with attendees. */
+    organizer?: string;
+    /** Bare addresses, deduplicated. */
+    attendees: string[];
+};
+
+export type CalendarCreateResult = {
+    calendar: string;
+    uid: string;
+    /** The event id for `calendar_delete`; absent when the server gave no ETag. */
+    event?: string;
+    /** As `calendar_events` prints it: ISO with the zone's offset, or a plain date. */
+    start: string;
+    end: string;
+    allDay: boolean;
+    /** The number of attendees invited. */
+    invited: number;
+};
+
 /** One request on an event resource. */
 export type CalendarResourceRequest = {
     method: string;
@@ -50,6 +86,17 @@ export interface ICalendarWriteClient {
      * without either.
      */
     organizer(account: string, signal?: AbortSignal): Promise<string | undefined>;
+    /**
+     * PUTs `request` as a new resource (`If-None-Match: *`). A `412` on a
+     * resource holding the same UID is the replay and answers as created;
+     * nothing throws after the server accepted the PUT.
+     */
+    create(request: CalendarCreateRequest, signal?: AbortSignal): Promise<CalendarCreateResult>;
+    /**
+     * The event a create with effect key `key` stored in `calendar`; undefined
+     * when the resource is absent. Any other answer throws (fail closed).
+     */
+    findCreated(calendar: string, key: string, signal?: AbortSignal): Promise<CalendarCreateResult | undefined>;
     /** Forgets every session; the next call logs in again. */
     close(): Promise<void>;
 }

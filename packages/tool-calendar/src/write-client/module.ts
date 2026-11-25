@@ -12,8 +12,14 @@ import { normalizeAccounts, normalizeClientOptions } from '../options/module.ts'
 import type { CalendarClientOptions, CalendarClientOptionsNormalized } from '../options/types.ts';
 import { organizerOf } from './asserts.ts';
 import { CALENDAR_UNKNOWN_MESSAGE } from './constants.ts';
+import { createCalendarEvent, findCreatedEvent } from './create.ts';
 import { CalendarWriteSessions } from './session.ts';
-import type { CalendarWriteView, ICalendarWriteClient } from './types.ts';
+import type {
+    CalendarCreateRequest,
+    CalendarCreateResult,
+    CalendarWriteView,
+    ICalendarWriteClient,
+} from './types.ts';
 
 /** The tool a lookup's failure names: the create looks up calendars and organizers. */
 const LOOKUP_TOOL = 'calendar_create';
@@ -51,6 +57,14 @@ class CalendarWriteClient implements ICalendarWriteClient {
         const addresses = await this.sessions.run(LOOKUP_TOOL, account, signal, (inner) => this.sessions.addresses(account, inner));
 
         return organizerOf(addresses, user);
+    }
+
+    async create(request: CalendarCreateRequest, signal?: AbortSignal): Promise<CalendarCreateResult> {
+        return createCalendarEvent(this.sessions, request, signal);
+    }
+
+    async findCreated(calendar: string, key: string, signal?: AbortSignal): Promise<CalendarCreateResult | undefined> {
+        return findCreatedEvent(this.sessions, calendar, key, signal);
     }
 
     async close(): Promise<void> {
