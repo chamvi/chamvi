@@ -66,7 +66,7 @@ const DISCORD_SHUTDOWN_TIMEOUT_MS: 30_000;
 | `state` | Required. The Chat SDK `StateAdapter` of the `Chat` |
 | `approvalUrl(ref)` | Required. The approval link, `ref = { runId, approvalId, agent }` (ids only) |
 | `answers` | `{ model?, timeoutMs? }`: approvals answered by a DM reply (see above); off by default |
-| `voice` | As for [`chatChannel()`](/reference/chat#voice-messages); no effect yet: Discord audio is never downloaded, so it stays refused |
+| `voice` | As for [`chatChannel()`](/reference/chat#voice-messages): `voice.model` is still resolved when the channel starts (it needs a resolver that can build a transcription model; a bad model fails the start), but Discord audio is never downloaded, so it stays refused |
 | `name`, `untrusted`, `timeoutMs` | As for [`chatChannel()`](/reference/chat#chatchannel) |
 | `clock` | The connector's clock (login backoff, shutdown bound); default the engine's |
 | `onError` | Failures nobody awaits; default `console.error` |

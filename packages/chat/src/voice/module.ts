@@ -297,8 +297,10 @@ async function hearChatVoice(ctx: ChatIntakeContext, audio: ChatAudioAttachment)
  * went to the chat instead (no run): a reported duration above
  * `maxSeconds` or size above `maxBytes` (nothing downloaded), or a failed
  * download or transcription (each reported to `onError`). At most
- * `CHAT_VOICE_CONCURRENCY` messages of a channel are downloaded and
- * transcribed at once; the bytes live in memory only.
+ * `CHAT_VOICE_CONCURRENCY` voice tasks of a channel hold a slot at once; a
+ * timed-out task releases its slot while an abandoned `fetchData` (no
+ * signal) may still run, uncounted, so a platform bounds its own download in
+ * time and bytes. The bytes live in memory only.
  */
 export async function transcribeChatVoice(
     ctx: ChatIntakeContext,
