@@ -225,7 +225,7 @@ With a provider of your own, `chatModule({ channel: setup.channel })` of `@chamv
 | `createWhatsAppChat(options)` | `{ chat, ingress, channel, status(), reset(), conversation() }` |
 | `createStoreWhatsAppAuth({ vault, connection, owner?, leaseTtlMs? })` | The store-backed `IWhatsAppAuthProvider`; `WHATSAPP_CONNECTION_TYPE` `'whatsapp'` |
 | `whatsappModule(options)` (`/module`) | `WhatsAppModule { channel, handle, on(), to(), conversation(), status(), reset() }`, `WhatsAppModuleOptions` |
-| Types `WhatsAppChatOptions`, `WhatsAppChatSetup`, `StoreWhatsAppAuthOptions`, `WhatsAppPolicy`, `WhatsAppIdentity`, `IWhatsAppAuthProvider`, `WhatsAppAuthLease`, `WhatsAppPairing`, `WhatsAppConnectionStatus`, `WhatsAppSocket`, `WhatsAppSocketFactory`, `WhatsAppMediaDownload` | |
+| Types `WhatsAppChatOptions`, `WhatsAppChatSetup`, `StoreWhatsAppAuthOptions`, `WhatsAppPolicy`, `WhatsAppIdentity`, `IWhatsAppAuthProvider`, `WhatsAppAuthLease`, `WhatsAppPairing`, `WhatsAppConnectionStatus`, `WhatsAppSocket`, `WhatsAppSocketFactory`, `WhatsAppMediaDownload`, `WhatsAppMediaDownloadOptions` | |
 | `WHATSAPP_ADAPTER_NAME` `'whatsapp'`, `WHATSAPP_RECONNECT`, `WHATSAPP_SHUTDOWN_TIMEOUT_MS` 30 000 | |
 | Error codes `whatsapp_auth`, `whatsapp_connection`, `whatsapp_logged_out` (`WHATSAPP_*_ERROR_CODE`) | |
 

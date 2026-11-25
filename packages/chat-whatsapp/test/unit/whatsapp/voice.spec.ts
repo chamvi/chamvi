@@ -16,10 +16,16 @@ import { MockTranscriptionModelV4 } from 'ai/test';
 import type { WAMessage } from 'baileys';
 import type { ChatInstance, Message } from 'chat';
 import type { IEngine } from '@chamvi/core';
+import { CHAT_VOICE_MAX_BYTES } from '@chamvi/chat';
 import type { ChatAudioAttachment, ChatPayload } from '@chamvi/chat';
 import { ControllableClock } from '@chamvi/test-kit';
 import { createWhatsAppAdapter } from '../../../src/whatsapp/adapter.ts';
-import type { WhatsAppAdapter, WhatsAppSocket } from '../../../src/whatsapp/types.ts';
+import type {
+    WhatsAppAdapter,
+    WhatsAppMediaDownload,
+    WhatsAppMediaDownloadOptions,
+    WhatsAppSocket,
+} from '../../../src/whatsapp/types.ts';
 import { createRecordingAuth } from '../../utils/auth.ts';
 import {
     ALICE,
@@ -68,9 +74,17 @@ function voiceNote(chat: string): WAMessage {
 
 /** A downloadMedia seam recording every call. */
 function recordingDownload() {
-    const calls: Array<{ message: WAMessage; socket: WhatsAppSocket }> = [];
-    const download = async (message: WAMessage, socket: WhatsAppSocket): Promise<Uint8Array> => {
-        calls.push({ message, socket });
+    const calls: Array<{
+        message: WAMessage;
+        socket: WhatsAppSocket;
+        options: WhatsAppMediaDownloadOptions
+    }> = [];
+    const download = async (message: WAMessage, socket: WhatsAppSocket, options: WhatsAppMediaDownloadOptions): Promise<Uint8Array> => {
+        calls.push({
+            message,
+            socket,
+            options,
+        });
 
         return AUDIO;
     };
@@ -79,12 +93,13 @@ function recordingDownload() {
 }
 
 /** An adapter over a fake socket whose messages land in `received`. */
-async function connected(downloadMedia: (message: WAMessage, socket: WhatsAppSocket) => Promise<Uint8Array>) {
+async function connected(downloadMedia: WhatsAppMediaDownload) {
     const sockets = createFakeSockets();
     const received: Message[] = [];
     const adapter = createWhatsAppAdapter({
         account: 'support',
         userName: 'chamvi',
+        mediaMaxBytes: 1024,
         auth: createRecordingAuth().provider,
         socketFactory: sockets.factory,
         downloadMedia,
@@ -135,10 +150,10 @@ describe('WhatsApp voice notes', () => {
         const raw = voiceNote(ALICE);
 
         raw.message!.audioMessage!.fileLength = {
-            low: 5120, 
-            high: 0, 
-            unsigned: true, 
-            toNumber: () => 5120, 
+            low: 5120,
+            high: 0,
+            unsigned: true,
+            toNumber: () => 5120,
         } as never;
         socket.deliver(raw);
         await settle();
@@ -162,6 +177,7 @@ describe('WhatsApp voice notes', () => {
         expect(calls).toHaveLength(1);
         expect(calls[0]?.message).toBe(raw);
         expect(calls[0]?.socket).toBe(socket);
+        expect(calls[0]?.options).toEqual({ maxBytes: 1024 });
     });
 
     it('other media keep no fetchData', async () => {
@@ -195,7 +211,7 @@ describe('WhatsApp voice notes', () => {
                 };
             },
         });
-        const value = createWhatsAppFixture({ patch: { voice: { model }, downloadMedia: download } });
+        const value = createWhatsAppFixture({ patch: { voice: { model, maxBytes: 8192 }, downloadMedia: download } });
 
         engines.push(value.engine);
         await value.engine.start();
@@ -226,7 +242,35 @@ describe('WhatsApp voice notes', () => {
             seconds: 4,
         });
         expect(calls).toHaveLength(1);
+        expect(calls[0]?.options).toEqual({ maxBytes: 8192 });
         expect(transcribed).toHaveLength(1);
         expect(new Uint8Array(transcribed[0]!)).toEqual(AUDIO);
+    });
+
+    it('bounds the download by CHAT_VOICE_MAX_BYTES when voice sets no maxBytes', async () => {
+        const { calls, download } = recordingDownload();
+        const model = new MockTranscriptionModelV4({
+            doGenerate: async () => ({
+                text: 'ok',
+                segments: [],
+                language: undefined,
+                durationInSeconds: undefined,
+                warnings: [],
+                response: { timestamp: new Date(0), modelId: 'mock-model-id' },
+            }),
+        });
+        const value = createWhatsAppFixture({ patch: { voice: { model }, downloadMedia: download } });
+
+        engines.push(value.engine);
+        await value.engine.start();
+        value.sockets.last().open();
+        value.sockets.last().deliver(voiceNote(ALICE));
+        await settle();
+        await value.engine.idle();
+
+        await vi.waitFor(() => {
+            expect(calls).toHaveLength(1);
+        });
+        expect(calls[0]?.options).toEqual({ maxBytes: CHAT_VOICE_MAX_BYTES });
     });
 });

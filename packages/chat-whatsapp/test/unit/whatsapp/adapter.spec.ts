@@ -39,6 +39,7 @@ async function connected(): Promise<{ socket: FakeSocket; received: Message[] }>
     const adapter = createWhatsAppAdapter({
         account: 'support',
         userName: 'chamvi',
+        mediaMaxBytes: 1024,
         auth: createRecordingAuth().provider,
         socketFactory: sockets.factory,
         onPairing: () => undefined,

@@ -155,8 +155,13 @@ export type WhatsAppSocket = {
     updateMediaMessage?(message: WAMessage): Promise<WAMessage>;
 };
 
-/** Downloads a media message's bytes; default Baileys' downloadMediaMessage over the socket. */
-export type WhatsAppMediaDownload = (message: WAMessage, socket: WhatsAppSocket) => Promise<Uint8Array>;
+export type WhatsAppMediaDownloadOptions = {
+    /** Read at most this many bytes plus one: more is refused by the channel's size check. */
+    maxBytes: number;
+};
+
+/** Downloads a media message's bytes, bounded; default Baileys' downloadMediaMessage over the socket, as a stream. */
+export type WhatsAppMediaDownload = (message: WAMessage, socket: WhatsAppSocket, options: WhatsAppMediaDownloadOptions) => Promise<Uint8Array>;
 
 /** Makes a socket; default Baileys' makeWASocket. */
 export type WhatsAppSocketFactory = (config: UserFacingSocketConfig) => WhatsAppSocket;
@@ -293,6 +298,8 @@ export type WhatsAppAdapterOptions = Omit<WhatsAppConnectionOptions, 'onMessages
     userName: string;
     /** default downloadWhatsAppMedia */
     downloadMedia?: WhatsAppMediaDownload;
+    /** the download bound: `voice.maxBytes`, default `CHAT_VOICE_MAX_BYTES` */
+    mediaMaxBytes: number;
 };
 
 /** The Chat SDK adapter over one WhatsApp connection (internal). */

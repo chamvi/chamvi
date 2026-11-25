@@ -199,6 +199,7 @@ function textOf(message: AdapterPostableMessage): string {
  */
 export function createWhatsAppAdapter(options: WhatsAppAdapterOptions): WhatsAppAdapter {
     let chat: ChatInstance | undefined;
+    const download = options.downloadMedia ?? downloadWhatsAppMedia;
     const identities = new WeakMap<Message, WhatsAppIdentity | undefined>();
 
     const report = (error: unknown) => {
@@ -214,9 +215,8 @@ export function createWhatsAppAdapter(options: WhatsAppAdapterOptions): WhatsApp
 
     const handle = async (socket: WhatsAppSocket, raw: WAMessage): Promise<void> => {
         const content = normalizeMessageContent(raw.message);
-        const download = options.downloadMedia ?? downloadWhatsAppMedia;
         const read = readContent(content, async () => {
-            const bytes = await download(raw, socket);
+            const bytes = await download(raw, socket, { maxBytes: options.mediaMaxBytes });
 
             return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
         });

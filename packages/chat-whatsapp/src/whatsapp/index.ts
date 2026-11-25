@@ -24,6 +24,7 @@ export type {
     WhatsAppConversationInput,
     WhatsAppIdentity,
     WhatsAppMediaDownload,
+    WhatsAppMediaDownloadOptions,
     WhatsAppPairing,
     WhatsAppPolicy,
     WhatsAppSocket,
