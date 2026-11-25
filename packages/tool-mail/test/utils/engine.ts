@@ -48,7 +48,7 @@ afterEach(() => {
 
 /**
  * An engine with one agent `assistant` on `model`, the mail write tools over `client` (plus `tools`), and a
- * recording channel `chat` (`out` records, `fits` refuses a message body above `maxChars`, `direct` true). The
+ * recording channel `chat` (`out` records, `fits` refuses a message body above `maxChars`, `direct` per `direct`, default true). The
  * client is also provided on the engine, and the classifier's timeout runs on the engine's clock.
  */
 export function createWriteEngine(options: {
@@ -60,12 +60,14 @@ export function createWriteEngine(options: {
     tools?: ToolSet;
     /** The delete classifier's timeout on the engine's clock. */
     timeoutMs?: number;
+    /** What the channel `chat` answers to `direct()` (default true). */
+    direct?: boolean;
 }): WriteEngine {
     const clock = new ControllableClock(new Date('2026-11-24T10:00:00Z'));
     const sent: WriteEngine['sent'] = [];
     const chat: IChannel = {
         name: 'chat',
-        direct: () => true,
+        direct: () => options.direct ?? true,
         fits(message) {
             if (options.maxChars !== undefined && (message.body ?? '').length > options.maxChars) {
                 throw new ValidationError(`The message has ${(message.body ?? '').length} characters; this chat takes ${options.maxChars}.`);

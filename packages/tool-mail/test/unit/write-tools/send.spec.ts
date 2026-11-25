@@ -75,7 +75,7 @@ describe('mail_send', () => {
                 'Bcc: erin@v.test',
                 'Subject: Lunch on Friday',
                 'In reply to: Alice <alice@x.test>: Re: Hello',
-                '',
+                '--- mail text ---',
                 TEXT,
             ].join('\n'),
         });
@@ -95,7 +95,7 @@ describe('mail_send', () => {
 
         await write.dispatch();
 
-        expect(write.sent[0]!.message.body).toBe('From: bob@y.test\nTo: alice@x.test\nSubject: Hi\n\nHello.');
+        expect(write.sent[0]!.message.body).toBe('From: bob@y.test\nTo: alice@x.test\nSubject: Hi\n--- mail text ---\nHello.');
     });
 
     it('sends once after the approval, with the marker and the Message-ID of its key', async () => {
@@ -217,6 +217,12 @@ describe('mail_send', () => {
         ['an empty text', { text: '' }, 'text must be a string of 1 to 100000'],
         ['a subject of 501 characters', { subject: 's'.repeat(501) }, 'subject must be one line of 1 to 500'],
         ['an unknown account', { account: 'home' }, 'mail_send: account "home" is unknown'],
+        ['a zero-width space in an address', { to: ['ali\u200Bce@x.test'] }, 'to[0] must be one bare address'],
+        ['a bidi override in an address', { cc: ['\u202Eevil@x.test'] }, 'cc[0] must be one bare address'],
+        ['a Cyrillic letter in an address', { to: ['\u0430lice@x.test'] }, 'to[0] must be one bare address'],
+        ['a zero-width space in the subject', { subject: 'Lunch\u200B on Friday' }, 'subject must be one line'],
+        ['a bidi override in the subject', { subject: 'Invoice \u202Efdp.exe' }, 'subject must be one line'],
+        ['a bidi isolate in the subject', { subject: 'Hi \u2066there\u2069' }, 'subject must be one line'],
     ])('refuses %s before asking', async (_, change, message) => {
         const {
             client,
@@ -312,5 +318,25 @@ describe('mail_send', () => {
         });
         expect(smtp.messages).toHaveLength(1);
         expect(write.sent).toHaveLength(1);
+    });
+
+    it('asks through the inbox only when the source address is no direct one', async () => {
+        const { client, smtp } = await setupWrite(false);
+        const write = createWriteEngine({
+            client,
+            model: mockModel([sendCall(INPUT), done]),
+            direct: false,
+        });
+        const runId = await write.dispatch();
+        const waiting = await write.waiting(runId);
+
+        expect(waiting?.title).toBe('Send mail from work?');
+        expect(waiting?.channel).toBeUndefined();
+        expect(write.sent).toEqual([]);
+
+        await write.answer(runId, true);
+
+        expect(smtp.messages).toHaveLength(1);
+        expect((await write.run(runId))?.status).toBe('completed');
     });
 });

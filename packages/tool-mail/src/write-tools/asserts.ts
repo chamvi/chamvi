@@ -19,6 +19,12 @@ import type { MailDeleteInput, MailSendInput } from './types.ts';
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\u2028\u2029]/;
 
+/** Zero-width and bidi formatting characters: they hide or reorder what the owner reads in the approval. */
+const FORMAT_CHARACTERS = /[\u200B-\u200F\u202A-\u202E\u2066-\u2069]/;
+
+/** Printable ASCII only: no look-alike letters, no invisible or reordering characters. */
+const PRINTABLE_ASCII = /^[\x21-\x7E]+$/;
+
 function addressesOf(value: unknown, name: string, required: boolean): string[] | undefined {
     if (value === undefined && !required) {
         return undefined;
@@ -29,7 +35,7 @@ function addressesOf(value: unknown, name: string, required: boolean): string[] 
     }
 
     return value.map((address, index) => {
-        if (typeof address !== 'string' || !MAIL_ADDRESS_PATTERN.test(address)) {
+        if (typeof address !== 'string' || !PRINTABLE_ASCII.test(address) || !MAIL_ADDRESS_PATTERN.test(address)) {
             throw new ValidationError(`${name}[${index}] must be one bare address such as alice@example.com: no display name, no list.`);
         }
 
@@ -55,9 +61,10 @@ export function parseMailSendInput(input: unknown): MailSendInput {
         typeof subject !== 'string' ||
         subject.trim().length === 0 ||
         subject.length > MAIL_SEND_SUBJECT_MAX_CHARS ||
-        CONTROL_CHARACTERS.test(subject)
+        CONTROL_CHARACTERS.test(subject) ||
+        FORMAT_CHARACTERS.test(subject)
     ) {
-        throw new ValidationError(`subject must be one line of 1 to ${MAIL_SEND_SUBJECT_MAX_CHARS} characters without control characters.`);
+        throw new ValidationError(`subject must be one line of 1 to ${MAIL_SEND_SUBJECT_MAX_CHARS} characters without control, zero-width or bidi characters.`);
     }
 
     if (typeof text !== 'string' || text.trim().length === 0 || text.length > MAIL_SEND_TEXT_MAX_CHARS) {

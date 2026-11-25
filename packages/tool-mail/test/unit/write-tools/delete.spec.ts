@@ -121,6 +121,50 @@ describe('mail_delete', () => {
         expect(uidsOf(folders, 'Archive')).toEqual([7]);
     });
 
+    it('keeps the classification across the resume, so a denial stands when the classifier would now say routine', async () => {
+        const { client, folders } = await setupWrite(false);
+        const classifier = mockModel([decision('ask'), decision('routine')]);
+        const write = createWriteEngine({
+            client,
+            model: mockModel([deleteCall(IDS), done]),
+            classifierModel: classifier,
+        });
+        const runId = await write.dispatch();
+
+        await write.answer(runId, false);
+
+        const [step] = await write.steps(runId, 'mail_delete');
+
+        expect(step?.error).toMatchObject({
+            code: 'tool_denied',
+            message: 'mail_delete: not approved; nothing was moved.',
+        });
+        expect(classifier.doGenerateCalls).toHaveLength(1);
+        expect(uidsOf(folders, 'INBOX')).toEqual([1, 2]);
+        expect(uidsOf(folders, 'Archive')).toEqual([7]);
+    });
+
+    it('asks through the inbox only when the source address is no direct one', async () => {
+        const { client, folders } = await setupWrite(false);
+        const write = createWriteEngine({
+            client,
+            model: mockModel([deleteCall(IDS), done]),
+            classifierModel: mockModel([decision('ask')]),
+            direct: false,
+        });
+        const runId = await write.dispatch();
+        const waiting = await write.waiting(runId);
+
+        expect(waiting?.title).toBe('Delete 2 mails from work?');
+        expect(waiting?.channel).toBeUndefined();
+        expect(write.sent).toEqual([]);
+
+        await write.answer(runId, true);
+
+        expect(uidsOf(folders, 'INBOX')).toEqual([2]);
+        expect((await write.run(runId))?.status).toBe('completed');
+    });
+
     it('moves routine mail without an approval', async () => {
         const { client, folders } = await setupWrite(false);
         const write = createWriteEngine({

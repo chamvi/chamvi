@@ -20,6 +20,9 @@ export const MAIL_ADDRESS_PATTERN = /^[^\s@<>(),;:"\\]+@[^\s@<>(),;:"\\]+\.[^\s@
 /** Where an approval cuts the answered mail's From and subject, and each field of a delete listing (internal). */
 export const MAIL_APPROVAL_FIELD_MAX_CHARS = 200;
 
+/** The line of a send approval between the headers and the text (internal): the text cannot pose as a header. */
+export const MAIL_TEXT_SEPARATOR = '--- mail text ---';
+
 /** The most ids of one `mail_delete` call. */
 export const MAIL_DELETE_MAX_IDS = 20;
 

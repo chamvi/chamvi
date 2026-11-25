@@ -11,6 +11,7 @@ import {
     ToolDeniedError,
     ValidationError,
     defineEffectTool,
+    once,
     toolLimitApproved,
 } from '@chamvi/core';
 import type { ApprovalDecision, ApprovalRequestInput, ToolContext } from '@chamvi/core';
@@ -92,11 +93,12 @@ export function mailDeleteTool(source: MailWriteClientSource, options: MailDelet
                     };
                 }
 
-                const classified = await classifyMailDelete(context, listing.mails, {
+                // recorded: a resumed call reaches the answer of the approval it asked, whatever a new verdict says
+                const classified = await once(context, 'mail_delete:classify', () => classifyMailDelete(context, listing.mails, {
                     clock: options.clock,
                     timeoutMs: options.timeoutMs,
                     ...(options.classifier?.model !== undefined && { model: options.classifier.model }),
-                });
+                }));
 
                 if (classified === 'ask') {
                     const decision = await decisionOf(context, deleteApprovalOf(listing));

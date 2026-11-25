@@ -13,7 +13,7 @@ import type {
     MailReplyHeaders,
     MailWriteAccountView,
 } from '../write-client/types.ts';
-import { MAIL_APPROVAL_FIELD_MAX_CHARS } from './constants.ts';
+import { MAIL_APPROVAL_FIELD_MAX_CHARS, MAIL_TEXT_SEPARATOR } from './constants.ts';
 import type { MailSendInput } from './types.ts';
 
 /** One line of untrusted text: control characters as spaces, cut at `MAIL_APPROVAL_FIELD_MAX_CHARS` characters. */
@@ -25,14 +25,19 @@ export function lineOf(value: string): string {
 }
 
 /**
- * Asks the owner through the run's source channel (when it has `out`), else through the inbox and the API
- * only (`approve()`). A channel that cannot render the request throws its ValidationError before the call
- * suspends.
+ * Asks the owner through the run's source channel when it has `out` and its address reaches the owner alone
+ * (`handle.direct()`), else through the inbox and the API only (`approve()`): a mail's text or a listing is
+ * never posted to a group chat or an issue. A channel that cannot render the request throws its
+ * ValidationError before the call suspends.
  */
 export async function askMailApproval(ctx: ToolContext, request: ApprovalRequestInput): Promise<ApprovalDecision> {
     const handle = ctx.channels.findOne();
 
-    return handle ? handle.approve(request) : approve(ctx, request);
+    if (handle && await handle.direct()) {
+        return handle.approve(request);
+    }
+
+    return approve(ctx, request);
 }
 
 /** The approval of a send: the sender, every recipient, the subject, the answered mail and the whole text, never cut. */
@@ -56,7 +61,7 @@ export function sendApprovalOf(view: MailWriteAccountView, input: MailSendInput,
         lines.push(`In reply to: ${lineOf(reply.from)}: ${lineOf(reply.subject)}`);
     }
 
-    lines.push('', input.text);
+    lines.push(MAIL_TEXT_SEPARATOR, input.text);
 
     return {
         title: `Send mail from ${view.id}?`,
