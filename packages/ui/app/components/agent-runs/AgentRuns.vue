@@ -110,7 +110,7 @@ const filtered = computed(() => !!filter.value.status?.length || !!filter.value.
                 variant="noResults"
                 icon="search"
                 title="No runs match these filters"
-                :text="`Nothing of ${agent.name} with this status in this date range. Widen the filters.`"
+                :text="`Nothing of ${agent.name} matches these filters. Widen them.`"
                 action-label="Clear filters"
                 @action="update({ status: undefined, from: undefined, to: undefined })"
             />

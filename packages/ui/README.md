@@ -120,7 +120,7 @@ Each view asks the session which permissions the signed-in principal may attempt
 | Schedules | Cron subscriptions per agent with the next fire time | `chamvi_run_read` |
 | Components | Background components and channel status (`GET /components`), every 15 s; hidden without the permission | `chamvi_component_read` |
 
-The 24 h figures are counted from the newest 100 runs (the API has no time filter) and read `100+` beyond.
+The 24 h figures are counted from the newest 100 runs and read `100+` beyond.
 
 A channel's approval message links an approval by run: `/ui/approvals?run=<runId>&approval=<approvalId>` (`approval` optional, then the run's current one). The link carries no token. Signed out, it goes through sign-in (token form or authup) and comes back to the same URL; signed in, the dashboard scrolls to that run's approval card, highlights and focuses it, and the answer goes through `POST /runs/:id/approve` as the signed-in principal. A run that no longer waits on that approval (answered, expired, moved on to another one) shows a notice linking the run; the link needs read access to the run (`chamvi_run_read` or `chamvi_agent_run` for its agent) besides `chamvi_agent_approve`: without the approve grant the card shows read-only under a 403 notice, without read access only a 403 notice shows. The run page and the agent page link waiting runs the same way.
 
