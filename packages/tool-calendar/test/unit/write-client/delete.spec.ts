@@ -296,3 +296,44 @@ describe('createCalendarWriteClient: remove', () => {
         expect(server.requests.some((request) => request.url.includes('evil.test'))).toBe(false);
     });
 });
+
+describe('createCalendarWriteClient: sharing', () => {
+    function sharingSetup(owner?: string) {
+        const server = createFakeCalDav([{
+            slug: 'home', 
+            name: 'Home', 
+            ...(owner && { owner }), 
+            objects: [ONE], 
+        }]);
+        const client = createCalendarWriteClient([ACCOUNT], { fetch: server.fetch });
+
+        return { server, client };
+    }
+
+    it.each([
+        ['no owner', undefined, false],
+        ['the own principal, relative', '/123/principal/', false],
+        ['the own principal, absolute without a trailing slash', 'https://p42-caldav.icloud.com/123/principal', false],
+        ['another principal', '/999/principal/', true],
+        ['the same path on another origin', 'https://other.example.com/123/principal/', true],
+    ])('reads %s', async (_, owner, shared) => {
+        const { client } = sharingSetup(owner);
+
+        expect((await client.describe(idOf('one.ics')))?.shared).toBe(shared);
+    });
+
+    it('reads the sharing again for every describe, and counts a failed read as shared', async () => {
+        const { server, client } = sharingSetup();
+
+        expect((await client.describe(idOf('one.ics')))?.shared).toBe(false);
+
+        server.calendars[0]!.sharing = 'shared';
+        expect((await client.describe(idOf('one.ics')))?.shared).toBe(true);
+
+        server.calendars[0]!.sharing = undefined;
+        server.sharingStatus = 500;
+        expect((await client.describe(idOf('one.ics')))?.shared).toBe(true);
+        expect(server.requests.every((request) => ['PROPFIND', 'GET'].includes(request.method))).toBe(true);
+    });
+});
+

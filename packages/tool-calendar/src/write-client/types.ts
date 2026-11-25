@@ -20,12 +20,7 @@ export type CalendarWriteView = {
 };
 
 /** A listed calendar of a write session: its view and tsdav's record. */
-export type CalendarWriteEntry = {
-    view: CalendarWriteView;
-    dav: DAVCalendar;
-    /** Shared with the account by someone else (CalendarServer `shared`, or a `DAV:owner` other than its principal). */
-    shared: boolean;
-};
+export type CalendarWriteEntry = { view: CalendarWriteView; dav: DAVCalendar };
 
 /** A time of an event: a plain date (all-day) or an instant. */
 export type CalendarTime = { kind: 'date'; date: Temporal.PlainDate } | { kind: 'instant'; instant: Temporal.Instant };

@@ -546,5 +546,45 @@ describe('events of a shared calendar', () => {
         expect(classifier.doGenerateCalls).toHaveLength(1);
         expect(server.requests.every((request) => ['PROPFIND', 'GET', 'DELETE'].includes(request.method))).toBe(true);
     });
+
+    it('asks when the calendar became shared after discovery', async () => {
+        const server = createFakeCalDav([{
+            slug: 'own',
+            name: 'Own',
+            objects: [{ ...PAST }, {
+                ...GUEST, 
+                name: 'other.ics', 
+                etag: '"other"', 
+                ics: PAST.ics.replace('UID:past', 'UID:other'), 
+            }], 
+        }]);
+        const classifier = mockModel([decision('routine')]);
+        const write = createWriteEngine({
+            fake: server,
+            model: mockModel([
+                deleteCall({ event: eventIn('own') }),
+                done,
+                deleteCall({
+                    event: encodeCalendarEventId({
+                        calendar: 'icloud:own', 
+                        name: 'other.ics', 
+                        etag: '"other"', 
+                    }), 
+                }),
+                done,
+            ]),
+            classifierModel: classifier,
+        });
+
+        expect(await write.waiting(await write.dispatch())).toBeUndefined();
+        expect(classifier.doGenerateCalls).toHaveLength(1);
+
+        server.calendars[0]!.sharing = 'shared';
+
+        const runId = await write.dispatch();
+
+        expect(await write.waiting(runId)).toMatchObject({ title: 'Delete 1 event from Own?' });
+        expect(classifier.doGenerateCalls).toHaveLength(1);
+    });
 });
 

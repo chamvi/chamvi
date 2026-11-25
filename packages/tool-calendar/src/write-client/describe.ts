@@ -173,11 +173,13 @@ export async function describeCalendarEvent(
 
         const data = await readResourceBody(response, TOOL, ref.account);
         const addresses = await sessions.addresses(ref.account, inner);
+        // read now: a calendar shared after discovery must not count as the account's own
+        const shared = await sessions.shared(ref.account, entry, inner);
 
         return calendarDeleteItemOf(data, {
             event,
             view: entry.view,
-            shared: entry.shared,
+            shared,
             name: ref.name,
             etag,
             zone: sessions.options.timezone,

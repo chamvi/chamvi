@@ -71,6 +71,8 @@ export type FakeCalDav = {
     };
     /** Runs before a request on an object URL is answered (a test changes the event there). */
     before?: (request: FakeRequest) => void;
+    /** Answer a calendar's own sharing read (a PROPFIND naming `owner`) with this status. */
+    sharingStatus?: number;
     /** `false`: a PUT answers `201` without an `ETag` header. */
     putEtag?: boolean;
     /** Counts the PUTs that stored an object (their ETags are `"w<n>"`). */
@@ -261,6 +263,15 @@ export function createFakeCalDav(calendars: FakeCalendar[] = []): FakeCalDav {
             }
 
             const calendar = calendars.find((item) => path === `${HOME}${item.slug}/`);
+
+            // a Depth 0 read of the calendar's own sharing (resourcetype and owner)
+            if (calendar && method === 'PROPFIND' && request.body.includes('owner')) {
+                if (fake.sharingStatus !== undefined) {
+                    return new Response('<error>unavailable</error>', { status: fake.sharingStatus });
+                }
+
+                return xml(ok(path, calendarProps(calendar)));
+            }
 
             if (calendar && method === 'PROPFIND') {
                 return xml(ok(path, '<d:supported-report-set><d:supported-report><d:report><c:calendar-query/></d:report></d:supported-report></d:supported-report-set>'));

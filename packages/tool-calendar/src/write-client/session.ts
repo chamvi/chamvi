@@ -47,18 +47,8 @@ function viewOf(account: CalendarAccount, calendar: DAVCalendar): CalendarWriteV
     };
 }
 
-// tsdav's default calendar props, plus DAV:owner for the sharing check
-const CALENDAR_PROPS = {
-    'c:calendar-description': {},
-    'c:calendar-timezone': {},
-    'd:displayname': {},
-    'ca:calendar-color': {},
-    'cs:getctag': {},
-    'd:resourcetype': {},
-    'c:supported-calendar-component-set': {},
-    'd:sync-token': {},
-    'd:owner': {},
-};
+// what a calendar's own sharing read asks for
+const SHARING_PROPS = { 'd:resourcetype': {}, 'd:owner': {} };
 
 function hrefOf(value: unknown): string | undefined {
     if (typeof value === 'string' && value.length > 0) {
@@ -68,33 +58,36 @@ function hrefOf(value: unknown): string | undefined {
     return isObject(value) && typeof value.href === 'string' && value.href.length > 0 ? value.href : undefined;
 }
 
-function pathOf(href: string, base: string): string {
-    const path = new URL(href, base).pathname;
+/** `href` resolved against `base`, its path with a trailing slash: one principal however the server spells it. */
+function principalOf(href: string, base: string): string {
+    const url = new URL(href, base);
+    const path = url.pathname.endsWith('/') ? url.pathname : `${url.pathname}/`;
 
-    return path.endsWith('/') ? path : `${path}/`;
+    return `${url.origin}${path}`;
 }
 
 /**
- * Whether someone else shares `calendar` with the account: CalendarServer's
- * `shared` resource type (not `shared-owner`, the owner's own view), or a
- * `DAV:owner` that differs from the account's principal when both are known.
- * A server that reports neither counts as the account's own.
+ * Whether someone else shares the calendar at `url` with the account: CalendarServer's `shared` resource type
+ * (not `shared-owner`, the owner's own view), or a `DAV:owner` that is not the account's principal (origin and
+ * path, both resolved against the calendar URL) when both are known. A server that reports neither counts as the
+ * account's own.
  */
-function sharedOf(calendar: DAVCalendar, principal: string | undefined): boolean {
-    if (calendar.resourcetype?.includes('shared')) {
+function sharedOf(resourcetype: string[], owner: unknown, principal: string | undefined, url: string): boolean {
+    if (resourcetype.includes('shared')) {
         return true;
     }
 
-    const owner = hrefOf((calendar.projectedProps as Record<string, unknown> | undefined)?.owner);
+    const href = hrefOf(owner);
 
-    if (!owner || !principal) {
+    if (!href || !principal) {
         return false;
     }
 
     try {
-        return pathOf(owner, calendar.url) !== pathOf(principal, calendar.url);
+        return principalOf(href, url) !== principalOf(principal, url);
     } catch {
-        return false;
+        // an owner that is no URL is not the account's principal
+        return true;
     }
 }
 
@@ -133,18 +126,10 @@ export class CalendarWriteSessions {
         const state = this.stateOf(account);
 
         return this.sessionOf(state, signal).then((session) => {
-            session.calendars ??= session.dav.fetchCalendars({
-                props: CALENDAR_PROPS,
-                projectedProps: { owner: true },
-                fetchOptions: { signal },
-            }).then(
+            session.calendars ??= session.dav.fetchCalendars({ fetchOptions: { signal } }).then(
                 (calendars) => calendars
                     .filter((calendar) => calendar.components?.includes('VEVENT'))
-                    .map((calendar) => ({
-                        view: viewOf(state.account, calendar),
-                        dav: calendar,
-                        shared: sharedOf(calendar, session.dav.account?.principalUrl),
-                    })),
+                    .map((calendar) => ({ view: viewOf(state.account, calendar), dav: calendar })),
                 (error: unknown) => {
                     session.calendars = undefined;
 
@@ -194,6 +179,38 @@ export class CalendarWriteSessions {
 
             return session.addresses;
         });
+    }
+
+    /**
+     * Whether the calendar of `entry` is shared with `account` by someone else, read now (one PROPFIND, Depth 0,
+     * of its resourcetype and owner; never the discovery's cached answer). A failed read counts as shared.
+     * Call inside `run`.
+     */
+    async shared(account: string, entry: CalendarWriteEntry, signal: AbortSignal): Promise<boolean> {
+        const session = await this.sessionOf(this.stateOf(account), signal);
+
+        try {
+            const responses = await session.dav.propfind({
+                url: entry.view.url,
+                props: SHARING_PROPS,
+                depth: '0',
+                fetchOptions: { signal },
+            });
+            const found = responses.find((response) => response.ok && isObject(response.props));
+
+            if (!found) {
+                return true;
+            }
+
+            const props = found.props as Record<string, unknown>;
+            const resourcetype = isObject(props.resourcetype) ? Object.keys(props.resourcetype) : [];
+
+            return sharedOf(resourcetype, props.owner, session.dav.account?.principalUrl, entry.view.url);
+        } catch {
+            signal.throwIfAborted();
+
+            return true;
+        }
     }
 
     /**
