@@ -76,6 +76,23 @@ describe('WhatsApp delivery', () => {
         expect(value.sockets.last().sent).toEqual([]);
     });
 
+    it('fits refuses an approval to an address of no WhatsApp chat, before the call would suspend', async () => {
+        const value = await connected();
+        const bogus = value.channel.to({ adapter: 'whatsapp', threadId: 'whatsapp:not-a-jid' });
+        const direct = value.channel.to({ adapter: 'whatsapp', threadId: `whatsapp:${ALICE}` });
+        const approval: ChannelMessage = {
+            ...message('k1', 'Delete 20 mails?'),
+            kind: 'approval',
+            title: 'Limit reached',
+            approvalId: 'bound:abc',
+            expiresAt: new Date('2026-11-02T09:00:00Z'),
+        };
+
+        await expect(async () => value.channel.fits!(approval, bogus)).rejects.toBeInstanceOf(ValidationError);
+        await expect(Promise.resolve(value.channel.fits!(approval, direct))).resolves.toBeUndefined();
+        expect(value.sockets.last().sent).toEqual([]);
+    });
+
     it('reuses one stable message id per key: a repeated send carries the same id (at least once)', async () => {
         const value = await connected();
         const address = value.channel.to({ adapter: 'whatsapp', threadId: `whatsapp:${ALICE}` });

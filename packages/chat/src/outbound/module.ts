@@ -45,8 +45,11 @@ function createChatRenderer(options: ChatRenderSetup): (message: ChannelMessage,
  * The `fits` and `direct` of a chat channel. `fits` renders the message as
  * `out` would (renderChatMessage(), the same `direct` and `quotes`) and
  * throws what `out` would throw before posting: an approval answerable in
- * the chat that exceeds `maxTextChars` is refused before the call
- * suspends. `direct` is the adapter's `isDM` for the address (false for one
+ * the chat that exceeds `maxTextChars`, or a target the platform's
+ * `prepare` refuses (its post is discarded uncalled), is refused before
+ * the call suspends. It checks only what is known before sending: an
+ * offline channel or a failed post still leaves the approval waiting and
+ * retried. `direct` is the adapter's `isDM` for the address (false for one
  * that is no chat address of the listed adapters).
  */
 export function createChatChecks(options: ChatRenderSetup): Required<Pick<IChannel, 'fits' | 'direct'>> {
@@ -56,7 +59,15 @@ export function createChatChecks(options: ChatRenderSetup): Required<Pick<IChann
 
     return {
         fits: (message, address) => {
-            render(message, address);
+            const { target, text } = render(message, address);
+
+            // the platform refuses a target it cannot reach when it prepares the send; the post is never called
+            options.prepare?.({
+                adapter: target.adapter,
+                threadId: target.threadId,
+                text,
+                key: message.key,
+            });
         },
         direct: (address) => {
             let target: { adapter: string; threadId: string };

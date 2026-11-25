@@ -216,6 +216,7 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
         ...(resolved.answers ? { answers: resolved.answers } : {}),
         ...(platform?.sentMessageId ? { quotes: true } : {}),
         maxTextChars: resolved.maxTextChars,
+        ...(platform?.prepare ? { prepare: (input: ChatPlatformSend) => platform.prepare!(input) } : {}),
     };
     const out = createChatSender({
         name,
@@ -223,7 +224,6 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
         timeoutMs: resolved.timeoutMs,
         // started, and connected as far as the transport knows
         online: () => (current?.online && (platform?.online ? platform.online() : true) ? current.context.engine.clock : undefined),
-        ...(platform?.prepare ? { prepare: (input: ChatPlatformSend) => platform.prepare!(input) } : {}),
         onError: resolved.onError,
     });
 

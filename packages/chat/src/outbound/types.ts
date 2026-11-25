@@ -47,4 +47,4 @@ export type ChatRenderOptions = Pick<ChatSenderOptions, 'answers' | 'approvalUrl
 };
 
 /** What rendering a message for an address needs: `out`, `fits` and `direct` share it. */
-export type ChatRenderSetup = Pick<ChatSenderOptions, 'adapters' | 'answers' | 'approvalUrl' | 'quotes' | 'maxTextChars'>;
+export type ChatRenderSetup = Pick<ChatSenderOptions, 'adapters' | 'answers' | 'approvalUrl' | 'quotes' | 'maxTextChars' | 'prepare'>;
