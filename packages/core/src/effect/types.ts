@@ -46,6 +46,8 @@ export type ToolCallFrame = {
     taint?: boolean;
     /** Set when the outbound gate asked and approved this call: `outboundApproved()` reads it. */
     outboundApproved?: boolean;
+    /** Set when the call's limit check passed through an approved limit approval (fresh or recorded): `toolLimitApproved()` reads it. */
+    limitApproved?: boolean;
     /** Where approve() reads the recorded decisions. */
     effects: Pick<IEffectService, 'findOne' | 'save'>;
     /** The run's artifacts, where approve() checks the artifact ids a request names. */

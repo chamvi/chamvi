@@ -229,6 +229,7 @@ describe('public api', () => {
         'effectMarker',
         'approve',
         'outboundApproved',
+        'toolLimitApproved',
         'runSource',
         'ChamviError',
         'BudgetExceededError',
