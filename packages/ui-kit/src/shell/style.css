@@ -371,6 +371,12 @@ button.nav-item { width: 100%; background: none; font: inherit; text-align: left
 /* ---------- shared view parts ---------- */
 .toolbar { display: flex; flex-wrap: wrap; gap: 12px 14px; align-items: flex-end; margin-bottom: 14px; }
 .toolbar .field { width: 180px; }
+/* a VCFormDateRange in a toolbar: a row of its own, the two days and the presets wrapping in it */
+.toolbar .date-range { width: auto; flex: 1 1 100%; }
+.date-range .vc-form-date-range { flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 8px 14px; }
+.date-range .vc-form-date-range-fields { flex: 0 1 auto; flex-wrap: nowrap; }
+.date-range .vc-form-date-range-field { flex: 0 1 160px; }
+.date-range .vc-form-date-range-presets { padding-bottom: 4px; }
 .seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; background: var(--ch-sunken); border: 1px solid var(--ch-line); border-radius: var(--ch-radius); }
 .seg button {
     --c: var(--ch-muted);
@@ -450,12 +456,8 @@ table.t { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 
 .pager .vc-pagination-ellipsis { cursor: default; }
 .pager .vc-pagination-ellipsis:hover { background: transparent; color: var(--ch-muted); }
 
-.empty { display: grid; justify-items: center; gap: 8px; padding: 44px 20px; text-align: center; }
-.empty-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--ch-radius); background: var(--ch-sunken); border: 1px dashed var(--ch-line-strong); color: var(--ch-muted); margin-bottom: 4px; }
-.empty-icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.6; }
-.empty b { font-weight: 600; font-size: 14.5px; }
-.empty p { color: var(--ch-muted); font-size: 13px; max-width: 42ch; }
-.empty .btn { margin-top: 6px; }
+/* a NavIcon in VCEmptyState's icon slot, sized by the theme's text size */
+.vc-empty-state-icon svg { width: 1em; height: 1em; stroke: currentColor; fill: none; stroke-width: 1.4; }
 
 /* run detail */
 /* connections */

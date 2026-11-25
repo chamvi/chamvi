@@ -23,15 +23,16 @@ import {
     EntityRelationError,
     RunStatus,
 } from '@chamvi/store';
-import type {
-    ApprovalWaitPoint,
-    DispatchWaitPoint,
-    IRunRepository,
-    PeerParent,
-    RemoteWaitPoint,
-    Run,
-} from '@chamvi/store';
+import type { ApprovalWaitPoint, IRunRepository, Run } from '@chamvi/store';
 import { makeChild, makeRun, testUuid } from '../fixture/helpers.ts';
+import {
+    APPROVAL,
+    DISPATCH,
+    PEER,
+    REMOTE,
+} from './constants.ts';
+import { registerRunDateCases } from './dates.ts';
+import { idsOf, insert } from './helpers.ts';
 import type { RunRepositoryContractInput } from './types.ts';
 
 function pause(ms: number): Promise<void> {
@@ -39,67 +40,6 @@ function pause(ms: number): Promise<void> {
         setTimeout(resolve, ms);
     });
 }
-
-function idsOf(rows: { id: string }[]): string[] {
-    return rows.map((row) => row.id);
-}
-
-async function insert(runs: IRunRepository, run: Run): Promise<Run> {
-    return runs.save(runs.create(run));
-}
-
-const APPROVAL: ApprovalWaitPoint = {
-    kind: 'approval',
-    id: '0:c1:0',
-    approvalId: '0:c1:0',
-    toolName: 'deploy',
-    toolCallId: 'c1',
-    title: 'Deploy?',
-    options: [{ id: 'yes', label: 'Yes' }],
-    channel: 'console',
-    expiresAt: new Date(5_000),
-    notifiedAt: new Date(2_000),
-};
-
-const DISPATCH: DispatchWaitPoint = {
-    kind: 'dispatch',
-    id: '1:c2:w0',
-    toolName: 'review',
-    toolCallId: 'c2',
-    runIds: [testUuid('c1'), testUuid('c2')],
-    expiresAt: new Date(9_000),
-};
-
-const REMOTE: RemoteWaitPoint = {
-    kind: 'remote',
-    id: 'remote',
-    peer: 'dev',
-    agent: 'developer',
-    remoteRunId: 'remote-run-1',
-    expiresAt: new Date(9_000),
-    wakeRequested: true,
-    remote: {
-        status: RunStatus.WAITING,
-        approval: {
-            runId: 'remote-run-2',
-            approvalId: '0:c1:0',
-            title: 'Deploy?',
-            url: 'https://dev.example.com/approvals/remote-run-2/0:c1:0',
-            notifiedAt: new Date(3_000),
-        },
-    },
-};
-
-const PEER: PeerParent = {
-    kind: 'peer',
-    peer: 'dev',
-    runId: 'caller-run-1',
-    standIn: 'caller-run-2',
-    agent: 'assistant',
-    role: 'default',
-    depth: 2,
-    origin: 'Peter',
-};
 
 /** A run with every optional field set (no conversation: its scope references another aggregate). */
 function fullRun(id: string): Run {
@@ -151,6 +91,8 @@ export function describeRunRepositoryContract(input: RunRepositoryContractInput)
         beforeEach(async () => {
             runs = await input.create();
         });
+
+        registerRunDateCases(() => runs);
 
         it('stores every field and reads it back with Date instances', async () => {
             const run = fullRun(testUuid('r1'));

@@ -74,6 +74,11 @@ const ONCE = 'Given at most once; any other `filter[...]` key is rejected with 4
 const QUERY_PARAMETERS: Record<string, () => Parameter[]> = {
     runs: () => [
         queryParameter('filter[agent]', STRING, `The runs of one agent, by name. ${ONCE}`),
+        queryParameter('filter[createdAt]', STRING, [
+            'The runs created from (`>=2026-11-01T00:00:00Z`) or until (`<=2026-11-07T23:59:59.999Z`) an ISO 8601 instant',
+            'with a time and an offset, both bounds inclusive. Each bound at most once; for both, use the expression form',
+            '`filter=and(gte(createdAt,\'...\'),lte(createdAt,\'...\'))`. A lower bound after the upper one is rejected with 400.',
+        ].join(' ')),
         queryParameter('filter[parent]', STRING, `The child runs of one run, by run id. ${ONCE}`),
         queryParameter('filter[status]', STRING, [
             'The runs in one status, or in any of a comma separated list (`queued,running`);',

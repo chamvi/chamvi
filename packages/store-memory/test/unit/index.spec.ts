@@ -148,4 +148,35 @@ describe('memory unique-value index', () => {
         await expect(insert(items, { id: '2', big: 10n })).rejects.toBeInstanceOf(EntityConflictError);
         await expect(insert(items, { id: '3', big: 11n })).resolves.toEqual({ id: '3', big: 11n });
     });
+
+    it('finds a row by its key without scanning the transaction\'s writes', async () => {
+        const registry = new MemoryRegistry();
+        const items = new MemoryEntityRepository<Item>({
+            entity: 'item', 
+            registry, 
+            key: ['id'], 
+        });
+
+        await insert(items, { id: '1', code: 'a' });
+        await insert(items, { id: '2', code: 'b' });
+
+        const transaction = registry.begin();
+
+        registry.write('item', '["3"]', { id: '3', code: 'c' }, transaction);
+        registry.write('item', '["2"]', null, transaction);
+
+        class Unscannable extends Map<string, unknown> {
+            override [Symbol.iterator](): MapIterator<[string, unknown]> {
+                throw new Error('scanned');
+            }
+        }
+
+        transaction.writes.set('item', new Unscannable(transaction.writes.get('item')!) as never);
+
+        expect(registry.findUnique('item', ['id'], { id: '1' }, transaction)).toEqual([['["1"]', { id: '1', code: 'a' }]]);
+        expect(registry.findUnique('item', ['id'], { id: '2' }, transaction)).toEqual([]);
+        expect(registry.findUnique('item', ['id'], { id: '3' }, transaction)).toEqual([['["3"]', { id: '3', code: 'c' }]]);
+        expect(registry.findUnique('item', ['id'], { id: '4' }, transaction)).toEqual([]);
+        registry.rollback(transaction);
+    });
 });

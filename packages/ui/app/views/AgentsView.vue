@@ -106,18 +106,13 @@ const hidden = computed(() => Object.fromEntries(agents.value.map((agent) => [ag
             class="card"
         >
             <EmptyState
+                variant="noResults"
                 icon="search"
                 title="No agent matches"
                 :text="`No agent name contains “${query.trim()}”. Agent names are lower-case, like release-notes.`"
-            >
-                <button
-                    type="button"
-                    class="btn btn-sm"
-                    @click="query = ''"
-                >
-                    Clear filter
-                </button>
-            </EmptyState>
+                action-label="Clear filter"
+                @action="query = ''"
+            />
         </div>
         <div
             v-else-if="loaded && !error"

@@ -5,7 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { eq, inArray } from '@rapiq/core';
+import {
+    eq,
+    gte,
+    inArray,
+    lte,
+} from '@rapiq/core';
 import { describe, expect, it } from 'vitest';
 import { parseRunListQuery } from '../../../src/runs/helpers/index.ts';
 
@@ -56,6 +61,73 @@ describe('parseRunListQuery', () => {
         'filter[parent]=~a',
     ])('refuses two filter[parent] (%s)', (query) => {
         expect(() => parse(query)).toThrow('filter[parent] takes one run id.');
+    });
+
+    it('reads createdAt bounds as instants: one bound in the bracket form, both in the expression form', () => {
+        const lower = '2026-11-01T00:00:00.000Z';
+        const upper = '2026-11-07T22:59:59.999Z';
+
+        expect(parse(`filter[createdAt]=>=${lower}`).filters).toEqual([gte('createdAt', new Date(lower))]);
+        expect(parse(`filter[createdAt]=<=${upper}`).filters).toEqual([lte('createdAt', new Date(upper))]);
+        expect(parse(`filter=and(gte(createdAt,'${lower}'),lte(createdAt,'${upper}'))`).filters)
+            .toEqual([gte('createdAt', new Date(lower)), lte('createdAt', new Date(upper))]);
+        // an offset names the same instant; equal bounds are one instant
+        expect(parse('filter[createdAt]=>=2026-11-01T01:00:00%2B01:00').filters).toEqual([gte('createdAt', new Date(lower))]);
+        expect(parse(`filter=and(gte(createdAt,'${lower}'),lte(createdAt,'${lower}'))`).filters)
+            .toEqual([gte('createdAt', new Date(lower)), lte('createdAt', new Date(lower))]);
+    });
+
+    it('combines createdAt bounds with agent and status', () => {
+        const query = 'filter=and(eq(agent,\'echo\'),in(status,\'queued\',\'running\'),gte(createdAt,\'2026-11-01T00:00:00Z\'),lte(createdAt,\'2026-11-02T00:00:00Z\'))';
+
+        expect(parse(query)).toEqual({
+            filters: [
+                eq('agent', 'echo'),
+                inArray('status', ['queued', 'running']),
+                gte('createdAt', new Date('2026-11-01T00:00:00Z')),
+                lte('createdAt', new Date('2026-11-02T00:00:00Z')),
+            ],
+            agent: 'echo',
+            limit: 50,
+            offset: 0,
+            sorts: {},
+        });
+    });
+
+    it('rejects a reversed createdAt range without echoing a value', () => {
+        expect(() => parse('filter=and(gte(createdAt,\'2026-11-02T00:00:00Z\'),lte(createdAt,\'2026-11-01T00:00:00Z\'))'))
+            .toThrow('filter[createdAt] has its lower bound after its upper bound.');
+    });
+
+    it.each([
+        ['filter[createdAt]=2026-11-01T00:00:00Z', 'eq'],
+        ['filter[createdAt]=>2026-11-01T00:00:00Z', 'gt'],
+        ['filter[createdAt]=<2026-11-01T00:00:00Z', 'lt'],
+        ['filter[createdAt]=>=2026-11-01', 'a day without a time'],
+        ['filter[createdAt]=>=2026-11-01T00:00:00', 'no offset'],
+        ['filter[createdAt]=>=2026-13-01T00:00:00Z', 'month 13'],
+        ['filter[createdAt]=>=2026-02-30T00:00:00Z', 'February 30'],
+        ['filter[createdAt]=>=2026-11-01T00:00:00.0009Z', 'finer than a millisecond'],
+        ['filter[createdAt]=>=2026', 'a number'],
+        ['filter[createdAt]=>=yesterday', 'text'],
+        ['filter[createdAt]=>=2026-11-01T00:00:00Z&filter[createdAt]=<=2026-11-02T00:00:00Z', 'a repeated bracket key'],
+    ])('rejects filter[createdAt] that is no >= or <= ISO 8601 instant (%s: %s)', (query) => {
+        let error: unknown;
+
+        try {
+            parse(query);
+        } catch (e) {
+            error = e;
+        }
+
+        expect((error as Error).message).toBe('filter[createdAt] takes a lower (>=) and an upper (<=) bound, each an ISO 8601 instant with a time and an offset.');
+    });
+
+    it('rejects a createdAt bound of one kind given twice', () => {
+        expect(() => parse('filter=and(gte(createdAt,\'2026-11-01T00:00:00Z\'),gte(createdAt,\'2026-11-02T00:00:00Z\'))'))
+            .toThrow('filter[createdAt] may be given once per bound.');
+        expect(() => parse('filter=and(lte(createdAt,\'2026-11-01T00:00:00Z\'),lte(createdAt,\'2026-11-02T00:00:00Z\'))'))
+            .toThrow('filter[createdAt] may be given once per bound.');
     });
 
     it('reads an agent name the wire coerces to a scalar back as the registered name', () => {

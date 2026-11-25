@@ -16,6 +16,10 @@ export type RunListFilter = {
     status?: RunStatusLiteral[];
     /** Only the runs whose wait point is of this kind. */
     waiting?: 'approval' | 'dispatch';
+    /** The first local calendar day (`YYYY-MM-DD`, as `VCFormDateRange` emits it) whose runs are listed. */
+    from?: string;
+    /** The last local calendar day (`YYYY-MM-DD`) whose runs are listed. */
+    to?: string;
     limit?: number;
     offset?: number;
 };

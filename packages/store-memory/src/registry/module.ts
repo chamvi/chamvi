@@ -200,11 +200,22 @@ export class MemoryRegistry {
      * group, as the transaction sees them: the transaction's own writes,
      * then the committed rows it did not write, found through an index of
      * the group's values (built on first use, kept by every commit), or by
-     * a scan when the record holds a value the index cannot key.
+     * a scan when the record holds a value the index cannot key. The key
+     * group is a row key: one lookup, never a scan of the transaction's
+     * writes (a purge reads each row it removes by key in one transaction).
      */
     findUnique(entity: string, fields: string[], record: EntityRecord, transaction?: MemoryTransaction): [string, EntityRecord][] {
         const own = transaction?.writes.get(entity);
         const holds = (row: EntityRecord) => fields.every((field) => isEqual(row[field], record[field]));
+        const value = this.valueOf(fields, record);
+
+        if (value !== undefined && isEqual(fields, this.definitionOf(entity).key)) {
+            // the key fields' value is the row key (keyOf)
+            const row = this.read(entity, value, transaction);
+
+            return row && holds(row) ? [[value, row]] : [];
+        }
+
         const found: [string, EntityRecord][] = [];
 
         for (const [key, row] of own ?? []) {
@@ -214,7 +225,6 @@ export class MemoryRegistry {
         }
 
         const table = this.tableOf(entity);
-        const value = this.valueOf(fields, record);
         const keys = value === undefined ?
             table.keys() :
             this.indexOf(entity, fields).get(value) ?? [];

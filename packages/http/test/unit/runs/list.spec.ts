@@ -128,6 +128,32 @@ describe('GET /runs', () => {
         expect(page.meta.total).toBe(3);
     });
 
+    it('filters by createdAt bounds on the server, inclusive, with the agent filter and pages', async () => {
+        const { app, ids } = await setup();
+        const all = await (await call(app, 'GET', '/runs', { token: READER_TOKEN })).json() as ListBody;
+        const at = all.data.map((run) => run.createdAt as string);
+        const list = async (query: string) => (await call(app, 'GET', `/runs?${query}`, { token: READER_TOKEN })).json() as Promise<ListBody>;
+
+        expect((await list(`filter[createdAt]=>=${at[1]}`)).data.map((run) => run.id)).toEqual([ids[1], ids[2]]);
+        expect((await list(`filter[createdAt]=<=${at[1]}`)).data.map((run) => run.id)).toEqual([ids[0], ids[1]]);
+
+        const range = `filter=and(gte(createdAt,'${at[1]}'),lte(createdAt,'${at[2]}'),eq(agent,'echo'))`;
+        const page = await list(`${range}&page[limit]=1`);
+
+        expect(page.data.map((run) => run.id)).toEqual([ids[2]]);
+        expect(page.meta.total).toBe(1);
+        expect((await list(`filter=and(gte(createdAt,'${at[0]}'),lte(createdAt,'${at[0]}'))`)).meta.total).toBe(1);
+
+        const reversed = await call(app, 'GET', `/runs?filter=and(gte(createdAt,'${at[2]}'),lte(createdAt,'${at[0]}'))`, { token: READER_TOKEN });
+
+        expect(reversed.status).toBe(400);
+
+        const text = await reversed.text();
+
+        expect(JSON.parse(text).message).toBe('filter[createdAt] has its lower bound after its upper bound.');
+        expect(text).not.toContain(at[0]!);
+    });
+
     it('accepts percent-encoded brackets', async () => {
         const { app } = await setup();
         const body = await (await call(app, 'GET', '/runs?filter%5Bagent%5D=echo', { token: READER_TOKEN })).json() as ListBody;

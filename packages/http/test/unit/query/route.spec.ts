@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { MemoryEntityRepository, MemoryRegistry } from '@chamvi/store-memory';
-import { eq } from '@rapiq/core';
+import { Query, eq } from '@rapiq/core';
 import { decodeQuery, defineSchema, scopeQuery } from '@chamvi/http';
 import { call, createTestApp } from '../../utils/app.ts';
 
@@ -129,5 +129,31 @@ describe('an app\'s list endpoint', () => {
 
         expect((await owned.findMany(scoped)).data.map((row) => row.id)).toEqual(['2']);
         expect(scoped.pagination).toMatchObject({ limit: 1, offset: 0 });
+    });
+
+    it('keeps every node of the query it scopes', () => {
+        const schema = defineSchema<Note>({ filters: ['title'], sorts: ['title'] });
+        const decoded = decodeQuery(new URLSearchParams('filter[title]=a&sort=title&page[limit]=3'), schema);
+        const groups = { marker: 'groups' } as never;
+        const aggregates = { marker: 'aggregates' } as never;
+        const query = new Query({
+            fields: decoded.fields,
+            filters: decoded.filters,
+            relations: decoded.relations,
+            sorts: decoded.sorts,
+            pagination: decoded.pagination,
+            groups,
+            aggregates,
+        });
+        const scoped = scopeQuery(query, eq('secret', MARKER));
+
+        expect(scoped.fields).toBe(query.fields);
+        expect(scoped.relations).toBe(query.relations);
+        expect(scoped.sorts).toBe(query.sorts);
+        expect(scoped.pagination).toBe(query.pagination);
+        expect(scoped.groups).toBe(groups);
+        expect(scoped.aggregates).toBe(aggregates);
+        expect(scoped.filters.operator).toBe('and');
+        expect(query.filters.value).toHaveLength(1);
     });
 });

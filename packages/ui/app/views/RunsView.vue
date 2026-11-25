@@ -7,6 +7,7 @@
  */
 
 import type { RunStatusLiteral } from '@chamvi/store';
+import type { DateRangeValue } from '@vuecs/forms';
 import {
     computed,
     inject,
@@ -25,6 +26,7 @@ import { useAppContext } from '@chamvi/ui-kit';
 import { useRunActivity, useRunCounts, useRunList } from '../runs/composables.ts';
 import {
     ALL_AGENTS,
+    RUN_DATE_PRESETS,
     RUN_LIST_POLL_MS,
     RUN_STATUSES,
 } from '../runs/constants.ts';
@@ -76,13 +78,18 @@ const agent = computed({
     set: (value: string) => update({ agent: value === ALL_AGENTS ? undefined : value }),
 });
 
+const range = computed({
+    get: (): DateRangeValue => ({ from: filter.value.from, to: filter.value.to }),
+    set: (value: DateRangeValue) => update({ from: value.from, to: value.to }),
+});
+
 function toggleStatus(status: RunStatusLiteral): void {
     const current = filter.value.status ?? [];
 
     update({ status: current.includes(status) ? current.filter((s) => s !== status) : [...current, status] });
 }
 
-const filtered = computed(() => !!filter.value.agent || !!filter.value.status?.length);
+const filtered = computed(() => !!filter.value.agent || !!filter.value.status?.length || !!filter.value.from || !!filter.value.to);
 </script>
 
 <template>
@@ -155,6 +162,16 @@ const filtered = computed(() => !!filter.value.agent || !!filter.value.status?.l
                     </div>
                 </div>
             </div>
+            <div class="field date-range">
+                <VCFormDateRange
+                    v-model="range"
+                    :presets="RUN_DATE_PRESETS"
+                    from-label="Created from"
+                    to-label="Created until"
+                    presets-label="Created in"
+                    :theme-class="{ label: 'field-label' }"
+                />
+            </div>
         </div>
 
         <p
@@ -168,22 +185,24 @@ const filtered = computed(() => !!filter.value.agent || !!filter.value.status?.l
             :page="page"
             :agents="agents"
             :loading="loading"
-            @page="(offset) => update({ offset, agent: filter.agent, status: filter.status })"
+            @page="(offset) => update({ offset })"
         >
             <template #empty>
                 <EmptyState
-                    :icon="filtered ? 'search' : 'play'"
-                    :title="filtered ? 'No runs match these filters' : 'No runs yet'"
-                    :text="filtered ? 'Widen the status filter or pick all agents.' : 'Runs appear here once a trigger starts one.'"
-                >
-                    <VCButton
-                        v-if="filtered"
-                        class="btn btn-sm"
-                        @click="update({ agent: undefined, status: undefined })"
-                    >
-                        Clear filters
-                    </VCButton>
-                </EmptyState>
+                    v-if="filtered"
+                    variant="noResults"
+                    icon="search"
+                    title="No runs match these filters"
+                    text="Widen the status or date filter, or pick all agents."
+                    action-label="Clear filters"
+                    @action="update({ agent: undefined, status: undefined, from: undefined, to: undefined })"
+                />
+                <EmptyState
+                    v-else
+                    icon="play"
+                    title="No runs yet"
+                    text="Runs appear here once a trigger starts one."
+                />
             </template>
         </RunsTable>
     </template>
