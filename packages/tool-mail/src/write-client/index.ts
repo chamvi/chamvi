@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+export { MAIL_EFFECT_HEADER } from './constants.ts';
 export { createMailWriteClient } from './module.ts';
 export type {
     IMailWriteClient,

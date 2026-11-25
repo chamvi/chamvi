@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { jsonSchema } from 'ai';
 import {
     afterEach,
     describe,
@@ -14,6 +15,7 @@ import {
 import {
     InvalidAgentDefinitionError,
     defineModelAgent,
+    defineTool,
 } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { mockModel } from '@chamvi/test-kit';
@@ -30,7 +32,12 @@ import {
 import type { IModule } from '@chamvi/app';
 import { buildModuleHarness, createModuleHarness, memoryStoreModule } from '@chamvi/app/testing';
 import type { ModuleHarness, ModuleHarnessOptions } from '@chamvi/app/testing';
-import { mailTools } from '@chamvi/tool-mail';
+import {
+    injectMailContext,
+    injectMailWriteContext,
+    mailTools,
+    mailWriteTools,
+} from '@chamvi/tool-mail';
 import type { MailSearchResult } from '@chamvi/tool-mail';
 import {
     MAIL_ACCOUNTS_VARIABLE,
@@ -136,6 +143,40 @@ async function runAssistant(harness: ModuleHarness) {
     return { run, step };
 }
 
+/** An agent making one call of `toolName` with `input`. */
+function callingAgent(toolName: string, input: unknown, tools: Agent['definition']['tools']): Agent {
+    return defineModelAgent({
+        name: 'assistant',
+        instructions: 'Use the mail.',
+        model: mockModel([
+            {
+                parts: [{
+                    type: 'tool-call',
+                    toolName,
+                    input,
+                    toolCallId: 'c1',
+                }],
+            },
+            { parts: [{ type: 'text', text: 'Done.' }] },
+        ]),
+        tools,
+    });
+}
+
+async function toolStepOf(harness: ModuleHarness, name: string) {
+    const engine = harness.container.resolve(AppToken.ENGINE);
+    const { runId } = await engine.dispatch({
+        agent: 'assistant',
+        trigger: 'http',
+        channel: 'http',
+        payload: {},
+    });
+
+    await engine.idle();
+
+    return (await engine.stepService.find(runId)).find((entry) => entry.kind === 'tool' && entry.name === name);
+}
+
 const logins = (server: FakeImap) => untagged(server.commands).filter((command) => command.startsWith('LOGIN')).length;
 
 describe('toolMailModule()', () => {
@@ -157,6 +198,86 @@ describe('toolMailModule()', () => {
         expect((step?.output as MailSearchResult).mails.length).toBeGreaterThan(0);
         expect(untagged(server.commands).find((command) => command.startsWith('LOGIN'))).toContain('bob@y.test');
         expect(harness.reported).toEqual([]);
+    });
+
+    it('provides the read and the write client of the same accounts', async () => {
+        const server = await fake();
+        const env = envOf(server.port);
+        const accounts = JSON.parse(env[MAIL_ACCOUNTS_VARIABLE]!) as Record<string, unknown>[];
+
+        accounts[0]!.smtp = {
+            host: '127.0.0.1', 
+            port: 2525, 
+            security: 'plain', 
+        };
+
+        const probe = defineTool({
+            inputSchema: jsonSchema<Record<string, never>>({ type: 'object' }),
+            execute: async (_input, { context }) => ({
+                read: typeof injectMailContext(context).search,
+                write: injectMailWriteContext(context).account('work'),
+            }),
+        });
+        const harness = await harnessOf(toolMailModule({ env: { ...env, [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify(accounts) } }), { agents: [callingAgent('probe', {}, { probe })] });
+        const step = await toolStepOf(harness, 'probe');
+
+        expect(step?.error).toBeUndefined();
+        expect(step?.output).toEqual({
+            read: 'function',
+            write: {
+                id: 'work',
+                address: 'bob@y.test',
+                gmail: false,
+                smtp: true,
+            },
+        });
+    });
+
+    it.each(['drained', 'teardown'] as const)('closes the write client on %s', async (when) => {
+        const server = await fake();
+        const env = envOf(server.port);
+        const accounts = JSON.parse(env[MAIL_ACCOUNTS_VARIABLE]!) as Record<string, unknown>[];
+
+        accounts[0]!.smtp = {
+            host: '127.0.0.1', 
+            port: 2525, 
+            security: 'plain', 
+        };
+
+        // a Sent lookup opens a connection of the write client only
+        const probe = defineTool({
+            inputSchema: jsonSchema<Record<string, never>>({ type: 'object' }),
+            execute: async (_input, { context }) => (await injectMailWriteContext(context)
+                .findSent('work', { key: 'k', messageId: '<m@y.test>' })) ?? null,
+        });
+        const harness = await harnessOf(toolMailModule({ env: { ...env, [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify(accounts) } }), { agents: [callingAgent('probe', {}, { probe })] });
+        const step = await toolStepOf(harness, 'probe');
+
+        expect(step?.error).toBeUndefined();
+        expect(untagged(server.commands)).not.toContain('LOGOUT');
+
+        if (when === 'drained') {
+            await runHooks(harness.container, 'drained');
+        } else {
+            await harness.stop();
+            harnesses.length = 0;
+        }
+
+        expect(untagged(server.commands)).toContain('LOGOUT');
+    });
+
+    it('makes mail_send fail with connection_not_configured without accounts', async () => {
+        const harness = await harnessOf(toolMailModule({ env: {} }), {
+            agents: [callingAgent('mail_send', {
+                account: 'work',
+                to: ['alice@x.test'],
+                subject: 'Hi',
+                text: 'Hello.',
+            }, mailWriteTools())],
+        });
+        const step = await toolStepOf(harness, 'mail_send');
+
+        expect(step?.error).toMatchObject({ code: 'connection_not_configured' });
     });
 
     it('takes the accounts option over the env', async () => {

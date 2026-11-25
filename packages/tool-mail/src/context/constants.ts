@@ -7,6 +7,10 @@
 
 import { defineContextKey } from '@chamvi/core';
 import type { IMailClient } from '../client/types.ts';
+import type { IMailWriteClient } from '../write-client/types.ts';
 
 /** The shared client the mail module provides on the engine. */
 export const MAIL_CONTEXT = defineContextKey<IMailClient>('mail');
+
+/** The shared write client the mail module provides on the engine. */
+export const MAIL_WRITE_CONTEXT = defineContextKey<IMailWriteClient>('mail-write');

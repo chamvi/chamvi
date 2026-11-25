@@ -12,17 +12,21 @@ import { isObject } from 'smob';
 import { createMailClient } from '../client/module.ts';
 import type { IMailClient } from '../client/types.ts';
 import { createUnconfiguredMailClient } from '../client/unconfigured.ts';
-import { provideMailContext } from '../context/module.ts';
+import { provideMailContext, provideMailWriteContext } from '../context/module.ts';
 import { normalizeAccounts } from '../options/module.ts';
 import { normalizeSmtp } from '../write-client/asserts.ts';
+import { createMailWriteClient } from '../write-client/module.ts';
+import type { IMailWriteClient } from '../write-client/types.ts';
+import { createUnconfiguredMailWriteClient } from '../write-client/unconfigured.ts';
 import { MAIL_CONNECTION_TYPE, TOOL_MAIL_MODULE_NAME } from './constants.ts';
 import { readMailAccountsFromEnv } from './helpers.ts';
 import { loadMailAccounts, mailConnectionDefinition } from './type.ts';
 import type { MailEnvAccount, ToolMailModuleOptions } from './types.ts';
 
 /**
- * One mail client for the app, provided on the engine (`mailTools()`
- * without accounts injects it). The accounts (the `accounts` option, else
+ * One mail client and one mail write client for the app, both of the same
+ * accounts, provided on the engine (`mailTools()` and `mailWriteTools()`
+ * without accounts inject them). The accounts (the `accounts` option, else
  * `CHAMVI_MAIL_ACCOUNTS` with its credential variables, each with optional
  * `smtp` settings, also stored as `smtpHost`, `smtpPort`, `smtpSecurity`) are read and checked
  * when the factory is called (InvalidAgentDefinitionError, never echoing a
@@ -33,8 +37,8 @@ import type { MailEnvAccount, ToolMailModuleOptions } from './types.ts';
  * check that finds the store behind its migrations warns and goes on with the
  * env. The accounts are listed as connections of the type `mail`. Without
  * any, tools report a not-configured tool error. The lifecycle hook
- * provides the client (`engineCreated`) and logs out once the engine drained
- * (`drained`), `teardown` logs out too. Migrate mode does nothing.
+ * provides both clients (`engineCreated`) and logs both out once the engine
+ * drained (`drained`), `teardown` logs out too. Migrate mode does nothing.
  */
 export class ToolMailModule implements IModule {
     readonly name: string = TOOL_MAIL_MODULE_NAME;
@@ -49,6 +53,8 @@ export class ToolMailModule implements IModule {
     protected env: Env;
 
     protected client: IMailClient | undefined;
+
+    protected writeClient: IMailWriteClient | undefined;
 
     constructor(options: ToolMailModuleOptions = {}) {
         if (!isObject(options)) {
@@ -106,19 +112,29 @@ export class ToolMailModule implements IModule {
             createMailClient(loaded.accounts, { clock: container.resolve(AppToken.CLOCK) }) :
             createUnconfiguredMailClient(MAIL_CONNECTION_TYPE);
 
+        const writeClient = loaded.accounts.length > 0 ?
+            createMailWriteClient(loaded.accounts, { clock: container.resolve(AppToken.CLOCK) }) :
+            createUnconfiguredMailWriteClient(MAIL_CONNECTION_TYPE);
+
         this.client = client;
+        this.writeClient = writeClient;
 
         container.registerMany(AppToken.LIFECYCLE_HOOKS, {
             useValue: {
                 name: this.name,
-                engineCreated: (engine) => provideMailContext(engine, client),
-                drained: () => client.close(),
+                engineCreated: (engine) => {
+                    provideMailContext(engine, client);
+                    provideMailWriteContext(engine, writeClient);
+                },
+                drained: async () => {
+                    await Promise.all([client.close(), writeClient.close()]);
+                },
             },
         });
     }
 
     async teardown(): Promise<void> {
-        await this.client?.close();
+        await Promise.all([this.client?.close(), this.writeClient?.close()]);
     }
 }
 
