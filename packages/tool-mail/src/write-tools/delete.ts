@@ -22,7 +22,7 @@ import { parseMailDeleteInput } from './asserts.ts';
 import { classifyMailDelete } from './classify.ts';
 import { MAIL_DELETE_MAX_IDS } from './constants.ts';
 import { mailDeleteKey } from './keys.ts';
-import { mailDeleteLimitOf } from './limit.ts';
+import { limitListingCovers, mailDeleteLimitOf } from './limit.ts';
 import type { MailDeleteInput, MailDeleteToolOptions, MailWriteClientSource } from './types.ts';
 
 // validated by the AI SDK before the call is counted or run: 21 ids never reach the limit
@@ -74,14 +74,15 @@ export function mailDeleteTool(source: MailWriteClientSource, options: MailDelet
             'ids whose mail was already gone. When the approval is too long for the chat, delete fewer mails per call.',
         inputSchema: INPUT_SCHEMA,
         effectKey: (input, ctx) => mailDeleteKey(parseMailDeleteInput(input), ctx),
-        limit: mailDeleteLimitOf(source),
+        ...(options.limit !== false && { limit: mailDeleteLimitOf(source, options.limit) }),
         execute: async (input, { abortSignal, context }) => {
             const { ids } = parseMailDeleteInput(input);
             const client = source(context);
             const signal = signalOf(abortSignal, context);
 
-            // an approved limit approval showed the same listing: one decision covers the call
-            if (!toolLimitApproved(context)) {
+            // an approved limit approval that listed every mail is the owner's decision on the call; one that
+            // showed less (a fallback, an agent's own limit) is not, and the checks below still run
+            if (!toolLimitApproved(context) || !await limitListingCovers(context, ids)) {
                 const listing = await client.describe(ids, signal);
 
                 if (listing.mails.length === 0) {

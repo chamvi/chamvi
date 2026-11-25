@@ -11,7 +11,6 @@ import {
     expectTypeOf,
     it,
 } from 'vitest';
-import type { ToolLimit } from '@chamvi/core';
 import * as mail from '@chamvi/tool-mail';
 import * as module from '@chamvi/tool-mail/module';
 
@@ -51,7 +50,7 @@ describe('public api', () => {
         expect(mail.MAIL_SEND_SUBJECT_MAX_CHARS).toBe(500);
         expect(mail.MAIL_SEND_TEXT_MAX_CHARS).toBe(100_000);
         expect(mail.MAIL_ADDRESS_PATTERN).toEqual(/^[^\s@<>(),;:"\\]+@[^\s@<>(),;:"\\]+\.[^\s@<>(),;:"\\]+$/);
-        expect(mail.mailDeleteLimit).toBeTypeOf('function');
+        expect(mail).not.toHaveProperty('mailDeleteLimit');
         expect(mail.MAIL_DELETE_MAX_IDS).toBe(20);
         expect(mail.MAIL_DELETE_LIMIT_MAX).toBe(20);
         expect(mail.MAIL_DELETE_LIMIT_WINDOW_MS).toBe(3_600_000);
@@ -93,7 +92,6 @@ describe('public api', () => {
             'encodeMailId',
             'injectMailContext',
             'injectMailWriteContext',
-            'mailDeleteLimit',
             'mailTools',
             'mailWriteTools',
             'parseMailId',
@@ -146,13 +144,12 @@ describe('public api', () => {
             inReplyTo?: string;
         }>();
         expectTypeOf<mail.MailDeleteInput>().toEqualTypeOf<{ ids: string[] }>();
-        expectTypeOf<mail.MailDeleteLimitOptions>().toEqualTypeOf<{
+        expectTypeOf<mail.MailDeleteLimitSettings>().toEqualTypeOf<{
             max?: number;
             windowMs?: number;
             bucket?: string;
-            client?: mail.IMailWriteClient;
         }>();
-        expectTypeOf<ReturnType<typeof mail.mailDeleteLimit>>().toEqualTypeOf<ToolLimit<mail.MailDeleteInput>>();
+        expectTypeOf<mail.MailWriteToolsOptions['deleteLimit']>().toEqualTypeOf<mail.MailDeleteLimitSettings | false | undefined>();
         expectTypeOf<NonNullable<module.ToolMailModuleOptions['accounts']>>().toEqualTypeOf<mail.MailWriteAccount[]>();
     });
 

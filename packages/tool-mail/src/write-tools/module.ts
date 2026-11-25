@@ -61,8 +61,8 @@ function sourceOf(options: MailWriteToolsOptions, timing: { clock: IClock; timeo
 
 /**
  * The mail write tools: `mail_send` (SMTP, always approved by the owner with the whole mail) and `mail_delete`
- * (a move to the account's trash, approved unless a classifier finds it routine, limited by
- * `mailDeleteLimit()`). They use `client`, else a client of `accounts`, else the write client the mail module
+ * (a move to the account's trash, approved unless a classifier finds it routine, limited by its own limit,
+ * `deleteLimit`, default 20 mails an hour). They use `client`, else a client of `accounts`, else the write client the mail module
  * provided on the engine. Options are checked when called (InvalidAgentDefinitionError).
  */
 export function mailWriteTools(options: MailWriteToolsOptions = {}): ToolSet {
@@ -73,11 +73,16 @@ export function mailWriteTools(options: MailWriteToolsOptions = {}): ToolSet {
     const timing = normalizeTiming(options, CALLER);
     const source = sourceOf(options, timing);
 
+    if (options.deleteLimit !== undefined && options.deleteLimit !== false && !isObject(options.deleteLimit)) {
+        throw new InvalidAgentDefinitionError(`${CALLER} deleteLimit must be an object or false.`);
+    }
+
     return {
         mail_send: mailSendTool(source),
         mail_delete: mailDeleteTool(source, {
             ...timing,
             ...(options.classifier?.model !== undefined && { classifier: { model: options.classifier.model } }),
+            ...(options.deleteLimit !== undefined && { limit: options.deleteLimit }),
         }),
     };
 }

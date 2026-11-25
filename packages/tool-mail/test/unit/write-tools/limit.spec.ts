@@ -6,6 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
+import type { ToolLimit } from '@chamvi/core';
 import { mockModel } from '@chamvi/test-kit';
 import type { MockResponse } from '@chamvi/test-kit';
 import {
@@ -13,9 +15,9 @@ import {
     MAIL_DELETE_LIMIT_MAX,
     MAIL_DELETE_LIMIT_WINDOW_MS,
     encodeMailId,
-    mailDeleteLimit,
+    mailWriteTools,
 } from '@chamvi/tool-mail';
-import { toolContext } from '../../utils/context.ts';
+import type { IMailWriteClient, MailWriteToolsOptions } from '@chamvi/tool-mail';
 import { createWriteEngine } from '../../utils/engine.ts';
 import type { FakeFolder } from '../../utils/imap.ts';
 import { setupWrite } from '../../utils/write.ts';
@@ -33,6 +35,35 @@ function uidsOf(folders: FakeFolder[], path: string): number[] {
     return (folders.find((folder) => folder.path === path)!.messages ?? []).map((message) => message.uid);
 }
 
+function limitOf(client: IMailWriteClient, deleteLimit?: MailWriteToolsOptions['deleteLimit']): ToolLimit | undefined {
+    const tools = mailWriteTools({ client, ...(deleteLimit !== undefined && { deleteLimit }) });
+
+    return (tools.mail_delete as { limit?: ToolLimit }).limit;
+}
+
+/** `client` whose first `describe` fails (a transient IMAP error), the rest as given. */
+function flakyDescribe(client: IMailWriteClient): IMailWriteClient {
+    let failed = false;
+
+    return {
+        account: (id) => client.account(id),
+        send: (request, signal) => client.send(request, signal),
+        findSent: (account, lookup, signal) => client.findSent(account, lookup, signal),
+        describe: async (ids, signal) => {
+            if (!failed) {
+                failed = true;
+
+                throw new Error('connection reset');
+            }
+
+            return client.describe(ids, signal);
+        },
+        trash: (ids, signal) => client.trash(ids, signal),
+        replyHeaders: (id, signal) => client.replyHeaders(id, signal),
+        close: () => client.close(),
+    };
+}
+
 const deleteCall = (ids: string[], toolCallId: string): MockResponse => ({
     parts: [{
         type: 'tool-call',
@@ -44,7 +75,7 @@ const deleteCall = (ids: string[], toolCallId: string): MockResponse => ({
 
 const done: MockResponse = { parts: [{ type: 'text', text: 'Done.' }] };
 
-const routine: MockResponse = { parts: [{ type: 'text', text: '{"decision":"routine"}' }] };
+const decision = (value: string): MockResponse => ({ parts: [{ type: 'text', text: JSON.stringify({ decision: value }) }] });
 
 const THREE = [idOf('Archive', 7), idOf('INBOX', 1), idOf('INBOX', 2)];
 
@@ -54,10 +85,12 @@ const LISTING = [
     '2026-11-03 08:00 UTC | Carol <carol@z.test> | Invite and notes | INBOX',
 ].join('\n');
 
-describe('mailDeleteLimit()', () => {
-    it('has the defaults and weighs the distinct ids', async () => {
-        const limit = mailDeleteLimit();
-        const ctx = toolContext('r1');
+const LIMIT_TITLE = /^Limit reached for mail_delete: 0 of 2 used .*\(this call: 3\)\. Allow this call\?$/;
+
+describe('mail_delete\'s own limit', () => {
+    it('has the defaults, takes deleteLimit and weighs the distinct ids', async () => {
+        const { client } = await setupWrite(false);
+        const limit = limitOf(client);
 
         expect(limit).toMatchObject({
             max: MAIL_DELETE_LIMIT_MAX,
@@ -65,9 +98,9 @@ describe('mailDeleteLimit()', () => {
             bucket: MAIL_DELETE_LIMIT_BUCKET,
             onExceed: 'approve',
         });
-        expect(await limit.weight!({ ids: ['a', 'b', 'a'] }, ctx)).toBe(2);
-        expect(await limit.weight!({ ids: [] }, ctx)).toBe(1);
-        expect(mailDeleteLimit({
+        expect(await limit!.weight!({ ids: ['a', 'b', 'a'] }, {} as never)).toBe(2);
+        expect(await limit!.weight!({ ids: [] }, {} as never)).toBe(1);
+        expect(limitOf(client, {
             max: 5,
             windowMs: 60_000,
             bucket: 'mail',
@@ -76,23 +109,8 @@ describe('mailDeleteLimit()', () => {
             windowMs: 60_000,
             bucket: 'mail',
         });
-    });
-
-    it('lists the mails as detail, and their folder and uid when the server is down', async () => {
-        const { client, imap } = await setupWrite(false);
-        const limit = mailDeleteLimit({ client });
-        const ctx = toolContext('r1');
-
-        expect(await limit.detail!({ ids: THREE }, ctx)).toBe(LISTING);
-
-        await imap.close();
-
-        expect(await limit.detail!({ ids: [...THREE, 'not an id'] }, ctx)).toBe([
-            'Archive uid 7',
-            'INBOX uid 1',
-            'INBOX uid 2',
-            'not an id',
-        ].join('\n'));
+        expect(limitOf(client, false)).toBeUndefined();
+        expect(() => mailWriteTools({ client, deleteLimit: 5 as never })).toThrow(InvalidAgentDefinitionError);
     });
 
     it('asks one limit approval with the listing, then moves without the classifier or a second approval', async () => {
@@ -102,12 +120,12 @@ describe('mailDeleteLimit()', () => {
             client,
             model: mockModel([deleteCall(THREE, 'd1'), done]),
             classifierModel: classifier,
-            limits: { mail_delete: mailDeleteLimit({ max: 2 }) },
+            deleteLimit: { max: 2 },
         });
         const runId = await write.dispatch();
 
         expect(write.sent).toHaveLength(1);
-        expect(write.sent[0]!.message.title).toMatch(/^Limit reached for mail_delete: 0 of 2 used .*\(this call: 3\)\. Allow this call\?$/);
+        expect(write.sent[0]!.message.title).toMatch(LIMIT_TITLE);
         expect(write.sent[0]!.message.body).toBe(LISTING);
 
         await write.answer(runId, true);
@@ -121,7 +139,84 @@ describe('mailDeleteLimit()', () => {
         expect((await write.run(runId))?.status).toBe('completed');
     });
 
-    it('keeps weight and detail in an agent limits entry', async () => {
+    it('lists the mails through the tools\' own client of accounts, with no client provided on the engine', async () => {
+        const { account, folders } = await setupWrite(false);
+        const classifier = mockModel([]);
+        const write = createWriteEngine({
+            accounts: [account],
+            model: mockModel([deleteCall(THREE, 'd1'), done]),
+            classifierModel: classifier,
+            deleteLimit: { max: 2 },
+        });
+        const runId = await write.dispatch();
+
+        expect(write.sent[0]!.message.body).toBe(LISTING);
+
+        await write.answer(runId, true);
+
+        expect(uidsOf(folders, 'INBOX')).toEqual([]);
+        expect(classifier.doGenerateCalls).toHaveLength(0);
+    });
+
+    it('still classifies and asks after a limit approval that could show only folders and uids', async () => {
+        const { client, folders } = await setupWrite(false);
+        const classifier = mockModel([decision('ask')]);
+        const write = createWriteEngine({
+            client: flakyDescribe(client),
+            model: mockModel([deleteCall(THREE, 'd1'), done]),
+            classifierModel: classifier,
+            deleteLimit: { max: 2 },
+        });
+        const runId = await write.dispatch();
+
+        expect(write.sent[0]!.message.title).toMatch(LIMIT_TITLE);
+        expect(write.sent[0]!.message.body).toBe('Archive uid 7\nINBOX uid 1\nINBOX uid 2');
+
+        await write.answer(runId, true);
+
+        expect(classifier.doGenerateCalls).toHaveLength(1);
+        expect(write.sent).toHaveLength(2);
+        expect(write.sent[1]!.message).toMatchObject({ title: 'Delete 3 mails from work?', body: LISTING });
+        expect(uidsOf(folders, 'INBOX')).toEqual([1, 2]);
+
+        await write.answer(runId, true);
+
+        expect(uidsOf(folders, 'INBOX')).toEqual([]);
+        expect((await write.run(runId))?.status).toBe('completed');
+    });
+
+    it('still classifies and asks after an agent limits entry, which shows no listing', async () => {
+        const { account, folders } = await setupWrite(false);
+        const classifier = mockModel([decision('ask')]);
+        const write = createWriteEngine({
+            accounts: [account],
+            model: mockModel([deleteCall(THREE, 'd1'), done]),
+            classifierModel: classifier,
+            // an entry of its own: a weight, but no detail
+            limits: {
+                mail_delete: {
+                    max: 2,
+                    windowMs: 3_600_000,
+                    weight: (input: { ids: string[] }) => input.ids.length,
+                },
+            },
+        });
+        const runId = await write.dispatch();
+
+        expect(write.sent[0]!.message.title).toMatch(LIMIT_TITLE);
+        expect(write.sent[0]!.message.body ?? '').toBe('');
+
+        await write.answer(runId, true);
+
+        expect(classifier.doGenerateCalls).toHaveLength(1);
+        expect(write.sent[1]!.message).toMatchObject({ title: 'Delete 3 mails from work?', body: LISTING });
+
+        await write.answer(runId, false);
+
+        expect(uidsOf(folders, 'INBOX')).toEqual([1, 2]);
+    });
+
+    it('counts weights: a second call over max asks with its listing', async () => {
         const { client } = await setupWrite(false);
         const write = createWriteEngine({
             client,
@@ -130,8 +225,8 @@ describe('mailDeleteLimit()', () => {
                 deleteCall([THREE[2]!, idOf('INBOX', 98), idOf('INBOX', 99)], 'd2'),
                 done,
             ]),
-            classifierModel: mockModel([routine]),
-            limits: { mail_delete: mailDeleteLimit({ max: 5 }) },
+            classifierModel: mockModel([decision('routine')]),
+            deleteLimit: { max: 5 },
         });
         const runId = await write.dispatch();
         const [first] = await write.steps(runId, 'mail_delete');
@@ -157,14 +252,17 @@ describe('mailDeleteLimit()', () => {
         expect((await write.run(runId))?.status).toBe('waiting');
     });
 
-    it('runs unlimited with limits: { mail_delete: false }', async () => {
+    it.each([
+        ['deleteLimit: false', { deleteLimit: false as const }],
+        ['limits: { mail_delete: false }', { limits: { mail_delete: false as const } }],
+    ])('runs unlimited with %s', async (_, options) => {
         const { client, folders } = await setupWrite(false);
         const twenty = Array.from({ length: 20 }, (_, index) => idOf('INBOX', 100 + index));
         const write = createWriteEngine({
             client,
             model: mockModel([deleteCall(twenty, 'd1'), deleteCall([idOf('INBOX', 1)], 'd2'), done]),
-            classifierModel: mockModel([routine]),
-            limits: { mail_delete: false },
+            classifierModel: mockModel([decision('routine')]),
+            ...options,
         });
         const runId = await write.dispatch();
 

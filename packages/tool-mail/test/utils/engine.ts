@@ -16,7 +16,7 @@ import type {
 } from '@chamvi/core';
 import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { mailWriteTools, provideMailWriteContext } from '@chamvi/tool-mail';
-import type { IMailWriteClient } from '@chamvi/tool-mail';
+import type { IMailWriteClient, MailWriteAccount, MailWriteToolsOptions } from '@chamvi/tool-mail';
 
 type Run = Awaited<ReturnType<IEngine['runService']['findOne']>>;
 type Step = Awaited<ReturnType<IEngine['stepService']['find']>>[number];
@@ -47,12 +47,16 @@ afterEach(() => {
 });
 
 /**
- * An engine with one agent `assistant` on `model`, the mail write tools over `client` (plus `tools`), and a
+ * An engine with one agent `assistant` on `model`, the mail write tools over `client` or `accounts` (plus `tools`), and a
  * recording channel `chat` (`out` records, `fits` refuses a message body above `maxChars`, `direct` per `direct`, default true). The
  * client is also provided on the engine, and the classifier's timeout runs on the engine's clock.
  */
 export function createWriteEngine(options: {
-    client: IMailWriteClient;
+    /** The write client; else `accounts` give the tools a client of their own (nothing provided on the engine). */
+    client?: IMailWriteClient;
+    accounts?: MailWriteAccount[];
+    /** `mailWriteTools({ deleteLimit })`. */
+    deleteLimit?: MailWriteToolsOptions['deleteLimit'];
     model: LanguageModel;
     classifierModel?: LanguageModel;
     limits?: AgentLimits;
@@ -85,8 +89,9 @@ export function createWriteEngine(options: {
             tools: {
                 ...options.tools,
                 ...mailWriteTools({
-                    client: options.client,
+                    ...(options.client ? { client: options.client } : { accounts: options.accounts! }),
                     clock,
+                    ...(options.deleteLimit !== undefined && { deleteLimit: options.deleteLimit }),
                     ...(options.timeoutMs !== undefined && { timeoutMs: options.timeoutMs }),
                     ...(options.classifierModel && { classifier: { model: options.classifierModel } }),
                 }),
@@ -98,8 +103,11 @@ export function createWriteEngine(options: {
     });
 
     engines.push(engine);
-    // for limits built without a client (mailDeleteLimit())
-    provideMailWriteContext(engine, options.client);
+
+    // the module's way: tools without a client of their own find it on the engine
+    if (options.client) {
+        provideMailWriteContext(engine, options.client);
+    }
 
     let started = false;
     const waiting = async (runId: string) => {

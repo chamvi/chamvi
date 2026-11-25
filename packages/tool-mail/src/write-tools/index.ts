@@ -15,11 +15,10 @@ export {
     MAIL_SEND_SUBJECT_MAX_CHARS,
     MAIL_SEND_TEXT_MAX_CHARS,
 } from './constants.ts';
-export { mailDeleteLimit } from './limit.ts';
 export * from './module.ts';
 export type {
     MailDeleteInput,
-    MailDeleteLimitOptions,
+    MailDeleteLimitSettings,
     MailSendInput,
     MailWriteToolsOptions,
 } from './types.ts';

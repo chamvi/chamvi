@@ -19,6 +19,8 @@ export type MailWriteToolsOptions = {
     timeoutMs?: number;
     /** The model that decides whether a delete is routine; default the agent's model. */
     classifier?: { model?: ModelRef };
+    /** `mail_delete`'s own limit (default 20 mails an hour in bucket `deletes`); false: none. */
+    deleteLimit?: MailDeleteLimitSettings | false;
 };
 
 /** The input of `mail_send`: bare addresses only. */
@@ -38,15 +40,19 @@ export type MailDeleteInput = {
     ids: string[];
 };
 
-export type MailDeleteLimitOptions = {
+/** The settings of `mail_delete`'s own limit, each with its default. */
+export type MailDeleteLimitSettings = {
     /** The most mails moved per window (default `MAIL_DELETE_LIMIT_MAX`). */
     max?: number;
     /** The window in milliseconds (default `MAIL_DELETE_LIMIT_WINDOW_MS`). */
     windowMs?: number;
     /** The bucket the calls count in (default `MAIL_DELETE_LIMIT_BUCKET`). */
     bucket?: string;
-    /** The client that lists the mails for the approval; default the write client provided on the engine. */
-    client?: IMailWriteClient;
+};
+
+/** What a delete's limit approval showed (internal): the ids its listing covered. */
+export type MailDeleteShown = {
+    ids: string[];
 };
 
 /** The write client a tool call uses: the given one, or the one provided on the engine. */
@@ -57,4 +63,5 @@ export type MailDeleteToolOptions = {
     clock: IClock;
     timeoutMs: number;
     classifier?: { model?: ModelRef };
+    limit?: MailDeleteLimitSettings | false;
 };

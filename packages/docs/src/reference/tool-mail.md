@@ -55,7 +55,6 @@ Every tool declares `trust: { taint: true }`: a result taints the run.
 
 ```ts
 function mailWriteTools(options?: MailWriteToolsOptions): ToolSet; // { mail_send, mail_delete }
-function mailDeleteLimit(options?: MailDeleteLimitOptions): ToolLimit; // default 20 per hour, bucket 'deletes'
 function createMailWriteClient(accounts: MailWriteAccount[], options?: MailClientOptions): IMailWriteClient;
 function provideMailWriteContext(provider: IContextProvider, client: IMailWriteClient): void;
 function injectMailWriteContext(ctx: ToolContext): IMailWriteClient;
@@ -71,19 +70,20 @@ type MailWriteToolsOptions = {
     clock?: IClock;
     timeoutMs?: number;
     classifier?: { model?: ModelRef }; // the delete classifier, default the agent's model
+    deleteLimit?: MailDeleteLimitSettings | false; // mail_delete's own limit; false: none
 };
 
-type MailDeleteLimitOptions = { max?: number; windowMs?: number; bucket?: string; client?: IMailWriteClient };
+type MailDeleteLimitSettings = { max?: number; windowMs?: number; bucket?: string }; // default 20, 1 h, 'deletes'
 ```
 
-The tools use `client`, else a client of `accounts`, else the write client the module provided on the engine. `mail_delete` carries `mailDeleteLimit()` as its default limit, so the engine needs a `limitService` unless the agent sets `limits: { mail_delete: false }`.
+The tools use `client`, else a client of `accounts`, else the write client the module provided on the engine. `mail_delete` carries its own limit (`deleteLimit`), so the engine needs a `limitService` unless `deleteLimit: false` (or the agent sets `limits: { mail_delete: false }`).
 
 | Tool | Input | Result |
 |---|---|---|
 | `mail_send` | `account`, `to`, `cc?`, `bcc?` (at most 50 recipients), `subject` (at most 500 characters), `text` (at most 100 000), `inReplyTo?` (a mail id) | `MailSendResult`: the Message-ID, `filed` (a copy is in `\Sent`), refused recipients |
 | `mail_delete` | `ids` (1 to 20 distinct mail ids) | `MailDeleteResult`: `moved`, `missing`, the trash folder |
 
-- **Approvals.** `mail_send` always asks, with the whole mail. `mail_delete` checks the limit first; over it the call asks for an approval, which also skips the classifier. Within the limit a classifier reads from, subject, folder and date only: `routine` moves, `ask` (also any failure) asks. Approvals reach the source chat only when its address is a direct chat, else only the inbox and API.
+- **Approvals.** `mail_send` always asks, with the whole mail. `mail_delete` checks the limit first; over it the call asks for an approval listing the mails, which also skips the classifier when it listed every mail (not when only folders and uids could be shown, and not for an agent `limits.mail_delete` entry, which replaces the tool's limit whole and shows no listing). A call that passed the limit counts even when the delete approval refuses it. Within the limit a classifier reads from, subject, folder and date only: `routine` moves, `ask` (also any failure) asks. Approvals reach the source chat only when its address is a direct chat, else only the inbox and API.
 - **Wire.** The write client sends `LOGIN`, `LIST`, `LSUB`, `EXAMINE`, `UID SEARCH`, `UID FETCH`, `APPEND` and, right before `UID MOVE` only, `SELECT`, plus SMTP. Never `EXPUNGE`, `CLOSE`, `STORE`, `COPY` or `DELETE`; `UID MOVE` needs the `MOVE` capability and goes to the `\Trash` folder by special-use flag.
 - **Send.** The wire copy has no `Bcc:` header, the `\Sent` copy keeps it. The mail carries `X-Chamvi-Effect` and a Message-ID derived from the call, so a retry finds it in Sent instead of sending again. Addresses are printable ASCII; the subject has no control, zero-width or bidi characters. A timeout after the message was handed over fails with `timed out after the message was handed over; it may have been sent`.
 - **Errors.** A failed request is a `ChamviError` with code `mail_request`, a refusal by the owner a `ToolDeniedError`.
@@ -96,7 +96,7 @@ function toolMailModule(options?: ToolMailModuleOptions): ToolMailModule; // 'ch
 
 type ToolMailModuleOptions = {
     env?: Record<string, string | undefined>; // where CHAMVI_MAIL_* is read, default process.env
-    accounts?: MailAccount[];                  // given, CHAMVI_MAIL_ACCOUNTS is not read
+    accounts?: MailWriteAccount[];             // given, CHAMVI_MAIL_ACCOUNTS is not read
 };
 
 const TOOL_MAIL_MODULE_NAME: 'chamvi:tool-mail';
