@@ -160,8 +160,11 @@ export type WhatsAppMediaDownloadOptions = {
     maxBytes: number;
 };
 
-/** Downloads a media message's bytes, bounded; default Baileys' downloadMediaMessage over the socket, as a stream. */
+/** Downloads a media message's bytes, bounded; default downloadWhatsAppMedia (Baileys' keys, chamvi's own fetch and decrypt). */
 export type WhatsAppMediaDownload = (message: WAMessage, socket: WhatsAppSocket, options: WhatsAppMediaDownloadOptions) => Promise<Uint8Array>;
+
+/** The fetch the download uses (internal; global fetch, tests pass a fake). */
+export type WhatsAppMediaFetch = (url: string, init: { headers: Record<string, string>; signal: AbortSignal }) => Promise<Response>;
 
 /** Makes a socket; default Baileys' makeWASocket. */
 export type WhatsAppSocketFactory = (config: UserFacingSocketConfig) => WhatsAppSocket;
@@ -214,7 +217,7 @@ export type WhatsAppChatOptions = {
     socketOptions?: Omit<Partial<SocketConfig>, 'auth' | 'logger'>;
     /** Makes the socket; default Baileys' makeWASocket (tests pass a fake). */
     socketFactory?: WhatsAppSocketFactory;
-    /** Downloads a voice note's bytes; default Baileys' downloadMediaMessage (tests pass a fake). */
+    /** Downloads a voice note's bytes; default chamvi's bounded fetch and decrypt (tests pass a fake). */
     downloadMedia?: WhatsAppMediaDownload;
 };
 
