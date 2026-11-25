@@ -10,6 +10,8 @@ import { ValidationError } from '@chamvi/core';
 import ICAL from 'ical.js';
 import { calendarError } from '../client/asserts.ts';
 import { encodeCalendarEventId } from '../event-id/module.ts';
+import { instantOf } from '../expand/module.ts';
+import { isCalendarAddress } from './asserts.ts';
 import { buildEventIcs } from './ics.ts';
 import {
     discardBody,
@@ -51,13 +53,33 @@ export function calendarAccountOf(calendar: string): string {
     return calendar.includes(':') ? calendar.slice(0, calendar.indexOf(':')) : calendar;
 }
 
-function calendarTimeOf(time: IcalTime): CalendarTime {
+function calendarTimeOf(time: IcalTime, tzid: string | undefined, zone: string): CalendarTime {
     if (time.isDate) {
         return { kind: 'date', date: new Temporal.PlainDate(time.year, time.month, time.day) };
     }
 
-    return { kind: 'instant', instant: Temporal.Instant.fromEpochMilliseconds(time.toUnixTime() * 1000) };
+    return { kind: 'instant', instant: instantOf(time, tzid, zone) };
 }
+
+function tzidOf(component: InstanceType<typeof ICAL.Component>, name: string): string | undefined {
+    const tzid = component.getFirstProperty(name)?.getParameter('tzid');
+
+    return typeof tzid === 'string' && tzid.length > 0 ? tzid : undefined;
+}
+
+function bareAddressOf(value: unknown): string {
+    return typeof value === 'string' ? value.replace(/^mailto:/i, '').trim().toLowerCase() : '';
+}
+
+/** The attendees that are not the organizer (a server may add the organizer as an attendee). */
+function invitedOf(attendees: string[], organizer: string | undefined): number {
+    const own = bareAddressOf(organizer);
+
+    return attendees.filter((address) => bareAddressOf(address) !== own).length;
+}
+
+/** A value that goes on the wire as is: printable ASCII only. */
+const WIRE_VALUE = /^[\x21-\x7E]+$/;
 
 type StoredEvent = {
     uid: string;
@@ -66,27 +88,40 @@ type StoredEvent = {
     invited: number;
 };
 
-/** The event this package stored in `data`, undefined when it is no iCalendar or has no VEVENT with times. */
-function storedEventOf(data: Uint8Array): StoredEvent | undefined {
+/**
+ * The event this package stored in `data`, as a server may have rewritten it
+ * (a TZID, DURATION instead of DTEND, the organizer added as an attendee);
+ * undefined when it is no iCalendar or has no VEVENT with a start.
+ */
+function storedEventOf(data: Uint8Array, zone: string): StoredEvent | undefined {
     try {
         const vevent = new ICAL.Component(ICAL.parse(Buffer.from(data).toString('utf8')) as unknown[]).getFirstSubcomponent('vevent');
         const uid = vevent?.getFirstPropertyValue('uid');
-        const start = vevent?.getFirstPropertyValue('dtstart');
-        const end = vevent?.getFirstPropertyValue('dtend');
 
-        if (!vevent || typeof uid !== 'string' || !(start instanceof ICAL.Time) || !(end instanceof ICAL.Time)) {
+        if (!vevent || typeof uid !== 'string' || !(vevent.getFirstPropertyValue('dtstart') instanceof ICAL.Time)) {
             return undefined;
         }
 
+        const event = new ICAL.Event(vevent);
+        const startTzid = tzidOf(vevent, 'dtstart');
+        const endTzid = vevent.hasProperty('dtend') ? tzidOf(vevent, 'dtend') ?? startTzid : startTzid;
+
         return {
             uid,
-            start: calendarTimeOf(start),
-            end: calendarTimeOf(end),
-            invited: vevent.getAllProperties('attendee').length,
+            start: calendarTimeOf(event.startDate, startTzid, zone),
+            end: calendarTimeOf(event.endDate, endTzid, zone),
+            invited: invitedOf(
+                vevent.getAllProperties('attendee').map((property) => String(property.getFirstValue())),
+                stringOrUndefined(vevent.getFirstPropertyValue('organizer')),
+            ),
         };
     } catch {
         return undefined;
     }
+}
+
+function stringOrUndefined(value: unknown): string | undefined {
+    return typeof value === 'string' ? value : undefined;
 }
 
 function resultOf(
@@ -142,7 +177,7 @@ async function readStored(
 
     const data = await readResourceBody(response, TOOL, account);
 
-    return { event: storedEventOf(data), etag: response.headers.get('etag') };
+    return { event: storedEventOf(data, sessions.options.timezone), etag: response.headers.get('etag') };
 }
 
 /** The ETag of the resource just created, undefined when it cannot be read: nothing throws after the PUT. */
@@ -162,7 +197,7 @@ async function etagAfterCreate(
 }
 
 /**
- * PUTs `request` as a new resource of its calendar. `201`/`204` created
+ * PUTs `request` as a new resource of its calendar. Any `2xx` created
  * (without an ETag header one GET reads it, its failure leaves `event` out);
  * `412` with our UID at the name is a replay, answered as created; `401`/`403`
  * `not permitted`; anything else `request failed`.
@@ -180,13 +215,25 @@ export async function createCalendarEvent(
         throw new ValidationError(`${TOOL}: account "${account}" has no calendar address to invite from.`);
     }
 
+    // the tool checked these already; the client is public, so it checks again before anything goes on the wire
+    const badAttendee = request.attendees.some((address) => !isCalendarAddress(address));
+
+    if (
+        badAttendee ||
+        (request.organizer !== undefined && !isCalendarAddress(request.organizer)) ||
+        !WIRE_VALUE.test(request.uid) ||
+        !WIRE_VALUE.test(request.name)
+    ) {
+        throw new ValidationError(`${TOOL}: an attendee, the organizer, the uid or the resource name is not a bare value.`);
+    }
+
     const zone = sessions.options.timezone;
     const stamp = Temporal.Instant.fromEpochMilliseconds(sessions.options.clock.now());
     const own: StoredEvent = {
         uid: request.uid,
         start: request.start,
         end: request.end,
-        invited: request.attendees.length,
+        invited: invitedOf(request.attendees, request.organizer),
     };
 
     const { entry, etag } = await sessions.run(TOOL, account, signal, async (inner) => {
@@ -201,7 +248,7 @@ export async function createCalendarEvent(
 
         await discardBody(response);
 
-        if (response.status === 201 || response.status === 204) {
+        if (response.status >= 200 && response.status < 300) {
             return { entry: found, etag: response.headers.get('etag') ?? undefined };
         }
 

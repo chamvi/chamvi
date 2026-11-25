@@ -269,3 +269,112 @@ describe('createCalendarWriteClient: findCreated', () => {
         expect((await rejection(client.findCreated('icloud:home', KEY))).message).toBe('calendar_create: icloud: request failed');
     });
 });
+
+describe('createCalendarWriteClient: create, hostile text and stored variants', () => {
+    function wireLines(ics: string): string[] {
+        return unfold(ics).split('\r\n');
+    }
+
+    it('keeps a bare CR in text on one line', async () => {
+        for (const attendees of [[], ['a@x.test']]) {
+            const { server, client } = setup();
+            const title = 'One\rATTENDEE:mailto:evil@x.org';
+            const description = 'Two\r\nATTENDEE:mailto:x@y.z\rMETHOD:CANCEL\nORGANIZER:mailto:evil@x.org';
+
+            await client.create(timed({
+                title,
+                description,
+                location: 'Room\rATTENDEE:mailto:evil@x.org',
+                ...(attendees.length > 0 && { organizer: 'peter@example.com' }),
+                attendees,
+            }));
+
+            const { ics } = (fakeObjectsOf(server.calendars[0]!)[0]!);
+            const parsed = parseEvent(ics);
+
+            expect(parsed.attendees.map((attendee) => attendee.address)).toEqual(attendees.map((address) => `mailto:${address}`));
+            expect(parsed.title).toBe('One\nATTENDEE:mailto:evil@x.org');
+            expect(parsed.description).toBe('Two\nATTENDEE:mailto:x@y.z\nMETHOD:CANCEL\nORGANIZER:mailto:evil@x.org');
+            expect(ics).not.toMatch(/\r(?!\n)/);
+
+            const own = wireLines(ics).filter((line) => /^(?:ATTENDEE|ORGANIZER|METHOD)\b/.test(line));
+
+            expect(own).toEqual(attendees.length > 0 ? [
+                'ORGANIZER:mailto:peter@example.com',
+                'ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:a@x.test',
+            ] : []);
+        }
+    });
+
+    it('refuses an address, uid or name that is not a bare value before any request', async () => {
+        const { server, client } = setup();
+
+        for (const overrides of [
+            { organizer: 'peter@example.com', attendees: ['p@x.org\r\nATTENDEE:mailto:evil@x.org'] },
+            { organizer: 'p@x.org\r\nATTENDEE:mailto:evil@x.org', attendees: ['a@x.test'] },
+            { organizer: 'Peter <p@x.org>', attendees: ['a@x.test'] },
+            { uid: 'a b@chamvi' },
+            { uid: 'a\r\nX:1' },
+            { name: 'chamvi x.ics' },
+        ]) {
+            const error = await rejection(client.create(timed(overrides as Partial<CalendarCreateRequest>)));
+
+            expect(error.code).toBe('validation_error');
+        }
+
+        expect(server.requests).toHaveLength(0);
+    });
+
+    it('counts any 2xx answer to the PUT as created', async () => {
+        const { server } = setup();
+        const writer = createCalendarWriteClient([ACCOUNT], {
+            fetch: async (input, init) => {
+                const response = await server.fetch(input, init);
+
+                return init?.method === 'PUT' ? new Response(null, { status: 200, headers: response.headers }) : response;
+            },
+        });
+
+        expect(await writer.create(timed())).toMatchObject({ uid: timed().uid, event: expect.any(String) });
+        expect(fakeObjectsOf(server.calendars[0]!)).toHaveLength(1);
+    });
+
+    it('reads a stored event the server rewrote as the create gave it', async () => {
+        const { server, client } = setup();
+        const request = timed({ organizer: 'peter@example.com', attendees: ['a@x.test'] });
+
+        server.calendars[0]!.objects = [{
+            name: request.name,
+            etag: '"s"',
+            ics: calendar(vevent(
+                `UID:${request.uid}`,
+                'DTSTAMP:20261101T120000Z',
+                'DTSTART;TZID=Europe/Berlin:20261105T090000',
+                'DURATION:PT1H30M',
+                'SUMMARY:Planning',
+                'ORGANIZER:mailto:peter@example.com',
+                'ATTENDEE;PARTSTAT=ACCEPTED:mailto:Peter@example.com',
+                'ATTENDEE:mailto:a@x.test',
+            )),
+        }];
+
+        const expected = {
+            calendar: 'icloud:home',
+            uid: request.uid,
+            event: encodeCalendarEventId({
+                calendar: 'icloud:home', 
+                name: request.name, 
+                etag: '"s"', 
+            }),
+            start: '2026-11-05T09:00:00+01:00',
+            end: '2026-11-05T10:30:00+01:00',
+            allDay: false,
+            invited: 1,
+        };
+
+        expect(await client.findCreated('icloud:home', KEY)).toEqual(expected);
+        // the 412 path answers the same
+        expect(await client.create(request)).toEqual(expected);
+    });
+});
+

@@ -34,6 +34,11 @@ function icalTimeOf(time: CalendarTime | { kind: 'instant'; instant: Temporal.In
     }, ICAL.Timezone.utcTimezone);
 }
 
+/** `text` with every CRLF and bare CR as LF: ical.js escapes LF but not a bare CR, which would end the line. */
+function textOf(text: string): string {
+    return text.replaceAll(/\r\n?/g, '\n');
+}
+
 /**
  * The iCalendar of `request`: one VEVENT, times in UTC (or DATE values), no
  * TZID or VTIMEZONE; ical.js escapes TEXT and folds lines. With attendees it
@@ -52,14 +57,14 @@ export function buildEventIcs(request: CalendarCreateRequest, stamp: Temporal.In
     vevent.addPropertyWithValue('dtstamp', icalTimeOf({ kind: 'instant', instant: stamp }));
     vevent.addPropertyWithValue('dtstart', icalTimeOf(request.start));
     vevent.addPropertyWithValue('dtend', icalTimeOf(request.end));
-    vevent.addPropertyWithValue('summary', request.title);
+    vevent.addPropertyWithValue('summary', textOf(request.title));
 
     if (request.location !== undefined) {
-        vevent.addPropertyWithValue('location', request.location);
+        vevent.addPropertyWithValue('location', textOf(request.location));
     }
 
     if (request.description !== undefined) {
-        vevent.addPropertyWithValue('description', request.description);
+        vevent.addPropertyWithValue('description', textOf(request.description));
     }
 
     if (request.attendees.length > 0 && request.organizer !== undefined) {
