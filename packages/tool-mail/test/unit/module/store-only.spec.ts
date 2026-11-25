@@ -60,8 +60,8 @@ const TOKEN = 'a-static-token-of-length';
 const LEFTOVER = 'leftover-env-password';
 const LEFTOVER_USER = 'leftover-env-user';
 const THROWAWAY = 'throwaway-password';
-/** What a deployment keeps after its `work` account left `CHAMVI_MAIL_ACCOUNTS`. */
-const LEFTOVER_ENV = { CHAMVI_MAIL_WORK_PASSWORD: LEFTOVER, CHAMVI_MAIL_WORK_USER: LEFTOVER_USER };
+/** What a deployment keeps after its `work` account left `MAIL_ACCOUNTS`. */
+const LEFTOVER_ENV = { MAIL_WORK_PASSWORD: LEFTOVER, MAIL_WORK_USER: LEFTOVER_USER };
 
 const keyring = createKeyring([{ id: 'k1', key: randomBytes(32) }]);
 const harnesses: ModuleHarness[] = [];
@@ -272,13 +272,13 @@ describe('a mail account that exists only in the store (#197)', () => {
         await stop(first);
         logLines.length = 0;
 
-        await serve(store, { CHAMVI_MAIL_WORK_PASSWORD_FILE: '/no/such/file', CHAMVI_MAIL_WORK_USER: LEFTOVER_USER });
+        await serve(store, { MAIL_WORK_PASSWORD_FILE: '/no/such/file', MAIL_WORK_USER: LEFTOVER_USER });
 
         const warnings = logLines.filter((line) => line.includes('"level":"warn"')).join('\n');
 
-        expect(warnings).toContain('CHAMVI_MAIL_WORK_PASSWORD_FILE');
-        expect(warnings).toContain('CHAMVI_MAIL_WORK_USER');
-        expect(warnings).toContain('CHAMVI_MAIL_ACCOUNTS');
+        expect(warnings).toContain('MAIL_WORK_PASSWORD_FILE');
+        expect(warnings).toContain('MAIL_WORK_USER');
+        expect(warnings).toContain('MAIL_ACCOUNTS');
         expect(logLines.join('\n')).not.toContain(LEFTOVER_USER);
         expect(logLines.join('\n')).not.toContain('/no/such/file');
     });

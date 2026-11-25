@@ -149,12 +149,12 @@ createApp({ agents, modules: [discord] });
 
 | Variable | Field |
 |---|---|
-| `CHAMVI_DISCORD_TOKEN` (`_FILE`) | Bot token, required |
-| `CHAMVI_DISCORD_APPLICATION_ID` | Application id, required |
-| `CHAMVI_DISCORD_GUILDS`, `_CHANNELS`, `_USERS`, `_ROLES`, `_DM_USERS` | The policy, comma-separated ids |
-| `CHAMVI_DISCORD_REQUIRE_MENTION` | Default `true` |
+| `DISCORD_TOKEN` (`_FILE`) | Bot token, required |
+| `DISCORD_APPLICATION_ID` | Application id, required |
+| `DISCORD_GUILDS`, `_CHANNELS`, `_USERS`, `_ROLES`, `_DM_USERS` | The policy, comma-separated ids |
+| `DISCORD_REQUIRE_MENTION` | Default `true` |
 
-`name` (default `discord`) names the connection, the channel, the account and the env prefix: a named module reads `CHAMVI_DISCORD_<NAME>_*` (upper-cased, `-` as `_`). A malformed variable throws at the factory; `setup` resolves env, then the store, and lists the connection (type `discord`, named after the module) for [`@chamvi/chat-discord-ui`](https://www.npmjs.com/package/@chamvi/chat-discord-ui) to edit. A required field that env and the store both lack fails the start naming its variable when another field is set from env. With nothing set, or with a stored value the channel refuses (listed `incomplete`), the channel stays idle: it never logs in and its `out` throws `ConnectionNotConfiguredError`. A refused env or code value fails the start. The approval link is `approvalUrl`, else the dashboard's from `PUBLIC_URL`; with neither, a connection made in the dashboard stays idle and any other fails the start. Saved values apply after a restart. See the [Discord guide](https://chamvi.dev/deployment/discord).
+`name` (default `discord`) names the connection, the channel, the account and the env prefix: a named module reads `DISCORD_<NAME>_*` (upper-cased, `-` as `_`). A malformed variable throws at the factory; `setup` resolves env, then the store, and lists the connection (type `discord`, named after the module) for [`@chamvi/chat-discord-ui`](https://www.npmjs.com/package/@chamvi/chat-discord-ui) to edit. A required field that env and the store both lack fails the start naming its variable when another field is set from env. With nothing set, or with a stored value the channel refuses (listed `incomplete`), the channel stays idle: it never logs in and its `out` throws `ConnectionNotConfiguredError`. A refused env or code value fails the start. The approval link is `approvalUrl`, else the dashboard's from `PUBLIC_URL`; with neither, a connection made in the dashboard stays idle and any other fails the start. Saved values apply after a restart. See the [Discord guide](https://chamvi.dev/deployment/discord).
 
 ## Limits
 

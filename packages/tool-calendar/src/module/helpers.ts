@@ -24,15 +24,15 @@ function fail(message: string): never {
     throw new InvalidAgentDefinitionError(message);
 }
 
-/** `CHAMVI_CALENDAR_<ID>_<field>`: the id upper-cased, `-` as `_`. */
+/** `CALENDAR_<ID>_<field>`: the id upper-cased, `-` as `_`. */
 export function variableOf(id: string, field: string): string {
     return `${CALENDAR_VARIABLE_PREFIX}${id.toUpperCase().replaceAll('-', '_')}_${field}`;
 }
 
 /**
- * The entries of `CHAMVI_CALENDAR_ACCOUNTS` (`[{ id?, url, address? }]`)
- * with their credentials from `CHAMVI_CALENDAR_<ID>_USER` (default the
- * address) and `CHAMVI_CALENDAR_<ID>_PASSWORD`, each also from a `_FILE`
+ * The entries of `CALENDAR_ACCOUNTS` (`[{ id?, url, address? }]`)
+ * with their credentials from `CALENDAR_<ID>_USER` (default the
+ * address) and `CALENDAR_<ID>_PASSWORD`, each also from a `_FILE`
  * variant; undefined without the variable. A user or password in neither env
  * nor store fails in `setup`. The id defaults to the address with `@` and `.` as `-`. Errors are InvalidAgentDefinitionErrors
  * naming the variable and index, never a value.
@@ -105,12 +105,12 @@ export function readCalendarEnvEntries(env: Env): CalendarEnvEntry[] | undefined
     });
 }
 
-/** The accounts of `CHAMVI_CALENDAR_ACCOUNTS` (see `readCalendarEnvEntries`); undefined without the variable. */
+/** The accounts of `CALENDAR_ACCOUNTS` (see `readCalendarEnvEntries`); undefined without the variable. */
 export function readCalendarAccountsFromEnv(env: Env): CalendarEnvAccount[] | undefined {
     return readCalendarEnvEntries(env)?.map((entry) => entry.account);
 }
 
-/** `CHAMVI_CALENDAR_TIMEZONE`: an IANA zone id or `UTC` (InvalidAgentDefinitionError); undefined when unset. */
+/** `CALENDAR_TIMEZONE`: an IANA zone id or `UTC` (InvalidAgentDefinitionError); undefined when unset. */
 export function readCalendarTimezoneFromEnv(env: Env): string | undefined {
     const value = envString(env, CALENDAR_TIMEZONE_VARIABLE);
 

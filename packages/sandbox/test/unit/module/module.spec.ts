@@ -340,28 +340,28 @@ describe('sandboxModule: image allow-list', () => {
         expect(imageParameterOf(module)).toBe(false);
     });
 
-    it('builds the allow-list from CHAMVI_SANDBOX_IMAGES', async () => {
-        const module = sandboxModule({ provider: dockerProvider(), env: { CHAMVI_SANDBOX_IMAGES: ' python:3.13 ,rust:1,' } });
+    it('builds the allow-list from SANDBOX_IMAGES', async () => {
+        const module = sandboxModule({ provider: dockerProvider(), env: { SANDBOX_IMAGES: ' python:3.13 ,rust:1,' } });
 
         managers.push(module.manager);
         expect(imageParameterOf(module)).toBe(true);
         await expect(module.manager.acquire('r1', { image: 'node:24' })).rejects.toThrow('image not allowed.');
     });
 
-    it('reads a CHAMVI_SANDBOX_IMAGES of separators and blanks as unset', () => {
+    it('reads a SANDBOX_IMAGES of separators and blanks as unset', () => {
         for (const value of [',', ' , ', '  ']) {
-            const module = sandboxModule({ provider: dockerProvider(), env: { CHAMVI_SANDBOX_IMAGES: value } });
+            const module = sandboxModule({ provider: dockerProvider(), env: { SANDBOX_IMAGES: value } });
 
             expect(imageParameterOf(module)).toBe(false);
         }
     });
 
-    it('keeps the allowImage option under a CHAMVI_SANDBOX_IMAGES without an entry', async () => {
+    it('keeps the allowImage option under a SANDBOX_IMAGES without an entry', async () => {
         const allowImage = vi.fn(() => false);
         const module = sandboxModule({
             provider: dockerProvider(),
             allowImage,
-            env: { CHAMVI_SANDBOX_IMAGES: ' , ' },
+            env: { SANDBOX_IMAGES: ' , ' },
         });
 
         managers.push(module.manager);
@@ -370,26 +370,26 @@ describe('sandboxModule: image allow-list', () => {
         expect(allowImage).toHaveBeenCalled();
     });
 
-    it('names CHAMVI_SANDBOX_IMAGES for an entry that is no image reference, never echoing it', () => {
+    it('names SANDBOX_IMAGES for an entry that is no image reference, never echoing it', () => {
         let error: unknown;
 
         try {
-            sandboxModule({ provider: dockerProvider(), env: { CHAMVI_SANDBOX_IMAGES: 'ok:1,bad image' } });
+            sandboxModule({ provider: dockerProvider(), env: { SANDBOX_IMAGES: 'ok:1,bad image' } });
         } catch (e) {
             error = e;
         }
 
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-        expect((error as Error).message).toContain('CHAMVI_SANDBOX_IMAGES');
+        expect((error as Error).message).toContain('SANDBOX_IMAGES');
         expect((error as Error).message).not.toContain('bad image');
     });
 
-    it('lets CHAMVI_SANDBOX_IMAGES win over allowImage', async () => {
+    it('lets SANDBOX_IMAGES win over allowImage', async () => {
         const allowImage = vi.fn(() => true);
         const module = sandboxModule({
             provider: dockerProvider(),
             allowImage,
-            env: { CHAMVI_SANDBOX_IMAGES: 'python:3.13' },
+            env: { SANDBOX_IMAGES: 'python:3.13' },
         });
 
         managers.push(module.manager);
@@ -431,23 +431,23 @@ describe('sandboxModule', () => {
     });
 
     it('env wins over the option', async () => {
-        const module = new RecordingSandboxModule({ env: { CHAMVI_SANDBOX_PROVIDER: 'docker' }, provider: 'local' });
+        const module = new RecordingSandboxModule({ env: { SANDBOX_PROVIDER: 'docker' }, provider: 'local' });
 
         await harnessWith(module);
         expect(module.imported).toEqual(['docker']);
     });
 
-    it('an unknown CHAMVI_SANDBOX_PROVIDER names it', () => {
-        expect(() => sandboxModule({ env: { CHAMVI_SANDBOX_PROVIDER: 'podman' } }))
-            .toThrow(new InvalidAgentDefinitionError('CHAMVI_SANDBOX_PROVIDER must be one of local, docker, kubernetes.'));
+    it('an unknown SANDBOX_PROVIDER names it', () => {
+        expect(() => sandboxModule({ env: { SANDBOX_PROVIDER: 'podman' } }))
+            .toThrow(new InvalidAgentDefinitionError('SANDBOX_PROVIDER must be one of local, docker, kubernetes.'));
     });
 
-    it('kubernetes without namespace names CHAMVI_SANDBOX_NAMESPACE', () => {
-        expect(() => sandboxModule({ env: { CHAMVI_SANDBOX_PROVIDER: 'kubernetes' } }))
+    it('kubernetes without namespace names SANDBOX_NAMESPACE', () => {
+        expect(() => sandboxModule({ env: { SANDBOX_PROVIDER: 'kubernetes' } }))
             .toThrow(InvalidAgentDefinitionError);
-        expect(() => sandboxModule({ env: { CHAMVI_SANDBOX_PROVIDER: 'kubernetes' } }))
-            .toThrow('CHAMVI_SANDBOX_NAMESPACE');
-        expect(() => sandboxModule({ env: { CHAMVI_SANDBOX_PROVIDER: 'kubernetes', CHAMVI_SANDBOX_NAMESPACE: 'sandbox' } }))
+        expect(() => sandboxModule({ env: { SANDBOX_PROVIDER: 'kubernetes' } }))
+            .toThrow('SANDBOX_NAMESPACE');
+        expect(() => sandboxModule({ env: { SANDBOX_PROVIDER: 'kubernetes', SANDBOX_NAMESPACE: 'sandbox' } }))
             .not.toThrow();
         expect(() => sandboxModule({
             env: {},
@@ -458,17 +458,17 @@ describe('sandboxModule', () => {
 
     it('a missing provider package fails setup', async () => {
         const failure = Object.assign(new Error('Cannot find package \'@chamvi/sandbox-k8s\''), { code: 'ERR_MODULE_NOT_FOUND' });
-        const module = new RecordingSandboxModule({ env: { CHAMVI_SANDBOX_PROVIDER: 'kubernetes', CHAMVI_SANDBOX_NAMESPACE: 'sb' } }, failure);
+        const module = new RecordingSandboxModule({ env: { SANDBOX_PROVIDER: 'kubernetes', SANDBOX_NAMESPACE: 'sb' } }, failure);
 
         const error = await rejectionOf(harnessWith(module));
 
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-        expect(error.message).toBe('CHAMVI_SANDBOX_PROVIDER=kubernetes needs @chamvi/sandbox-k8s installed.');
+        expect(error.message).toBe('SANDBOX_PROVIDER=kubernetes needs @chamvi/sandbox-k8s installed.');
     });
 
     it('a module missing inside an installed provider package is kept', async () => {
         const failure = Object.assign(new Error('Cannot find package \'dockerode\' imported from /app/node_modules/@chamvi/sandbox-docker/dist/index.mjs'), { code: 'ERR_MODULE_NOT_FOUND' });
-        const module = new RecordingSandboxModule({ env: { CHAMVI_SANDBOX_PROVIDER: 'docker' } }, failure);
+        const module = new RecordingSandboxModule({ env: { SANDBOX_PROVIDER: 'docker' } }, failure);
 
         expect(await rejectionOf(harnessWith(module))).toBe(failure);
     });
@@ -564,7 +564,7 @@ describe('sandboxModule', () => {
     it('a given manager is used as is', () => {
         const manager = fakeManager([]);
 
-        expect(sandboxModule({ manager, env: { CHAMVI_SANDBOX_PROVIDER: 'docker' } }).manager).toBe(manager);
+        expect(sandboxModule({ manager, env: { SANDBOX_PROVIDER: 'docker' } }).manager).toBe(manager);
     });
 
     it('a given provider is used as is', async () => {
@@ -710,8 +710,8 @@ describe('sandboxModule', () => {
         await module.manager.release('run-1');
     });
 
-    it('CHAMVI_DEPLOYMENT wins over the deployment option', async () => {
-        const module = new RecordingSandboxModule({ env: { CHAMVI_DEPLOYMENT: 'prod' }, deployment: 'ci' });
+    it('DEPLOYMENT wins over the deployment option', async () => {
+        const module = new RecordingSandboxModule({ env: { DEPLOYMENT: 'prod' }, deployment: 'ci' });
 
         await harnessWith(module);
         await expect(module.manager.get('r1')).rejects.toThrow(/create_workspace/);
@@ -724,8 +724,8 @@ describe('sandboxModule', () => {
         expect(other.calls[0]).toEqual(['find', { deployment: 'ci' }]);
     });
 
-    it('an invalid CHAMVI_DEPLOYMENT fails the factory', () => {
-        expect(() => sandboxModule({ env: { CHAMVI_DEPLOYMENT: 'not valid' } })).toThrow(InvalidAgentDefinitionError);
+    it('an invalid DEPLOYMENT fails the factory', () => {
+        expect(() => sandboxModule({ env: { DEPLOYMENT: 'not valid' } })).toThrow(InvalidAgentDefinitionError);
     });
 
     it('answers isSettled through the engine: with the default deployment only a settled run is settled', async () => {
@@ -777,7 +777,7 @@ describe('sandboxModule', () => {
     });
 
     it('answers isSettled through the engine: with an explicit deployment a missing or settled run is settled', async () => {
-        const module = new RecordingSandboxModule({ env: { CHAMVI_DEPLOYMENT: 'prod' } });
+        const module = new RecordingSandboxModule({ env: { DEPLOYMENT: 'prod' } });
         const harness = await harnessWith(module);
 
         await module.manager.collectGarbage();
@@ -878,8 +878,8 @@ describe('sandboxModule: suspension', () => {
         expect(await isSuspendable!('r1')).toBe(false);
     });
 
-    it('CHAMVI_SANDBOX_SUSPEND_AFTER_MS=0 disables suspension', async () => {
-        const module = new RecordingSandboxModule({ env: { CHAMVI_SANDBOX_SUSPEND_AFTER_MS: '0' } });
+    it('SANDBOX_SUSPEND_AFTER_MS=0 disables suspension', async () => {
+        const module = new RecordingSandboxModule({ env: { SANDBOX_SUSPEND_AFTER_MS: '0' } });
 
         expect(await gcOptionsOf(module)).not.toHaveProperty('isSuspendable');
     });
@@ -890,10 +890,10 @@ describe('sandboxModule: suspension', () => {
         expect(await gcOptionsOf(module)).not.toHaveProperty('isSuspendable');
     });
 
-    it('an invalid CHAMVI_SANDBOX_SUSPEND_AFTER_MS names the variable', () => {
-        expect(() => sandboxModule({ env: { CHAMVI_SANDBOX_SUSPEND_AFTER_MS: 'abc' } }))
-            .toThrow(/CHAMVI_SANDBOX_SUSPEND_AFTER_MS/);
-        expect(() => sandboxModule({ env: { CHAMVI_SANDBOX_SUSPEND_AFTER_MS: 'abc' } }))
+    it('an invalid SANDBOX_SUSPEND_AFTER_MS names the variable', () => {
+        expect(() => sandboxModule({ env: { SANDBOX_SUSPEND_AFTER_MS: 'abc' } }))
+            .toThrow(/SANDBOX_SUSPEND_AFTER_MS/);
+        expect(() => sandboxModule({ env: { SANDBOX_SUSPEND_AFTER_MS: 'abc' } }))
             .toThrow(InvalidAgentDefinitionError);
     });
 
@@ -902,9 +902,9 @@ describe('sandboxModule: suspension', () => {
         expect(() => sandboxModule({ env: {}, suspendAfterMs: 1.5 })).toThrow(InvalidAgentDefinitionError);
     });
 
-    it('CHAMVI_SANDBOX_SUSPEND_AFTER_MS wins over the option', async () => {
+    it('SANDBOX_SUSPEND_AFTER_MS wins over the option', async () => {
         const clock = new ControllableClock(new Date(1_000_000));
-        const module = new RecordingSandboxModule({ env: { CHAMVI_SANDBOX_SUSPEND_AFTER_MS: '5000' }, suspendAfterMs: 1_000 });
+        const module = new RecordingSandboxModule({ env: { SANDBOX_SUSPEND_AFTER_MS: '5000' }, suspendAfterMs: 1_000 });
         const harness = await harnessWith(module, { clock });
         const { isSuspendable } = await gcOptionsOf(module);
         const engine: IEngine = harness.container.resolve(AppToken.ENGINE);
@@ -927,8 +927,8 @@ describe('sandboxModule: suspension', () => {
         } as Run);
         expect(await isSuspendable!('r1')).toBe(true);
 
-        expect(() => new RecordingSandboxModule({ env: { CHAMVI_SANDBOX_SUSPEND_AFTER_MS: '0' }, suspendAfterMs: 1_000 })).not.toThrow();
-        expect(await gcOptionsOf(new RecordingSandboxModule({ env: { CHAMVI_SANDBOX_SUSPEND_AFTER_MS: '0' }, suspendAfterMs: 1_000 })))
+        expect(() => new RecordingSandboxModule({ env: { SANDBOX_SUSPEND_AFTER_MS: '0' }, suspendAfterMs: 1_000 })).not.toThrow();
+        expect(await gcOptionsOf(new RecordingSandboxModule({ env: { SANDBOX_SUSPEND_AFTER_MS: '0' }, suspendAfterMs: 1_000 })))
             .not.toHaveProperty('isSuspendable');
     });
 });

@@ -9,23 +9,23 @@ import type { Env } from '@chamvi/app';
 import type { CalendarAccount } from '../client/types.ts';
 
 export type ToolCalendarModuleOptions = {
-    /** Where the `CHAMVI_CALENDAR_*` variables are read, when the factory is called; default `process.env`. */
+    /** Where the `CALENDAR_*` variables are read, when the factory is called; default `process.env`. */
     env?: Env;
-    /** The accounts to read; given, `CHAMVI_CALENDAR_ACCOUNTS` is not read. */
+    /** The accounts to read; given, `CALENDAR_ACCOUNTS` is not read. */
     accounts?: CalendarAccount[];
-    /** The zone event times are given in (default Europe/Berlin); `CHAMVI_CALENDAR_TIMEZONE` wins over it. */
+    /** The zone event times are given in (default Europe/Berlin); `CALENDAR_TIMEZONE` wins over it. */
     timezone?: string;
     /** The fetch the CalDAV requests go through (default the global one); only PROPFIND, REPORT and GET pass. */
     fetch?: typeof fetch;
 };
 
-/** An account of `CHAMVI_CALENDAR_ACCOUNTS`: a user or password not in env may come from the store, `setup` decides. */
+/** An account of `CALENDAR_ACCOUNTS`: a user or password not in env may come from the store, `setup` decides. */
 export type CalendarEnvAccount = Omit<CalendarAccount, 'user' | 'password'> & {
     user?: string;
     password?: string;
 };
 
-/** One entry of `CHAMVI_CALENDAR_ACCOUNTS`: the account and the address the variable named. */
+/** One entry of `CALENDAR_ACCOUNTS`: the account and the address the variable named. */
 export type CalendarEnvEntry = {
     account: CalendarEnvAccount;
     address?: string;

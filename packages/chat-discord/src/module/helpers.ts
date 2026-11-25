@@ -32,11 +32,11 @@ const SUFFIXES = {
     requireMention: 'REQUIRE_MENTION',
 } as const satisfies Record<DiscordField, string>;
 
-/** The env variable of `key`: `CHAMVI_DISCORD_*`, a named instance `CHAMVI_DISCORD_<NAME>_*` (upper-cased, `-` as `_`). */
+/** The env variable of `key`: `DISCORD_*`, a named instance `DISCORD_<NAME>_*` (upper-cased, `-` as `_`). */
 export function variableOf(name: string, key: DiscordField): string {
     return name === DISCORD_CONNECTION_TYPE ?
-        `CHAMVI_DISCORD_${SUFFIXES[key]}` :
-        `CHAMVI_DISCORD_${name.toUpperCase().replaceAll('-', '_')}_${SUFFIXES[key]}`;
+        `DISCORD_${SUFFIXES[key]}` :
+        `DISCORD_${name.toUpperCase().replaceAll('-', '_')}_${SUFFIXES[key]}`;
 }
 
 /** What the factory took from code, which wins over everything; a given policy fixes all its fields. */

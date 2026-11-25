@@ -158,10 +158,10 @@ Every variable is read once per lifecycle. An empty string counts as unset, inte
 | `AUTHUP_TIMEOUT_MS` | `authupModule` | integer ms, at least 1 | `10000`; the deadline of every catalog read, realm lookup and token verification unless `timeoutMs` is given (a verification past it answers 503) |
 | `AUTHUP_PERMISSION_OWNER` | `authupModule` | `realm`, `client` | `realm` (unless `permissionOwner` is given); `client`: the dashboard client (`uiModule({ auth })`, else `UI_AUTHUP_CLIENT_ID`, else `chamvi`) owns the permissions, chamvi's realm must hold it, and a name needs `client_read` on chamvi's client; any other value fails the start |
 | `UI_AUTHUP_CLIENT_ID`, `UI_AUTHUP_REALM` | `uiModule` | client name or id, realm name or id | `chamvi`, `AUTHUP_REALM`; the dashboard offers the authup login whenever `AUTHUP_URL` is set (token login only without it); `UI_AUTHUP_CLIENT_ID` without `AUTHUP_URL` fails |
-| `CHAMVI_SANDBOX_PROVIDER` | `sandboxModule` | `local`, `docker`, `kubernetes` | the `provider` option, else `local` |
-| `CHAMVI_SANDBOX_NAMESPACE` | `sandboxModule` | string | required for `kubernetes` |
-| `CHAMVI_SANDBOX_IMAGE` | `sandboxModule` | image ref | `ghcr.io/chamvi/sandbox-dev:trixie` |
-| `CHAMVI_DEPLOYMENT` | `sandboxModule` | label value | the `deployment` option, else `default` |
+| `SANDBOX_PROVIDER` | `sandboxModule` | `local`, `docker`, `kubernetes` | the `provider` option, else `local` |
+| `SANDBOX_NAMESPACE` | `sandboxModule` | string | required for `kubernetes` |
+| `SANDBOX_IMAGE` | `sandboxModule` | image ref | `ghcr.io/chamvi/sandbox-dev:trixie` |
+| `DEPLOYMENT` | `sandboxModule` | label value | the `deployment` option, else `default` |
 
 The built-in modules read the lifecycle's `env` (`start({ env })`). The optional module factories read `options.env ?? process.env` **when they are called**, that is when the entry is imported, never `start({ env })`; a test configures them through their `env` option:
 

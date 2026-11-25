@@ -197,10 +197,10 @@ async function mount(options: {
 
 describe('ConnectionForm', () => {
     it('renders a locked field with Set from <VARIABLE>', async () => {
-        const form = await mount({ current: withField(view(), 'user', { source: { kind: 'env', variable: 'CHAMVI_MAIL_WORK_USER' } }) });
+        const form = await mount({ current: withField(view(), 'user', { source: { kind: 'env', variable: 'MAIL_WORK_USER' } }) });
 
         expect(form.field('user').textContent).toContain('Set from');
-        expect(form.field('user').textContent).toContain('CHAMVI_MAIL_WORK_USER');
+        expect(form.field('user').textContent).toContain('MAIL_WORK_USER');
         expect(form.input('user')).toBeNull();
     });
 
@@ -229,12 +229,12 @@ describe('ConnectionForm', () => {
     it('locks a secret set from the environment without Replace or Clear', async () => {
         const form = await mount({
             current: withField(view(), 'password', {
-                source: { kind: 'env', variable: 'CHAMVI_MAIL_WORK_PASSWORD' },
+                source: { kind: 'env', variable: 'MAIL_WORK_PASSWORD' },
                 set: true,
             }),
         });
 
-        expect(form.field('password').textContent).toContain('CHAMVI_MAIL_WORK_PASSWORD');
+        expect(form.field('password').textContent).toContain('MAIL_WORK_PASSWORD');
         expect(form.field('password').querySelectorAll('button')).toHaveLength(0);
     });
 
@@ -301,7 +301,7 @@ describe('ConnectionForm', () => {
     it('leaves a locked field out of the settings', async () => {
         const put = vi.fn(() => view());
         const form = await mount({
-            current: withField(view(), 'user', { source: { kind: 'env', variable: 'CHAMVI_MAIL_WORK_USER' } }),
+            current: withField(view(), 'user', { source: { kind: 'env', variable: 'MAIL_WORK_USER' } }),
             routes: { 'PUT /connections/mail-work/config': put },
         });
 
@@ -796,7 +796,7 @@ describe('ConnectionForm', () => {
     });
 
     it('warns when another field comes from the environment', async () => {
-        const form = await mount({ current: withField(view({ deletable: true }), 'user', { source: { kind: 'env', variable: 'CHAMVI_MAIL_WORK_USER' } }) });
+        const form = await mount({ current: withField(view({ deletable: true }), 'user', { source: { kind: 'env', variable: 'MAIL_WORK_USER' } }) });
 
         form.button('Clear')!.click();
         await flush();
@@ -900,7 +900,7 @@ describe('ConnectionForm', () => {
         it('says the change cannot be made for a secret from the environment', async () => {
             const form = await mount({
                 type: BOUND,
-                current: withField(view(), 'password', { source: { kind: 'env', variable: 'CHAMVI_MAIL_WORK_PASSWORD' } }),
+                current: withField(view(), 'password', { source: { kind: 'env', variable: 'MAIL_WORK_PASSWORD' } }),
             });
 
             form.type(form.input('host')!, 'other.example.com');

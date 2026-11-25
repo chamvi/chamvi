@@ -37,12 +37,12 @@ const SUFFIXES = {
 
 /**
  * The env variable of `key`: the default instance keeps `GITHUB_*`, a named
- * one `CHAMVI_GITHUB_<NAME>_*` (upper-cased, `-` as `_`).
+ * one `GITHUB_<NAME>_*` (upper-cased, `-` as `_`).
  */
 export function variableOf(name: string, key: GithubEnvOption): string {
     return name === GITHUB_CONNECTION_TYPE ?
         `GITHUB_${SUFFIXES[key]}` :
-        `CHAMVI_GITHUB_${name.toUpperCase().replaceAll('-', '_')}_${SUFFIXES[key]}`;
+        `GITHUB_${name.toUpperCase().replaceAll('-', '_')}_${SUFFIXES[key]}`;
 }
 
 /** Comma-separated webhook secrets (several during a rotation). */

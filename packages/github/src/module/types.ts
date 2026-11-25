@@ -21,7 +21,7 @@ export type GithubModuleOptions = Partial<GithubAppOptions> & {
     /**
      * The instance's name (agent-name rule), default `github`: its stored
      * connection, the default channel name and the env prefix
-     * (`CHAMVI_GITHUB_<NAME>_*`; the default instance keeps `GITHUB_*`).
+     * (`GITHUB_<NAME>_*`; the default instance keeps `GITHUB_*`).
      */
     name?: string;
     /**

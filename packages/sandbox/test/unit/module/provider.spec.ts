@@ -130,16 +130,16 @@ function kubernetes(env: Record<string, string>, options: SandboxModuleOptions =
     return new FactoryRecordingModule({
         ...options,
         env: {
-            CHAMVI_SANDBOX_PROVIDER: 'kubernetes',
-            CHAMVI_SANDBOX_NAMESPACE: 'sb',
+            SANDBOX_PROVIDER: 'kubernetes',
+            SANDBOX_NAMESPACE: 'sb',
             ...env,
         },
     });
 }
 
 describe('sandboxModule: provider factory options', () => {
-    it('passes CHAMVI_SANDBOX_PERSISTENCE and CHAMVI_SANDBOX_STORAGE_CLASS to the kubernetes provider', async () => {
-        const module = kubernetes({ CHAMVI_SANDBOX_PERSISTENCE: 'true', CHAMVI_SANDBOX_STORAGE_CLASS: 'fast' });
+    it('passes SANDBOX_PERSISTENCE and SANDBOX_STORAGE_CLASS to the kubernetes provider', async () => {
+        const module = kubernetes({ SANDBOX_PERSISTENCE: 'true', SANDBOX_STORAGE_CLASS: 'fast' });
 
         expect(await module.load()).toEqual([['kubernetes', {
             namespace: 'sb',
@@ -149,7 +149,7 @@ describe('sandboxModule: provider factory options', () => {
     });
 
     it('persistence without a storage class uses the cluster default', async () => {
-        const module = kubernetes({ CHAMVI_SANDBOX_PERSISTENCE: 'true' });
+        const module = kubernetes({ SANDBOX_PERSISTENCE: 'true' });
 
         expect(await module.load()).toEqual([['kubernetes', {
             namespace: 'sb',
@@ -160,13 +160,13 @@ describe('sandboxModule: provider factory options', () => {
 
     it('no persistence by default, also with a storage class alone', async () => {
         expect(await kubernetes({}).load()).toEqual([['kubernetes', { namespace: 'sb', image: DEFAULT_SANDBOX_IMAGE }]]);
-        expect(await kubernetes({ CHAMVI_SANDBOX_STORAGE_CLASS: 'fast' }).load())
+        expect(await kubernetes({ SANDBOX_STORAGE_CLASS: 'fast' }).load())
             .toEqual([['kubernetes', { namespace: 'sb', image: DEFAULT_SANDBOX_IMAGE }]]);
     });
 
     it('the persistence option, with the storage class of the env winning', async () => {
         const module = kubernetes(
-            { CHAMVI_SANDBOX_STORAGE_CLASS: 'fast' },
+            { SANDBOX_STORAGE_CLASS: 'fast' },
             { persistence: { storageClassName: 'slow', size: '10Gi' } },
         );
 
@@ -177,31 +177,31 @@ describe('sandboxModule: provider factory options', () => {
         }]]);
     });
 
-    it('CHAMVI_SANDBOX_PERSISTENCE=false wins over the option', async () => {
-        const module = kubernetes({ CHAMVI_SANDBOX_PERSISTENCE: 'false' }, { persistence: { size: '10Gi' } });
+    it('SANDBOX_PERSISTENCE=false wins over the option', async () => {
+        const module = kubernetes({ SANDBOX_PERSISTENCE: 'false' }, { persistence: { size: '10Gi' } });
 
         expect(await module.load()).toEqual([['kubernetes', { namespace: 'sb', image: DEFAULT_SANDBOX_IMAGE }]]);
     });
 
-    it('an invalid CHAMVI_SANDBOX_PERSISTENCE names the variable', () => {
-        expect(() => kubernetes({ CHAMVI_SANDBOX_PERSISTENCE: 'yes' }))
-            .toThrow(new InvalidAgentDefinitionError('CHAMVI_SANDBOX_PERSISTENCE must be one of true, false, 1, 0.'));
+    it('an invalid SANDBOX_PERSISTENCE names the variable', () => {
+        expect(() => kubernetes({ SANDBOX_PERSISTENCE: 'yes' }))
+            .toThrow(new InvalidAgentDefinitionError('SANDBOX_PERSISTENCE must be one of true, false, 1, 0.'));
     });
 
     it('ignores the persistence variables for another provider', async () => {
         const module = new FactoryRecordingModule({
             env: {
-                CHAMVI_SANDBOX_PROVIDER: 'docker',
-                CHAMVI_SANDBOX_PERSISTENCE: 'yes',
-                CHAMVI_SANDBOX_STORAGE_CLASS: 'fast',
+                SANDBOX_PROVIDER: 'docker',
+                SANDBOX_PERSISTENCE: 'yes',
+                SANDBOX_STORAGE_CLASS: 'fast',
             },
         });
 
         expect(await module.load()).toEqual([['docker', { image: DEFAULT_SANDBOX_IMAGE }]]);
     });
 
-    it('passes CHAMVI_SANDBOX_DOCKER_SUSPEND to the docker provider', async () => {
-        const module = new FactoryRecordingModule({ env: { CHAMVI_SANDBOX_PROVIDER: 'docker', CHAMVI_SANDBOX_DOCKER_SUSPEND: 'true' } });
+    it('passes SANDBOX_DOCKER_SUSPEND to the docker provider', async () => {
+        const module = new FactoryRecordingModule({ env: { SANDBOX_PROVIDER: 'docker', SANDBOX_DOCKER_SUSPEND: 'true' } });
 
         expect(await module.load()).toEqual([['docker', { image: DEFAULT_SANDBOX_IMAGE, suspend: true }]]);
     });
@@ -212,19 +212,19 @@ describe('sandboxModule: provider factory options', () => {
         expect(await module.load()).toEqual([['docker', { image: DEFAULT_SANDBOX_IMAGE }]]);
     });
 
-    it('the suspend option, with CHAMVI_SANDBOX_DOCKER_SUSPEND=false winning', async () => {
+    it('the suspend option, with SANDBOX_DOCKER_SUSPEND=false winning', async () => {
         expect(await new FactoryRecordingModule({ provider: 'docker', suspend: true }).load())
             .toEqual([['docker', { image: DEFAULT_SANDBOX_IMAGE, suspend: true }]]);
         expect(await new FactoryRecordingModule({
             provider: 'docker',
             suspend: true,
-            env: { CHAMVI_SANDBOX_DOCKER_SUSPEND: 'false' },
+            env: { SANDBOX_DOCKER_SUSPEND: 'false' },
         }).load()).toEqual([['docker', { image: DEFAULT_SANDBOX_IMAGE }]]);
     });
 
-    it('an invalid CHAMVI_SANDBOX_DOCKER_SUSPEND names the variable', () => {
-        expect(() => new FactoryRecordingModule({ env: { CHAMVI_SANDBOX_PROVIDER: 'docker', CHAMVI_SANDBOX_DOCKER_SUSPEND: 'yes' } }))
-            .toThrow(new InvalidAgentDefinitionError('CHAMVI_SANDBOX_DOCKER_SUSPEND must be one of true, false, 1, 0.'));
+    it('an invalid SANDBOX_DOCKER_SUSPEND names the variable', () => {
+        expect(() => new FactoryRecordingModule({ env: { SANDBOX_PROVIDER: 'docker', SANDBOX_DOCKER_SUSPEND: 'yes' } }))
+            .toThrow(new InvalidAgentDefinitionError('SANDBOX_DOCKER_SUSPEND must be one of true, false, 1, 0.'));
     });
 
     it('refuses a suspend option that is no boolean', () => {
@@ -232,8 +232,8 @@ describe('sandboxModule: provider factory options', () => {
             .toThrow(InvalidAgentDefinitionError);
     });
 
-    it('ignores CHAMVI_SANDBOX_DOCKER_SUSPEND for another provider', async () => {
-        const module = kubernetes({ CHAMVI_SANDBOX_DOCKER_SUSPEND: 'yes' });
+    it('ignores SANDBOX_DOCKER_SUSPEND for another provider', async () => {
+        const module = kubernetes({ SANDBOX_DOCKER_SUSPEND: 'yes' });
 
         expect(await module.load()).toEqual([['kubernetes', { namespace: 'sb', image: DEFAULT_SANDBOX_IMAGE }]]);
     });

@@ -27,7 +27,7 @@ import type { MailEnvAccount, ToolMailModuleOptions } from './types.ts';
  * One mail client and one mail write client for the app, both of the same
  * accounts, provided on the engine (`mailTools()` and `mailWriteTools()`
  * without accounts inject them). The accounts (the `accounts` option, else
- * `CHAMVI_MAIL_ACCOUNTS` with its credential variables, each with optional
+ * `MAIL_ACCOUNTS` with its credential variables, each with optional
  * `smtp` settings, also stored as `smtpHost`, `smtpPort`, `smtpSecurity`) are read and checked
  * when the factory is called (InvalidAgentDefinitionError, never echoing a
  * value). `setup` adds the accounts stored in the connection store, the env

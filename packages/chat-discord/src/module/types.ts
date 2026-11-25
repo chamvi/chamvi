@@ -13,7 +13,7 @@ export type DiscordModuleOptions = Omit<DiscordChatOptions, 'account' | 'token' 
     /**
      * The instance's name (agent-name rule), default `discord`: its stored
      * connection, the channel name, the account and the env prefix
-     * (`CHAMVI_DISCORD_<NAME>_*`; the default instance `CHAMVI_DISCORD_*`).
+     * (`DISCORD_<NAME>_*`; the default instance `DISCORD_*`).
      */
     name?: string;
     /** Default `process.env`; format errors throw at the factory, a missing value in `setup`. */

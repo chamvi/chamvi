@@ -59,8 +59,8 @@ const TOKEN = 'a-static-token-of-length';
 const LEFTOVER = 'leftover-env-password';
 const LEFTOVER_USER = 'leftover-env-user';
 const THROWAWAY = 'throwaway-password';
-/** What a deployment keeps after its `work` account left `CHAMVI_CALENDAR_ACCOUNTS`. */
-const LEFTOVER_ENV = { CHAMVI_CALENDAR_WORK_PASSWORD: LEFTOVER, CHAMVI_CALENDAR_WORK_USER: LEFTOVER_USER };
+/** What a deployment keeps after its `work` account left `CALENDAR_ACCOUNTS`. */
+const LEFTOVER_ENV = { CALENDAR_WORK_PASSWORD: LEFTOVER, CALENDAR_WORK_USER: LEFTOVER_USER };
 
 const keyring = createKeyring([{ id: 'k1', key: randomBytes(32) }]);
 const harnesses: ModuleHarness[] = [];
@@ -255,13 +255,13 @@ describe('a calendar account that exists only in the store (#197)', () => {
         await stop(first);
         logLines.length = 0;
 
-        await serve(store, { CHAMVI_CALENDAR_WORK_PASSWORD_FILE: '/no/such/file', CHAMVI_CALENDAR_WORK_USER: LEFTOVER_USER }, dav);
+        await serve(store, { CALENDAR_WORK_PASSWORD_FILE: '/no/such/file', CALENDAR_WORK_USER: LEFTOVER_USER }, dav);
 
         const warnings = logLines.filter((line) => line.includes('"level":"warn"')).join('\n');
 
-        expect(warnings).toContain('CHAMVI_CALENDAR_WORK_PASSWORD_FILE');
-        expect(warnings).toContain('CHAMVI_CALENDAR_WORK_USER');
-        expect(warnings).toContain('CHAMVI_CALENDAR_ACCOUNTS');
+        expect(warnings).toContain('CALENDAR_WORK_PASSWORD_FILE');
+        expect(warnings).toContain('CALENDAR_WORK_USER');
+        expect(warnings).toContain('CALENDAR_ACCOUNTS');
         expect(logLines.join('\n')).not.toContain(LEFTOVER_USER);
         expect(logLines.join('\n')).not.toContain('/no/such/file');
     });
