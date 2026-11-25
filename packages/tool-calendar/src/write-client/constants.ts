@@ -26,3 +26,10 @@ export const CALENDAR_RESOURCE_NAME_MAX_CHARS = 255;
 
 /** The PRODID of every created event. */
 export const CALENDAR_PRODID = '-//chamvi//tool-calendar//EN';
+
+/** The refusal of a delete whose event changed since `calendar_events` read it (another ETag). */
+export const CALENDAR_CHANGED_MESSAGE = 'calendar_delete: the event changed since calendar_events read it: read it again and use its new id; ' +
+    'nothing was deleted.';
+
+/** The refusal of a delete whose resource is no iCalendar or holds no VEVENT. */
+export const CALENDAR_NO_EVENT_MESSAGE = 'calendar_delete: the resource holds no event; nothing was deleted.';

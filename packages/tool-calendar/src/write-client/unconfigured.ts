@@ -24,6 +24,8 @@ export function createUnconfiguredCalendarWriteClient(connection: string, timezo
         organizer: refuse,
         create: refuse,
         findCreated: refuse,
+        describe: refuse,
+        remove: refuse,
         close: async () => undefined,
     };
 }

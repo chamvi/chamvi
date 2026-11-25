@@ -58,6 +58,35 @@ export type CalendarCreateResult = {
     invited: number;
 };
 
+/** The event a delete would remove, as its checks and approval see it. */
+export type CalendarDeleteItem = {
+    /** The event id it was described by. */
+    event: string;
+    calendar: string;
+    /** The calendar's display name. */
+    calendarName: string;
+    /** The resource name. */
+    name: string;
+    /** The resource's current ETag (the id's may differ: the tool compares). */
+    etag: string;
+    /** Cut at `CALENDAR_FIELD_MAX_CHARS`. */
+    title: string;
+    /** Of the master VEVENT, as `calendar_events` prints it. */
+    start: string;
+    end: string;
+    allDay: boolean;
+    /** The master VEVENT's attendee count. */
+    attendees: number;
+    /** An attendee or organizer is neither the account user nor one of its calendar user addresses. */
+    others: boolean;
+    /** An RRULE or RDATE, a RECURRENCE-ID component or more than one VEVENT. */
+    recurring: boolean;
+    /** The master's end is before the client clock's now (an all-day end: midnight in the zone). */
+    ended: boolean;
+    /** The resource as the GET answered it, unchanged. */
+    data: Uint8Array;
+};
+
 /** One request on an event resource. */
 export type CalendarResourceRequest = {
     method: string;
@@ -97,6 +126,18 @@ export interface ICalendarWriteClient {
      * when the resource is absent. Any other answer throws (fail closed).
      */
     findCreated(calendar: string, key: string, signal?: AbortSignal): Promise<CalendarCreateResult | undefined>;
+    /**
+     * The event the id `event` names, as it is now (GET); undefined when the
+     * resource is gone. A malformed id, an unknown account or a bad name is a
+     * ValidationError before any request.
+     */
+    describe(event: string, signal?: AbortSignal): Promise<CalendarDeleteItem | undefined>;
+    /**
+     * DELETEs the resource the id `event` names, with `If-Match` of the id's
+     * ETag: `deleted`, or `missing` when it is gone; a changed event is a
+     * ValidationError (`CALENDAR_CHANGED_MESSAGE`).
+     */
+    remove(event: string, signal?: AbortSignal): Promise<'deleted' | 'missing'>;
     /** Forgets every session; the next call logs in again. */
     close(): Promise<void>;
 }

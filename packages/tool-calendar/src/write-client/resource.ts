@@ -14,30 +14,45 @@ import { basicAuthorizationOf } from './asserts.ts';
 import { CALENDAR_EVENT_MAX_BYTES, CALENDAR_RESOURCE_NAME_MAX_CHARS } from './constants.ts';
 import type { CalendarResourceRequest, CalendarWriteView } from './types.ts';
 
+/** A base no request goes to: `assertResourceName` resolves names against it before any lookup. */
+const PROBE_BASE = 'https://calendar.invalid/calendar/';
+
+/**
+ * `name` as a resource name a write may use (ValidationError
+ * `CALENDAR_EVENT_ID_MESSAGE`, before any request): 1 to 255 characters, not
+ * `.`/`..`, without `/`, `?`, `#` or `\`, and nothing the URL parser would
+ * rewrite (`%2e%2e`).
+ */
+export function assertResourceName(name: string): void {
+    if (
+        typeof name !== 'string' ||
+        name.length === 0 ||
+        name.length > CALENDAR_RESOURCE_NAME_MAX_CHARS ||
+        name === '.' ||
+        name === '..' ||
+        /[/?#\\]/.test(name) ||
+        new URL(`./${name}`, PROBE_BASE).href !== `${PROBE_BASE}${name}`
+    ) {
+        throw new ValidationError(CALENDAR_EVENT_ID_MESSAGE);
+    }
+}
+
 /**
  * The URL of the resource `name` in the calendar `view`: a direct child of its
- * collection (same origin, same parent path). A name that is empty, above 255
- * characters, `.`/`..`, holds `/`, `?`, `#` or `\`, or that the URL parser
- * would rewrite is a ValidationError, before any request.
+ * collection (same origin, same parent path), `name` as `assertResourceName`
+ * accepts it. Anything else is a ValidationError, before any request.
  */
 export function resourceUrlOf(view: Pick<CalendarWriteView, 'url'>, name: string): string {
+    assertResourceName(name);
+
     const parent = new URL(view.url.endsWith('/') ? view.url : `${view.url}/`);
+    const url = new URL(`./${name}`, parent);
 
-    if (
-        name.length > 0 &&
-        name.length <= CALENDAR_RESOURCE_NAME_MAX_CHARS &&
-        name !== '.' &&
-        name !== '..' &&
-        !/[/?#\\]/.test(name)
-    ) {
-        const url = new URL(`./${name}`, parent);
-
-        if (url.origin === parent.origin && url.href === `${parent.href}${name}`) {
-            return url.href;
-        }
+    if (url.origin !== parent.origin || url.href !== `${parent.href}${name}`) {
+        throw new ValidationError(CALENDAR_EVENT_ID_MESSAGE);
     }
 
-    throw new ValidationError(CALENDAR_EVENT_ID_MESSAGE);
+    return url.href;
 }
 
 /**
@@ -91,7 +106,15 @@ export async function readResourceBody(response: Response, tool: string, account
         chunks.push(chunk);
     }
 
-    return Buffer.concat(chunks);
+    const data = new Uint8Array(size);
+    let offset = 0;
+
+    for (const chunk of chunks) {
+        data.set(chunk, offset);
+        offset += chunk.byteLength;
+    }
+
+    return data;
 }
 
 /** Drops the body of an answer whose content is not used. */

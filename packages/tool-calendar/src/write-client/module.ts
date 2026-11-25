@@ -13,10 +13,13 @@ import type { CalendarClientOptions, CalendarClientOptionsNormalized } from '../
 import { organizerOf } from './asserts.ts';
 import { CALENDAR_UNKNOWN_MESSAGE } from './constants.ts';
 import { createCalendarEvent, findCreatedEvent } from './create.ts';
+import { describeCalendarEvent } from './describe.ts';
+import { removeCalendarEvent } from './remove.ts';
 import { CalendarWriteSessions } from './session.ts';
 import type {
     CalendarCreateRequest,
     CalendarCreateResult,
+    CalendarDeleteItem,
     CalendarWriteView,
     ICalendarWriteClient,
 } from './types.ts';
@@ -65,6 +68,14 @@ class CalendarWriteClient implements ICalendarWriteClient {
 
     async findCreated(calendar: string, key: string, signal?: AbortSignal): Promise<CalendarCreateResult | undefined> {
         return findCreatedEvent(this.sessions, calendar, key, signal);
+    }
+
+    async describe(event: string, signal?: AbortSignal): Promise<CalendarDeleteItem | undefined> {
+        return describeCalendarEvent(this.sessions, event, signal);
+    }
+
+    async remove(event: string, signal?: AbortSignal): Promise<'deleted' | 'missing'> {
+        return removeCalendarEvent(this.sessions, event, signal);
     }
 
     async close(): Promise<void> {

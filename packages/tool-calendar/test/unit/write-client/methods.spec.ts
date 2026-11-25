@@ -12,8 +12,10 @@ import {
     it, 
 } from 'vitest';
 import { createCalendarWriteClient } from '@chamvi/tool-calendar';
+import { encodeCalendarEventId } from '../../../src/event-id/module.ts';
 import { calendarResourceOf } from '../../../src/write-client/create.ts';
 import { FAKE_CALDAV_URL, createFakeCalDav } from '../../utils/caldav.ts';
+import { weeklyStandup } from '../../utils/ics.ts';
 import type { FakeRequest } from '../../utils/caldav.ts';
 
 const ACCOUNT = {
@@ -35,6 +37,7 @@ describe('write client methods', () => {
     afterAll(() => {
         expect(all.length).toBeGreaterThan(0);
         expect(all.every((request) => ['PROPFIND', 'GET', 'PUT', 'DELETE'].includes(request.method))).toBe(true);
+        expect(all.some((request) => request.method === 'REPORT')).toBe(false);
     });
 
     it('creates with PROPFIND, GET and PUT only, each PUT a guarded create of a child of the calendar', async () => {
@@ -74,6 +77,38 @@ describe('write client methods', () => {
             expect(put.headers).not.toHaveProperty('if-match');
             expect(put.redirect).toBe('manual');
             expect(isChildOfHome(put.url)).toBe(true);
+        }
+    });
+
+    it('describes and deletes with PROPFIND, GET and DELETE only, each DELETE carrying the id\'s etag', async () => {
+        const server = createFakeCalDav([{
+            slug: 'home', 
+            name: 'Home', 
+            objects: [weeklyStandup()], 
+        }]);
+        const client = createCalendarWriteClient([ACCOUNT], { fetch: server.fetch });
+        const event = encodeCalendarEventId({
+            calendar: 'icloud:home', 
+            name: 'event-0.ics', 
+            etag: '"0"', 
+        });
+
+        await client.describe(event);
+        await client.remove(event);
+        await client.remove(event);
+
+        all.push(...server.requests);
+
+        expect(server.requests.every((r) => ['PROPFIND', 'GET', 'DELETE'].includes(r.method))).toBe(true);
+
+        const deletes = server.requests.filter((r) => r.method === 'DELETE');
+
+        expect(deletes).toHaveLength(2);
+
+        for (const request of deletes) {
+            expect(request.headers['if-match']).toBe('"0"');
+            expect(request.redirect).toBe('manual');
+            expect(isChildOfHome(request.url)).toBe(true);
         }
     });
 });

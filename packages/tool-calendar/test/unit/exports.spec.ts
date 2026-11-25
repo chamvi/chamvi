@@ -27,10 +27,12 @@ describe('public api', () => {
         expect(calendar.createCalendarWriteClient).toBeTypeOf('function');
         expect(calendar.CALENDAR_WRITE_ALLOWED_METHODS).toEqual(['PROPFIND', 'GET', 'PUT', 'DELETE']);
         expect(calendar.CALENDAR_EVENT_MAX_BYTES).toBe(1_048_576);
+        expect(calendar.CALENDAR_CHANGED_MESSAGE).toMatch(/^calendar_delete: the event changed/);
     });
 
     it('keeps the internals internal', () => {
         expect(Object.keys(calendar).sort()).toEqual([
+            'CALENDAR_CHANGED_MESSAGE',
             'CALENDAR_DEFAULT_TIMEZONE',
             'CALENDAR_DESCRIPTION_MAX_CHARS',
             'CALENDAR_EVENTS_DEFAULT_LIMIT',
