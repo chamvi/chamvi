@@ -200,11 +200,12 @@ export function wrapToolsForRun(
 
             return result;
         };
+        // The run can end while a policy or a limit check is awaited: nothing executes afterwards.
+        const assertActive = () => assertExecutionActive(ended?.() === true || ctx.run.signal.aborted, ctx.run.runId, `The tool "${name}"`);
         const failedPolicy = (error: unknown) => new FatalToolError(`The tool policy failed for "${name}": ${Error.isError(error) ? error.message : String(error)}`);
-        // The run can end while an asynchronous policy is awaited: nothing executes afterwards.
         const verdict = (allowed: boolean, awaited: boolean) => {
             if (awaited) {
-                assertExecutionActive(ended?.() === true || ctx.run.signal.aborted, ctx.run.runId, `The tool "${name}"`);
+                assertActive();
             }
 
             if (!allowed) {
@@ -370,7 +371,11 @@ export function wrapToolsForRun(
 
                         const final = await before(input, callOptions);
 
-                        await limited?.(final);
+                        if (limited) {
+                            await limited(final);
+                            assertActive();
+                        }
+
                         markStreaming();
 
                         const iterable = readIterable(execute.call(def, final, callOptions) as AsyncIterable<unknown>);
@@ -409,7 +414,10 @@ export function wrapToolsForRun(
 
                     const final = await before(input, callOptions);
 
-                    await limited?.(final);
+                    if (limited) {
+                        await limited(final);
+                        assertActive();
+                    }
 
                     let result: unknown = await readResult(() => execute.call(def, final, callOptions));
 
@@ -450,7 +458,10 @@ export function wrapToolsForRun(
             }
 
             // counted once, right before the effect applies: never on a recorded or found one
-            await limited?.(input);
+            if (limited) {
+                await limited(input);
+                assertActive();
+            }
 
             // streaming tools yield; the effect's result is the last value
             let result: unknown = await readResult(() => execute.call(def, input, callOptions));

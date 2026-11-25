@@ -59,6 +59,22 @@ describe('LimitService', () => {
         }
     });
 
+    it('has() tells a stored use of the scope and key, whatever its age', async () => {
+        expect(await limits.has('a:search', 'r1:0:c1')).toBe(false);
+
+        await limits.record('a:search', 'r1:0:c1', 1);
+
+        expect(await limits.has('a:search', 'r1:0:c1')).toBe(true);
+        expect(await limits.has('a:other', 'r1:0:c1')).toBe(false);
+        expect(await limits.has('a:search', 'r1:0:c2')).toBe(false);
+
+        clock.advance(60 * 60 * 1000);
+
+        expect(await limits.has('a:search', 'r1:0:c1')).toBe(true);
+        await expect(limits.has('a:search', 'k'.repeat(256))).rejects.toThrow(ValidationError);
+        await expect(limits.has('s\0', 'k')).rejects.toThrow(ValidationError);
+    });
+
     it('record() refuses a weight the store cannot hold, writing nothing', async () => {
         for (const weight of [0, -1, 0.5, NaN, 2 ** 31]) {
             await expect(limits.record('a:search', 'r1:0:c1', weight)).rejects.toBeInstanceOf(ValidationError);

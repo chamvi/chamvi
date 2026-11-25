@@ -120,6 +120,7 @@ describe('public api', () => {
         expectTypeOf<core.IEngine['limitService']>().toEqualTypeOf<core.ILimitService | undefined>();
         expectTypeOf<core.LimitServiceContext['repository']>().toEqualTypeOf<ILimitRepository>();
         expectTypeOf<core.LimitService['used']>().toEqualTypeOf<(scope: string, windowMs: number) => Promise<number>>();
+        expectTypeOf<core.LimitService['has']>().toEqualTypeOf<(scope: string, key: string) => Promise<boolean>>();
         expectTypeOf<core.LimitService['record']>()
             .toEqualTypeOf<(scope: string, key: string, weight: number) => Promise<void>>();
         expectTypeOf<core.LimitService['purgeExpired']>().toEqualTypeOf<(now?: Date) => Promise<number>>();

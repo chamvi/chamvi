@@ -12,6 +12,9 @@ import { InvalidRunStateError } from '../errors/index.ts';
 import type { ILockService } from '../lock/types.ts';
 import { LIMIT_KEY_MAX_LENGTH, LIMIT_LOCK_RETRY_MS, LIMIT_LOCK_TTL_MS } from './constants.ts';
 
+/** Work under the limit lock; `assertHeld` throws once the lease was lost. */
+type LimitLockWork<T> = (assertHeld: () => Promise<void>) => Promise<T>;
+
 const WINDOW_UNITS = [['h', 3_600_000], ['m', 60_000], ['s', 1_000]] as const;
 
 /** The window of a limit as its messages name it: the largest of h, m, s dividing it evenly, else `<n>ms`. */
@@ -43,7 +46,7 @@ function delayLimitLock(clock: IClock): Promise<void> {
     });
 }
 
-async function holdLimitLock<T>(locks: ILockService, clock: IClock, scope: string, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+async function holdLimitLock<T>(locks: ILockService, clock: IClock, scope: string, fn: LimitLockWork<T>, signal?: AbortSignal): Promise<T> {
     const key = `limit:${scope}`;
     const owner = randomUUID();
     // a lease taken just before ours expires within the TTL: one more retry after it can take the lock
@@ -60,7 +63,14 @@ async function holdLimitLock<T>(locks: ILockService, clock: IClock, scope: strin
     }
 
     try {
-        return await fn();
+        // the run may have ended while the call waited on the lock: nothing is checked or counted then
+        signal?.throwIfAborted();
+
+        return await fn(async () => {
+            if (!await locks.holds(key, owner)) {
+                throw new InvalidRunStateError(`The limit lock of "${scope}" lost its lease before the use was recorded.`);
+            }
+        });
     } finally {
         // a lease that failed to release expires after LIMIT_LOCK_TTL_MS
         await locks.release(key, owner).catch(() => undefined);
@@ -75,9 +85,14 @@ const queues = new WeakMap<ILockService, Map<string, Promise<void>>>();
  * LIMIT_LOCK_TTL_MS), retried every LIMIT_LOCK_RETRY_MS on the clock;
  * gives up after LIMIT_LOCK_TTL_MS + LIMIT_LOCK_RETRY_MS with InvalidRunStateError. Checks of one
  * scope in this process queue before the store lock, so parallel calls of
- * one step never wait on the clock for each other.
+ * one step never wait on the clock for each other. An aborted `signal` ends
+ * the wait, also once the lock is taken (before `fn`). `fn` gets `assertHeld`,
+ * which throws InvalidRunStateError once the lease is lost (it expired while
+ * `fn` stalled and another check may hold it): call it right before a write.
+ * A stall past LIMIT_LOCK_TTL_MS between that check and the write can still
+ * admit one extra use; accepted, the window is two small queries.
  */
-export function withLimitLock<T>(locks: ILockService, clock: IClock, scope: string, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+export function withLimitLock<T>(locks: ILockService, clock: IClock, scope: string, fn: LimitLockWork<T>, signal?: AbortSignal): Promise<T> {
     let local = queues.get(locks);
 
     if (!local) {

@@ -22,7 +22,8 @@ function resolveToolLimit(name: string, def: ToolSet[string], agent: AgentLimits
     // a hand-built chamvi tool can carry an unchecked limit: refused like defineTool() refuses it
     assertToolLimit(own, name);
 
-    const entry = agent?.[name];
+    // own keys only: a tool named like an Object.prototype member (`constructor`) is no entry
+    const entry = agent && Object.hasOwn(agent, name) ? agent[name] : undefined;
 
     if (entry === undefined) {
         return own;

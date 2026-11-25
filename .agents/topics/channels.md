@@ -14,7 +14,7 @@ interface IChannel<TInput = ChannelRequest, TOutput = Response> {
     stop?(): Promise<void>;
     in?(input: TInput, ctx: ChannelContext): Promise<TOutput>;  // HTTP: { request, subpath }, the raw Request and the raw subpath
     out?(message: ChannelMessage, address: string, opts: ChannelSendOptions): Promise<void>; // idempotent on message.key
-    fits?(message, address): void | Promise<void>; // requestApproval() asks it before suspending: a throw is the tool's error
+    fits?(message, address): void | Promise<void>; // requestApproval() asks it before suspending: a throw is the tool's error; rendering and target only, never delivery
     direct?(address): boolean | Promise<boolean>;  // a direct chat: a tainted run's limit `detail` goes there only then
     status?(): ChannelStatus;                    // epoch ms times for GET /components; the engine never calls it
 }

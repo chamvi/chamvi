@@ -59,6 +59,13 @@ export interface ILimitService {
     used(scope: string, windowMs: number): Promise<number>;
 
     /**
+     * Whether a use of `scope` under `key` is stored, whatever its age (one
+     * read): a call whose use was recorded but whose effect marker is missing
+     * is not counted or checked again.
+     */
+    has(scope: string, key: string): Promise<boolean>;
+
+    /**
      * Counts a use of `scope` under `key` created now, unless a use of that
      * `(scope, key)` is stored already (the call was counted).
      */

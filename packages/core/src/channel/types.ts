@@ -102,7 +102,9 @@ export interface IChannel<TInput = ChannelRequest, TOutput = Response> {
     /**
      * Throws (a ValidationError) when `out` would refuse `message` to
      * `address`: an approval request the channel cannot deliver fails the
-     * tool call instead of leaving the run waiting.
+     * tool call instead of leaving the run waiting. It checks only what is
+     * known before sending (the rendering, the target); a delivery failure,
+     * such as an offline channel, keeps the approval waiting and retried.
      */
     fits?(message: ChannelMessage, address: string): void | Promise<void>;
     /**

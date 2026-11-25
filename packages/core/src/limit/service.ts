@@ -37,6 +37,13 @@ export class LimitService implements ILimitService {
         return this.repository.sumWeight(scope, new Date(this.clock.now() - windowMs));
     }
 
+    async has(scope: string, key: string): Promise<boolean> {
+        assertLimitKey('scope', scope);
+        assertLimitKey('key', key);
+
+        return await this.repository.findOneBy({ scope, key }) !== null;
+    }
+
     async record(scope: string, key: string, weight: number): Promise<void> {
         assertLimitKey('scope', scope);
         assertLimitKey('key', key);

@@ -87,13 +87,21 @@ export async function enforceToolLimit(input: EnforceToolLimitInput): Promise<vo
         return;
     }
 
-    const used = await withLimitLock(locks, clock, scope, async () => {
+    const used = await withLimitLock(locks, clock, scope, async (assertHeld) => {
+        // recorded before but its marker never landed (a crash, a failed marker write): counted, never checked again
+        if (await service.has(scope, key)) {
+            await frame.effects.save(marker, true);
+
+            return undefined;
+        }
+
         const current = await service.used(scope, limit.windowMs);
 
         if (current + weight > limit.max) {
             return current;
         }
 
+        await assertHeld();
         await count();
 
         return undefined;
