@@ -235,6 +235,26 @@ function variablesSetFor(env: Env, definition: ConnectionTypeDefinition, connect
     });
 }
 
+/** The stored values without the smtp settings: what stays of a row whose smtp settings the client refuses. */
+function storedWithoutSmtpOf(values: ConnectionValues): ConnectionValues {
+    return Object.fromEntries(Object.entries(values).filter(([key]) => !key.startsWith('smtp')));
+}
+
+/** Whether `account` passes assertWriteAccount() (any other error rethrown). */
+function isWriteAccount(account: MailWriteAccount, label: string): boolean {
+    try {
+        assertWriteAccount(account, label);
+
+        return true;
+    } catch (error) {
+        if (!(error instanceof InvalidAgentDefinitionError)) {
+            throw error;
+        }
+
+        return false;
+    }
+}
+
 /** Only the stored secrets: what stays of a row whose settings the client refuses. */
 function storedSecretsOf(definition: ConnectionTypeDefinition, values: ConnectionValues): ConnectionValues {
     return Object.fromEntries(Object.entries(values).filter(([key]) => definition.fields.some((field) => field.key === key && field.kind === 'secret')));
@@ -313,10 +333,17 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
                 throw error;
             }
 
-            // a stored setting the client refuses must not stop the app whose dashboard repairs it
-            logger.warn(`${error.message} The stored settings are dropped.`);
+            // a stored setting the client refuses must not stop the app whose dashboard repairs it: a refused
+            // smtp value drops the stored smtp settings only, anything else every stored setting
+            const withoutSmtp = { values: storedWithoutSmtpOf(row.values) };
+            const fallback = refusedSmtpOf(toAccount(account.id, resolved.values, account), label) !== undefined &&
+                isWriteAccount(toAccount(account.id, resolve(withoutSmtp).values, account), label) ?
+                withoutSmtp :
+                { values: storedSecretsOf(definition, row.values) };
+
+            logger.warn(`${error.message} ${fallback === withoutSmtp ? 'The stored SMTP settings are dropped.' : 'The stored settings are dropped.'}`);
             resolved = {
-                ...resolve({ values: storedSecretsOf(definition, row.values) }),
+                ...resolve(fallback),
                 state: 'incomplete',
                 reason: error.message,
             };

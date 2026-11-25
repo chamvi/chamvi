@@ -8,6 +8,7 @@
 import type { ClockTimer, IClock } from '@chamvi/core';
 import { ChamviError } from '@chamvi/core';
 import { createTransport } from 'nodemailer';
+import SMTPConnection from 'nodemailer/lib/smtp-connection';
 import { isObject } from 'smob';
 import { requestError } from '../client/asserts.ts';
 import { MAIL_TIMEOUT_MS } from '../client/constants.ts';
@@ -155,18 +156,59 @@ function failure(message: string): ChamviError {
 export async function verifySmtpLogin(account: MailSmtpAccount, signal: AbortSignal): Promise<void> {
     signal.throwIfAborted();
 
-    const transport = transportOf(account, MAIL_TIMEOUT_MS);
-    let onAbort: (() => void) | undefined;
-    const aborted = new Promise<never>((_resolve, reject) => {
-        onAbort = () => reject(signal.reason);
-        signal.addEventListener('abort', onAbort, { once: true });
+    const { security } = account.smtp;
+    // its own connection (not a transport's verify()), so an abort closes the socket it opened
+    const connection = new SMTPConnection({
+        host: account.smtp.host,
+        port: account.smtp.port,
+        secure: security === 'tls',
+        requireTLS: security === 'starttls',
+        ignoreTLS: security === 'plain',
+        connectionTimeout: MAIL_TIMEOUT_MS,
+        greetingTimeout: MAIL_TIMEOUT_MS,
+        socketTimeout: MAIL_TIMEOUT_MS,
+        logger: false,
+        debug: false,
     });
-    const verifying = transport.verify();
-
-    verifying.catch(() => undefined);
+    let onAbort: (() => void) | undefined;
+    let quit = false;
 
     try {
-        await Promise.race([verifying, aborted]);
+        await new Promise<void>((resolve, reject) => {
+            onAbort = () => reject(signal.reason);
+            signal.addEventListener('abort', onAbort, { once: true });
+            // every error (also one after the quit) is handled here
+            connection.on('error', reject);
+            connection.once('end', () => reject(new Error('Connection closed')));
+            connection.connect((error) => {
+                if (error) {
+                    reject(error);
+
+                    return;
+                }
+
+                // a server that offers no AUTH has nothing to log in to (as nodemailer's verify())
+                if (!connection.allowsAuth) {
+                    quit = true;
+                    connection.quit();
+                    resolve();
+
+                    return;
+                }
+
+                connection.login({ user: account.user, pass: account.password }, (failed) => {
+                    if (failed) {
+                        reject(failed);
+
+                        return;
+                    }
+
+                    quit = true;
+                    connection.quit();
+                    resolve();
+                });
+            });
+        });
     } catch (error) {
         signal.throwIfAborted();
 
@@ -178,6 +220,9 @@ export async function verifySmtpLogin(account: MailSmtpAccount, signal: AbortSig
             signal.removeEventListener('abort', onAbort);
         }
 
-        transport.close();
+        // a failed or aborted login closes the socket now; a quit one closes after the server's answer
+        if (!quit) {
+            connection.close();
+        }
     }
 }

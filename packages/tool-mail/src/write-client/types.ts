@@ -139,7 +139,7 @@ export interface IMailWriteClient {
     /**
      * The mails `ids` name (EXAMINE only), deduplicated, in input order. A ValidationError, before any folder is
      * opened, for ids of two accounts, an unknown account, an unlisted folder or a folder that is the trash;
-     * `move not supported` without the MOVE capability, `no trash folder` without a `\Trash` folder.
+     * `move not supported` without a native MOVE (the capability or an active IMAP4rev2 session), `no trash folder` without a `\Trash` folder.
      */
     describe(ids: string[], signal?: AbortSignal): Promise<MailDeleteListing>;
     /**

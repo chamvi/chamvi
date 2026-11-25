@@ -200,7 +200,7 @@ class MailWriteClient implements IMailWriteClient {
 /**
  * A mail client that writes: sends over SMTP (one nodemailer transport per send) and files the mail in Sent
  * over IMAP (APPEND), and moves mails to the `\\Trash` folder (SELECT right before each `UID MOVE`, never
- * CLOSE, refused without the MOVE capability); every other open is EXAMINE. A call runs at most `timeoutMs` (default 30 s) on the clock.
+ * CLOSE, refused without a native MOVE); every other open is EXAMINE. A call runs at most `timeoutMs` (default 30 s) on the clock.
  * InvalidAgentDefinitionError for bad accounts or SMTP settings, without echoing any value.
  */
 export function createMailWriteClient(accounts: MailWriteAccount[], options: MailClientOptions = {}): IMailWriteClient {

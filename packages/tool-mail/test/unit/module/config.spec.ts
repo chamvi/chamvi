@@ -390,6 +390,45 @@ describe('toolMailModule() configuration', () => {
         expect(logLines.join('\n')).not.toContain('70000');
     });
 
+    it('a refused stored smtp value on a declared account drops only the stored smtp settings', async () => {
+        const definition = mailConnectionDefinition();
+        const loaded = await loadMailAccounts({
+            definition,
+            declared: [{
+                id: 'work',
+                address: 'bob@y.test',
+                host: '127.0.0.1',
+                user: 'bob@y.test',
+                smtp: { host: 'smtp.y.test' },
+            }],
+            pinned: false,
+            env: { CHAMVI_MAIL_WORK_PASSWORD: PASSWORD },
+            logger: testLogger(),
+            rows: [storedRow('mail-work', {
+                user: 'stored-user',
+                port: 1143,
+                security: 'starttls',
+                smtpPort: 70_000,
+                smtpSecurity: 'plain',
+            })],
+            editable: true,
+        });
+
+        expect(loaded.accounts).toHaveLength(1);
+        expect(loaded.accounts[0]).toMatchObject({
+            user: 'stored-user',
+            port: 1143,
+            security: 'starttls',
+            password: PASSWORD,
+            smtp: { host: 'smtp.y.test' },
+        });
+        expect(loaded.accounts[0]?.smtp).toEqual({ host: 'smtp.y.test' });
+        expect(loaded.connections[0]?.resolved.state).toBe('incomplete');
+        expect(loaded.connections[0]?.resolved.values.user).toBe('stored-user');
+        expect(logLines.some((line) => line.includes('work') && line.includes('smtp.port'))).toBe(true);
+        expect(logLines.join('\n')).not.toContain('70000');
+    });
+
     it('env smtp settings win per field over the stored row', async () => {
         const definition = mailConnectionDefinition();
         const loaded = await loadMailAccounts({

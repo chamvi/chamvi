@@ -168,6 +168,36 @@ describe('the write client: moving mails to the trash', () => {
         expect(uidsOf(folders, 'INBOX')).toEqual([1, 2]);
     });
 
+    it.each([
+        ['enabled next to IMAP4rev1', 'enabled'],
+        ['the only version', 'only'],
+    ] as const)('moves without the MOVE capability in an active IMAP4rev2 session (%s)', async (_, rev2) => {
+        const {
+            client, 
+            folders, 
+            imap, 
+        } = await setupWrite(false, { fake: { noMove: true, rev2 } });
+        const result = await client.trash([idOf('INBOX', 1)]);
+
+        expect(result).toMatchObject({ moved: [idOf('INBOX', 1)], missing: [] });
+        expect(uidsOf(folders, 'INBOX')).toEqual([2]);
+        expect(namesOf(imap.commands)).toContain('UID MOVE');
+        expect(namesOf(imap.commands).some((name) => ['COPY', 'UID COPY', 'STORE', 'UID STORE', 'EXPUNGE', 'UID EXPUNGE'].includes(name))).toBe(false);
+    });
+
+    it('refuses an IMAP4rev2 the server advertises but never enabled, without MOVE', async () => {
+        const {
+            client, 
+            folders, 
+            imap, 
+        } = await setupWrite(false, { fake: { noMove: true, rev2: 'advertised' } });
+        const error = await rejection(client.trash([idOf('INBOX', 1)]));
+
+        expect(error.message).toBe('mail_delete: work: move not supported');
+        expect(namesOf(imap.commands)).not.toContain('SELECT');
+        expect(uidsOf(folders, 'INBOX')).toEqual([1, 2]);
+    });
+
     it('refuses without a \\Trash flag, even with a folder named Trash', async () => {
         const folders = genericFolders();
 

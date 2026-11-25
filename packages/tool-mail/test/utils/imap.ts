@@ -69,6 +69,12 @@ export type FakeImapOptions = {
     onCommand?: (line: string) => void;
     /** A folder path whose `UID MOVE` answers NO (nothing moved). */
     moveFails?: string;
+    /**
+     * IMAP4rev2 (which folds MOVE into the base protocol): `enabled` advertises it next to IMAP4rev1 and
+     * answers `ENABLE IMAP4rev2` with `* ENABLED IMAP4rev2`; `only` advertises it alone (rev2 without ENABLE);
+     * `advertised` advertises it next to IMAP4rev1 but never confirms an ENABLE.
+     */
+    rev2?: 'enabled' | 'only' | 'advertised';
 };
 
 export type FakeImap = {
@@ -514,7 +520,7 @@ function unquote(value: string): string {
 function move(options: FakeImapOptions, selected: FakeFolder | undefined, line: string, tag: string): string {
     const match = /^\S+ UID MOVE (\S+) ("(?:[^"\\]|\\.)*"|\S+)$/i.exec(line);
 
-    if (!selected || !match || options.noMove) {
+    if (!selected || !match || (options.noMove && !options.rev2)) {
         return `${tag} BAD move\r\n`;
     }
 
@@ -554,7 +560,8 @@ function move(options: FakeImapOptions, selected: FakeFolder | undefined, line: 
 
 /** An in-process IMAP server on 127.0.0.1 answering the commands imapflow sends; records every command line. */
 export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap> {
-    const capabilities = `IMAP4rev1 NAMESPACE SPECIAL-USE${options.noMove ? '' : ' MOVE'}${options.gmail ? ' X-GM-EXT-1' : ''}`;
+    const versions = options.rev2 === 'only' ? 'IMAP4rev2' : `IMAP4rev1${options.rev2 ? ' IMAP4rev2 ENABLE' : ''}`;
+    const capabilities = `${versions} NAMESPACE SPECIAL-USE${options.noMove ? '' : ' MOVE'}${options.gmail ? ' X-GM-EXT-1' : ''}`;
     const commands: string[] = [];
     const sockets = new Set<net.Socket>();
     let closed = 0;
@@ -763,6 +770,14 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
                         write('* BYE bye\r\n');
                         ok();
                         socket.end();
+
+                        break;
+                    case 'ENABLE':
+                        if (options.rev2 === 'enabled' && /\bIMAP4rev2\b/i.test(rest)) {
+                            write('* ENABLED IMAP4rev2\r\n');
+                        }
+
+                        ok();
 
                         break;
                     default:

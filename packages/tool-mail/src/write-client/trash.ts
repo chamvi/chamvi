@@ -47,6 +47,20 @@ export function mailDeleteTargetsOf(ids: string[]): { account: string; targets: 
     return { account, targets };
 }
 
+/**
+ * Whether imapflow sends a native `UID MOVE` on this session (as its `hasCapability(connection, 'MOVE')`,
+ * imapflow 2.12.2 `tools.ts`): the MOVE capability, or an active IMAP4rev2 session, which folds MOVE into the
+ * base protocol (enabled, or a rev2-only server). Anything else gets imapflow's COPY + \Deleted + EXPUNGE
+ * fallback, which this client never lets run. An advertised but not enabled IMAP4rev2 is not enough.
+ */
+function hasNativeMove(connection: ImapFlow): boolean {
+    const { capabilities, enabled } = connection;
+
+    return capabilities.has('MOVE') ||
+        enabled.has('IMAP4REV2') ||
+        (capabilities.has('IMAP4rev2') && !capabilities.has('IMAP4rev1'));
+}
+
 /** The listed `\Trash` folder, by the server's flag only: imapflow's guess from a folder's name is not taken. */
 export function trashFolderOf(listed: ListResponse[]): string | undefined {
     const trash = listed.find((folder) => !folder.flags.has('\\Noselect') &&
@@ -58,7 +72,7 @@ export function trashFolderOf(listed: ListResponse[]): string | undefined {
 
 /**
  * The trash folder and the targets grouped by folder (input order), after the checks no folder is opened for:
- * every folder listed and allowed and none the trash (ValidationError), the MOVE capability (without it
+ * every folder listed and allowed and none the trash (ValidationError), a native MOVE (without it
  * imapflow would COPY, STORE \Deleted and EXPUNGE) and a `\Trash` folder.
  */
 async function prepareMailDelete(
@@ -83,7 +97,7 @@ async function prepareMailDelete(
         groups.set(target.folder, [...groups.get(target.folder) ?? [], target]);
     }
 
-    if (!connection.capabilities.has('MOVE')) {
+    if (!hasNativeMove(connection)) {
         throw requestError(TOOL, account.id, 'move not supported');
     }
 

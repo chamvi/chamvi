@@ -31,6 +31,8 @@ export type FakeSmtp = {
     /** The command names (`EHLO`, `AUTH PLAIN`, `MAIL FROM`, `RCPT TO`, `DATA`, ...), never a credential. */
     commands: string[];
     messages: FakeSmtpMessage[];
+    /** The client connections still open. */
+    connections: () => number;
     close: () => Promise<void>;
 };
 
@@ -209,6 +211,7 @@ export async function createFakeSmtp(options: FakeSmtpOptions = {}): Promise<Fak
         port: (server.address() as AddressInfo).port,
         commands,
         messages,
+        connections: () => sockets.size,
         close: async () => {
             for (const socket of sockets) {
                 socket.destroy();

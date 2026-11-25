@@ -40,10 +40,8 @@ export type WriteEngine = {
 
 const engines: IEngine[] = [];
 
-afterEach(() => {
-    for (const engine of engines.splice(0)) {
-        engine.stop();
-    }
+afterEach(async () => {
+    await Promise.all(engines.splice(0).map((engine) => engine.stop()));
 });
 
 /**
