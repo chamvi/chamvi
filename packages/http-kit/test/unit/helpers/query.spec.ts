@@ -5,6 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import {
+    and,
+    eq,
+    gte,
+    inArray,
+    lte,
+} from '@rapiq/core';
 import { describe, expect, it } from 'vitest';
 import { buildQueryString, path } from '@chamvi/http-kit';
 import { parseRunListQuery } from '../../../../http/src/runs/helpers/index.ts';
@@ -45,6 +52,31 @@ describe('buildQueryString', () => {
         const request = decode(buildQueryString({ filters: { agent: name, status: ['queued'] } }), [name, 'a']);
 
         expect(request.agent).toBe(name);
+    });
+
+    it('round-trips one createdAt bound in the bracket form', () => {
+        const text = buildQueryString({ filters: and(eq('agent', 'a'), gte('createdAt', '2026-11-01T00:00:00.000Z')) });
+
+        expect(decodeURIComponent(text)).toContain('filter[createdAt]=>=2026-11-01T00:00:00.000Z');
+        expect(decode(text).filters).toEqual([eq('agent', 'a'), gte('createdAt', new Date('2026-11-01T00:00:00.000Z'))]);
+    });
+
+    it.each(['a', 'null', '007', '1e5', '42', 'true'])('round-trips both createdAt bounds with statuses and the agent name %s', (name) => {
+        const request = decode(buildQueryString({
+            filters: and(
+                eq('agent', name),
+                inArray('status', ['queued', 'running']),
+                gte('createdAt', '2026-11-01T00:00:00.000Z'),
+                lte('createdAt', '2026-11-07T23:59:59.999Z'),
+            ),
+        }), [name, 'b']);
+
+        expect(request.agent).toBe(name);
+        expect(request.filters.slice(1)).toEqual([
+            inArray('status', ['queued', 'running']),
+            gte('createdAt', new Date('2026-11-01T00:00:00.000Z')),
+            lte('createdAt', new Date('2026-11-07T23:59:59.999Z')),
+        ]);
     });
 
     it('round-trips parent and waiting', () => {

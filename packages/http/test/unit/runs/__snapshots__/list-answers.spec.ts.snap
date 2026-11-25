@@ -1834,7 +1834,7 @@ exports[`GET /runs answers > answers byte for byte as before for every filter an
     "status": 400,
   },
   "reader filter[createdAt]=1": {
-    "body": "{"status":400,"code":"bad_request","message":"The key createdAt is not permitted.","issues":[{"type":"item","code":"keyNotAllowed","path":["createdAt"],"message":"The key createdAt is not permitted.","meta":{"parameter":"filters","key":"createdAt"}}]}",
+    "body": "{"status":400,"code":"bad_request","message":"filter[createdAt] takes a lower (>=) and an upper (<=) bound, each an ISO 8601 instant with a time and an offset."}",
     "status": 400,
   },
   "reader filter[id]=x": {

@@ -8,9 +8,9 @@
 import { defineSchema } from '@rapiq/core';
 import type { RunListFields } from './types.ts';
 
-/** The run list query a caller may hold (a dashboard route): agent and status filters, the creation order, a page of at most 100. */
+/** The run list query a caller may hold: agent, status and createdAt filters, the creation order, a page of at most 100. */
 export const RUN_LIST_QUERY_SCHEMA = defineSchema<RunListFields>({
-    filters: { allowed: ['agent', 'status'] },
+    filters: { allowed: ['agent', 'createdAt', 'status'] },
     sorts: { allowed: ['createdAt'] },
     pagination: { maxLimit: 100 },
 });

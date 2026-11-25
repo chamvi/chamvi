@@ -561,7 +561,7 @@ describe.skipIf(!document)('the generated openapi document', () => {
 
     it('lists the query parameters of the three list routes', () => {
         expect(parameterNames(doc.paths['/runs']?.get as Operation, 'query').toSorted())
-            .toEqual(['filter[agent]', 'filter[parent]', 'filter[status]', 'filter[waiting]', 'page[limit]', 'page[offset]', 'sort']);
+            .toEqual(['filter[agent]', 'filter[createdAt]', 'filter[parent]', 'filter[status]', 'filter[waiting]', 'page[limit]', 'page[offset]', 'sort']);
         expect(parameterNames(doc.paths['/agents/{name}/state/kv']?.get as Operation, 'query').toSorted())
             .toEqual(['page[limit]', 'page[offset]']);
         expect(parameterNames(doc.paths['/agents/{name}/state/collections/{collection}']?.get as Operation, 'query').toSorted())

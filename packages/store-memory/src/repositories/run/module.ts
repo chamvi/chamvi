@@ -19,6 +19,8 @@ import type { MemoryRepositoryOptions } from '../../entity/types.ts';
 /**
  * Runs in the registry (entity `run`, key `id`, `parentRunId` referencing
  * another run, `conversation.scope.id` a conversation), stored as given.
+ * `createdAt` is compared as an instant in filters, as the database's date
+ * column.
  */
 export class MemoryRunRepository extends MemoryEntityRepository<Run> implements IRunRepository {
     constructor(options: MemoryRepositoryOptions) {
@@ -26,6 +28,7 @@ export class MemoryRunRepository extends MemoryEntityRepository<Run> implements 
             entity: 'run',
             registry: options.registry,
             key: ['id'],
+            dates: ['createdAt'],
             references: [
                 { field: 'parentRunId', entity: 'run' },
                 { field: 'conversation.scope.id', entity: 'conversation' },

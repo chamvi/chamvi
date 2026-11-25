@@ -101,6 +101,18 @@ describe('decodeRunListQuery', () => {
         expect(JSON.stringify(query.filters)).toContain('queued');
     });
 
+    it('keeps createdAt bounds', () => {
+        const query = decodeRunListQuery('?filter[createdAt]=>=2026-11-01T00:00:00.000Z');
+
+        expect(query.filters).toMatchObject({
+            value: [{
+                field: 'createdAt', 
+                operator: 'gte', 
+                value: '2026-11-01T00:00:00.000Z', 
+            }], 
+        });
+    });
+
     it('reads an empty query as no filter', () => {
         expect(decodeRunListQuery('').filters).toMatchObject({ value: [] });
     });

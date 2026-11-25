@@ -7,7 +7,13 @@
 
 import { RunStatus } from '@chamvi/store';
 import { BadRequestError } from '@ebec/http';
-import { defineSchema, eq, inArray } from '@rapiq/core';
+import {
+    defineSchema,
+    eq,
+    gte,
+    inArray,
+    lte,
+} from '@rapiq/core';
 import type { IFilter } from '@rapiq/core';
 import { parseFilterScalar } from '@rapiq/parser-simple';
 import { isObject } from 'smob';
@@ -16,12 +22,39 @@ import { decodeFlatQuery } from '../../query/helpers.ts';
 import type { RunFindFilter, RunListRequest } from '../types.ts';
 
 const RUN_LIST_SCHEMA = defineSchema({
-    filters: { allowed: ['agent', 'parent', 'status', 'waiting'] },
+    filters: { allowed: ['agent', 'createdAt', 'parent', 'status', 'waiting'] },
     sorts: { allowed: ['createdAt'] },
     throwOnFailure: true,
 });
 
 const RUN_STATUSES = new Set<string>(Object.values(RunStatus));
+
+/** An ISO 8601 instant: a calendar day, a time to the minute or finer and an offset (`Z` or `+hh:mm`). */
+const INSTANT_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+const CREATED_AT_MESSAGE = 'filter[createdAt] takes a lower (>=) and an upper (<=) bound, each an ISO 8601 instant with a time and an offset.';
+
+/**
+ * The instant a `filter[createdAt]` bound names, else 400: `Date` would
+ * roll `2026-02-30` over to March, so the day must exist as written.
+ */
+function instantOf(value: unknown): Date {
+    const match = typeof value === 'string' ? INSTANT_PATTERN.exec(value) : null;
+    const date = match ? new Date(value as string) : undefined;
+
+    if (!match || !date || Number.isNaN(date.getTime())) {
+        throw new BadRequestError({ message: CREATED_AT_MESSAGE });
+    }
+
+    const [, year, month, day] = match.map(Number);
+    const calendar = new Date(Date.UTC(year!, month! - 1, day!));
+
+    if (calendar.getUTCMonth() !== month! - 1 || calendar.getUTCDate() !== day) {
+        throw new BadRequestError({ message: CREATED_AT_MESSAGE });
+    }
+
+    return date;
+}
 
 /**
  * The wire is untyped: rapiq coerces `123`, `007`, `true` or `null` to a
@@ -50,7 +83,7 @@ function agentNameOf(filter: IFilter, agentNames: Iterable<string>): string {
 
 /**
  * A decoded `GET /runs` filter as a filter on the run's fields, else 400:
- * `agent` (one name), `parent` (one run id, on `parentRunId`), `status`
+ * `agent` (one name), `createdAt` (`gte` or `lte` an instant, as a `Date`), `parent` (one run id, on `parentRunId`), `status`
  * (run statuses, as `in`) and `waiting` (`approval` or `dispatch`). A value
  * the wire coerced to a scalar reads in canonical form.
  */
@@ -60,6 +93,16 @@ function checkRunFilter(filter: IFilter, agentNames: Iterable<string>): IFilter 
     switch (filter.field) {
         case 'agent':
             return eq('agent', agentNameOf(filter, agentNames));
+        case 'createdAt':
+            if (filter.operator === 'gte') {
+                return gte('createdAt', instantOf(value));
+            }
+
+            if (filter.operator === 'lte') {
+                return lte('createdAt', instantOf(value));
+            }
+
+            throw new BadRequestError({ message: CREATED_AT_MESSAGE });
         case 'parent':
             if (filter.operator !== 'eq' || Array.isArray(value) || isObject(value)) {
                 throw new BadRequestError({ message: 'filter[parent] takes one run id.' });
@@ -93,10 +136,22 @@ function checkRunFilter(filter: IFilter, agentNames: Iterable<string>): IFilter 
     }
 }
 
+/** 400 for a `createdAt` lower bound after its upper bound; the message names the key only. */
+function assertCreatedAtRange(filters: readonly IFilter[]): void {
+    const boundOf = (operator: string) => filters.find((filter) => filter.field === 'createdAt' && filter.operator === operator)?.value as Date | undefined;
+    const lower = boundOf('gte');
+    const upper = boundOf('lte');
+
+    if (lower && upper && lower.getTime() > upper.getTime()) {
+        throw new BadRequestError({ message: 'filter[createdAt] has its lower bound after its upper bound.' });
+    }
+}
+
 /**
  * `GET /runs` query, decoded with rapiq and checked: one agent, one parent
- * run, statuses, one wait point kind, each given once and joined with
- * `and`; a page; `sort=createdAt` only. `agentNames` (the app's agents)
+ * run, statuses, one wait point kind, each given once, and at most one
+ * lower and one upper `createdAt` bound (both inclusive, in order), joined
+ * with `and`; a page; `sort=createdAt` only. `agentNames` (the app's agents)
  * resolve an agent name the wire coerced.
  */
 export function parseRunListQuery(searchParams: URLSearchParams, agentNames: Iterable<string> = []): RunListRequest {
@@ -106,11 +161,18 @@ export function parseRunListQuery(searchParams: URLSearchParams, agentNames: Ite
     let agent: string | undefined;
 
     for (const filter of decoded.filters) {
-        if (seen.has(filter.field)) {
-            throw new BadRequestError({ message: `filter[${filter.field}] may be given once.` });
+        // createdAt takes one bound of each kind; the operator is checked with the value
+        const key = filter.field === 'createdAt' ? `createdAt:${filter.operator}` : filter.field;
+
+        if (seen.has(key)) {
+            throw new BadRequestError({
+                message: filter.field === 'createdAt' ?
+                    'filter[createdAt] may be given once per bound.' :
+                    `filter[${filter.field}] may be given once.`,
+            });
         }
 
-        seen.add(filter.field);
+        seen.add(key);
 
         const checked = checkRunFilter(filter, agentNames);
 
@@ -120,6 +182,8 @@ export function parseRunListQuery(searchParams: URLSearchParams, agentNames: Ite
 
         filters.push(checked);
     }
+
+    assertCreatedAtRange(filters);
 
     const [sort, ...others] = decoded.sorts;
 
