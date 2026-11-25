@@ -9,11 +9,12 @@ import { ValidationError } from '@chamvi/core';
 import { inputObject, optionalString, requireString } from '../tools/asserts/index.ts';
 import {
     MAIL_ADDRESS_PATTERN,
+    MAIL_DELETE_MAX_IDS,
     MAIL_SEND_MAX_RECIPIENTS,
     MAIL_SEND_SUBJECT_MAX_CHARS,
     MAIL_SEND_TEXT_MAX_CHARS,
 } from './constants.ts';
-import type { MailSendInput } from './types.ts';
+import type { MailDeleteInput, MailSendInput } from './types.ts';
 
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\u2028\u2029]/;
@@ -74,4 +75,20 @@ export function parseMailSendInput(input: unknown): MailSendInput {
         text,
         ...(inReplyTo !== undefined && { inReplyTo }),
     };
+}
+
+/** The input of `mail_delete` checked (ValidationError): 1 to `MAIL_DELETE_MAX_IDS` strings, deduplicated in order. */
+export function parseMailDeleteInput(input: unknown): MailDeleteInput {
+    const { ids } = inputObject(input);
+
+    const valid = Array.isArray(ids) &&
+        ids.length > 0 &&
+        ids.length <= MAIL_DELETE_MAX_IDS &&
+        ids.every((id) => typeof id === 'string' && id.length > 0);
+
+    if (!valid) {
+        throw new ValidationError(`ids must be an array of 1 to ${MAIL_DELETE_MAX_IDS} mail ids.`);
+    }
+
+    return { ids: [...new Set(ids as string[])] };
 }

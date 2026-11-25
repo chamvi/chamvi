@@ -7,12 +7,17 @@
 
 import { approve } from '@chamvi/core';
 import type { ApprovalDecision, ApprovalRequestInput, ToolContext } from '@chamvi/core';
-import type { MailReplyHeaders, MailWriteAccountView } from '../write-client/types.ts';
+import type {
+    MailDeleteItem,
+    MailDeleteListing,
+    MailReplyHeaders,
+    MailWriteAccountView,
+} from '../write-client/types.ts';
 import { MAIL_APPROVAL_FIELD_MAX_CHARS } from './constants.ts';
 import type { MailSendInput } from './types.ts';
 
 /** One line of untrusted text: control characters as spaces, cut at `MAIL_APPROVAL_FIELD_MAX_CHARS` characters. */
-function lineOf(value: string): string {
+export function lineOf(value: string): string {
     // eslint-disable-next-line no-control-regex
     const line = value.replace(/[\u0000-\u001F\u007F-\u009F\u2028\u2029]/g, ' ');
 
@@ -56,5 +61,35 @@ export function sendApprovalOf(view: MailWriteAccountView, input: MailSendInput,
     return {
         title: `Send mail from ${view.id}?`,
         body: lines.join('\n'),
+    };
+}
+
+/** `<YYYY-MM-DD HH:MM> UTC` of an ISO date; an unreadable one as one cut line. */
+function minuteOf(date: string): string {
+    const time = new Date(date);
+
+    if (Number.isNaN(time.getTime())) {
+        return lineOf(date);
+    }
+
+    const iso = time.toISOString();
+
+    return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
+}
+
+/** One line per mail: `<date> UTC | <from> | <subject> | <folder>`, each field one line of at most 200 characters. */
+export function deleteListingOf(mails: MailDeleteItem[]): string {
+    return mails
+        .map((mail) => [minuteOf(mail.date), lineOf(mail.from), lineOf(mail.subject), lineOf(mail.folder)].join(' | '))
+        .join('\n');
+}
+
+/** The approval of a delete: how many mails of which account, and the listing of the mails that exist, in input order. */
+export function deleteApprovalOf(listing: MailDeleteListing): ApprovalRequestInput {
+    const count = listing.mails.length;
+
+    return {
+        title: `Delete ${count} ${count === 1 ? 'mail' : 'mails'} from ${listing.account}?`,
+        body: deleteListingOf(listing.mails),
     };
 }

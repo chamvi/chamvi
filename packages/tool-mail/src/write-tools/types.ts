@@ -33,5 +33,28 @@ export type MailSendInput = {
     inReplyTo?: string;
 };
 
+/** The input of `mail_delete`: 1 to `MAIL_DELETE_MAX_IDS` mail ids of one account. */
+export type MailDeleteInput = {
+    ids: string[];
+};
+
+export type MailDeleteLimitOptions = {
+    /** The most mails moved per window (default `MAIL_DELETE_LIMIT_MAX`). */
+    max?: number;
+    /** The window in milliseconds (default `MAIL_DELETE_LIMIT_WINDOW_MS`). */
+    windowMs?: number;
+    /** The bucket the calls count in (default `MAIL_DELETE_LIMIT_BUCKET`). */
+    bucket?: string;
+    /** The client that lists the mails for the approval; default the write client provided on the engine. */
+    client?: IMailWriteClient;
+};
+
 /** The write client a tool call uses: the given one, or the one provided on the engine. */
 export type MailWriteClientSource = (context: ToolContext) => IMailWriteClient;
+
+/** What `mail_delete` takes besides its client (internal): the classifier's model and its timeout on `clock`. */
+export type MailDeleteToolOptions = {
+    clock: IClock;
+    timeoutMs: number;
+    classifier?: { model?: ModelRef };
+};

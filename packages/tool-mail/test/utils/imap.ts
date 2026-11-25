@@ -99,6 +99,11 @@ type Built = {
 const BOUNDARY = 'chamvi-boundary';
 
 function quote(value: string): string {
+    // a quoted string cannot carry a line break: a literal can
+    if (/[\r\n]/.test(value)) {
+        return `{${Buffer.byteLength(value)}}\r\n${value}`;
+    }
+
     return `"${value.replace(/["\\]/g, (char) => `\\${char}`)}"`;
 }
 
@@ -117,7 +122,7 @@ function parseAddress(value: string): {
     local: string;
     domain: string
 } {
-    const match = /^(.*)<([^>]+)>$/.exec(value.trim());
+    const match = /^([\s\S]*)<([^>]+)>$/.exec(value.trim());
     const name = match ? match[1]!.trim() : undefined;
     const address = match ? match[2]! : value.trim();
     const [local, domain] = address.split('@');
@@ -566,10 +571,10 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
         let buffer = Buffer.alloc(0);
         // an APPEND waiting for its literal (byte-counted)
         let append: {
-            tag: string; 
-            folder: FakeFolder | undefined; 
-            flags: string[]; 
-            size: number 
+            tag: string;
+            folder: FakeFolder | undefined;
+            flags: string[];
+            size: number
         } | undefined;
         const write = (value: string) => {
             if (!socket.destroyed) {
@@ -593,9 +598,9 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
 
                     const raw = buffer.subarray(0, append.size).toString('utf8');
                     const {
-                        tag, 
-                        folder, 
-                        flags, 
+                        tag,
+                        folder,
+                        flags,
                     } = append;
 
                     buffer = buffer.subarray(end + 2);

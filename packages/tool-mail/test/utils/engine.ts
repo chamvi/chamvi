@@ -15,7 +15,7 @@ import type {
     IEngine,
 } from '@chamvi/core';
 import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
-import { mailWriteTools } from '@chamvi/tool-mail';
+import { mailWriteTools, provideMailWriteContext } from '@chamvi/tool-mail';
 import type { IMailWriteClient } from '@chamvi/tool-mail';
 
 type Run = Awaited<ReturnType<IEngine['runService']['findOne']>>;
@@ -48,7 +48,8 @@ afterEach(() => {
 
 /**
  * An engine with one agent `assistant` on `model`, the mail write tools over `client` (plus `tools`), and a
- * recording channel `chat` (`out` records, `fits` refuses a message body above `maxChars`, `direct` true).
+ * recording channel `chat` (`out` records, `fits` refuses a message body above `maxChars`, `direct` true). The
+ * client is also provided on the engine, and the classifier's timeout runs on the engine's clock.
  */
 export function createWriteEngine(options: {
     client: IMailWriteClient;
@@ -57,6 +58,8 @@ export function createWriteEngine(options: {
     limits?: AgentLimits;
     maxChars?: number;
     tools?: ToolSet;
+    /** The delete classifier's timeout on the engine's clock. */
+    timeoutMs?: number;
 }): WriteEngine {
     const clock = new ControllableClock(new Date('2026-11-24T10:00:00Z'));
     const sent: WriteEngine['sent'] = [];
@@ -81,6 +84,8 @@ export function createWriteEngine(options: {
                 ...options.tools,
                 ...mailWriteTools({
                     client: options.client,
+                    clock,
+                    ...(options.timeoutMs !== undefined && { timeoutMs: options.timeoutMs }),
                     ...(options.classifierModel && { classifier: { model: options.classifierModel } }),
                 }),
             },
@@ -91,6 +96,8 @@ export function createWriteEngine(options: {
     });
 
     engines.push(engine);
+    // for limits built without a client (mailDeleteLimit())
+    provideMailWriteContext(engine, options.client);
 
     let started = false;
     const waiting = async (runId: string) => {

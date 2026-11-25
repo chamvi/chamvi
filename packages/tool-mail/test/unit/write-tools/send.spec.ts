@@ -219,9 +219,9 @@ describe('mail_send', () => {
         ['an unknown account', { account: 'home' }, 'mail_send: account "home" is unknown'],
     ])('refuses %s before asking', async (_, change, message) => {
         const {
-            client, 
-            smtp, 
-            imap, 
+            client,
+            smtp,
+            imap,
         } = await setupWrite(false);
         const write = createWriteEngine({ client, model: mockModel([sendCall({ ...INPUT, ...change }), done]) });
         const runId = await write.dispatch();
@@ -236,9 +236,9 @@ describe('mail_send', () => {
 
     it('still asks the source chat in a run a mail read tainted, with the whole mail', async () => {
         const {
-            client, 
-            smtp, 
-            imap, 
+            client,
+            smtp,
+            imap,
         } = await setupWrite(false);
         const reader = createMailClient([accountOf(imap.port, 'work', { address: 'bob@y.test' })]);
         const write = createWriteEngine({
@@ -300,7 +300,8 @@ describe('mail_send', () => {
 
         // the effect record never landed: a fresh effect store
         const { effectService } = createTestEngine({ agents: [] });
-        const tools = wrapToolsForRun(mailWriteTools({ client }), toolContext(runId), effectService);
+        // mail_send alone: mail_delete's limit needs the engine's limit service
+        const tools = wrapToolsForRun({ mail_send: mailWriteTools({ client }).mail_send! }, toolContext(runId), effectService);
         const result = await callTool(tools, 'mail_send', INPUT, toolContext(runId));
 
         expect(result).toEqual({

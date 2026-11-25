@@ -7,9 +7,19 @@
 
 export {
     MAIL_ADDRESS_PATTERN,
+    MAIL_DELETE_LIMIT_BUCKET,
+    MAIL_DELETE_LIMIT_MAX,
+    MAIL_DELETE_LIMIT_WINDOW_MS,
+    MAIL_DELETE_MAX_IDS,
     MAIL_SEND_MAX_RECIPIENTS,
     MAIL_SEND_SUBJECT_MAX_CHARS,
     MAIL_SEND_TEXT_MAX_CHARS,
 } from './constants.ts';
+export { mailDeleteLimit } from './limit.ts';
 export * from './module.ts';
-export type { MailSendInput, MailWriteToolsOptions } from './types.ts';
+export type {
+    MailDeleteInput,
+    MailDeleteLimitOptions,
+    MailSendInput,
+    MailWriteToolsOptions,
+} from './types.ts';

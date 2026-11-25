@@ -6,7 +6,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { MailSendInput } from './types.ts';
+import type { MailDeleteInput, MailSendInput } from './types.ts';
 
 function sha256Hex(value: string): string {
     return createHash('sha256').update(value).digest('hex');
@@ -28,6 +28,13 @@ export function mailSendKey(input: MailSendInput, ctx: { run: { runId: string } 
     ];
 
     return `${ctx.run.runId}:mail_send:${sha256Hex(JSON.stringify(mail))}`;
+}
+
+/** The effect key of a delete: the run and its ids sorted, so the same mails in any order are one delete. */
+export function mailDeleteKey(input: MailDeleteInput, ctx: { run: { runId: string } }): string {
+    const ids = [...new Set(input.ids)].sort();
+
+    return `${ctx.run.runId}:mail_delete:${sha256Hex(JSON.stringify(ids))}`;
 }
 
 /** The Message-ID of the send keyed `key` from `address`: `<hash.chamvi@domain>`, the same on every replay. */

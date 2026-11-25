@@ -7,12 +7,14 @@
 
 import type { ToolSet } from 'ai';
 import { InvalidAgentDefinitionError, inject } from '@chamvi/core';
+import type { IClock } from '@chamvi/core';
 import { isObject } from 'smob';
 import { MAIL_WRITE_CONTEXT } from '../context/constants.ts';
 import { normalizeAccounts, normalizeTiming } from '../options/module.ts';
 import { normalizeSmtp } from '../write-client/asserts.ts';
 import { createMailWriteClient } from '../write-client/module.ts';
 import type { IMailWriteClient } from '../write-client/types.ts';
+import { mailDeleteTool } from './delete.ts';
 import { mailSendTool } from './send.ts';
 import type { MailWriteClientSource, MailWriteToolsOptions } from './types.ts';
 
@@ -24,13 +26,7 @@ function isMailWriteClient(value: unknown): value is IMailWriteClient {
     return isObject(value) && CLIENT_METHODS.every((name) => typeof value[name] === 'function');
 }
 
-function sourceOf(options: MailWriteToolsOptions): MailWriteClientSource {
-    if (!isObject(options)) {
-        throw new InvalidAgentDefinitionError(`${CALLER} options must be an object.`);
-    }
-
-    const timing = normalizeTiming(options, CALLER);
-
+function sourceOf(options: MailWriteToolsOptions, timing: { clock: IClock; timeoutMs: number }): MailWriteClientSource {
     if (options.classifier !== undefined && !isObject(options.classifier)) {
         throw new InvalidAgentDefinitionError(`${CALLER} classifier must be an object.`);
     }
@@ -64,12 +60,24 @@ function sourceOf(options: MailWriteToolsOptions): MailWriteClientSource {
 }
 
 /**
- * The mail write tools: `mail_send` (SMTP, always approved by the owner with the whole mail). They use
- * `client`, else a client of `accounts`, else the write client the mail module provided on the engine.
- * Options are checked when called (InvalidAgentDefinitionError).
+ * The mail write tools: `mail_send` (SMTP, always approved by the owner with the whole mail) and `mail_delete`
+ * (a move to the account's trash, approved unless a classifier finds it routine, limited by
+ * `mailDeleteLimit()`). They use `client`, else a client of `accounts`, else the write client the mail module
+ * provided on the engine. Options are checked when called (InvalidAgentDefinitionError).
  */
 export function mailWriteTools(options: MailWriteToolsOptions = {}): ToolSet {
-    const source = sourceOf(options);
+    if (!isObject(options)) {
+        throw new InvalidAgentDefinitionError(`${CALLER} options must be an object.`);
+    }
 
-    return { mail_send: mailSendTool(source) };
+    const timing = normalizeTiming(options, CALLER);
+    const source = sourceOf(options, timing);
+
+    return {
+        mail_send: mailSendTool(source),
+        mail_delete: mailDeleteTool(source, {
+            ...timing,
+            ...(options.classifier?.model !== undefined && { classifier: { model: options.classifier.model } }),
+        }),
+    };
 }

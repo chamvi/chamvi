@@ -11,6 +11,7 @@ import {
     expectTypeOf,
     it,
 } from 'vitest';
+import type { ToolLimit } from '@chamvi/core';
 import * as mail from '@chamvi/tool-mail';
 import * as module from '@chamvi/tool-mail/module';
 
@@ -50,6 +51,11 @@ describe('public api', () => {
         expect(mail.MAIL_SEND_SUBJECT_MAX_CHARS).toBe(500);
         expect(mail.MAIL_SEND_TEXT_MAX_CHARS).toBe(100_000);
         expect(mail.MAIL_ADDRESS_PATTERN).toEqual(/^[^\s@<>(),;:"\\]+@[^\s@<>(),;:"\\]+\.[^\s@<>(),;:"\\]+$/);
+        expect(mail.mailDeleteLimit).toBeTypeOf('function');
+        expect(mail.MAIL_DELETE_MAX_IDS).toBe(20);
+        expect(mail.MAIL_DELETE_LIMIT_MAX).toBe(20);
+        expect(mail.MAIL_DELETE_LIMIT_WINDOW_MS).toBe(3_600_000);
+        expect(mail.MAIL_DELETE_LIMIT_BUCKET).toBe('deletes');
     });
 
     it('keeps the internals internal', () => {
@@ -58,6 +64,10 @@ describe('public api', () => {
             'MAIL_ADDRESS_PATTERN',
             'MAIL_ATTACHMENT_MAX_CHARS',
             'MAIL_BODY_MAX_CHARS',
+            'MAIL_DELETE_LIMIT_BUCKET',
+            'MAIL_DELETE_LIMIT_MAX',
+            'MAIL_DELETE_LIMIT_WINDOW_MS',
+            'MAIL_DELETE_MAX_IDS',
             'MAIL_EFFECT_HEADER',
             'MAIL_FETCH_MAX_BYTES',
             'MAIL_HTML_MAX_CHARS',
@@ -83,6 +93,7 @@ describe('public api', () => {
             'encodeMailId',
             'injectMailContext',
             'injectMailWriteContext',
+            'mailDeleteLimit',
             'mailTools',
             'mailWriteTools',
             'parseMailId',
@@ -93,15 +104,15 @@ describe('public api', () => {
 
     it('exports the write account types', () => {
         expectTypeOf<mail.MailSmtpSettings>().toEqualTypeOf<{
-            host: string; 
-            port?: number; 
-            security?: 'tls' | 'starttls' | 'plain' 
+            host: string;
+            port?: number;
+            security?: 'tls' | 'starttls' | 'plain'
         }>();
         expectTypeOf<mail.MailWriteAccount>().toEqualTypeOf<mail.MailAccount & { smtp?: mail.MailSmtpSettings }>();
         expectTypeOf<mail.MailSmtpNormalized>().toEqualTypeOf<{
-            host: string; 
-            port: number; 
-            security: 'tls' | 'starttls' | 'plain' 
+            host: string;
+            port: number;
+            security: 'tls' | 'starttls' | 'plain'
         }>();
         expectTypeOf<mail.MailWriteAccountView>().toEqualTypeOf<{
             id: string;
@@ -110,10 +121,10 @@ describe('public api', () => {
             smtp: boolean;
         }>();
         expectTypeOf<mail.MailSendResult>().toEqualTypeOf<{
-            account: string; 
-            messageId: string; 
+            account: string;
+            messageId: string;
             filed: boolean;
-            refused: string[] 
+            refused: string[]
         }>();
         expectTypeOf<mail.MailReplyHeaders>().toEqualTypeOf<{
             messageId: string;
@@ -134,6 +145,14 @@ describe('public api', () => {
             text: string;
             inReplyTo?: string;
         }>();
+        expectTypeOf<mail.MailDeleteInput>().toEqualTypeOf<{ ids: string[] }>();
+        expectTypeOf<mail.MailDeleteLimitOptions>().toEqualTypeOf<{
+            max?: number;
+            windowMs?: number;
+            bucket?: string;
+            client?: mail.IMailWriteClient;
+        }>();
+        expectTypeOf<ReturnType<typeof mail.mailDeleteLimit>>().toEqualTypeOf<ToolLimit<mail.MailDeleteInput>>();
         expectTypeOf<NonNullable<module.ToolMailModuleOptions['accounts']>>().toEqualTypeOf<mail.MailWriteAccount[]>();
     });
 
