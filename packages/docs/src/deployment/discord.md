@@ -66,6 +66,7 @@ const DISCORD_SHUTDOWN_TIMEOUT_MS: 30_000;
 | `state` | Required. The Chat SDK `StateAdapter` of the `Chat` |
 | `approvalUrl(ref)` | Required. The approval link, `ref = { runId, approvalId, agent }` (ids only) |
 | `answers` | `{ model?, timeoutMs? }`: approvals answered by a DM reply (see above); off by default |
+| `voice` | As for [`chatChannel()`](/reference/chat#voice-messages); no effect yet: Discord audio is never downloaded, so it stays refused |
 | `name`, `untrusted`, `timeoutMs` | As for [`chatChannel()`](/reference/chat#chatchannel) |
 | `clock` | The connector's clock (login backoff, shutdown bound); default the engine's |
 | `onError` | Failures nobody awaits; default `console.error` |
@@ -136,5 +137,5 @@ A module with `name` (the connection, channel, account and env prefix; default `
 
 - **No lossless or offline ingestion.** A message that arrives while the connector is down, or that the process loses before it is stored as runs, is not fetched later. Channel history is not read.
 - **At least once delivery.** A send that times out (30 s) may still be delivered; a retry within Discord's nonce window is deduplicated, a later one may post twice.
-- **Text only.** Messages with attachments or without text are refused (reported, no run); replies are text up to 2000 characters, never split.
+- **Text only.** Messages with attachments or without text are refused (reported, no run), audio included, also with `voice`; replies are text up to 2000 characters, never split.
 - **Not in this version:** slash commands, buttons and select menus (approvals are a UI link), the Interactions Endpoint URL, reactions, message edits and deletes, embeds, streaming, more than one connector per token.

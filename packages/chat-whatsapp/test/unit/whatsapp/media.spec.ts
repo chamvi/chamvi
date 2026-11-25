@@ -7,7 +7,8 @@
 
 import { Readable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
-import { readBoundedMedia } from '../../../src/whatsapp/helpers/media.ts';
+import { CHAT_REQUEST_ERROR_CODE } from '@chamvi/chat';
+import { readBoundedMedia, whatsAppMediaError } from '../../../src/whatsapp/helpers/media.ts';
 
 /** A stream of `chunks`. */
 function chunked(...chunks: number[][]) {
@@ -35,5 +36,25 @@ describe('readBoundedMedia', () => {
 
         expect(bytes.byteLength).toBe(4);
         expect(stream.destroyed).toBe(true);
+    });
+});
+
+describe('whatsAppMediaError', () => {
+    it('names the status only, never the media url or the message', () => {
+        // the shape of Baileys' Boom from getHttpStream
+        const failure = Object.assign(new Error('Failed to fetch stream from https://mmg.whatsapp.net/secret-path'), {
+            output: { statusCode: 410 },
+            data: { mediaKey: 'secret-key' },
+        });
+        const error = whatsAppMediaError(failure);
+
+        expect(error.code).toBe(CHAT_REQUEST_ERROR_CODE);
+        expect(error.message).toBe('Downloading the WhatsApp media failed (status 410).');
+        expect(JSON.stringify(error)).not.toContain('secret');
+        expect(error.cause).toBeUndefined();
+    });
+
+    it('omits an unknown status', () => {
+        expect(whatsAppMediaError(new Error('x')).message).toBe('Downloading the WhatsApp media failed.');
     });
 });

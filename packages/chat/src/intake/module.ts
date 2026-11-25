@@ -27,7 +27,7 @@ import type {
 } from '../channel/types.ts';
 import type { ChatIncoming } from '../ingress/types.ts';
 import { chatConcurrencyKey, chatIdempotencyKey, matchesChatSubscription } from '../subscription/helpers.ts';
-import { isChatVoiceMessage, transcribeChatVoice } from '../voice/module.ts';
+import { isChatVoiceMessage, isChatVoiceWanted, transcribeChatVoice } from '../voice/module.ts';
 import { CHAT_ID_MAX_LENGTH, CHAT_INTAKE_RETRY_DELAYS_MS, TERMINAL_ERROR_CODES } from './constants.ts';
 import type { ChatDispatch, ChatDispatchFailure } from './types.ts';
 
@@ -351,7 +351,8 @@ async function deliver(
  * decides (a refused message is dropped silently: no download, no history, no
  * invoker lookup, no run); a message with attachments or without text is
  * refused (ValidationError), except a voice message with `voice`
- * (isChatVoiceMessage()); `resolveInvoker` names the invoker; a voice
+ * (isChatVoiceMessage()) that an agent or an answer could take
+ * (isChatVoiceWanted()); `resolveInvoker` names the invoker; a voice
  * message is transcribed into a text message (transcribeChatVoice(): a
  * notice and no run when it cannot be); with `answers` a direct reply may answer an open approval instead
  * (answerChatApproval(): then no run); else every agent with a matching subscription gets one run, through
@@ -379,10 +380,12 @@ export function createChatIntake(): ChatIntake {
             return;
         }
 
-        const voice = isChatVoiceMessage(incoming, options);
+        const refusedAttachments = () => new ValidationError(`Chat channel "${options.name}" refused a message of adapter "${payload.adapter}": attachments are not supported.`);
+        // a voice message nothing could take stays an attachment: no download, no notice
+        const voice = isChatVoiceMessage(incoming, options) && isChatVoiceWanted(ctx, payload, options.resolveInvoker !== undefined);
 
         if (!voice && Array.isArray(incoming.message.attachments) && incoming.message.attachments.length > 0) {
-            throw new ValidationError(`Chat channel "${options.name}" refused a message of adapter "${payload.adapter}": attachments are not supported.`);
+            throw refusedAttachments();
         }
 
         // nothing to answer: only text messages start runs (a transcript is never empty)
@@ -393,6 +396,10 @@ export function createChatIntake(): ChatIntake {
         const invoker = options.resolveInvoker ? await options.resolveInvoker(incoming) : undefined;
 
         if (voice) {
+            if (!isChatVoiceWanted(ctx, payload, invoker !== undefined)) {
+                throw refusedAttachments();
+            }
+
             const address = encodeChatAddress({ adapter: payload.adapter, threadId: payload.threadId }, options.adapterNames);
             const transcribed = await transcribeChatVoice(ctx, incoming, payload, address);
 

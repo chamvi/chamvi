@@ -41,6 +41,13 @@ export type ResolvedChatVoiceOptions = {
  * `Attachment` plus its reported duration in seconds, when the platform
  * knows it before the download. The channel transcribes only one with
  * `fetchData`.
+ *
+ * `fetchData` must bound its own read to `voice.maxBytes` (reading at most
+ * one byte more) and should end on its own: the channel checks the size only
+ * after it returned and cannot cancel it (the timeout abandons it). A Chat
+ * SDK adapter's stock `fetchData` downloads without a limit; a platform
+ * package removes it (`@chamvi/chat-discord`) or replaces it with a bounded
+ * one (`@chamvi/chat-whatsapp`).
  */
 export type ChatAudioAttachment = Attachment & { durationSeconds?: number };
 

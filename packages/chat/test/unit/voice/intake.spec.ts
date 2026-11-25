@@ -14,6 +14,7 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
+    ChamviError,
     InvalidRunStateError,
     TimeoutError,
     ValidationError,
@@ -22,11 +23,12 @@ import {
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import type { ApprovalWaitPoint, Invoker } from '@chamvi/store';
-import { chatAddress } from '@chamvi/chat';
+import { CHAT_REQUEST_ERROR_CODE, chatAddress } from '@chamvi/chat';
 import type {
     ChatAudioAttachment,
     ChatChannelOptions,
     ChatPayload,
+    ChatSubscriptionOptions,
     ChatVoiceOptions,
 } from '@chamvi/chat';
 import { inspect } from 'node:util';
@@ -59,9 +61,13 @@ type Note = {
     size?: number;
     durationSeconds?: number;
     /** what fetchData returns; default AUDIO */
-    data?: Buffer;
+    data?: unknown;
     /** fetchData rejects with it */
     fetchError?: Error;
+    /** fetchData never settles */
+    hang?: boolean;
+    /** typed text next to the audio */
+    text?: string;
     /** no fetchData at all */
     unfetchable?: boolean;
     /** attachments after the audio one */
@@ -84,14 +90,18 @@ function voiceNote(note: Note, fetches: string[]) {
                     throw note.fetchError;
                 }
 
-                return note.data ?? AUDIO;
+                if (note.hang) {
+                    return new Promise<never>(() => {});
+                }
+
+                return (note.data ?? AUDIO) as Buffer;
             },
         }),
     };
 
     return createTextMessage({
         id: note.id,
-        text: '',
+        text: note.text ?? '',
         attachments: [audio, ...(note.extra ?? [])],
         ...(note.sentAt ? { sentAt: note.sentAt } : {}),
     });
@@ -101,6 +111,8 @@ type Setup = {
     model?: ReturnType<typeof transcriptionModel>;
     voice?: Partial<ChatVoiceOptions> | false;
     patch?: Partial<ChatChannelOptions>;
+    /** the agent's subscription; default `channel.on()` (direct and mention) */
+    subscription?: ChatSubscriptionOptions;
 };
 
 async function setup(input: Setup = {}) {
@@ -110,7 +122,7 @@ async function setup(input: Setup = {}) {
             name: 'assistant',
             model: textModel(),
             instructions: 'Answer.',
-            channels: [channel.on()],
+            channels: [channel.on(input.subscription)],
         })],
         patch: {
             ...(input.voice === false ? {} : { voice: { model, ...input.voice } }),
@@ -297,7 +309,8 @@ describe('voice messages in chat intake', () => {
         expect(await ctx.fixture.runs()).toEqual([]);
         // one call: no retries on real timers
         expect(ctx.model.calls).toHaveLength(1);
-        expect(ctx.fixture.errors).toEqual([expect.any(ValidationError)]);
+        expect(ctx.fixture.errors).toEqual([expect.objectContaining({ code: CHAT_REQUEST_ERROR_CODE })]);
+        expect(ctx.fixture.errors[0]).toBeInstanceOf(ChamviError);
         expect((ctx.fixture.errors[0] as Error).message).toContain('Error: stt down');
     });
 
@@ -315,7 +328,8 @@ describe('voice messages in chat intake', () => {
 
         const [reported] = ctx.fixture.errors as [Error];
 
-        expect(reported).toBeInstanceOf(ValidationError);
+        expect(reported).toBeInstanceOf(ChamviError);
+        expect((reported as ChamviError).code).toBe(CHAT_REQUEST_ERROR_CODE);
         expect(reported).not.toBe(failure);
         expect(reported.message).toContain('AI_APICallError: provider refused');
         expect(reported.cause).toBeUndefined();
@@ -332,7 +346,7 @@ describe('voice messages in chat intake', () => {
 
         expect(ctx.posted()).toEqual([NOTICE_UNCLEAR]);
         expect(ctx.model.calls).toEqual([]);
-        expect(ctx.fixture.errors).toEqual([expect.any(ValidationError)]);
+        expect(ctx.fixture.errors).toEqual([expect.objectContaining({ code: CHAT_REQUEST_ERROR_CODE })]);
         expect((ctx.fixture.errors[0] as Error).message).toContain('media gone');
         expect(inspect(ctx.fixture.errors[0], { depth: 10, showHidden: true })).not.toContain('secret-audio-base64');
         expect(await ctx.fixture.runs()).toEqual([]);
@@ -460,6 +474,96 @@ describe('voice messages in chat intake', () => {
 
         expect(runs).toHaveLength(1);
         expect((runs[0]!.trigger.payload as ChatPayload).message.text).toBe('[Voice message] nach dem Neustart');
+    });
+
+    it('refuses a voice note no agent listens to as an attachment', async () => {
+        const ctx = await setup();
+
+        // a group message: the agent takes direct messages and mentions only
+        ctx.fixture.adapter.isDirect = () => false;
+
+        await expect(ctx.fixture.adapter.deliver(ctx.note({ id: 'v-1' }))).rejects.toThrow(/attachments are not supported/);
+        expect(ctx.fetches).toEqual([]);
+        expect(ctx.model.calls).toEqual([]);
+        expect(ctx.posted()).toEqual([]);
+        expect(await ctx.fixture.runs()).toEqual([]);
+    });
+
+    it('transcribes a group voice note an agent listens to, its filter seeing the transcript', async () => {
+        const seen: string[] = [];
+        const ctx = await setup({
+            subscription: {
+                events: ['message'],
+                filter: (payload) => {
+                    seen.push(payload.message.text);
+
+                    return true;
+                },
+            },
+        });
+
+        ctx.fixture.adapter.isDirect = () => false;
+
+        await ctx.fixture.adapter.deliver(ctx.note({ id: 'v-1' }));
+
+        expect(ctx.fetches).toEqual(['v-1']);
+        expect(seen).toEqual(['[Voice message] Was steht heute an?']);
+        expect(await ctx.fixture.runs()).toHaveLength(1);
+    });
+
+    it.each([
+        ['transcribes', owner, ['v-1']],
+        ['refuses without an invoker', undefined, []],
+    ] as const)('with answers and no listening agent, %s a direct voice note', async (_name, invoker, fetched) => {
+        const ctx = await setup({
+            subscription: { events: ['message'] },
+            patch: { answers: {}, resolveInvoker: () => invoker },
+        });
+
+        const outcome = await ctx.fixture.adapter.deliver(ctx.note({ id: 'v-1' })).catch((caught: unknown) => caught);
+
+        expect(ctx.fetches).toEqual(fetched);
+        expect(ctx.posted()).toEqual([]);
+        expect(await ctx.fixture.runs()).toEqual([]);
+
+        if (invoker) {
+            expect(outcome).toBeUndefined();
+        } else {
+            expect((outcome as Error).message).toMatch(/attachments are not supported/);
+        }
+    });
+
+    it('refuses audio with typed text as an attachment', async () => {
+        const ctx = await setup();
+
+        await expect(ctx.fixture.adapter.deliver(ctx.note({ id: 'v-1', text: 'listen' }))).rejects.toThrow(/attachments are not supported/);
+        expect(ctx.fetches).toEqual([]);
+    });
+
+    it('aborts a hanging download after timeoutMs on the engine clock', async () => {
+        const ctx = await setup();
+
+        const delivery = ctx.fixture.adapter.deliver(ctx.note({ id: 'v-1', hang: true }));
+
+        await vi.waitFor(() => expect(ctx.fetches).toEqual(['v-1']));
+        ctx.fixture.clock.advance(60_000);
+        await delivery;
+
+        expect(ctx.model.calls).toEqual([]);
+        expect(ctx.posted()).toEqual([NOTICE_UNCLEAR]);
+        expect(ctx.fixture.errors).toEqual([expect.any(TimeoutError)]);
+    });
+
+    it('accepts an ArrayBuffer and refuses a body that is no bytes', async () => {
+        const ctx = await setup();
+
+        await ctx.fixture.adapter.deliver(ctx.note({ id: 'v-1', data: new Uint8Array(AUDIO).buffer }));
+        expect(await ctx.fixture.runs()).toHaveLength(1);
+
+        await ctx.fixture.adapter.deliver(ctx.note({ id: 'v-2', data: 'not bytes' }));
+        expect(ctx.posted()).toEqual([NOTICE_UNCLEAR]);
+        expect((ctx.fixture.errors[0] as Error).message).toMatch(/no bytes/);
+        expect(await ctx.fixture.runs()).toHaveLength(1);
     });
 
     it('a voice reply answers the single open approval', async () => {

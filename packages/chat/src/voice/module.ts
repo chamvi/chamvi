@@ -6,11 +6,14 @@
  */
 
 import { TimeoutError, ValidationError } from '@chamvi/core';
+import type { ChamviError } from '@chamvi/core';
 import { transcribe } from 'ai';
 import { isObject } from 'smob';
 import { hashKey, reportError } from '../channel/helpers.ts';
+import { targetsChatSubscription } from '../subscription/helpers.ts';
 import type { ChatIntakeContext, ChatPayload, ResolvedChatChannelOptions } from '../channel/types.ts';
 import type { ChatIncoming } from '../ingress/types.ts';
+import { requestError } from '../outbound/helpers.ts';
 import { CHAT_VOICE_CONCURRENCY, CHAT_VOICE_NOTICE_UNCLEAR } from './constants.ts';
 import type {
     ChatAudioAttachment,
@@ -91,19 +94,44 @@ export function createChatVoiceLimiter(max: number = CHAT_VOICE_CONCURRENCY): IC
 
 /**
  * Whether the message is a voice message the channel transcribes: `voice`
- * is on and its attachments are exactly one audio file the platform can
- * fetch (`fetchData`). Any other attachment mix is refused as without `voice`.
+ * is on, it has no typed text (a caption would be dropped) and its
+ * attachments are exactly one audio file the platform can fetch
+ * (`fetchData`). Any other mix is refused as without `voice`.
  */
 export function isChatVoiceMessage(incoming: ChatIncoming, options: ResolvedChatChannelOptions): boolean {
-    const { attachments } = incoming.message;
+    const { attachments, text } = incoming.message;
 
     if (!options.voice || !Array.isArray(attachments) || attachments.length !== 1) {
+        return false;
+    }
+
+    if (typeof text === 'string' && text.trim().length > 0) {
         return false;
     }
 
     const [audio] = attachments;
 
     return isObject(audio) && audio.type === 'audio' && typeof audio.fetchData === 'function';
+}
+
+/**
+ * Whether a voice message could start anything once transcribed: a live
+ * agent subscribes to this channel for the message's adapter and event, or,
+ * with `answers`, it is a direct message of an invoker (`invoker`: one is
+ * named, or before resolveInvoker ran, may be). A subscription's filter is
+ * not run (it may read the text, which only the transcript gives): a filter
+ * refusing the transcript costs one transcription. False keeps the message
+ * an attachment the channel refuses: nothing downloaded, no notice.
+ */
+export function isChatVoiceWanted(ctx: ChatIntakeContext, payload: ChatPayload, invoker: boolean): boolean {
+    const { context, options } = ctx;
+
+    if (options.answers && payload.event === 'direct' && invoker) {
+        return true;
+    }
+
+    return context.engine.listAgents().some((agent) => (agent.definition.channels ?? [])
+        .some((subscription) => subscription.channel === options.name && targetsChatSubscription(subscription, payload)));
 }
 
 function chatVoiceNoticeText(notice: ChatVoiceNotice, voice: ResolvedChatVoiceOptions): string {
@@ -178,16 +206,16 @@ function untilAborted<T>(promise: PromiseLike<T>, signal: AbortSignal): Promise<
 }
 
 /**
- * A failed download or transcription as a chamvi error naming only the
- * original's name and message (cut), never the original: a provider error
- * may carry the request body, and with it the audio.
+ * A failed download or transcription as a `chat_request` error naming only
+ * the original's name and message (cut), never the original: a provider
+ * error may carry the request body, and with it the audio.
  */
-function chatVoiceFailure(options: ResolvedChatChannelOptions, error: unknown): ValidationError {
+function chatVoiceFailure(options: ResolvedChatChannelOptions, error: unknown): ChamviError {
     const name = Error.isError(error) ? error.name : typeof error;
     const message = Error.isError(error) ? error.message : '';
     const detail = `${name}${message ? `: ${message}` : ''}`;
 
-    return new ValidationError(`Chat channel "${options.name}" could not transcribe a voice message (${detail.length > ERROR_DETAIL_MAX_LENGTH ? `${detail.slice(0, ERROR_DETAIL_MAX_LENGTH)}...` : detail}).`);
+    return requestError(`Chat channel "${options.name}" could not transcribe a voice message (${detail.length > ERROR_DETAIL_MAX_LENGTH ? `${detail.slice(0, ERROR_DETAIL_MAX_LENGTH)}...` : detail}).`);
 }
 
 function toBytes(data: unknown): Uint8Array | undefined {
@@ -221,6 +249,11 @@ async function hearChatVoice(ctx: ChatIntakeContext, audio: ChatAudioAttachment)
     timer.unref?.();
 
     try {
+        // a slot granted as the channel stops starts no download
+        if (signal.aborted) {
+            throw signal.reason;
+        }
+
         const bytes = toBytes(await untilAborted(audio.fetchData!(), signal));
 
         if (!bytes) {

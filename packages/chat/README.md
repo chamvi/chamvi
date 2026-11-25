@@ -236,7 +236,9 @@ Approvals (`ctx.channels.findOneOrFail('chat').approve()`) send a text with the 
 | `timeoutMs` | `CHAT_VOICE_TIMEOUT_MS` (60 s) | Download and transcription together, on the engine's clock |
 | `label` | `CHAT_VOICE_LABEL` (`'[Voice message] '`) | Put before the transcript |
 
-A note that is too long or too large gets `Voice message too long: at most <N> minutes.` (`1 minute.` for N = 1), one that cannot be transcribed `I could not understand the voice message.`; neither starts a run. The audio is never stored; at most two notes per channel are transcribed at once.
+A note that is too long or too large gets `Voice message too long: at most <N> minutes.` (`1 minute.` for N = 1), one that cannot be transcribed `I could not understand the voice message.`; neither starts a run. The audio is never stored; at most two notes per channel are transcribed at once. A note no agent subscribes to (by adapter and event; filters run on the transcript) and no answer could take, or audio with typed text, is refused as an attachment: nothing is downloaded, no notice is sent.
+
+The channel checks the downloaded size only after the platform's `fetchData` returned and cannot cancel it, so `maxBytes` bounds memory only when `fetchData` bounds its own read (`@chamvi/chat-whatsapp` reads at most `maxBytes + 1` bytes); the Chat SDK's stock adapters download without a limit, which is why `@chamvi/chat-discord` removes theirs.
 
 ## Memory
 
