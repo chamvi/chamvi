@@ -15,7 +15,6 @@ import {
     toolLimitApproved,
 } from '@chamvi/core';
 import type { ApprovalDecision, ApprovalRequestInput, ToolContext } from '@chamvi/core';
-import { createHash } from 'node:crypto';
 import { isObject } from 'smob';
 import { parseCalendarEventId } from '../event-id/module.ts';
 import { signalOf } from '../tools/asserts.ts';
@@ -24,7 +23,7 @@ import { askCalendarApproval, deleteApprovalOf } from './approval.ts';
 import { notWritableError } from './asserts.ts';
 import { deleteVerdictOf } from './classify.ts';
 import { CALENDAR_DELETE_BACKUP_ONCE, CALENDAR_DELETE_CLASSIFY_ONCE, CALENDAR_SERIES_MESSAGE } from './constants.ts';
-import { calendarDeleteKey } from './keys.ts';
+import { calendarDeleteKey, sha256Hex } from './keys.ts';
 import { calendarDeleteLimitOf, limitListingCovers } from './limit.ts';
 import type {
     CalendarDeleteInput,
@@ -74,10 +73,6 @@ const INPUT_SCHEMA = jsonSchema<CalendarDeleteInput>({
         }
     },
 });
-
-function sha256Hex(value: string): string {
-    return createHash('sha256').update(value).digest('hex');
-}
 
 /** The owner's decision; a request the source chat cannot show fails the call. */
 async function decisionOf(ctx: ToolContext, request: ApprovalRequestInput): Promise<ApprovalDecision> {

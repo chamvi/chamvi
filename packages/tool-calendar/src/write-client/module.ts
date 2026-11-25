@@ -10,7 +10,7 @@ import { ValidationError } from '@chamvi/core';
 import type { CalendarAccount } from '../client/types.ts';
 import { normalizeAccounts, normalizeClientOptions } from '../options/module.ts';
 import type { CalendarClientOptions, CalendarClientOptionsNormalized } from '../options/types.ts';
-import { organizerOf } from './asserts.ts';
+import { calendarAccountOf, organizerOf } from './asserts.ts';
 import { CALENDAR_UNKNOWN_MESSAGE } from './constants.ts';
 import { createCalendarEvent, findCreatedEvent } from './create.ts';
 import { describeCalendarEvent } from './describe.ts';
@@ -42,11 +42,11 @@ class CalendarWriteClient implements ICalendarWriteClient {
     }
 
     async calendar(id: string, signal?: AbortSignal): Promise<CalendarWriteView> {
-        if (typeof id !== 'string' || !id.includes(':')) {
+        const account = typeof id === 'string' ? calendarAccountOf(id) : '';
+
+        if (account.length === 0) {
             throw new ValidationError(CALENDAR_UNKNOWN_MESSAGE);
         }
-
-        const account = id.slice(0, id.indexOf(':'));
 
         this.sessions.account(account);
 

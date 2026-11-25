@@ -8,7 +8,8 @@
 import { createHash } from 'node:crypto';
 import { isObject } from 'smob';
 
-function sha256Hex(value: string): string {
+/** The SHA-256 of `value` as hex: the one hash of the write keys, UIDs, resource names and backup keys. */
+export function sha256Hex(value: string): string {
     return createHash('sha256').update(value).digest('hex');
 }
 

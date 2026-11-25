@@ -35,3 +35,8 @@ export function organizerOf(addresses: string[], user: string): string | undefin
 export function basicAuthorizationOf(account: CalendarAccount): string {
     return `Basic ${Buffer.from(`${account.user}:${account.password}`, 'utf8').toString('base64')}`;
 }
+
+/** The account of the calendar id `calendar` (its part before the first `:`); '' without one. */
+export function calendarAccountOf(calendar: string): string {
+    return calendar.includes(':') ? calendar.slice(0, calendar.indexOf(':')) : '';
+}

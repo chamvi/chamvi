@@ -5,13 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { createHash } from 'node:crypto';
 import { ValidationError } from '@chamvi/core';
 import ICAL from 'ical.js';
 import { calendarError } from '../client/asserts.ts';
 import { encodeCalendarEventId } from '../event-id/module.ts';
 import { instantOf } from '../expand/module.ts';
-import { isCalendarAddress } from './asserts.ts';
+import { sha256Hex } from '../write-tools/keys.ts';
+import { calendarAccountOf, isCalendarAddress } from './asserts.ts';
 import { buildEventIcs } from './ics.ts';
 import {
     discardBody,
@@ -34,7 +34,7 @@ type IcalTime = InstanceType<typeof ICAL.Time>;
 
 /** The UID and resource name of the create with effect key `key`: a replay names the same resource. */
 export function calendarResourceOf(key: string): { uid: string; name: string } {
-    const hash = createHash('sha256').update(key).digest('hex').slice(0, 32);
+    const hash = sha256Hex(key).slice(0, 32);
 
     return { uid: `${hash}@chamvi`, name: `chamvi-${hash}.ics` };
 }
@@ -48,10 +48,6 @@ export function printTime(time: CalendarTime, zone: string): string {
     return time.instant.toZonedDateTimeISO(zone).toString({ timeZoneName: 'never' });
 }
 
-/** The account of the calendar id `calendar` (its part before the first `:`). */
-export function calendarAccountOf(calendar: string): string {
-    return calendar.includes(':') ? calendar.slice(0, calendar.indexOf(':')) : calendar;
-}
 
 function calendarTimeOf(time: IcalTime, tzid: string | undefined, zone: string): CalendarTime {
     if (time.isDate) {
