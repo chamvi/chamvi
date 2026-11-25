@@ -14,6 +14,7 @@ import type { IMailClient } from '../client/types.ts';
 import { createUnconfiguredMailClient } from '../client/unconfigured.ts';
 import { provideMailContext } from '../context/module.ts';
 import { normalizeAccounts } from '../options/module.ts';
+import { normalizeSmtp } from '../write-client/asserts.ts';
 import { MAIL_CONNECTION_TYPE, TOOL_MAIL_MODULE_NAME } from './constants.ts';
 import { readMailAccountsFromEnv } from './helpers.ts';
 import { loadMailAccounts, mailConnectionDefinition } from './type.ts';
@@ -22,7 +23,8 @@ import type { MailEnvAccount, ToolMailModuleOptions } from './types.ts';
 /**
  * One mail client for the app, provided on the engine (`mailTools()`
  * without accounts injects it). The accounts (the `accounts` option, else
- * `CHAMVI_MAIL_ACCOUNTS` with its credential variables) are read and checked
+ * `CHAMVI_MAIL_ACCOUNTS` with its credential variables, each with optional
+ * `smtp` settings, also stored as `smtpHost`, `smtpPort`, `smtpSecurity`) are read and checked
  * when the factory is called (InvalidAgentDefinitionError, never echoing a
  * value). `setup` adds the accounts stored in the connection store, the env
  * winning per field of a declared account only (a stored-only one reads no
@@ -62,6 +64,11 @@ export class ToolMailModule implements IModule {
 
         if (options.accounts !== undefined) {
             normalizeAccounts(options.accounts, 'toolMailModule()');
+            options.accounts.forEach((account, index) => {
+                if (account.smtp !== undefined) {
+                    normalizeSmtp(account.smtp, `toolMailModule() accounts[${index}].smtp`);
+                }
+            });
             this.accounts = options.accounts;
         } else {
             this.accounts = readMailAccountsFromEnv(this.env);

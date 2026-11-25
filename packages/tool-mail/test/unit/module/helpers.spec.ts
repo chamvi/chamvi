@@ -92,6 +92,47 @@ describe('readMailAccountsFromEnv()', () => {
         }]);
     });
 
+    it('copies the smtp settings of an entry', () => {
+        expect(readMailAccountsFromEnv({
+            CHAMVI_MAIL_ACCOUNTS: accounts([{
+                id: 'work',
+                address: 'peter@example.com',
+                host: 'imap.example.com',
+                smtp: {
+                    host: 'smtp.example.com', 
+                    port: 587, 
+                    security: 'starttls', 
+                },
+            }]),
+            CHAMVI_MAIL_WORK_PASSWORD: PASSWORD,
+        })).toEqual([{
+            id: 'work',
+            host: 'imap.example.com',
+            user: 'peter@example.com',
+            password: PASSWORD,
+            address: 'peter@example.com',
+            smtp: {
+                host: 'smtp.example.com', 
+                port: 587, 
+                security: 'starttls', 
+            },
+        }]);
+    });
+
+    it('refuses an smtp entry without a host, naming the field exactly', () => {
+        const error = errorOf(() => readMailAccountsFromEnv({
+            CHAMVI_MAIL_ACCOUNTS: accounts([{
+                id: 'me',
+                address: 'me@x.test',
+                host: 'imap.x.test',
+                smtp: { port: 587 },
+            }]),
+            CHAMVI_MAIL_ME_PASSWORD: PASSWORD,
+        }));
+
+        expect(error.message).toBe('CHAMVI_MAIL_ACCOUNTS[0].smtp.host must be a non-empty string.');
+    });
+
     it('reads a _FILE variant, trimming one trailing newline', async () => {
         const file = join(dir, 'password');
 
@@ -186,6 +227,18 @@ describe('readMailAccountsFromEnv()', () => {
             host: 'imap.x.test',
             gmail: 'yes',
         }], 'CHAMVI_MAIL_ACCOUNTS[0].gmail'],
+        ['a bad smtp', [{
+            id: 'me',
+            address: 'me@x.test',
+            host: 'imap.x.test',
+            smtp: 'smtp.x.test',
+        }], 'CHAMVI_MAIL_ACCOUNTS[0].smtp must be an object.'],
+        ['a bad smtp port', [{
+            id: 'me',
+            address: 'me@x.test',
+            host: 'imap.x.test',
+            smtp: { host: 'smtp.x.test', port: 0 },
+        }], 'CHAMVI_MAIL_ACCOUNTS[0].smtp.port'],
         [
             'a duplicate id',
             [{

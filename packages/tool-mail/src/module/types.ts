@@ -6,14 +6,14 @@
  */
 
 import type { Env } from '@chamvi/app';
-import type { MailAccount } from '../client/types.ts';
+import type { MailWriteAccount } from '../write-client/types.ts';
 
 export type ToolMailModuleOptions = {
     /** Where the `CHAMVI_MAIL_*` variables are read, when the factory is called; default `process.env`. */
     env?: Env;
-    /** The accounts to read; given, `CHAMVI_MAIL_ACCOUNTS` is not read. */
-    accounts?: MailAccount[];
+    /** The accounts to read (and, with `smtp`, to send from); given, `CHAMVI_MAIL_ACCOUNTS` is not read. */
+    accounts?: MailWriteAccount[];
 };
 
 /** An account of `CHAMVI_MAIL_ACCOUNTS`: a password not in env may come from the store, `setup` decides. */
-export type MailEnvAccount = Omit<MailAccount, 'password'> & { password?: string };
+export type MailEnvAccount = Omit<MailWriteAccount, 'password'> & { password?: string };

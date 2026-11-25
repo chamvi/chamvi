@@ -5,7 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { describe, expect, it } from 'vitest';
+import {
+    describe,
+    expect,
+    expectTypeOf,
+    it,
+} from 'vitest';
 import * as mail from '@chamvi/tool-mail';
 import * as module from '@chamvi/tool-mail/module';
 
@@ -66,6 +71,21 @@ describe('public api', () => {
             'parseMailId',
             'provideMailContext',
         ]);
+    });
+
+    it('exports the write account types', () => {
+        expectTypeOf<mail.MailSmtpSettings>().toEqualTypeOf<{
+            host: string; 
+            port?: number; 
+            security?: 'tls' | 'starttls' | 'plain' 
+        }>();
+        expectTypeOf<mail.MailWriteAccount>().toEqualTypeOf<mail.MailAccount & { smtp?: mail.MailSmtpSettings }>();
+        expectTypeOf<mail.MailSmtpNormalized>().toEqualTypeOf<{
+            host: string; 
+            port: number; 
+            security: 'tls' | 'starttls' | 'plain' 
+        }>();
+        expectTypeOf<NonNullable<module.ToolMailModuleOptions['accounts']>>().toEqualTypeOf<mail.MailWriteAccount[]>();
     });
 
     it('exports the module, its name and variable, never the env helpers', () => {

@@ -14,3 +14,4 @@ export * from './errors/index.ts';
 export * from './options/index.ts';
 export * from './text/index.ts';
 export * from './tools/index.ts';
+export * from './write-client/index.ts';
