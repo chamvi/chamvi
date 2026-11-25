@@ -29,8 +29,16 @@ export type CalendarWriteToolsOptions = CalendarClientOptions & {
     classifier?: { model?: ModelRef };
     /** `calendar_create`'s own limit (default 20 events an hour in bucket `creates`); false: none. */
     createLimit?: CalendarLimitSettings | false;
-    /** `calendar_delete`'s own limit (default 20 an hour in bucket `deletes`, shared with `mail_delete`); false: none. */
+    /**
+     * `calendar_delete`'s own limit (default 20 an hour in bucket `deletes`, shared with `mail_delete`: when an
+     * agent has both, `deleteLimit` of `mailWriteTools()` and `calendarWriteTools()` must be equal); false: none.
+     */
     deleteLimit?: CalendarLimitSettings | false;
+    /**
+     * The calendar ids (`<account>:<slug>`) the tools may write to; default every listed calendar. A create or
+     * delete elsewhere is a ValidationError before any request.
+     */
+    calendars?: string[];
 };
 
 /** The input of `calendar_create`. */
@@ -73,9 +81,34 @@ export type ParsedCreate = {
 /** The write client a tool call uses: the given one, or the one provided on the engine. */
 export type CalendarWriteClientSource = (ctx: ToolContext) => ICalendarWriteClient;
 
+/** Whether the tools may write to the calendar id (internal). */
+export type CalendarWritable = (calendar: string) => boolean;
+
 /** What `calendar_create` takes besides its client (internal). */
 export type CalendarCreateToolOptions = {
     limit?: CalendarLimitSettings | false;
+    writable: CalendarWritable;
+};
+
+/** The result of `calendar_delete`. */
+export type CalendarDeleteResult = {
+    event: string;
+    calendar: string;
+    /** `missing`: the event was gone already. */
+    status: 'deleted' | 'missing';
+    /** The artifact id of the event's iCalendar, saved before the delete. */
+    backup?: string;
+};
+
+/** What a delete's limit approval listed (internal): the event its listing covered. */
+export type CalendarDeleteShown = {
+    event: string;
+};
+
+/** What `calendar_delete` takes besides its client (internal). */
+export type CalendarDeleteToolOptions = CalendarClassifierOptions & {
+    limit?: CalendarLimitSettings | false;
+    writable: CalendarWritable;
 };
 
 /** What the classifier of `calendar_delete` runs on (internal). */

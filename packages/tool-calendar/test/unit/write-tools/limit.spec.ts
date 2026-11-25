@@ -6,7 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { jsonSchema } from 'ai';
+import { InvalidAgentDefinitionError, defineTool } from '@chamvi/core';
 import type { ToolLimit } from '@chamvi/core';
 import { mockModel } from '@chamvi/test-kit';
 import type { MockResponse } from '@chamvi/test-kit';
@@ -14,12 +15,17 @@ import {
     CALENDAR_CREATE_LIMIT_BUCKET,
     CALENDAR_CREATE_LIMIT_MAX,
     CALENDAR_CREATE_LIMIT_WINDOW_MS,
+    CALENDAR_DELETE_LIMIT_BUCKET,
+    CALENDAR_DELETE_LIMIT_MAX,
+    CALENDAR_DELETE_LIMIT_WINDOW_MS,
     calendarWriteTools,
     createCalendarWriteClient,
 } from '@chamvi/tool-calendar';
-import type { CalendarWriteToolsOptions } from '@chamvi/tool-calendar';
-import { createFakeCalDav } from '../../utils/caldav.ts';
-import type { FakeCalDav } from '../../utils/caldav.ts';
+import type { CalendarWriteToolsOptions, ICalendarWriteClient } from '@chamvi/tool-calendar';
+import { encodeCalendarEventId } from '../../../src/event-id/module.ts';
+import { createFakeCalDav, fakeObjectsOf } from '../../utils/caldav.ts';
+import type { FakeCalDav, FakeObject } from '../../utils/caldav.ts';
+import { calendar, vevent } from '../../utils/ics.ts';
 import { WRITE_ACCOUNT, createWriteEngine } from '../../utils/engine.ts';
 
 const createCall = (input: unknown, toolCallId: string): MockResponse => ({
@@ -182,3 +188,235 @@ describe('calendar_create\'s own limit', () => {
         expect((await write.run(runId))?.status).toBe('completed');
     });
 });
+
+function past(name: string): FakeObject {
+    return {
+        name,
+        etag: `"${name}"`,
+        ics: calendar(vevent(
+            `UID:${name}`,
+            'DTSTART:20261020T080000Z',
+            'DTEND:20261020T090000Z',
+            `SUMMARY:Old ${name}`,
+        )),
+    };
+}
+
+const ONE = past('one.ics');
+const TWO = past('two.ics');
+
+function eventOf(item: FakeObject): string {
+    return encodeCalendarEventId({
+        calendar: 'icloud:home', 
+        name: item.name, 
+        etag: item.etag, 
+    });
+}
+
+const deleteCall = (item: FakeObject, toolCallId: string): MockResponse => ({
+    parts: [{
+        type: 'tool-call',
+        toolName: 'calendar_delete',
+        input: { event: eventOf(item) },
+        toolCallId,
+    }],
+});
+
+const decision = (value: string): MockResponse => ({ parts: [{ type: 'text', text: JSON.stringify({ decision: value }) }] });
+
+const TWO_LINE = '2026-10-20 10:00 to 2026-10-20 11:00 (Europe/Berlin) | Old two.ics | no attendees | Home';
+
+function deleteFake(): FakeCalDav {
+    return createFakeCalDav([{
+        slug: 'home', 
+        name: 'Home', 
+        objects: [ONE, TWO], 
+    }]);
+}
+
+function kept(server: FakeCalDav): string[] {
+    return fakeObjectsOf(server.calendars[0]!).map((item) => item.name);
+}
+
+/** `client` whose `failing`-th `describe` fails (a transient error), the rest as given. */
+function flakyDescribe(client: ICalendarWriteClient, failing: number): ICalendarWriteClient {
+    let calls = 0;
+
+    return {
+        timezone: client.timezone,
+        clock: client.clock,
+        calendar: (id, signal) => client.calendar(id, signal),
+        organizer: (account, signal) => client.organizer(account, signal),
+        create: (request, signal) => client.create(request, signal),
+        findCreated: (id, key, signal) => client.findCreated(id, key, signal),
+        describe: async (event, signal) => {
+            calls++;
+
+            if (calls === failing) {
+                throw new Error('connection reset');
+            }
+
+            return client.describe(event, signal);
+        },
+        remove: (event, signal) => client.remove(event, signal),
+        close: () => client.close(),
+    };
+}
+
+const DELETE_LIMIT_TITLE = /^Limit reached for calendar_delete: .*Allow this call\?$/;
+
+describe('calendar_delete\'s own limit', () => {
+    it('has the defaults of mail_delete and takes deleteLimit', () => {
+        const client = createCalendarWriteClient([WRITE_ACCOUNT]);
+        const { limit } = (calendarWriteTools({ client }).calendar_delete as { limit?: ToolLimit });
+
+        // equal to tool-mail's MAIL_DELETE_LIMIT_MAX, MAIL_DELETE_LIMIT_WINDOW_MS and MAIL_DELETE_LIMIT_BUCKET: the bucket is shared
+        expect(CALENDAR_DELETE_LIMIT_MAX).toBe(20);
+        expect(CALENDAR_DELETE_LIMIT_WINDOW_MS).toBe(3_600_000);
+        expect(CALENDAR_DELETE_LIMIT_BUCKET).toBe('deletes');
+        expect(limit).toMatchObject({
+            max: 20, 
+            windowMs: 3_600_000, 
+            bucket: 'deletes', 
+            onExceed: 'approve', 
+        });
+        expect((calendarWriteTools({ client, deleteLimit: { max: 5 } }).calendar_delete as { limit?: ToolLimit }).limit).toMatchObject({ max: 5 });
+        expect((calendarWriteTools({ client, deleteLimit: false }).calendar_delete as { limit?: ToolLimit }).limit).toBeUndefined();
+        expect(() => calendarWriteTools({ client, deleteLimit: 'x' as never })).toThrow(InvalidAgentDefinitionError);
+    });
+
+    it('asks one limit approval with the listing, then deletes without the classifier or a second approval', async () => {
+        const server = deleteFake();
+        const classifier = mockModel([decision('routine')]);
+        const write = createWriteEngine({
+            fake: server,
+            model: mockModel([deleteCall(ONE, 'd1'), deleteCall(TWO, 'd2'), done]),
+            classifierModel: classifier,
+            deleteLimit: { max: 1 },
+        });
+        const runId = await write.dispatch();
+
+        expect(kept(server)).toEqual(['two.ics']);
+        expect(write.sent).toHaveLength(1);
+        expect(write.sent[0]!.message.title).toMatch(DELETE_LIMIT_TITLE);
+        expect(write.sent[0]!.message.body).toBe(TWO_LINE);
+
+        await write.answer(runId, true);
+
+        expect(kept(server)).toEqual([]);
+        expect(classifier.doGenerateCalls).toHaveLength(1);
+        expect(write.sent).toHaveLength(1);
+    });
+
+    it('still classifies and asks after a limit approval that could show only the id', async () => {
+        const server = deleteFake();
+        const client = createCalendarWriteClient([WRITE_ACCOUNT], { fetch: server.fetch, timezone: 'Europe/Berlin' });
+        const classifier = mockModel([decision('routine'), decision('ask')]);
+        const write = createWriteEngine({
+            // the second describe, the one inside the limit's detail, fails
+            client: flakyDescribe(client, 2),
+            model: mockModel([deleteCall(ONE, 'd1'), deleteCall(TWO, 'd2'), done]),
+            classifierModel: classifier,
+            deleteLimit: { max: 1 },
+        });
+        const runId = await write.dispatch();
+
+        expect(write.sent[0]!.message.title).toMatch(DELETE_LIMIT_TITLE);
+        expect(write.sent[0]!.message.body).toBe('icloud:home event two.ics');
+
+        await write.answer(runId, true);
+
+        expect(classifier.doGenerateCalls).toHaveLength(2);
+        expect(write.sent[1]!.message).toMatchObject({ title: 'Delete 1 event from Home?', body: TWO_LINE });
+
+        await write.answer(runId, false);
+
+        expect(kept(server)).toEqual(['two.ics']);
+    });
+
+    it('still classifies and asks after an agent limits entry, which shows no listing', async () => {
+        const server = deleteFake();
+        const write = createWriteEngine({
+            fake: server,
+            model: mockModel([deleteCall(ONE, 'd1'), deleteCall(TWO, 'd2'), done]),
+            classifierModel: mockModel([decision('routine'), decision('ask')]),
+            limits: { calendar_delete: { max: 1, windowMs: 3_600_000 } },
+        });
+        const runId = await write.dispatch();
+
+        expect(kept(server)).toEqual(['two.ics']);
+        expect(write.sent[0]!.message.title).toMatch(DELETE_LIMIT_TITLE);
+        expect(write.sent[0]!.message.body ?? '').toBe('');
+
+        await write.answer(runId, true);
+
+        expect(write.sent[1]!.message).toMatchObject({ title: 'Delete 1 event from Home?', body: TWO_LINE });
+
+        await write.answer(runId, false);
+
+        expect(kept(server)).toEqual(['two.ics']);
+    });
+
+    it('shares the bucket deletes with another tool of the same limit', async () => {
+        const server = deleteFake();
+        const stub = defineTool({
+            inputSchema: jsonSchema<{ n: number }>({ type: 'object' }),
+            limit: {
+                max: 20, 
+                windowMs: 3_600_000, 
+                bucket: 'deletes', 
+            },
+            execute: async () => 'ok',
+        });
+        const stubs: MockResponse = {
+            parts: Array.from({ length: 20 }, (_, index) => ({
+                type: 'tool-call' as const,
+                toolName: 'stub_delete',
+                input: { n: index },
+                toolCallId: `s${index}`,
+            })),
+        };
+        const write = createWriteEngine({
+            fake: server,
+            model: mockModel([stubs, deleteCall(ONE, 'd1'), done]),
+            classifierModel: mockModel([decision('routine')]),
+            tools: { stub_delete: stub },
+        });
+        const runId = await write.dispatch();
+
+        expect(write.sent).toHaveLength(1);
+        expect(write.sent[0]!.message.title).toMatch(/^Limit reached for calendar_delete: 20 of 20 used/);
+        expect(kept(server)).toEqual(['one.ics', 'two.ics']);
+        expect((await write.run(runId))?.status).toBe('waiting');
+    });
+
+    it('refuses a bucket shared with another max', async () => {
+        const stub = defineTool({
+            inputSchema: jsonSchema<{ n: number }>({ type: 'object' }),
+            limit: {
+                max: 20, 
+                windowMs: 3_600_000, 
+                bucket: 'deletes', 
+            },
+            execute: async () => 'ok',
+        });
+        let message: string | undefined;
+
+        try {
+            const write = createWriteEngine({
+                fake: deleteFake(),
+                model: mockModel([deleteCall(ONE, 'd1'), done]),
+                tools: { stub_delete: stub },
+                deleteLimit: { max: 10 },
+            });
+            const runId = await write.dispatch();
+
+            message = (await write.run(runId))?.error?.message;
+        } catch (error) {
+            message = (error as Error).message;
+        }
+
+        expect(message).toMatch(/share the limit bucket "deletes" with a different max or windowMs/);
+    });
+});
+

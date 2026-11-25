@@ -19,7 +19,7 @@ import { objectSchema, signalOf } from '../tools/asserts.ts';
 import { calendarResourceOf } from '../write-client/create.ts';
 import type { CalendarCreateResult } from '../write-client/types.ts';
 import { askCalendarApproval, createApprovalOf } from './approval.ts';
-import { parseCalendarCreateInput } from './asserts.ts';
+import { notWritableError, parseCalendarCreateInput } from './asserts.ts';
 import { CALENDAR_CREATE_MAX_ATTENDEES, CALENDAR_CREATE_MAX_DAYS } from './constants.ts';
 import { calendarCreateKey } from './keys.ts';
 import { calendarCreateLimitOf, createLimitShown } from './limit.ts';
@@ -101,14 +101,15 @@ export function calendarCreateTool(
             },
         }, ['calendar', 'title', 'start', 'end']),
         effectKey: (input, ctx) => calendarCreateKey(input, ctx),
-        ...(options.limit !== false && { limit: calendarCreateLimitOf(source, options.limit) }),
+        ...(options.limit !== false && { limit: calendarCreateLimitOf(source, options.writable, options.limit) }),
         // a create whose record never landed: its resource, named after the key (fail closed: a failed lookup throws)
         alreadyApplied: async (key, input, ctx) => {
             const calendar = isObject(input) && typeof input.calendar === 'string' ? input.calendar : undefined;
             const client = source(ctx);
 
-            // execute refuses these; the unconfigured client's lookup refuses with its connection error
-            if (calendar === undefined && client.configured !== false) {
+            // execute refuses these (no request for a calendar the tools may not write to); the unconfigured
+            // client's lookup refuses with its connection error
+            if ((calendar === undefined || !options.writable(calendar)) && client.configured !== false) {
                 return undefined;
             }
 
@@ -117,6 +118,11 @@ export function calendarCreateTool(
         execute: async (input, { abortSignal, context }) => {
             const client = source(context);
             const parsed = parseCalendarCreateInput(input, client.timezone);
+
+            if (!options.writable(parsed.calendar)) {
+                throw notWritableError('calendar_create', parsed.calendar);
+            }
+
             const signal = signalOf(abortSignal, context);
             const view = await client.calendar(parsed.calendar, signal);
             let organizer: string | undefined;

@@ -14,7 +14,13 @@ import type { CalendarClientOptions } from '../options/types.ts';
 import { createCalendarWriteClient } from '../write-client/module.ts';
 import type { ICalendarWriteClient } from '../write-client/types.ts';
 import { calendarCreateTool } from './create.ts';
-import type { CalendarLimitSettings, CalendarWriteClientSource, CalendarWriteToolsOptions } from './types.ts';
+import { calendarDeleteTool } from './delete.ts';
+import type {
+    CalendarLimitSettings,
+    CalendarWritable,
+    CalendarWriteClientSource,
+    CalendarWriteToolsOptions,
+} from './types.ts';
 
 const CALLER = 'calendarWriteTools()';
 
@@ -59,12 +65,32 @@ function sourceOf(
     return (ctx) => inject(ctx, CALENDAR_WRITE_CONTEXT);
 }
 
+function writableOf(calendars: unknown): CalendarWritable {
+    if (calendars === undefined) {
+        return () => true;
+    }
+
+    const valid = Array.isArray(calendars) && calendars.every((calendar) => typeof calendar === 'string' && calendar.length > 0);
+
+    if (!valid) {
+        throw new InvalidAgentDefinitionError(`${CALLER} calendars must be an array of calendar ids (<account>:<calendar>).`);
+    }
+
+    const allowed = new Set<string>(calendars);
+
+    return (calendar) => allowed.has(calendar);
+}
+
 /**
  * The calendar write tools: `calendar_create` (a PUT of a new event; with
  * attendees always approved by the owner with the whole invitation, limited
- * by `createLimit`, default 20 an hour). They use `client`, else a client of
- * `accounts`, else the write client the calendar module provided on the
- * engine. Options are checked when called (InvalidAgentDefinitionError).
+ * by `createLimit`, default 20 an hour) and `calendar_delete` (a DELETE after
+ * a backup artifact; approved unless the owner's own past event alone looks
+ * routine to the classifier, limited by `deleteLimit`, default 20 an hour in
+ * the bucket `deletes` that `mail_delete` shares). `calendars` restricts both
+ * to those calendar ids. They use `client`, else a client of `accounts`, else
+ * the write client the calendar module provided on the engine. Options are
+ * checked when called (InvalidAgentDefinitionError).
  */
 export function calendarWriteTools(options: CalendarWriteToolsOptions = {}): ToolSet {
     if (!isObject(options)) {
@@ -77,6 +103,7 @@ export function calendarWriteTools(options: CalendarWriteToolsOptions = {}): Too
         classifier,
         createLimit,
         deleteLimit,
+        calendars,
         ...clientOptions
     } = options;
 
@@ -85,13 +112,20 @@ export function calendarWriteTools(options: CalendarWriteToolsOptions = {}): Too
     }
 
     // checked even when the module's client is used; the classifier's clock and timeout come from here
-    normalizeClientOptions(clientOptions);
-
+    const { clock, timeoutMs } = normalizeClientOptions(clientOptions);
     const create = limitOf(createLimit, 'createLimit');
-
-    limitOf(deleteLimit, 'deleteLimit');
-
+    const remove = limitOf(deleteLimit, 'deleteLimit');
+    const writable = writableOf(calendars);
     const source = sourceOf(accounts, client, clientOptions);
 
-    return { calendar_create: calendarCreateTool(source, { ...(create !== undefined && { limit: create }) }) };
+    return {
+        calendar_create: calendarCreateTool(source, { writable, ...(create !== undefined && { limit: create }) }),
+        calendar_delete: calendarDeleteTool(source, {
+            clock,
+            timeoutMs,
+            writable,
+            ...(classifier?.model !== undefined && { model: classifier.model }),
+            ...(remove !== undefined && { limit: remove }),
+        }),
+    };
 }

@@ -19,6 +19,7 @@ export * from './module.ts';
 export type {
     CalendarCreateInput,
     CalendarDeleteInput,
+    CalendarDeleteResult,
     CalendarLimitSettings,
     CalendarWriteToolsOptions,
 } from './types.ts';

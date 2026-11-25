@@ -7,7 +7,7 @@
 
 import { approve } from '@chamvi/core';
 import type { ApprovalDecision, ApprovalRequestInput, ToolContext } from '@chamvi/core';
-import type { CalendarTime } from '../write-client/types.ts';
+import type { CalendarDeleteItem, CalendarTime } from '../write-client/types.ts';
 import { CALENDAR_APPROVAL_FIELD_MAX_CHARS, CALENDAR_DESCRIPTION_SEPARATOR } from './constants.ts';
 import type { ParsedCreate } from './types.ts';
 
@@ -94,5 +94,56 @@ export function createApprovalOf(view: { name: string }, parsed: ParsedCreate, z
     return {
         title: `Create event in ${lineOf(view.name)} and invite ${parsed.attendees.length}?`,
         body: createBodyOf(view.name, parsed, zone),
+    };
+}
+
+function minuteOfIso(value: string): string {
+    return `${value.slice(0, 10)} ${value.slice(11, 16)}`;
+}
+
+function attendeesOf(count: number): string {
+    if (count === 0) {
+        return 'no attendees';
+    }
+
+    return count === 1 ? '1 attendee' : `${count} attendees`;
+}
+
+/** When a listed event takes place: as `whenOf`, a series by its first start followed by ` (repeats)`. */
+function deleteWhenOf(item: CalendarDeleteItem, zone: string): string {
+    if (item.recurring) {
+        return `${item.allDay ? item.start : minuteOfIso(item.start)} (repeats)`;
+    }
+
+    if (item.allDay) {
+        return whenOf(
+            { kind: 'date', date: Temporal.PlainDate.from(item.start) },
+            { kind: 'date', date: Temporal.PlainDate.from(item.end) },
+            zone,
+        );
+    }
+
+    return `${minuteOfIso(item.start)} to ${minuteOfIso(item.end)} (${zone})`;
+}
+
+/** The listing line of a delete: `<when> | <title> | <attendees> | <calendar name>`, each field one line of at most 200 characters. */
+export function deleteListingOf(item: CalendarDeleteItem, zone: string): string {
+    return [
+        lineOf(deleteWhenOf(item, zone)),
+        lineOf(item.title),
+        attendeesOf(item.attendees),
+        lineOf(item.calendarName),
+    ].join(' | ');
+}
+
+/** The approval of a delete: the event (a series as such) and its listing line. */
+export function deleteApprovalOf(item: CalendarDeleteItem, zone: string): ApprovalRequestInput {
+    const name = lineOf(item.calendarName);
+
+    return {
+        title: item.recurring ?
+            `Delete a repeating event (every occurrence) from ${name}?` :
+            `Delete 1 event from ${name}?`,
+        body: deleteListingOf(item, zone),
     };
 }

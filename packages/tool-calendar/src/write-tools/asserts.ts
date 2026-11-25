@@ -16,6 +16,14 @@ import type { ParsedCreate } from './types.ts';
 
 const TOOL = 'calendar_create';
 
+/** The refusal of a calendar outside `calendars` (naming the calendar id, never its contents). */
+export function notWritableError(tool: string, calendar: string): ValidationError {
+    // eslint-disable-next-line no-control-regex
+    const id = calendar.replace(/[\u0000-\u001F\u007F-\u009F\u2028\u2029\u200B-\u200F\u202A-\u202E\u2066-\u2069]/g, ' ').slice(0, 200);
+
+    return new ValidationError(`${tool}: the calendar ${id} is not one this agent may write to.`);
+}
+
 const PLAIN_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // control (C0, C1, line and paragraph separators), zero-width and bidi characters

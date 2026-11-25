@@ -73,6 +73,8 @@ export function createWriteEngine(options: {
     limits?: AgentLimits;
     createLimit?: CalendarWriteToolsOptions['createLimit'];
     deleteLimit?: CalendarWriteToolsOptions['deleteLimit'];
+    /** `calendarWriteTools({ calendars })`: the writable calendars. */
+    calendars?: string[];
     maxChars?: number;
     tools?: ToolSet;
     timeoutMs?: number;
@@ -111,6 +113,7 @@ export function createWriteEngine(options: {
                     clock,
                     ...(options.createLimit !== undefined && { createLimit: options.createLimit }),
                     ...(options.deleteLimit !== undefined && { deleteLimit: options.deleteLimit }),
+                    ...(options.calendars && { calendars: options.calendars }),
                     ...(options.timeoutMs !== undefined && { timeoutMs: options.timeoutMs }),
                     ...(options.classifierModel && { classifier: { model: options.classifierModel } }),
                 }),
