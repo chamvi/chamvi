@@ -16,7 +16,7 @@ WhatsApp Web through Baileys is not an official WhatsApp API. WhatsApp can chang
 
 Before a live cutover:
 
-1. **A session store.** With `@chamvi/app`, [`whatsappModule()`](#with-chamvi-app) keeps the session sealed in the app store (PostgreSQL through `@chamvi/store-db` in production) under `CHAMVI_ENCRYPTION_KEYS`. Without the app, `createStoreWhatsAppAuth()` does the same over a [connection vault](#session-store), or you write an `IWhatsAppAuthProvider` that persists the creds and every signal key write atomically, serializes writes, keeps the session secret (it is the account) and takes it exclusively. Baileys' `useMultiFileAuthState` alone is not that.
+1. **A session store.** With `@chamvi/app`, [`whatsappModule()`](#with-chamvi-app) keeps the session sealed in the app store (PostgreSQL through `@chamvi/store-db` in production) under `ENCRYPTION_KEYS`. Without the app, `createStoreWhatsAppAuth()` does the same over a [connection vault](#session-store), or you write an `IWhatsAppAuthProvider` that persists the creds and every signal key write atomically, serializes writes, keeps the session secret (it is the account) and takes it exclusively. Baileys' `useMultiFileAuthState` alone is not that.
 2. **One connector.** One deployment per account, `Recreate` (stop, then start), one replica. Two processes on one session replace each other (440) and can corrupt the signal state. The `agent-app` chart's Recreate strategy fits.
 3. **The sender policy.** List phone number jids and group jids explicitly; `{ open: true }` lets anyone write, with `resolveInvoker` as the only gate.
 4. **An approval URL** into the chamvi UI, and an owner principal that can answer there. Approvals are answered in the UI, or with `answers` by a reply in a direct chat (see [Answers in the chat](/reference/chat#answers-in-the-chat)): a swipe reply answers the approval it quotes, a plain reply only when exactly one approval is open in that chat; a swipe reply to any other message, to an approval that is no longer open, or whose quoted id WhatsApp does not carry, is an ordinary message.
@@ -29,18 +29,18 @@ The first start of an unpaired session emits a QR reference (it rotates periodic
 
 ## Session store
 
-`whatsappModule()` stores the session as a **connection** of the app: one row per connection (its name, type `whatsapp` and data key) and one entry per Baileys value (`creds`, `key:<type>:<id>`), each sealed with AES-256-GCM under the connection's data key and bound to its connection and entry name. The data key is wrapped by the first key of `CHAMVI_ENCRYPTION_KEYS`; the store holds sealed bytes only.
+`whatsappModule()` stores the session as a **connection** of the app: one row per connection (its name, type `whatsapp` and data key) and one entry per Baileys value (`creds`, `key:<type>:<id>`), each sealed with AES-256-GCM under the connection's data key and bound to its connection and entry name. The data key is wrapped by the first key of `ENCRYPTION_KEYS`; the store holds sealed bytes only.
 
 ```bash
 # one key: <id>:<base64 of 32 random bytes>
-CHAMVI_ENCRYPTION_KEYS="k1:$(openssl rand -base64 32)"
+ENCRYPTION_KEYS="k1:$(openssl rand -base64 32)"
 ```
 
 | Topic | What to know |
 |---|---|
-| The key | One `CHAMVI_ENCRYPTION_KEYS` per app, shared by every replica and pod of it; keep it in a secret (the chart's `secrets`). Ids follow the agent-name rule. A malformed value fails the start and `chamvi start --check`, naming the variable, never echoing the value. `chamvi run-job` pods do not need it (a job resolves no keyring). |
+| The key | One `ENCRYPTION_KEYS` per app, shared by every replica and pod of it; keep it in a secret (the chart's `secrets`). Ids follow the agent-name rule. A malformed value fails the start and `chamvi start --check`, naming the variable, never echoing the value. `chamvi run-job` pods do not need it (a job resolves no keyring). |
 | Rotation | Put the new key first and keep the old one: `k2:<new>,k1:<old>`. New connections use `k2`; rows wrapped under `k1` stay readable. There is no re-encrypt command, so keep `k1` while any row uses it. |
-| Losing the key | The session cannot be opened (`decryption_failed`, naming the missing key id, never key material), and the connection shows `failed`: **Reset session** recreates the connection under the lease with a fresh data key under the first key of `CHAMVI_ENCRYPTION_KEYS` (the old session is deleted), then pair again. No database access is needed. |
+| Losing the key | The session cannot be opened (`decryption_failed`, naming the missing key id, never key material), and the connection shows `failed`: **Reset session** recreates the connection under the lease with a fresh data key under the first key of `ENCRYPTION_KEYS` (the old session is deleted), then pair again. No database access is needed. |
 | Exclusive | A process holds the session through the store lock `connection:<name>` (TTL `leaseTtlMs`, default 60 s, renewed every third of it), each session under its own owner token; every write is fenced by that lease in the same transaction, so a session that lost it writes nothing. |
 | kill -9 | The next start comes up, shows the connection `held_elsewhere` and retries on its own; once the old lease expires (at most `leaseTtlMs`, plus one backoff step of at most 30 s) it connects with the stored session. Every stored batch of signal keys is all or nothing. |
 | Reset | A logged-out session, one that cannot be opened (a lost key), or one you want to drop: **Reset session** on the Connections page (`POST /connections/<name>/reset`, `chamvi_connection_write`, `202` once started) deletes the stored session under the lease, recreates it with a fresh data key and reconnects, so a new QR appears; no restart. While the connection is `held_elsewhere` the reset is refused (`409`) and nothing is cleared or queued: reset it on the replica that holds it, or once the stale lease expired. |
@@ -56,7 +56,7 @@ CHAMVI_ENCRYPTION_KEYS="k1:$(openssl rand -base64 32)"
 | Replaced (440: another client took the session) | `whatsapp_connection`, no reconnect: stop the other connector first |
 | Stop | Ends the socket (at most 30 s), refuses later auth writes, then waits for pending ones and flushes the lease, then releases it, within another 30 s. A failed flush is reported (`whatsapp_auth`) and the lease released all the same (the failed writes are lost); writes past the 30 s are reported and the lease is released once they settle. A dead link that holds the socket's end for its 30 s does not keep the lease |
 
-A stop takes at most the socket's end (30 s) and the auth settling (30 s), plus the channel's wait for messages still being accepted (`CHAT_STOP_TIMEOUT_MS`, 30 s) and the Chat's shutdown. Only when every phase runs to its bound does that reach the CLI's 90 s force exit (`CHAMVI_FORCE_EXIT_MS`), which the chart's 120 s termination grace covers; raise `CHAMVI_FORCE_EXIT_MS` (below the grace) if a stop must never be cut short.
+A stop takes at most the socket's end (30 s) and the auth settling (30 s), plus the channel's wait for messages still being accepted (`CHAT_STOP_TIMEOUT_MS`, 30 s) and the Chat's shutdown. Only when every phase runs to its bound does that reach the CLI's 90 s force exit (`FORCE_EXIT_MS`), which the chart's 120 s termination grace covers; raise `FORCE_EXIT_MS` (below the grace) if a stop must never be cut short.
 
 `setup.status()` reports the connection (`connected` only after Baileys' `open`), `onStatus(status)` gets every change; poll or listen for a readiness signal. Sends fail while it is not `connected`.
 
@@ -170,7 +170,7 @@ function whatsappModule(options: WhatsAppModuleOptions): WhatsAppModule; // @cha
 // WhatsAppModule: { channel, handle, on(), to(), conversation(), status(), reset() }
 ```
 
-The factory builds the channel at once (nothing read, acquired or connected), so agents subscribe with `module.on()`. In `setup` (start mode, `chamvi start --check` included) it resolves the keyring from `CHAMVI_ENCRYPTION_KEYS` (unset or malformed: setup fails naming the variable) and builds the vault over the app store, contributes the channel to `AppToken.CHANNELS` and the connection to `AppToken.CONNECTIONS` (the dashboard's Connections page and `/connections`); `approvalUrl` defaults to the dashboard under `CHAMVI_PUBLIC_URL` (one of them is required). A `run-job` contributes the channel only, a migration nothing. The lease is taken only when the engine starts the channel, so a check acquires and writes nothing. Use it instead of `chatModule()`, not with it.
+The factory builds the channel at once (nothing read, acquired or connected), so agents subscribe with `module.on()`. In `setup` (start mode, `chamvi start --check` included) it resolves the keyring from `ENCRYPTION_KEYS` (unset or malformed: setup fails naming the variable) and builds the vault over the app store, contributes the channel to `AppToken.CHANNELS` and the connection to `AppToken.CONNECTIONS` (the dashboard's Connections page and `/connections`); `approvalUrl` defaults to the dashboard under `PUBLIC_URL` (one of them is required). A `run-job` contributes the channel only, a migration nothing. The lease is taken only when the engine starts the channel, so a check acquires and writes nothing. Use it instead of `chatModule()`, not with it.
 
 With your own provider, `chatModule()` contributes a `createWhatsAppChat()` channel; it adds no env variable and constructs nothing, so `chamvi start --check` neither acquires the auth lease nor connects:
 

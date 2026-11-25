@@ -2,6 +2,39 @@
 
 chamvi is pre-1.0: a minor release may break the API. Each section lists what changed and the exact replacement.
 
+## Upgrading to 0.12
+
+### Env variable names
+
+An env variable is named after what it configures: chamvi's own settings drop the `CHAMVI_` prefix, a setting for an external system keeps that system's name (`AUTHUP_*`, `GITHUB_*`, `DISCORD_*`, `OPENCLAW_*`, the provider keys), and conventional names stay as they are (`PORT`, `HOST`, `DATABASE_URL`, `NODE_ENV`). An old name is ignored, not refused: rename every variable in your `.env`, Secrets and chart values with the upgrade. A forgotten one falls back to its default without an error, and some defaults are unsafe:
+
+- `CHAMVI_SANDBOX_PROVIDER=docker` or `kubernetes` falls back to `local`: agent shell commands run unisolated on the app's host or pod.
+- `CHAMVI_SCHEDULER=false` falls back to `true`: in CronJob mode the Deployment fires every schedule a second time.
+- `CHAMVI_MIGRATE=false` falls back to migrating at every start.
+- `CHAMVI_DEPLOYMENT` falls back to `default`: workspaces labelled with the old value are no longer collected.
+- `CHAMVI_PUBLIC_URL` unset drops approval links; `CHAMVI_GIT_TOKENS`, `CHAMVI_MAIL_ACCOUNTS` or `CHAMVI_DISCORD_TOKEN` unset leave their module idle.
+
+With the `agent-app` chart, upgrade the chart in the same rollout: an older chart sets `CHAMVI_SCHEDULER`, `CHAMVI_BASE_PATH`, `CHAMVI_PUBLIC_URL` and `CHAMVI_SANDBOX_*`, which 0.12 no longer reads. Until a chart for 0.12 is released, set the new names under `env` yourself (the older chart does not own them), for example `SCHEDULER: "false"`, `BASE_PATH`, `PUBLIC_URL` and `SANDBOX_NAMESPACE`.
+
+Also mind names your app or platform already sets: chamvi now reads bare `LOG_LEVEL` (only `error`, `warn`, `info` or `debug`, anything else refuses the start), `MODEL`, `TOKENS`, `AGENTS` and `DEPLOYMENT`. A `PROVIDER_*` variable is read only when it ends in a provider field (`_TYPE`, `_API_KEY`, `_BASE_URL`, `_HEADER_<NAME>`).
+
+| Before | After |
+|---|---|
+| `CHAMVI_MODEL`, `CHAMVI_CONFIG_FILE`, `CHAMVI_KNOWLEDGE_MODEL`, `CHAMVI_TIMEZONE` | `MODEL`, `CONFIG_FILE`, `KNOWLEDGE_MODEL`, `TIMEZONE` |
+| `CHAMVI_PROVIDER_<NAME>_*` (`CHAMVI_PROVIDER_TEAM_A_API_KEY`) | `PROVIDER_<NAME>_*` (`PROVIDER_TEAM_A_API_KEY`) |
+| `CHAMVI_TOKENS`, `CHAMVI_PUBLIC_URL`, `CHAMVI_BASE_PATH`, `CHAMVI_ENCRYPTION_KEYS` | `TOKENS`, `PUBLIC_URL`, `BASE_PATH`, `ENCRYPTION_KEYS` |
+| `CHAMVI_UI_AUTHUP_CLIENT_ID`, `CHAMVI_UI_AUTHUP_REALM_ID` | `UI_AUTHUP_CLIENT_ID`, `UI_AUTHUP_REALM` |
+| `CHAMVI_SCHEDULER`, `CHAMVI_MIGRATE`, `CHAMVI_AGENTS`, `CHAMVI_AGENTS_DIR`, `CHAMVI_AGENTS_POLL_MS`, `CHAMVI_LOG_LEVEL`, `CHAMVI_MAX_CONCURRENT_RUNS` | `SCHEDULER`, `MIGRATE`, `AGENTS`, `AGENTS_DIR`, `AGENTS_POLL_MS`, `LOG_LEVEL`, `MAX_CONCURRENT_RUNS` |
+| `CHAMVI_READINESS_DELAY_MS`, `CHAMVI_DRAIN_TIMEOUT_MS`, `CHAMVI_CLOSE_TIMEOUT_MS`, `CHAMVI_PURGE_INTERVAL_MS`, `CHAMVI_FORCE_EXIT_MS` | `READINESS_DELAY_MS`, `DRAIN_TIMEOUT_MS`, `CLOSE_TIMEOUT_MS`, `PURGE_INTERVAL_MS`, `FORCE_EXIT_MS` |
+| `CHAMVI_MIGRATION_DATABASE_URL`, `CHAMVI_DEV_LINK` | `MIGRATION_DATABASE_URL`, `DEV_LINK` |
+| `CHAMVI_SANDBOX_*` (`CHAMVI_SANDBOX_PROVIDER`, `CHAMVI_SANDBOX_IMAGE`, ...), `CHAMVI_DEPLOYMENT` | `SANDBOX_*`, `DEPLOYMENT` |
+| `CHAMVI_GIT_TOKENS` | `SANDBOX_GIT_TOKENS` |
+| `CHAMVI_MAIL_*`, `CHAMVI_CALENDAR_*` (`CHAMVI_MAIL_ACCOUNTS`, `CHAMVI_MAIL_<ID>_PASSWORD`, `CHAMVI_CALENDAR_TIMEZONE`) | `MAIL_*`, `CALENDAR_*` (`MAIL_ACCOUNTS`, `MAIL_<ID>_PASSWORD`, `CALENDAR_TIMEZONE`) |
+| `CHAMVI_DISCORD_*`, `CHAMVI_DISCORD_<NAME>_*` | `DISCORD_*`, `DISCORD_<NAME>_*` |
+| `CHAMVI_GITHUB_<NAME>_*` (a named `githubModule()`) | `GITHUB_<NAME>_*`; the default instance keeps `GITHUB_*` |
+
+Unchanged: `PORT`, `HOST`, `DATABASE_URL`, `NODE_ENV`, `AUTHUP_*`, `GITHUB_*`, `OPENCLAW_*`, the provider keys (`ANTHROPIC_API_KEY`, ...), `SKILLS_CLONE_TIMEOUT_MS`. The exported constants keep their names and carry the new values (`MAIL_ACCOUNTS_VARIABLE` is `'MAIL_ACCOUNTS'`).
+
 ## Upgrading to 0.11
 
 chamvi moves to routup 6.5 and authup 1.0.0-beta.77. An app that pinned `ioredis` for the `ERESOLVE` described under 0.9 can drop the `overrides` entry: `@authup/server-adapter-kit` no longer peers `ioredis`. When the `authup()` authenticator cannot reach authup (introspection, the verifier's token, the JWKs), a request answers 503 instead of 401, so the dashboard no longer signs out during an authup outage.

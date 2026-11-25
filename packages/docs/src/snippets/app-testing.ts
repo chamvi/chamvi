@@ -16,12 +16,12 @@ export async function smokeTest(agents: Agent[], model: MockLanguageModelV4) {
         env: {
             PORT: '3101',
             HOST: '127.0.0.1',
-            CHAMVI_TOKENS: JSON.stringify([{
+            TOKENS: JSON.stringify([{
                 value: 'test-token-0123456789',
                 id: 'test',
                 permissions: '*',
             }]),
-            CHAMVI_LOG_LEVEL: 'error',
+            LOG_LEVEL: 'error',
         },
     });
 

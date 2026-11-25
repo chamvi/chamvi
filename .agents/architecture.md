@@ -75,9 +75,9 @@ All errors extend `ChamviError` (ebec `BaseError`) with a `code`: `InvalidAgentD
 
 ## Deploy Kit (outside this repo)
 
-The deploy kit has four parts: `@chamvi/app` + `@chamvi/cli` (above), the base image `ghcr.io/chamvi/node:26` (`images/node`, see structure.md), and two repos of their own; changes here are checked against both ([Downstream Repos](../AGENTS.md#downstream-repos)).
+The deploy kit has four parts: `@chamvi/app` + `@chamvi/cli` (above), the base image `ghcr.io/chamvi/node:26` (`images/node`, see structure.md), and two repos of their own ([Downstream Repos](../AGENTS.md#downstream-repos)).
 
-- **Chart `agent-app`** ([chamvi/helm](https://github.com/chamvi/helm), `oci://ghcr.io/chamvi/helm/agent-app`, 0.1.x; map in [references/helm.md](references/helm.md)): Deployment (Recreate, probes under `basePath`, guard `preStop + CHAMVI_FORCE_EXIT_MS < grace`), optional Ingress with a derived `CHAMVI_PUBLIC_URL` (origin only), run-job CronJobs (`Forbid`, `backoffLimit: 0`, `CHAMVI_SCHEDULER=false` everywhere), sandbox RBAC and egress policy, ServiceMonitor. Value `command` renders into `args`, so tini stays PID 1.
+- **Chart `agent-app`** ([chamvi/helm](https://github.com/chamvi/helm), 0.1.x; map in [references/helm.md](references/helm.md)): Deployment (Recreate, probes under `basePath`, guard `preStop + FORCE_EXIT_MS < grace`), optional Ingress with a derived `PUBLIC_URL` (origin only), run-job CronJobs (`Forbid`, `backoffLimit: 0`, `SCHEDULER=false` everywhere), sandbox RBAC and egress policy, ServiceMonitor. Value `command` renders into `args`, so tini stays PID 1.
 - **Template** ([chamvi/agent-template](https://github.com/chamvi/agent-template), a GitHub template repository; map in [references/agent-template.md](references/agent-template.md)): one example agent on `@chamvi/app`, a two-stage Dockerfile on `ghcr.io/chamvi/node:26` (by digest), CI with a read-only docker smoke, Flux examples for the chart.
 
 ## Topic Files

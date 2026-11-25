@@ -42,10 +42,10 @@ Any other name works too: a principal may do X when it holds a binding for X who
 
 ## Static tokens and OIDC
 
-`CHAMVI_TOKENS` (and `staticTokens()`) take `"*"` (every `chamvi_*` name, unrestricted) or a list of bindings:
+`TOKENS` (and `staticTokens()`) take `"*"` (every `chamvi_*` name, unrestricted) or a list of bindings:
 
 ```bash
-export CHAMVI_TOKENS='[
+export TOKENS='[
   { "value": "<admin secret>", "id": "admin", "permissions": "*" },
   { "value": "<ci secret>", "id": "ci", "permissions": [
     { "permission": { "name": "chamvi_agent_run" }, "policies": [{ "type": "attributes", "query": { "name": "deploy" } }] },
@@ -148,7 +148,7 @@ realms:
           relations:
             globalRoles:
               - chamvi-server
-        # the dashboard's sign-in (CHAMVI_UI_AUTHUP_CLIENT_ID): public, code flow with PKCE
+        # the dashboard's sign-in (UI_AUTHUP_CLIENT_ID): public, code flow with PKCE
         - attributes:
             name: chamvi
             authMethod: none
@@ -170,7 +170,7 @@ A user of the client's realm (`master` here) with `chamvi-triage` then starts, r
 
 By default the permissions are global or owned by chamvi's realm (the file above). Several chamvi deployments sharing one realm then share the definitions too: a grant of `chamvi_run_read` given for one deployment applies in all of them.
 
-Client ownership gives each deployment its own. Set `AUTHUP_PERMISSION_OWNER=client` (or `authupModule({ permissionOwner: 'client' })`; the default is `realm`, any other value fails the start): the dashboard client users sign in with owns the permissions, the one `CHAMVI_UI_AUTHUP_CLIENT_ID` names (default `chamvi`; or `uiModule({ auth })` in code), not chamvi's own `AUTHUP_CLIENT_ID`. Then every name chamvi checks on an authup login, the fourteen `chamvi_*` ones and an app's own such as `release_manage`, is checked only as the definition owned by that client in chamvi's realm. Global and realm-owned definitions grant nothing, so a leftover never applies. authup applies a user's client-owned grants only through tokens issued to that client (or to no client, and chamvi does the same), so the same user signs in to every deployment and holds grants per deployment.
+Client ownership gives each deployment its own. Set `AUTHUP_PERMISSION_OWNER=client` (or `authupModule({ permissionOwner: 'client' })`; the default is `realm`, any other value fails the start): the dashboard client users sign in with owns the permissions, the one `UI_AUTHUP_CLIENT_ID` names (default `chamvi`; or `uiModule({ auth })` in code), not chamvi's own `AUTHUP_CLIENT_ID`. Then every name chamvi checks on an authup login, the fourteen `chamvi_*` ones and an app's own such as `release_manage`, is checked only as the definition owned by that client in chamvi's realm. Global and realm-owned definitions grant nothing, so a leftover never applies. authup applies a user's client-owned grants only through tokens issued to that client (or to no client, and chamvi does the same), so the same user signs in to every deployment and holds grants per deployment.
 
 | | Realm mode (default) | Client mode |
 |---|---|---|
@@ -218,7 +218,7 @@ To move a realm from realm to client ownership: provision the client-owned permi
 The permission strings of earlier releases (`agent:<name>:run`, `run:read`, `connection:<name>:write`, `tool:<agent>:<tool>`, `*`) are not translated.
 
 1. Let running and waiting runs finish (drain the app) before the upgrade: a stored run's invoker that carries old strings is read as holding no permissions, so its `requireToolPermission()` tools and cross-agent dispatches are refused.
-2. Rewrite every `CHAMVI_TOKENS` entry: `["*"]` becomes `"*"`, any other list a list of bindings. The start fails until then. `"*"` covers every `chamvi_*` name, the two knowledge permissions included (as `*` did): a token that must not read or write knowledge collections gets explicit bindings without them.
+2. Rewrite every `TOKENS` entry: `["*"]` becomes `"*"`, any other list a list of bindings. The start fails until then. `"*"` covers every `chamvi_*` name, the two knowledge permissions included (as `*` did): a token that must not read or write knowledge collections gets explicit bindings without them.
 3. In authup, create the fourteen permissions (the file above) and give roles the new names; remove the old ones. A restriction to one agent or connection is a policy on the grant.
 4. An `oidc()` mapper returns `bindings`; an app's own `hasPermission(invoker.permissions, ...)` becomes `await can(invoker, ...)`.
 5. Upgrade the authup server to 1.0.0-beta.75 or later before chamvi: a policy type newer than the checking side denies. A run stored before this release carries its grants under `permissions` and no `bindings` or `authorization`: it grants nothing, so drain the app first (step 1).

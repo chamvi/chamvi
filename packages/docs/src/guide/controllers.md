@@ -14,7 +14,7 @@ The controller reads the request (path, query, body, the principal) and calls on
 
 <<< @/snippets/controllers/core/note/service.ts#service
 
-`"*"` in `CHAMVI_TOKENS` grants every chamvi permission, not an app's own names: grant `note_read` and `note_write` as [bindings](/guide/permissions) (a token's list, or authup).
+`"*"` in `TOKENS` grants every chamvi permission, not an app's own names: grant `note_read` and `note_write` as [bindings](/guide/permissions) (a token's list, or authup).
 
 <<< @/snippets/controllers/adapters/http/controllers/note.ts#controller
 

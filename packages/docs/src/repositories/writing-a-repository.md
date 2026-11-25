@@ -18,7 +18,7 @@ This upgrade does **not** support rolling deployments with old and new runtimes 
 2. Run the migration and unfinished-run backfill while all old processes are stopped.
 3. Start **only new binaries** against the migrated store.
 
-The full procedure for an app (CronJobs, `CHAMVI_MIGRATE`, `chamvi migrate`) is on [Upgrading to 0.4](/guide/upgrading#upgrading-to-0-4).
+The full procedure for an app (CronJobs, `MIGRATE`, `chamvi migrate`) is on [Upgrading to 0.4](/guide/upgrading#upgrading-to-0-4).
 
 An old approval poller can publish the private argument-bearing `waiting.body` from a new automatic gate instead of its safe notification. An old worker can also create or checkpoint untainted runs after the one-time backfill. A notification lock does not make mixed versions compatible. Custom backends must follow the same stop/backfill/start sequence. See [Multiple replicas](/deployment/replicas#upgrading-to-untrusted-content-gates).
 

@@ -45,8 +45,8 @@ In a worktree off `origin/main`: bump `@chamvi/app`, `@chamvi/cli`, `@chamvi/ui`
 
 ```bash
 npm run lint && npm run typecheck && npm run test && npm run build
-ANTHROPIC_API_KEY=ci-placeholder-not-a-real-key CHAMVI_SCHEDULER=false \
-CHAMVI_TOKENS='[{"value":"ci-placeholder-token-0001","id":"ci","permissions":[]}]' \
+ANTHROPIC_API_KEY=ci-placeholder-not-a-real-key SCHEDULER=false \
+TOKENS='[{"value":"ci-placeholder-token-0001","id":"ci","permissions":[]}]' \
 node node_modules/@chamvi/cli/dist/cli.mjs start --check
 ```
 

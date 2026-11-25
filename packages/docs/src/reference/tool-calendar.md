@@ -85,25 +85,25 @@ The tools opt out of the taint guard (`guardWhenTainted: false`): their own appr
 function toolCalendarModule(options?: ToolCalendarModuleOptions): ToolCalendarModule; // 'chamvi:tool-calendar'
 
 type ToolCalendarModuleOptions = {
-    env?: Record<string, string | undefined>; // where CHAMVI_CALENDAR_* is read, default process.env
-    accounts?: CalendarAccount[];              // given, CHAMVI_CALENDAR_ACCOUNTS is not read
-    timezone?: string;                         // CHAMVI_CALENDAR_TIMEZONE wins
+    env?: Record<string, string | undefined>; // where CALENDAR_* is read, default process.env
+    accounts?: CalendarAccount[];              // given, CALENDAR_ACCOUNTS is not read
+    timezone?: string;                         // CALENDAR_TIMEZONE wins
     fetch?: typeof fetch;
 };
 
 const TOOL_CALENDAR_MODULE_NAME: 'chamvi:tool-calendar';
-const CALENDAR_ACCOUNTS_VARIABLE: 'CHAMVI_CALENDAR_ACCOUNTS';
-const CALENDAR_TIMEZONE_VARIABLE: 'CHAMVI_CALENDAR_TIMEZONE';
+const CALENDAR_ACCOUNTS_VARIABLE: 'CALENDAR_ACCOUNTS';
+const CALENDAR_TIMEZONE_VARIABLE: 'CALENDAR_TIMEZONE';
 ```
 
 | Variable | |
 |---|---|
-| `CHAMVI_CALENDAR_ACCOUNTS` | A JSON array of `{ "id"?, "url", "address"? }`; `id` defaults to the address with `@` and `.` as `-` and is required without one |
-| `CHAMVI_CALENDAR_<ID>_USER` | The account's user, default the address; `<ID>` is the id upper-cased, `-` as `_` |
-| `CHAMVI_CALENDAR_<ID>_PASSWORD` | Required |
-| `CHAMVI_CALENDAR_TIMEZONE` | The IANA zone event times are given in, default `Europe/Berlin` |
+| `CALENDAR_ACCOUNTS` | A JSON array of `{ "id"?, "url", "address"? }`; `id` defaults to the address with `@` and `.` as `-` and is required without one |
+| `CALENDAR_<ID>_USER` | The account's user, default the address; `<ID>` is the id upper-cased, `-` as `_` |
+| `CALENDAR_<ID>_PASSWORD` | Required |
+| `CALENDAR_TIMEZONE` | The IANA zone event times are given in, default `Europe/Berlin` |
 
-For an account listed in `CHAMVI_CALENDAR_ACCOUNTS` each credential can come from a file instead: `CHAMVI_CALENDAR_<ID>_PASSWORD_FILE` (one trailing newline trimmed; setting both forms is an error). The variables are read and checked when the factory is called; an error names the variable, never its value. Accounts stored in the connection store (added on the dashboard through [`toolCalendarUiModule()`](/guide/ui#connection-pages)) are added at start (`accounts` pins the set). For an account listed in `CHAMVI_CALENDAR_ACCOUNTS` a variable wins per field over its stored value, and a password in neither env nor store fails at startup naming the variable. An account that exists only in the store takes every value from the store: a `CHAMVI_CALENDAR_<ID>_*` variable named after it is ignored with a warning naming the variable, and a missing password lists it `incomplete`. Without any account the context stays provided and tools return a `connection_not_configured` tool error. In start and job mode and a check it builds one read client and one write client on the app's clock, provides them on the engine (`injectCalendarContext(ctx)`, `injectCalendarWriteContext(ctx)`) and drops their sessions once the engine drained; both use the same accounts and credentials; migrate mode does nothing.
+For an account listed in `CALENDAR_ACCOUNTS` each credential can come from a file instead: `CALENDAR_<ID>_PASSWORD_FILE` (one trailing newline trimmed; setting both forms is an error). The variables are read and checked when the factory is called; an error names the variable, never its value. Accounts stored in the connection store (added on the dashboard through [`toolCalendarUiModule()`](/guide/ui#connection-pages)) are added at start (`accounts` pins the set). For an account listed in `CALENDAR_ACCOUNTS` a variable wins per field over its stored value, and a password in neither env nor store fails at startup naming the variable. An account that exists only in the store takes every value from the store: a `CALENDAR_<ID>_*` variable named after it is ignored with a warning naming the variable, and a missing password lists it `incomplete`. Without any account the context stays provided and tools return a `connection_not_configured` tool error. In start and job mode and a check it builds one read client and one write client on the app's clock, provides them on the engine (`injectCalendarContext(ctx)`, `injectCalendarWriteContext(ctx)`) and drops their sessions once the engine drained; both use the same accounts and credentials; migrate mode does nothing.
 
 ## Types
 

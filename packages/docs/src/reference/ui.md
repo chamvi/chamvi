@@ -40,6 +40,6 @@ The block `uiRoutes()` injects into `index.html` (element id `CONFIG_ELEMENT_ID`
 function uiModule(options?: UiModuleOptions): IModule; // name UI_MODULE_NAME 'chamvi:ui'
 ```
 
-Contributes `uiRoutes()` to the app's routes (`/ui` under `CHAMVI_BASE_PATH`). Reads `AUTHUP_URL`, `CHAMVI_UI_AUTHUP_CLIENT_ID`, `CHAMVI_UI_AUTHUP_REALM_ID` and `AUTHUP_REALM` from `options.env ?? process.env` when it is called, unless `auth` is given (with `AUTHUP_URL` set, the authup login as the client `chamvi` of the realm `master` by default), and shares that sign-in with every `*-ui` page. It provides no context (tools have nothing to reach). `@chamvi/app` is an optional peer: the main entry never imports it.
+Contributes `uiRoutes()` to the app's routes (`/ui` under `BASE_PATH`). Reads `AUTHUP_URL`, `UI_AUTHUP_CLIENT_ID`, `UI_AUTHUP_REALM` and `AUTHUP_REALM` from `options.env ?? process.env` when it is called, unless `auth` is given (with `AUTHUP_URL` set, the authup login as the client `chamvi` of the realm `master` by default), and shares that sign-in with every `*-ui` page. It provides no context (tools have nothing to reach). `@chamvi/app` is an optional peer: the main entry never imports it.
 
 <<< ../../../ui/src/module/types.ts{ts}
