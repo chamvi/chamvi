@@ -34,7 +34,7 @@ chamvi/
 │   ├── tool-files/                  # @chamvi/tool-files
 │   ├── tool-utils/                  # @chamvi/tool-utils
 │   ├── tool-web/                    # @chamvi/tool-web (fake transport, fetch and lookup in test/utils/web.ts)
-│   ├── tool-mail/                   # @chamvi/tool-mail (fake IMAP server in test/utils/imap.ts)
+│   ├── tool-mail/                   # @chamvi/tool-mail (fake IMAP/SMTP in test/utils/)
 │   ├── tool-calendar/               # @chamvi/tool-calendar (fake CalDAV fetch in test/utils/caldav.ts)
 │   ├── knowledge/                   # @chamvi/knowledge
 │   ├── ui/                          # @chamvi/ui
@@ -101,7 +101,7 @@ chamvi/
 | `@chamvi/tool-files` | Exists (unpublished) | `fileTools()`: `list_artifacts`, `process_files`; depends on `just-bash`, `smob`, peer on core and `ai` |
 | `@chamvi/tool-utils` | Exists (unpublished) | `utilityTools()`: `current_time`, date math, `calculate`, `run_info`; depends on `decimal.js`, `smob`, peer on core and `ai` |
 | `@chamvi/tool-web` | Exists (0.5.0) | `webTools()`: `web_fetch` (public pages through a hapic client, an address check per hop); depends on `hapic`, `mdream`, `smob`, peer on core and `ai` |
-| `@chamvi/tool-mail` | Exists (unpublished) | `mailTools()`: five read-only IMAP tools (EXAMINE, BODY.PEEK), `createMailClient()`; `/module`: `toolMailModule()`; depends on `imapflow`, `postal-mime`, `unpdf`, `fflate`, `smob`, peer on core and `ai` |
+| `@chamvi/tool-mail` | Exists (unpublished) | `mailTools()` (read-only IMAP), `mailWriteTools()` (`mail_send`, `mail_delete`); `/module`: `toolMailModule()`; depends on `imapflow`, `nodemailer`, `postal-mime`, `unpdf`, `fflate`, `smob`, peer on core and `ai` |
 | `@chamvi/tool-calendar` | Exists (unpublished) | `calendarTools()`: two read-only CalDAV tools (PROPFIND, REPORT, GET), `createCalendarClient()`; `/module`: `toolCalendarModule()`; depends on `tsdav`, `ical.js`, `smob`, peer on core and `ai` |
 | `@chamvi/knowledge` | Exists | Knowledge collections (RAG): ports, `KnowledgeService`, sources, `createKnowledge()` (the indexer), `knowledgeRoutes()`, `knowledgeTools()` (`knowledge_search`), the context pair; `/module`: `knowledgeModule()` (optional peer on `@chamvi/app`; reads `CHAMVI_KNOWLEDGE_MODEL`, contributes the routes); depends on access, store, store-memory, `smob`, `hubwire`, peer on core and `ai`, optional peer on http (types only); never a dependency of app, test-kit types its contract structurally |
 | `@chamvi/ui` | Exists | `uiRoutes()`: serves the prebuilt Vue 3 + vuecs dashboard (runs, approvals, agent state, schedules, connections) as one extra route of `createHttpApp({ routes })`; `/module`: `uiModule()` (optional peer on `@chamvi/app`); peer on core and http, every SPA library a bundled devDependency; names no provider |

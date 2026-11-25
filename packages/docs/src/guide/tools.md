@@ -143,9 +143,13 @@ A model has no clock: tell it in the instructions to call `current_time` before 
 
 ## Mail and calendar tools
 
-[`@chamvi/tool-mail`](/reference/tool-mail) reads mail over IMAP (Gmail, dovecot, Cyrus, ...): `mail_accounts`, `mail_search`, `mail_get` (the text body, invite summaries, the attachment list), `mail_attachment` (the text of a PDF, docx, xlsx, pptx or text file) and `mail_thread`. [`@chamvi/tool-calendar`](/reference/tool-calendar) reads calendars over CalDAV (iCloud, Fastmail, Nextcloud, ...): `calendar_list` and `calendar_events`, recurring events expanded in one time zone (default `Europe/Berlin`). Both are **read-only on the wire**: folders are opened with `EXAMINE` and bodies fetched with `BODY.PEEK`, so no mail is moved, flagged or marked read; the CalDAV client sends only `PROPFIND`, `REPORT` and `GET`. Gmail and iCloud need an app password, not the account password.
+[`@chamvi/tool-mail`](/reference/tool-mail) reads mail over IMAP (Gmail, dovecot, Cyrus, ...): `mail_accounts`, `mail_search`, `mail_get` (the text body, invite summaries, the attachment list), `mail_attachment` (the text of a PDF, docx, xlsx, pptx or text file) and `mail_thread`. `mailWriteTools()` adds `mail_send` (SMTP, always approved with the whole mail) and `mail_delete` (moves to Trash, never expunges; limited by `mailDeleteLimit()`, a classifier and approvals), needs an account with `smtp` settings and an engine with a `limitService`. [`@chamvi/tool-calendar`](/reference/tool-calendar) reads calendars over CalDAV (iCloud, Fastmail, Nextcloud, ...): `calendar_list` and `calendar_events`, recurring events expanded in one time zone (default `Europe/Berlin`). Both are **read-only on the wire**: folders are opened with `EXAMINE` and bodies fetched with `BODY.PEEK`, so no mail is moved, flagged or marked read; the CalDAV client sends only `PROPFIND`, `REPORT` and `GET`. Gmail and iCloud need an app password, not the account password.
 
 <<< @/snippets/tool-mail.ts#agent
+
+An agent that also writes:
+
+<<< @/snippets/tool-mail.ts#write
 
 <<< @/snippets/tool-calendar.ts#agent
 

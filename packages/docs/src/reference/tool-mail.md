@@ -1,6 +1,6 @@
 # @chamvi/tool-mail
 
-Read-only mail tools for chamvi agents: search, read and thread mails and extract attachment text over IMAP (Gmail, dovecot, Cyrus, ...), without ever changing a mailbox. The public API of `packages/tool-mail/src/index.ts` and its `/module` entry. See [Mail and calendar tools](/guide/tools#mail-and-calendar-tools) for an example.
+Mail tools for chamvi agents: `mailTools()` searches, reads and threads mails and extracts attachment text over IMAP (Gmail, dovecot, Cyrus, ...) without ever changing a mailbox; `mailWriteTools()` sends mail over SMTP and moves mails to Trash, behind approvals. The public API of `packages/tool-mail/src/index.ts` and its `/module` entry. See [Mail and calendar tools](/guide/tools#mail-and-calendar-tools) for an example.
 
 ```bash
 npm install @chamvi/tool-mail @chamvi/core ai --save
@@ -51,6 +51,43 @@ The tools use `client`, else a client of `accounts`, else the client the module 
 
 Every tool declares `trust: { taint: true }`: a result taints the run.
 
+## mailWriteTools
+
+```ts
+function mailWriteTools(options?: MailWriteToolsOptions): ToolSet; // { mail_send, mail_delete }
+function mailDeleteLimit(options?: MailDeleteLimitOptions): ToolLimit; // default 20 per hour, bucket 'deletes'
+function createMailWriteClient(accounts: MailWriteAccount[], options?: MailClientOptions): IMailWriteClient;
+function provideMailWriteContext(provider: IContextProvider, client: IMailWriteClient): void;
+function injectMailWriteContext(ctx: ToolContext): IMailWriteClient;
+
+const MAIL_EFFECT_HEADER: 'X-Chamvi-Effect';
+
+type MailSmtpSettings = { host: string; port?: number; security?: 'tls' | 'starttls' | 'plain' }; // port 465, 587, 25
+type MailWriteAccount = MailAccount & { smtp?: MailSmtpSettings };
+
+type MailWriteToolsOptions = {
+    accounts?: MailWriteAccount[];
+    client?: IMailWriteClient; // wins over accounts
+    clock?: IClock;
+    timeoutMs?: number;
+    classifier?: { model?: ModelRef }; // the delete classifier, default the agent's model
+};
+
+type MailDeleteLimitOptions = { max?: number; windowMs?: number; bucket?: string; client?: IMailWriteClient };
+```
+
+The tools use `client`, else a client of `accounts`, else the write client the module provided on the engine. `mail_delete` carries `mailDeleteLimit()` as its default limit, so the engine needs a `limitService` unless the agent sets `limits: { mail_delete: false }`.
+
+| Tool | Input | Result |
+|---|---|---|
+| `mail_send` | `account`, `to`, `cc?`, `bcc?` (at most 50 recipients), `subject` (at most 500 characters), `text` (at most 100 000), `inReplyTo?` (a mail id) | `MailSendResult`: the Message-ID, `filed` (a copy is in `\Sent`), refused recipients |
+| `mail_delete` | `ids` (1 to 20 distinct mail ids) | `MailDeleteResult`: `moved`, `missing`, the trash folder |
+
+- **Approvals.** `mail_send` always asks, with the whole mail. `mail_delete` checks the limit first; over it the call asks for an approval, which also skips the classifier. Within the limit a classifier reads from, subject, folder and date only: `routine` moves, `ask` (also any failure) asks. Approvals reach the source chat only when its address is a direct chat, else only the inbox and API.
+- **Wire.** The write client sends `LOGIN`, `LIST`, `LSUB`, `EXAMINE`, `UID SEARCH`, `UID FETCH`, `APPEND` and, right before `UID MOVE` only, `SELECT`, plus SMTP. Never `EXPUNGE`, `CLOSE`, `STORE`, `COPY` or `DELETE`; `UID MOVE` needs the `MOVE` capability and goes to the `\Trash` folder by special-use flag.
+- **Send.** The wire copy has no `Bcc:` header, the `\Sent` copy keeps it. The mail carries `X-Chamvi-Effect` and a Message-ID derived from the call, so a retry finds it in Sent instead of sending again. Addresses are printable ASCII; the subject has no control, zero-width or bidi characters. A timeout after the message was handed over fails with `timed out after the message was handed over; it may have been sent`.
+- **Errors.** A failed request is a `ChamviError` with code `mail_request`, a refusal by the owner a `ToolDeniedError`.
+
 ## toolMailModule
 
 ```ts
@@ -68,7 +105,7 @@ const MAIL_ACCOUNTS_VARIABLE: 'CHAMVI_MAIL_ACCOUNTS';
 
 | Variable | |
 |---|---|
-| `CHAMVI_MAIL_ACCOUNTS` | A JSON array of `{ "id"?, "address", "host", "port"?, "security"?, "folders"?, "gmail"? }`; `id` defaults to the address with `@` and `.` as `-` |
+| `CHAMVI_MAIL_ACCOUNTS` | A JSON array of `{ "id"?, "address", "host", "port"?, "security"?, "folders"?, "gmail"?, "smtp"?: { "host", "port"?, "security"? } }`; `id` defaults to the address with `@` and `.` as `-` |
 | `CHAMVI_MAIL_<ID>_USER` | The account's user, default the address; `<ID>` is the id upper-cased, `-` as `_` |
 | `CHAMVI_MAIL_<ID>_PASSWORD` | Required |
 
@@ -88,6 +125,7 @@ type MailAccount = {
     folders?: string[];                           // the folders searched and read
     gmail?: boolean;                              // default host === 'imap.gmail.com'
 };
+// stored connections: smtpHost, smtpPort, smtpSecurity
 
 type MailToolsOptions = {
     accounts?: MailAccount[];
