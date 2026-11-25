@@ -21,13 +21,13 @@ const NO_ARTIFACTS: IRunArtifacts = {
     list: async () => [],
 };
 
-/** A ToolContext of a run, with `client` provided as the engine would (none without it). */
-export function toolContext(client?: ICalendarClient, signal?: AbortSignal): ToolContext {
+/** A ToolContext of the run `runId`, with `client` provided as the engine would (none without it). */
+export function toolContext(client?: ICalendarClient, signal?: AbortSignal, runId = 'run-1'): ToolContext {
     const ctx: ToolContext = {
         // the calendar tools reach no channel
         channels: {} as ToolContext['channels'],
         run: {
-            runId: 'run-1',
+            runId,
             agent: 'planner',
             trigger: {
                 id: 'env-1',
