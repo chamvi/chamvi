@@ -73,7 +73,7 @@ A `repository` passed to `knowledgeModule()` wins over the module's; without eit
 
 ## Migrations
 
-The tables have their own migration chain, recorded in `chamvi_vector_migrations` under the lock `chamvi:db:vector`, apart from chamvi's store. They run like the store's: `chamvi migrate`, or at start unless `CHAMVI_MIGRATE=false`. With `CHAMVI_MIGRATE=false` and pending migrations, the start and `chamvi start --check` fail with `store_not_migrated` (`run chamvi migrate or set CHAMVI_MIGRATE=true`) and apply nothing.
+The tables have their own migration chain, recorded in `chamvi_vector_migrations` under the lock `chamvi:db:vector`, apart from chamvi's store. They run like the store's: `chamvi migrate`, or at start unless `MIGRATE=false`. With `MIGRATE=false` and pending migrations, the start and `chamvi start --check` fail with `store_not_migrated` (`run chamvi migrate or set MIGRATE=true`) and apply nothing.
 
 `chamvi migration <run|revert|status|drift> --database vector` manages the chain on its own. Beside another `databaseModule()` the flag is required (exit 2 without it). `chamvi migration` reads `DATABASE_URL` only and ignores `vectorStoreModule({ url })`: point `DATABASE_URL` at that database when the knowledge lives elsewhere.
 

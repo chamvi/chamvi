@@ -9,7 +9,7 @@ import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from '../../loader/constant
 import { PROVIDER_TYPES } from '../constants.ts';
 import type { ProviderType } from '../types.ts';
 
-/** The env form of a provider name: `team-a` -> `TEAM_A` (as in `CHAMVI_PROVIDER_TEAM_A_TYPE`). */
+/** The env form of a provider name: `team-a` -> `TEAM_A` (as in `PROVIDER_TEAM_A_TYPE`). */
 export function providerEnvName(name: string): string {
     return name.toUpperCase().replaceAll('-', '_');
 }

@@ -24,7 +24,7 @@ import type { KnowledgeCollection } from '../store/types.ts';
 import { KnowledgeIndexing } from './indexing.ts';
 import type { IKnowledge, KnowledgeDocumentPutResult, KnowledgeOptions } from './types.ts';
 
-const NO_DEFAULT_MODEL = 'Managed collections need an embedding model: set CHAMVI_KNOWLEDGE_MODEL or knowledgeModule({ embeddingModel }).';
+const NO_DEFAULT_MODEL = 'Managed collections need an embedding model: set KNOWLEDGE_MODEL or knowledgeModule({ embeddingModel }).';
 
 class Knowledge extends KnowledgeIndexing implements IKnowledge {
     async createCollection(name: string): Promise<KnowledgeCollection> {

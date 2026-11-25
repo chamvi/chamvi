@@ -39,7 +39,7 @@ type Preset = NonNullable<ResolveConnectionInput['preset']>;
 
 type LoadInput = {
     definition: ConnectionTypeDefinition;
-    /** The accounts of the `accounts` option (`pinned`) or of `CHAMVI_MAIL_ACCOUNTS`. */
+    /** The accounts of the `accounts` option (`pinned`) or of `MAIL_ACCOUNTS`. */
     declared: readonly MailEnvAccount[];
     pinned: boolean;
     env: Env;

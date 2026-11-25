@@ -58,7 +58,7 @@ async function envFor() {
         env: {
             HOST: '127.0.0.1',
             PORT: String(port),
-            CHAMVI_TOKENS: TOKENS,
+            TOKENS,
         },
     };
 }

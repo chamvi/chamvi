@@ -134,17 +134,17 @@ describe('start', () => {
         expect(await isListening()).toBe(false);
     });
 
-    it('a malformed CHAMVI_FORCE_EXIT_MS exits 2 naming it', async () => {
-        await start(['--entry', fixture('app')], startEnv(port, { CHAMVI_FORCE_EXIT_MS: 'soon' }));
+    it('a malformed FORCE_EXIT_MS exits 2 naming it', async () => {
+        await start(['--entry', fixture('app')], startEnv(port, { FORCE_EXIT_MS: 'soon' }));
         expect(fake.exitCodes).toEqual([2]);
-        expect(fake.stderr.join('')).toContain('CHAMVI_FORCE_EXIT_MS');
+        expect(fake.stderr.join('')).toContain('FORCE_EXIT_MS');
         expect(fake.stderr.join('')).not.toContain('soon');
     });
 
-    it('a CHAMVI_FORCE_EXIT_MS above the timer limit exits 2', async () => {
-        await start(['--entry', fixture('app')], startEnv(port, { CHAMVI_FORCE_EXIT_MS: '2147483648' }));
+    it('a FORCE_EXIT_MS above the timer limit exits 2', async () => {
+        await start(['--entry', fixture('app')], startEnv(port, { FORCE_EXIT_MS: '2147483648' }));
         expect(fake.exitCodes).toEqual([2]);
-        expect(fake.stderr.join('')).toContain('CHAMVI_FORCE_EXIT_MS must be at most 2147483647.');
+        expect(fake.stderr.join('')).toContain('FORCE_EXIT_MS must be at most 2147483647.');
     });
 
     it('unknown flag exits 2', async () => {
@@ -168,8 +168,8 @@ describe('start', () => {
             const devToken = 'a-dev-token-from-the-env-file';
 
             await writeFile(path.join(cwd, '.env'), [
-                'CHAMVI_LOG_LEVEL=warn',
-                `CHAMVI_TOKENS='[{"value":"${devToken}","id":"dev","permissions":"*"}]'`,
+                'LOG_LEVEL=warn',
+                `TOKENS='[{"value":"${devToken}","id":"dev","permissions":"*"}]'`,
                 'PORT=1',
                 '',
             ].join('\n'));
@@ -178,7 +178,7 @@ describe('start', () => {
 
             await start(['--dev', '--entry', fixture('app')], env, cwd);
             expect(env.PORT).toBe(String(port));
-            expect(env.CHAMVI_LOG_LEVEL).toBe('warn');
+            expect(env.LOG_LEVEL).toBe('warn');
 
             const response = await fetch(`http://127.0.0.1:${port}/agents`, { headers: { authorization: `Bearer ${devToken}` } });
 
@@ -205,14 +205,14 @@ describe('start', () => {
             const linked = createFakeProcess();
             const other = await freePort();
 
-            await runCli(['start', '--dev', '--entry', fixture('app')], linked.context({ env: startEnv(other, { CHAMVI_DEV_LINK: '1' }), cwd }));
+            await runCli(['start', '--dev', '--entry', fixture('app')], linked.context({ env: startEnv(other, { DEV_LINK: '1' }), cwd }));
             expect(linked.links).toBe(1);
             linked.signals.emit('SIGTERM');
             await vi.waitFor(() => expect(linked.exitCodes).toEqual([0]));
         });
 
         it('a start without --dev never links', async () => {
-            await start(['--entry', fixture('app')], startEnv(port, { CHAMVI_DEV_LINK: '1' }), cwd);
+            await start(['--entry', fixture('app')], startEnv(port, { DEV_LINK: '1' }), cwd);
             expect(fake.links).toBe(0);
         });
 
@@ -229,7 +229,7 @@ describe('start', () => {
 
             const log = lines.join('');
 
-            expect(log).toContain('CHAMVI_TOKENS unset');
+            expect(log).toContain('TOKENS unset');
         });
     });
 });

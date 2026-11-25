@@ -96,7 +96,7 @@ async function readDescriptors(
  * of an app's database module (`--database <name>`, the only one by
  * default) or of chamvi's own store (`--database store`). Loads the
  * entry without starting the app; `generate` builds the schema in the
- * throwaway database `CHAMVI_MIGRATION_DATABASE_URL` names, the others
+ * throwaway database `MIGRATION_DATABASE_URL` names, the others
  * work on `DATABASE_URL`. Exit codes: 0 done, 1 drift found (`drift`),
  * migrations pending (`status`) or a database failure, 2 a misuse. No
  * signal handlers: Node's default ends it.

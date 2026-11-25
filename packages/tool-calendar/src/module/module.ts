@@ -26,8 +26,8 @@ import type { CalendarEnvEntry, ToolCalendarModuleOptions } from './types.ts';
 /**
  * One calendar client for the app, provided on the engine
  * (`calendarTools()` without accounts injects it). The accounts (the
- * `accounts` option, else `CHAMVI_CALENDAR_ACCOUNTS` with its credential
- * variables) and the zone (`CHAMVI_CALENDAR_TIMEZONE`, else `timezone`) are
+ * `accounts` option, else `CALENDAR_ACCOUNTS` with its credential
+ * variables) and the zone (`CALENDAR_TIMEZONE`, else `timezone`) are
  * read and checked when the factory is called (InvalidAgentDefinitionError,
  * never echoing a value). `setup` adds the accounts stored in the connection
  * store, the env winning per field of a declared account only (a stored-only

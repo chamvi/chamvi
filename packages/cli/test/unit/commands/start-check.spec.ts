@@ -73,7 +73,7 @@ describe('start --check', () => {
             await writeFile(path.join(dir, name, 'agent.ts'), 'export default 42;\n');
         }
 
-        await check('app', startEnv(port, { CHAMVI_AGENTS_DIR: dir }));
+        await check('app', startEnv(port, { AGENTS_DIR: dir }));
 
         expect(exitCode()).toBe(2);
         expect(fake.stdout.join('')).not.toContain('passed');
@@ -86,7 +86,7 @@ describe('start --check', () => {
     });
 
     it('exits 2 for an agent package that does not resolve, one line naming it', async () => {
-        await check('app', startEnv(port, { CHAMVI_AGENTS: '@chamvi-fixture/missing-agents' }));
+        await check('app', startEnv(port, { AGENTS: '@chamvi-fixture/missing-agents' }));
 
         expect(exitCode()).toBe(2);
 
@@ -95,10 +95,10 @@ describe('start --check', () => {
         expect(lines).toEqual(['@chamvi-fixture/missing-agents: not found from the app\'s directory; add it to the app\'s dependencies.']);
     });
 
-    it('exits 2 without CHAMVI_TOKENS', async () => {
+    it('exits 2 without TOKENS', async () => {
         const env = startEnv(port);
 
-        delete env.CHAMVI_TOKENS;
+        delete env.TOKENS;
         await check('app', env);
 
         expect(exitCode()).toBe(2);

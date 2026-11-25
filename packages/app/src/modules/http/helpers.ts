@@ -32,7 +32,7 @@ export function resolveAuthenticators(container: IContainer): Authenticator[] {
         .sort((a, b) => a.entry.order - b.entry.order || a.index - b.index);
 
     if (entries.length === 0) {
-        throw new InvalidAgentDefinitionError('No authenticator: set CHAMVI_TOKENS, or add staticTokensModule(), authupModule() or oidcModule().');
+        throw new InvalidAgentDefinitionError('No authenticator: set TOKENS, or add staticTokensModule(), authupModule() or oidcModule().');
     }
 
     return entries.map(({ entry }) => entry.authenticator);

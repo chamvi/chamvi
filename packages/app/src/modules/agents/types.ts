@@ -112,7 +112,7 @@ export type RegisterOutcome = { kind: 'registered' } |
     { kind: 'preparation'; error: unknown };
 
 export type PackageAgentsOptions = {
-    /** The merged package specifiers, in order (code, chamvi.json, CHAMVI_AGENTS). */
+    /** The merged package specifiers, in order (code, chamvi.json, AGENTS). */
     specs: readonly string[];
     /** The folder the specifiers resolve from. */
     cwd: string;

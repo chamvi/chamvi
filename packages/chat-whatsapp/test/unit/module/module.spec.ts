@@ -73,7 +73,7 @@ function world(input: {
         ...input.patch,
     });
     const harness = buildModuleHarness({
-        env: input.env ?? { CHAMVI_ENCRYPTION_KEYS: KEYS },
+        env: input.env ?? { ENCRYPTION_KEYS: KEYS },
         ...(input.check !== undefined ? { check: input.check } : {}),
         agents: [defineModelAgent({
             name: 'assistant',
@@ -198,9 +198,9 @@ describe('whatsappModule', () => {
     });
 
     it('a check still refuses a malformed keyring without echoing it', async () => {
-        const w = world({ check: true, env: { CHAMVI_ENCRYPTION_KEYS: 'k1:not-a-key' } });
+        const w = world({ check: true, env: { ENCRYPTION_KEYS: 'k1:not-a-key' } });
 
-        await expect(w.harness.setup()).rejects.toThrow(/^CHAMVI_ENCRYPTION_KEYS: /);
+        await expect(w.harness.setup()).rejects.toThrow(/^ENCRYPTION_KEYS: /);
         await expect(w.harness.setup()).rejects.not.toThrow(/not-a-key/);
     });
 
@@ -208,7 +208,7 @@ describe('whatsappModule', () => {
         const w = world({ env: {} });
 
         await expect(w.harness.setup()).rejects.toThrow(InvalidAgentDefinitionError);
-        await expect(w.harness.setup()).rejects.toThrow(/CHAMVI_ENCRYPTION_KEYS is not set/);
+        await expect(w.harness.setup()).rejects.toThrow(/ENCRYPTION_KEYS is not set/);
         expect(w.sockets.sockets).toEqual([]);
     });
 
@@ -230,9 +230,9 @@ describe('whatsappModule', () => {
         expect(() => world({ patch: { answers: { timeoutMs: 0 } } })).toThrow(/answers\.timeoutMs/);
     });
 
-    it('needs an approval url or CHAMVI_PUBLIC_URL', async () => {
+    it('needs an approval url or PUBLIC_URL', async () => {
         const w = world({ patch: { approvalUrl: undefined } });
 
-        await expect(w.harness.setup()).rejects.toThrow(/CHAMVI_PUBLIC_URL/);
+        await expect(w.harness.setup()).rejects.toThrow(/PUBLIC_URL/);
     });
 });

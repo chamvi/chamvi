@@ -143,7 +143,7 @@ export function createSupport(input: {
 
 ## In an app
 
-`knowledgeModule()` from `@chamvi/knowledge/module` declares the app's collections. String models resolve through the app's providers and keys (`CHAMVI_PROVIDER_*`, `OPENAI_API_KEY`, ...), like chat models:
+`knowledgeModule()` from `@chamvi/knowledge/module` declares the app's collections. String models resolve through the app's providers and keys (`PROVIDER_*`, `OPENAI_API_KEY`, ...), like chat models:
 
 ```ts
 import { createApp, defineModelAgent } from '@chamvi/app';
@@ -198,7 +198,7 @@ A managed collection has no sources in code: it is created and filled over REST 
 | `GET /knowledge/collections/:name/documents` | A page (`page[limit]`, `page[offset]`, `filter[status]`) |
 | `GET` / `PUT` / `DELETE /knowledge/collections/:name/documents/:id` | Read with content, put `{ content, title?, source?, metadata? }` (`202` pending, `200` unchanged), delete (`204`) |
 
-Their model is `CHAMVI_KNOWLEDGE_MODEL`, else `knowledgeModule({ embeddingModel })` (`createKnowledge({ embeddingModel })` without the app); without one, creating a collection answers 409. A `PUT` is idempotent per id and `202` means accepted, not embedded: the document is `pending` (its previous content still answers searches) until the background pass makes it `ready`, or `failed` with the error when the provider rejects it. Changing the default model (or a new chunker version) marks every managed collection `stale` (it keeps serving its stored model) until a `sync` re-embeds it. Managed collections are always untrusted: a search over one taints the run.
+Their model is `KNOWLEDGE_MODEL`, else `knowledgeModule({ embeddingModel })` (`createKnowledge({ embeddingModel })` without the app); without one, creating a collection answers 409. A `PUT` is idempotent per id and `202` means accepted, not embedded: the document is `pending` (its previous content still answers searches) until the background pass makes it `ready`, or `failed` with the error when the provider rejects it. Changing the default model (or a new chunker version) marks every managed collection `stale` (it keeps serving its stored model) until a `sync` re-embeds it. Managed collections are always untrusted: a search over one taints the run.
 
 ## The tool
 

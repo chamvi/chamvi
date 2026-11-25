@@ -51,19 +51,19 @@ describe('readConfig', () => {
         const config = readConfig({
             PORT: '8080',
             HOST: '127.0.0.1',
-            CHAMVI_BASE_PATH: '/api',
-            CHAMVI_PUBLIC_URL: 'https://a.example/',
-            CHAMVI_LOG_LEVEL: 'debug',
+            BASE_PATH: '/api',
+            PUBLIC_URL: 'https://a.example/',
+            LOG_LEVEL: 'debug',
             DATABASE_URL: 'postgres://u:p@db:5432/chamvi',
-            CHAMVI_MIGRATE: 'false',
-            CHAMVI_PURGE_INTERVAL_MS: '60000',
-            CHAMVI_MAX_CONCURRENT_RUNS: '8',
-            CHAMVI_SCHEDULER: '0',
-            CHAMVI_READINESS_DELAY_MS: '1000',
-            CHAMVI_DRAIN_TIMEOUT_MS: '20000',
-            CHAMVI_CLOSE_TIMEOUT_MS: '2000',
-            CHAMVI_AGENTS_DIR: './agents',
-            CHAMVI_AGENTS_POLL_MS: '2000',
+            MIGRATE: 'false',
+            PURGE_INTERVAL_MS: '60000',
+            MAX_CONCURRENT_RUNS: '8',
+            SCHEDULER: '0',
+            READINESS_DELAY_MS: '1000',
+            DRAIN_TIMEOUT_MS: '20000',
+            CLOSE_TIMEOUT_MS: '2000',
+            AGENTS_DIR: './agents',
+            AGENTS_POLL_MS: '2000',
         }, { mode: 'start' });
 
         expect(config).toEqual({
@@ -89,9 +89,9 @@ describe('readConfig', () => {
         });
     });
 
-    it('dev drain default is 5000, an explicit CHAMVI_DRAIN_TIMEOUT_MS wins', () => {
+    it('dev drain default is 5000, an explicit DRAIN_TIMEOUT_MS wins', () => {
         expect(readConfig({}, { mode: 'start', dev: true }).http.drainTimeoutMs).toBe(5000);
-        expect(readConfig({ CHAMVI_DRAIN_TIMEOUT_MS: '7000' }, { mode: 'start', dev: true }).http.drainTimeoutMs)
+        expect(readConfig({ DRAIN_TIMEOUT_MS: '7000' }, { mode: 'start', dev: true }).http.drainTimeoutMs)
             .toBe(7000);
     });
 
@@ -101,73 +101,73 @@ describe('readConfig', () => {
         expect(start({ PORT: '65535' }).http.port).toBe(65535);
     });
 
-    it('CHAMVI_MAX_CONCURRENT_RUNS 0 throws', () => {
-        expect(() => start({ CHAMVI_MAX_CONCURRENT_RUNS: '0' })).toThrow(/CHAMVI_MAX_CONCURRENT_RUNS/);
+    it('MAX_CONCURRENT_RUNS 0 throws', () => {
+        expect(() => start({ MAX_CONCURRENT_RUNS: '0' })).toThrow(/MAX_CONCURRENT_RUNS/);
     });
 
     it.each([
-        'CHAMVI_READINESS_DELAY_MS',
-        'CHAMVI_DRAIN_TIMEOUT_MS',
-        'CHAMVI_CLOSE_TIMEOUT_MS',
-        'CHAMVI_PURGE_INTERVAL_MS',
+        'READINESS_DELAY_MS',
+        'DRAIN_TIMEOUT_MS',
+        'CLOSE_TIMEOUT_MS',
+        'PURGE_INTERVAL_MS',
     ])('%s above the timer limit throws (Node would fire it after 1 ms)', (name) => {
         expect(() => start({ [name]: String(TIMER_MAX_MS + 1) })).toThrow(`${name} must be at most ${TIMER_MAX_MS}.`);
         expect(() => start({ [name]: String(TIMER_MAX_MS) })).not.toThrow();
     });
 
-    it('CHAMVI_AGENTS_DIR empty is unset', () => {
-        expect(start({ CHAMVI_AGENTS_DIR: '' }).agents).toEqual({ pollMs: 5_000 });
+    it('AGENTS_DIR empty is unset', () => {
+        expect(start({ AGENTS_DIR: '' }).agents).toEqual({ pollMs: 5_000 });
     });
 
-    it('CHAMVI_AGENTS lists agent packages', () => {
-        expect(start({ CHAMVI_AGENTS: '@acme/triage, greeter' }).agents.packages).toEqual(['@acme/triage', 'greeter']);
-        expect(start({ CHAMVI_AGENTS: '' }).agents.packages).toBeUndefined();
+    it('AGENTS lists agent packages', () => {
+        expect(start({ AGENTS: '@acme/triage, greeter' }).agents.packages).toEqual(['@acme/triage', 'greeter']);
+        expect(start({ AGENTS: '' }).agents.packages).toBeUndefined();
     });
 
-    it('CHAMVI_AGENTS refuses a path, naming the entry and never the value', () => {
-        expect(() => start({ CHAMVI_AGENTS: 'ok,./secret-path' })).toThrow(
-            'CHAMVI_AGENTS entry 2 is no bare package specifier (a package name such as @acme/agents, no path or URL).',
+    it('AGENTS refuses a path, naming the entry and never the value', () => {
+        expect(() => start({ AGENTS: 'ok,./secret-path' })).toThrow(
+            'AGENTS entry 2 is no bare package specifier (a package name such as @acme/agents, no path or URL).',
         );
-        expect(() => start({ CHAMVI_AGENTS: 'a,a' })).toThrow('CHAMVI_AGENTS lists the package a twice.');
+        expect(() => start({ AGENTS: 'a,a' })).toThrow('AGENTS lists the package a twice.');
     });
 
-    it('CHAMVI_AGENTS_POLL_MS must be 1 to the timer limit', () => {
-        expect(() => start({ CHAMVI_AGENTS_POLL_MS: '0' })).toThrow('CHAMVI_AGENTS_POLL_MS must be at least 1.');
-        expect(() => start({ CHAMVI_AGENTS_POLL_MS: String(TIMER_MAX_MS + 1) }))
-            .toThrow(`CHAMVI_AGENTS_POLL_MS must be at most ${TIMER_MAX_MS}.`);
-        expect(start({ CHAMVI_AGENTS_POLL_MS: '1' }).agents.pollMs).toBe(1);
-        expect(start({ CHAMVI_AGENTS_POLL_MS: String(TIMER_MAX_MS) }).agents.pollMs).toBe(TIMER_MAX_MS);
+    it('AGENTS_POLL_MS must be 1 to the timer limit', () => {
+        expect(() => start({ AGENTS_POLL_MS: '0' })).toThrow('AGENTS_POLL_MS must be at least 1.');
+        expect(() => start({ AGENTS_POLL_MS: String(TIMER_MAX_MS + 1) }))
+            .toThrow(`AGENTS_POLL_MS must be at most ${TIMER_MAX_MS}.`);
+        expect(start({ AGENTS_POLL_MS: '1' }).agents.pollMs).toBe(1);
+        expect(start({ AGENTS_POLL_MS: String(TIMER_MAX_MS) }).agents.pollMs).toBe(TIMER_MAX_MS);
     });
 
-    it('CHAMVI_PURGE_INTERVAL_MS 0 disables', () => {
-        expect(start({ CHAMVI_PURGE_INTERVAL_MS: '0' }).store.purgeIntervalMs).toBe(0);
+    it('PURGE_INTERVAL_MS 0 disables', () => {
+        expect(start({ PURGE_INTERVAL_MS: '0' }).store.purgeIntervalMs).toBe(0);
     });
 
-    it('CHAMVI_BASE_PATH accepts /api, rejects api, /api/, /API', () => {
-        expect(start({ CHAMVI_BASE_PATH: '/api' }).http.basePath).toBe('/api');
-        expect(start({ CHAMVI_BASE_PATH: '/api/v1' }).http.basePath).toBe('/api/v1');
+    it('BASE_PATH accepts /api, rejects api, /api/, /API', () => {
+        expect(start({ BASE_PATH: '/api' }).http.basePath).toBe('/api');
+        expect(start({ BASE_PATH: '/api/v1' }).http.basePath).toBe('/api/v1');
 
         for (const value of ['api', '/api/', '/API', '/', '//api']) {
-            const error = errorOf(() => start({ CHAMVI_BASE_PATH: value }));
+            const error = errorOf(() => start({ BASE_PATH: value }));
 
             expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-            expect(error.message).toContain('CHAMVI_BASE_PATH');
+            expect(error.message).toContain('BASE_PATH');
         }
     });
 
-    it('CHAMVI_LOG_LEVEL accepts the four levels and rejects verbose listing them', () => {
+    it('LOG_LEVEL accepts the four levels and rejects verbose listing them', () => {
         for (const level of ['error', 'warn', 'info', 'debug']) {
-            expect(start({ CHAMVI_LOG_LEVEL: level }).logLevel).toBe(level);
+            expect(start({ LOG_LEVEL: level }).logLevel).toBe(level);
         }
 
-        expect(() => start({ CHAMVI_LOG_LEVEL: 'verbose' }))
-            .toThrow('CHAMVI_LOG_LEVEL must be one of error, warn, info, debug.');
+        expect(() => start({ LOG_LEVEL: 'verbose' }))
+            .toThrow('LOG_LEVEL must be one of error, warn, info, debug.');
     });
 
-    it('CHAMVI_PUBLIC_URL must be absolute http(s)', () => {
-        expect(() => start({ CHAMVI_PUBLIC_URL: 'a.example' })).toThrow(/CHAMVI_PUBLIC_URL/);
-        expect(() => start({ CHAMVI_PUBLIC_URL: 'ftp://a.example' })).toThrow(/CHAMVI_PUBLIC_URL/);
-        expect(start({ CHAMVI_PUBLIC_URL: 'http://a.example/x/' }).http.publicUrl).toBe('http://a.example/x');
+    it('PUBLIC_URL must be absolute http(s)', () => {
+        expect(() => start({ PUBLIC_URL: 'a.example' })).toThrow(/PUBLIC_URL/);
+        expect(() => start({ PUBLIC_URL: 'ftp://a.example' })).toThrow(/PUBLIC_URL/);
+        expect(start({ PUBLIC_URL: 'http://a.example/x/' }).http.publicUrl).toBe('http://a.example/x');
     });
 
     it('migrate mode requires DATABASE_URL', () => {
@@ -184,7 +184,7 @@ describe('readConfig', () => {
         expect(errorOf(() => start({ DATABASE_URL: 'mysql://u:hunter2@db/chamvi' })).message).not.toContain('hunter2');
     });
 
-    describe('CHAMVI_TOKENS', () => {
+    describe('TOKENS', () => {
         const valid = {
             value: 'a'.repeat(16),
             id: 'ops',
@@ -197,7 +197,7 @@ describe('readConfig', () => {
 
         it('parses a valid JSON array', () => {
             const config = start({
-                CHAMVI_TOKENS: JSON.stringify([valid, {
+                TOKENS: JSON.stringify([valid, {
                     value: 'b'.repeat(20),
                     id: 'ci',
                     permissions: [],
@@ -230,14 +230,14 @@ describe('readConfig', () => {
             ['non-binding permissions', [{ ...valid, permissions: [1] }]],
             ['missing permissions', [{ value: valid.value, id: 'x' }]],
         ])('rejects %s', (_, value) => {
-            const error = errorOf(() => start({ CHAMVI_TOKENS: JSON.stringify(value) }));
+            const error = errorOf(() => start({ TOKENS: JSON.stringify(value) }));
 
             expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-            expect(error.message).toContain('CHAMVI_TOKENS');
+            expect(error.message).toContain('TOKENS');
         });
 
         it('parses a binding with an attributes policy as a copy', () => {
-            const config = start({ CHAMVI_TOKENS: JSON.stringify([{ ...valid, permissions: [restricted] }]) });
+            const config = start({ TOKENS: JSON.stringify([{ ...valid, permissions: [restricted] }]) });
 
             expect(config.tokens).toEqual([{ ...valid, permissions: [restricted] }]);
         });
@@ -249,31 +249,31 @@ describe('readConfig', () => {
             ['another string', 'all'],
             ['a binding without a name', [{ permission: {} }]],
         ])('rejects %s with the binding shape', (_, permissions) => {
-            const error = errorOf(() => start({ CHAMVI_TOKENS: JSON.stringify([{ ...valid, permissions }]) }));
+            const error = errorOf(() => start({ TOKENS: JSON.stringify([{ ...valid, permissions }]) }));
 
             expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-            expect(error.message).toBe('CHAMVI_TOKENS[0].permissions must be "*" or an array of permission bindings.');
+            expect(error.message).toBe('TOKENS[0].permissions must be "*" or an array of permission bindings.');
         });
 
         it('rejects malformed JSON', () => {
-            expect(() => start({ CHAMVI_TOKENS: '[{' })).toThrow('CHAMVI_TOKENS must be valid JSON.');
+            expect(() => start({ TOKENS: '[{' })).toThrow('TOKENS must be valid JSON.');
         });
 
-        it('CHAMVI_TOKENS error names no token', () => {
+        it('TOKENS error names no token', () => {
             const secret = 'sekr3t-tok';
             const short = errorOf(() => start({
-                CHAMVI_TOKENS: JSON.stringify([valid, {
+                TOKENS: JSON.stringify([valid, {
                     value: secret,
                     id: 'x',
                     permissions: [],
                 }]),
             }));
 
-            expect(short.message).toBe('CHAMVI_TOKENS[1].value must be at least 16 characters.');
+            expect(short.message).toBe('TOKENS[1].value must be at least 16 characters.');
 
-            const duplicate = errorOf(() => start({ CHAMVI_TOKENS: JSON.stringify([valid, { ...valid, id: 'y' }]) }));
+            const duplicate = errorOf(() => start({ TOKENS: JSON.stringify([valid, { ...valid, id: 'y' }]) }));
 
-            expect(duplicate.message).toBe('CHAMVI_TOKENS[1].value is given more than once.');
+            expect(duplicate.message).toBe('TOKENS[1].value is given more than once.');
             expect(duplicate.message).not.toContain(valid.value);
         });
     });

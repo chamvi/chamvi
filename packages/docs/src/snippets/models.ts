@@ -43,12 +43,12 @@ const review = defineModelAgent({
 });
 
 export default createApp({
-    // the default of agents without a model; CHAMVI_MODEL and chamvi.json win over it
+    // the default of agents without a model; MODEL and chamvi.json win over it
     model: 'anthropic/claude-sonnet-5-5',
     providers: {
-        // a second Anthropic key: CHAMVI_PROVIDER_TEAM_A_API_KEY would win over this one
+        // a second Anthropic key: PROVIDER_TEAM_A_API_KEY would win over this one
         'team-a': { type: 'anthropic', apiKey: { env: 'TEAM_A_KEY' } },
-        // a self-hosted router; the deployment sets only CHAMVI_PROVIDER_ROUTER_API_KEY
+        // a self-hosted router; the deployment sets only PROVIDER_ROUTER_API_KEY
         router: { type: 'openai-compatible', baseURL: 'http://9router:20128/v1' },
     },
     agents: [triage, review],

@@ -23,7 +23,7 @@ export type AppOptions = {
      * specifier (`'@acme/agents'`, `'@acme/agents/triage'`) whose default
      * export is an agent or an array of agents, resolved from the working
      * directory at start. May be omitted or empty when an agents dir,
-     * `chamvi.json` `agents` or `CHAMVI_AGENTS` provides the agents.
+     * `chamvi.json` `agents` or `AGENTS` provides the agents.
      */
     agents?: (Agent | string)[];
     /** Additive skill defaults for every code and folder agent, verified before serving. */
@@ -32,7 +32,7 @@ export type AppOptions = {
     conversations?: ConversationOptions;
     /** Extra modules; one named like a built-in (`ModuleName`) replaces it. */
     modules?: IModule[];
-    /** The default model of agents without one; CHAMVI_MODEL and the config file win. */
+    /** The default model of agents without one; MODEL and the config file win. */
     model?: ModelRef;
     /** Named providers model strings resolve through; env and the config file win per field. */
     providers?: Record<string, ProviderConfig>;
@@ -76,7 +76,7 @@ export interface IApp {
     readonly [APP_BRAND]: true;
     /** The agents passed in code (createApp's `agents` that are no string); package and folder agents are in the engine's live set. */
     readonly agents: readonly Agent[];
-    /** createApp's package specifiers, in order (`chamvi.json` and `CHAMVI_AGENTS` add theirs at start). */
+    /** createApp's package specifiers, in order (`chamvi.json` and `AGENTS` add theirs at start). */
     readonly packages: readonly string[];
     /** Sets every module up; resolves once the HTTP server listens. */
     start(options?: AppStartOptions): Promise<void>;

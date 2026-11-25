@@ -86,7 +86,7 @@ async function serve(): Promise<(method: string, path: string, body?: unknown) =
     const port = await freePort();
     const harness = await createModuleHarness({
         env: {
-            CHAMVI_TOKENS: JSON.stringify([{
+            TOKENS: JSON.stringify([{
                 value: TOKEN,
                 id: 'ops',
                 permissions: '*',

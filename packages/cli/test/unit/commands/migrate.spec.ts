@@ -57,7 +57,7 @@ describe('migrate', () => {
         try {
             await runCli(['migrate'], fake.context({ env: {}, cwd }));
             expect(fake.stderr.join('')).toContain(MIGRATE_DEFAULT_APP_NOTICE);
-            expect(fake.stderr.join('')).not.toContain('CHAMVI_AGENTS');
+            expect(fake.stderr.join('')).not.toContain('AGENTS');
         } finally {
             await rm(cwd, { recursive: true, force: true });
         }

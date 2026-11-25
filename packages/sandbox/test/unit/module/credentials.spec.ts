@@ -67,13 +67,13 @@ async function harnessWith(modules: IModule[]): Promise<ModuleHarness> {
 }
 
 describe('sandboxModule git credentials', () => {
-    it('reads static tokens from CHAMVI_GIT_TOKENS', async () => {
+    it('reads static tokens from SANDBOX_GIT_TOKENS', async () => {
         const provider = createFakeProvider();
         const module = sandboxModule({
             provider,
             gcIntervalMs: 0,
             env: {
-                CHAMVI_GIT_TOKENS: JSON.stringify([{
+                SANDBOX_GIT_TOKENS: JSON.stringify([{
                     host: 'github.com',
                     path: 'octo',
                     token: 'ghp_envtoken',
@@ -86,18 +86,18 @@ describe('sandboxModule git credentials', () => {
         await module.manager.close();
     });
 
-    it('names CHAMVI_GIT_TOKENS for a bad value without echoing it', () => {
+    it('names SANDBOX_GIT_TOKENS for a bad value without echoing it', () => {
         for (const value of ['{nope', JSON.stringify({ host: 'github.com' }), JSON.stringify([{ host: 'github.com', token: 'a\nsecret-value' }])]) {
             let error: unknown;
 
             try {
-                sandboxModule({ provider: createFakeProvider(), env: { CHAMVI_GIT_TOKENS: value } });
+                sandboxModule({ provider: createFakeProvider(), env: { SANDBOX_GIT_TOKENS: value } });
             } catch (e) {
                 error = e;
             }
 
             expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-            expect((error as Error).message).toContain('CHAMVI_GIT_TOKENS');
+            expect((error as Error).message).toContain('SANDBOX_GIT_TOKENS');
             expect((error as Error).message).not.toContain('secret-value');
         }
     });

@@ -121,7 +121,7 @@ const tools = {
 - **Shared calendars.** `calendars: ['icloud:work']` limits where the tools write; any other calendar is refused before a request. A create without attendees in a calendar shared with other people is visible to its members, bounded only by the create limit. A shared calendar is recognized only when the server says so (CalendarServer sharing or `DAV:owner`); one that reports neither counts as your own.
 - **Accepted risks.** A server that sends weak ETags makes every delete refuse as changed (nothing is deleted). The client trusts the calendar addresses the server returns and discovery follows redirects, as the read side does.
 
-The write tools reuse the accounts and `CHAMVI_CALENDAR_*` variables of the read tools; `toolCalendarModule()` provides both clients.
+The write tools reuse the accounts and `CALENDAR_*` variables of the read tools; `toolCalendarModule()` provides both clients.
 
 ## In an app
 
@@ -147,14 +147,14 @@ export default createApp({
 
 | Variable | |
 |---|---|
-| `CHAMVI_CALENDAR_ACCOUNTS` | A JSON array of `{ "id"?, "url", "address"? }`. `id` defaults to the address with `@` and `.` as `-` (`me@icloud.com` is `me-icloud-com`) and is required without one. |
-| `CHAMVI_CALENDAR_<ID>_USER` | The account's user; default the address. `<ID>` is the id upper-cased, `-` as `_`. |
-| `CHAMVI_CALENDAR_<ID>_PASSWORD` | Required. |
-| `CHAMVI_CALENDAR_TIMEZONE` | The IANA zone event times are given in; default `Europe/Berlin`. |
+| `CALENDAR_ACCOUNTS` | A JSON array of `{ "id"?, "url", "address"? }`. `id` defaults to the address with `@` and `.` as `-` (`me@icloud.com` is `me-icloud-com`) and is required without one. |
+| `CALENDAR_<ID>_USER` | The account's user; default the address. `<ID>` is the id upper-cased, `-` as `_`. |
+| `CALENDAR_<ID>_PASSWORD` | Required. |
+| `CALENDAR_TIMEZONE` | The IANA zone event times are given in; default `Europe/Berlin`. |
 
-`USER` and `PASSWORD` can also be read from a file: `CHAMVI_CALENDAR_<ID>_PASSWORD_FILE=/run/secrets/icloud` (a mounted Secret; one trailing newline is trimmed). Setting both forms is an error. This applies to an account listed in `CHAMVI_CALENDAR_ACCOUNTS`; for an account that exists only in the store both forms are ignored.
+`USER` and `PASSWORD` can also be read from a file: `CALENDAR_<ID>_PASSWORD_FILE=/run/secrets/icloud` (a mounted Secret; one trailing newline is trimmed). Setting both forms is an error. This applies to an account listed in `CALENDAR_ACCOUNTS`; for an account that exists only in the store both forms are ignored.
 
-The module reads the variables when it is called; a malformed value fails the boot with an `InvalidAgentDefinitionError` that names the variable, never its value. Accounts saved in the dashboard's connection store are added at start: a variable wins per field for an account listed in `CHAMVI_CALENDAR_ACCOUNTS`, while an account that exists only in the store never reads a `CHAMVI_CALENDAR_<ID>_*` variable (the start warns naming it). Without any account the tools return a `connection_not_configured` tool error. The `accounts` option replaces the variable and the store; `timezone` and `fetch` are options too. Sessions are dropped once the engine drained; `migrate` does nothing.
+The module reads the variables when it is called; a malformed value fails the boot with an `InvalidAgentDefinitionError` that names the variable, never its value. Accounts saved in the dashboard's connection store are added at start: a variable wins per field for an account listed in `CALENDAR_ACCOUNTS`, while an account that exists only in the store never reads a `CALENDAR_<ID>_*` variable (the start warns naming it). Without any account the tools return a `connection_not_configured` tool error. The `accounts` option replaces the variable and the store; `timezone` and `fetch` are options too. Sessions are dropped once the engine drained; `migrate` does nothing.
 
 ## Privacy
 

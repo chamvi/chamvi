@@ -22,8 +22,8 @@ Three sources, merged in this order (a package listed twice loads once):
 | Source | Form |
 |---|---|
 | `createApp({ agents })` | string entries beside the agents passed in code |
-| `chamvi.json` | `"agents": ["@acme/review-agent"]` (the [config file](/guide/models#the-config-file), `CHAMVI_CONFIG_FILE` names another one) |
-| `CHAMVI_AGENTS` | comma-separated specifiers: `CHAMVI_AGENTS=@acme/review-agent,@acme/digest-agent` |
+| `chamvi.json` | `"agents": ["@acme/review-agent"]` (the [config file](/guide/models#the-config-file), `CONFIG_FILE` names another one) |
+| `AGENTS` | comma-separated specifiers: `AGENTS=@acme/review-agent,@acme/digest-agent` |
 
 Each specifier resolves from the app's working directory like Node resolves an `import` from there: the process's user conditions (`--conditions`/`-C` in its arguments or `NODE_OPTIONS`) first, then `node` and `import`. With `NODE_OPTIONS=--conditions=development`, a package whose `exports` list a `development` target (its `src/`) before the build output loads that source in dev, its own imports resolve the same way, and the dev revision hashes it. Every listed package must be installed in the app (`dependencies`, so the image has it). `chamvi build` keeps the specifiers as strings: nothing of a package is bundled into `dist/index.mjs`.
 

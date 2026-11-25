@@ -114,7 +114,7 @@ function readProvider(value: unknown, field: string): ProviderConfig {
 }
 
 /**
- * The config file a lifecycle reads: `CHAMVI_CONFIG_FILE` (relative to `cwd`,
+ * The config file a lifecycle reads: `CONFIG_FILE` (relative to `cwd`,
  * `named`), else `./chamvi.json` when it exists, else undefined.
  */
 export async function locateConfigFile(env: Env, cwd: string): Promise<{ path: string; named: boolean } | undefined> {
@@ -136,7 +136,7 @@ export async function locateConfigFile(env: Env, cwd: string): Promise<{ path: s
  * The config file's agent package specifiers (`agents`, bare package
  * specifiers, none twice), or none without a file. Read by the agents module,
  * never part of the model settings; a problem throws InvalidAgentDefinitionError
- * naming the file and field (prefixed `CHAMVI_CONFIG_FILE: ` for a named file).
+ * naming the file and field (prefixed `CONFIG_FILE: ` for a named file).
  */
 export async function readConfigFileAgents(env: Env, cwd: string): Promise<string[]> {
     const located = await locateConfigFile(env, cwd);

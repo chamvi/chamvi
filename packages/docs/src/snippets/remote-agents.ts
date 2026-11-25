@@ -49,7 +49,7 @@ export const assistants = createApp({
                 dev: {
                     // the peer's public URL: origin plus basePath
                     url: 'https://dev.example',
-                    // the bearer this app sends to dev: a static token of dev's CHAMVI_TOKENS
+                    // the bearer this app sends to dev: a static token of dev's TOKENS
                     outgoing: { token: requireEnv('PEER_DEV_TOKEN') },
                     // dev calls back (wake, its own remote agents) as the static token "peer-dev" here
                     incoming: { token: 'peer-dev' },

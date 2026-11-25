@@ -11,11 +11,11 @@ export const AGENTS_WATCHER_COMPONENT_NAME = 'agents-watcher';
 /** The agent packages' skill preparation retries among the app's components. */
 export const AGENT_PACKAGES_COMPONENT_NAME = 'agents-packages';
 
-/** The agents dir without `CHAMVI_AGENTS_DIR`, used when it is a directory of the cwd. */
+/** The agents dir without `AGENTS_DIR`, used when it is a directory of the cwd. */
 export const DEFAULT_AGENTS_DIR = 'agents';
 
 /** Logged (warn) when the app starts without any agent: none in createApp, no agent package and no agents dir. */
-export const NO_AGENTS_MESSAGE = `the app has no agents: pass them or agent packages to createApp (or chamvi.json agents, CHAMVI_AGENTS) or add agent folders to ./${DEFAULT_AGENTS_DIR} (or CHAMVI_AGENTS_DIR)`;
+export const NO_AGENTS_MESSAGE = `the app has no agents: pass them or agent packages to createApp (or chamvi.json agents, AGENTS) or add agent folders to ./${DEFAULT_AGENTS_DIR} (or AGENTS_DIR)`;
 
 /** Logged (warn) by a start's boot instead of removing orphan markers while a package did not load. */
 export const ORPHANS_KEPT_MESSAGE = 'a package agent did not load; no agent is removed';
@@ -23,7 +23,7 @@ export const ORPHANS_KEPT_MESSAGE = 'a package agent did not load; no agent is r
 /** The issue of a folder named like a stored package marker while a package did not load. */
 export const UNRESOLVED_PACKAGE_RESERVED_MESSAGE = 'a package that did not load may provide this agent; the folder is not loaded.';
 
-export const NO_DIRECTORY_MESSAGE = 'CHAMVI_AGENTS_DIR must name a directory.';
+export const NO_DIRECTORY_MESSAGE = 'AGENTS_DIR must name a directory.';
 
 /** How often the boot loads a folder that changes while it is read before it leaves it to the watcher. */
 export const BOOT_LOAD_ATTEMPTS = 3;

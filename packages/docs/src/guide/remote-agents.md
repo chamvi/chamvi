@@ -51,19 +51,19 @@ A remote agent has no `model`, `instructions`, `tools`, `hooks`, `state` or `bud
 | `untrusted` | `false` | Every result from this peer taints the run that receives it, and every run this peer starts here is tainted from the start |
 | `approvals` | none | `{ channel, address }`: where this app announces approvals of runs the peer started |
 
-`approvalUrl` is this app's approval link, which the peer shows to its users. It defaults to the dashboard link built from `CHAMVI_PUBLIC_URL`, and stays unset without one. A misconfigured peer throws `InvalidAgentDefinitionError` when `peerModule()` is called.
+`approvalUrl` is this app's approval link, which the peer shows to its users. It defaults to the dashboard link built from `PUBLIC_URL`, and stays unset without one. A misconfigured peer throws `InvalidAgentDefinitionError` when `peerModule()` is called.
 
 ## Credentials
 
 A peer authenticates like any other client. No principal kind is specific to peers.
 
-- **Static token.** At the receiver, the peer is an ordinary `CHAMVI_TOKENS` entry. `incoming: { token: '<id>' }` names that entry's `id`. The caller sends the entry's secret as `outgoing: { token }`.
+- **Static token.** At the receiver, the peer is an ordinary `TOKENS` entry. `incoming: { token: '<id>' }` names that entry's `id`. The caller sends the entry's secret as `outgoing: { token }`.
 - **authup.** The caller fetches a token with client credentials (`outgoing: { authup: { url, clientId, clientSecret } }`). The token is cached until shortly before it expires and fetched again once after a 401. The receiver recognizes the client with `incoming: { authupClient: '<client id>' }`. Only a client signed in through the receiver's `authup()` authenticator matches.
 
 A run started by a peer acts with the grants of the peer's credential. The calling app's name is shown on the run for display only. The start needs `chamvi_agent_run` for the agent. An agent the peer may not start answers 404, like a missing agent, so the peer cannot find out which agents exist. Reading, cancelling and waking a run the peer started needs no further grant. On every other route the peer's credential is an ordinary principal: `chamvi_agent_run` for an agent also reads that agent's non-private runs. **Give a peer token the narrowest grants it needs**, usually `chamvi_agent_run` for the agents it calls:
 
 ```bash
-export CHAMVI_TOKENS='[
+export TOKENS='[
   { "value": "<admin secret>", "id": "admin", "permissions": "*" },
   { "value": "<peer secret>", "id": "peer-assistants", "permissions": [
     { "permission": { "name": "chamvi_agent_run" }, "policies": [{ "type": "attributes", "query": { "name": "developer" } }] }

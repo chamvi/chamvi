@@ -147,7 +147,7 @@ describe('public api', () => {
     });
 
     it('exports the keyring variable', () => {
-        expect(app.ENV_ENCRYPTION_KEYS).toBe('CHAMVI_ENCRYPTION_KEYS');
+        expect(app.ENV_ENCRYPTION_KEYS).toBe('ENCRYPTION_KEYS');
     });
 
     it('exports the timer limit of the ms variables', () => {
@@ -294,7 +294,7 @@ describe('public api', () => {
     });
 
     it('@chamvi/app/authup exports the default server client name', () => {
-        expect(authup.AUTHUP_CLIENT_ID_DEFAULT).toBe('chamvi-server');
+        expect(authup.AUTHUP_SERVER_CLIENT_ID_DEFAULT).toBe('chamvi-server');
     });
 
     it.each([

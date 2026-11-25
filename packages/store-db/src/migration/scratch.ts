@@ -43,7 +43,7 @@ function decode(text: string): string {
 }
 
 /**
- * The one parse of `CHAMVI_MIGRATION_DATABASE_URL` every step of
+ * The one parse of `MIGRATION_DATABASE_URL` every step of
  * `generate` uses: host, port, user, password, database and TLS as
  * explicit connection options, so the database the guard inspects, the
  * drop and create reach, the marker is written on, the migrations run in

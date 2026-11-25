@@ -38,7 +38,7 @@ type StoreDb = typeof storeDb;
  * TypeORM's driver, `@chamvi/store-db` and typeorm-extension only then),
  * migrates PostgreSQL under the lock `chamvi:db:<name>` into the
  * database's own migrations table (start, job and `migrate` mode, when
- * `CHAMVI_MIGRATE` is on; with it off pending migrations fail the start
+ * `MIGRATE` is on; with it off pending migrations fail the start
  * as `store_not_migrated`), synchronizes SQLite, and registers the data
  * source under `dataSourceToken(name)`. A check writes nothing to
  * PostgreSQL and fails on pending migrations exactly when chamvi's store

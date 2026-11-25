@@ -78,10 +78,18 @@ function guessProviderName(rest: string): string | undefined {
     return providerName(index === -1 ? rest : rest.slice(0, index));
 }
 
+/** Whether `rest` ends in a provider field, so an unbound one is a typo rather than someone else's variable. */
+function hasEnvField(rest: string): boolean {
+    return ['_TYPE', '_API_KEY', '_BASE_URL'].some((suffix) => rest.endsWith(suffix)) ||
+        rest.includes(`_${HEADER_PREFIX}`);
+}
+
 /**
- * Binds every `CHAMVI_PROVIDER_*` variable: (1) to the names code and file
+ * Binds every `PROVIDER_*` variable: (1) to the names code and file
  * declare, longest first; (2) a still unmatched `_TYPE` declares an env-only
- * provider; (3) the rest bind to those; (4) anything left is an issue.
+ * provider; (3) the rest bind to those; (4) anything left with a provider
+ * field is an issue, without one (a k8s service link such as
+ * `PROVIDER_GATEWAY_SERVICE_HOST`, an app's own `PROVIDER_URL`) it is ignored.
  */
 export function bindEnvVariables(env: Env, declared: ReadonlySet<string>, issues: SettingIssues): EnvBinding[] {
     const unmatched: Array<{
@@ -140,6 +148,10 @@ export function bindEnvVariables(env: Env, declared: ReadonlySet<string>, issues
                 ...bound,
             });
 
+            continue;
+        }
+
+        if (!hasEnvField(rest)) {
             continue;
         }
 

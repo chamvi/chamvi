@@ -26,7 +26,7 @@ import type { KnowledgeModuleOptions } from './types.ts';
 
 /**
  * The app's knowledge collections (`.knowledge`, built in `setup`). The
- * options are checked and `CHAMVI_KNOWLEDGE_MODEL` is read (from
+ * options are checked and `KNOWLEDGE_MODEL` is read (from
  * `options.env ?? process.env`, winning over `embeddingModel`) when the
  * factory is called. In start and job mode and a check, `setup` builds
  * `createKnowledge()` over the repository (the `repository` option, else the
@@ -58,7 +58,7 @@ export class KnowledgeModule implements IModule {
 
     protected options: KnowledgeModuleOptions;
 
-    /** `CHAMVI_KNOWLEDGE_MODEL`, read when the factory is called. */
+    /** `KNOWLEDGE_MODEL`, read when the factory is called. */
     protected envModel: string | undefined;
 
     protected instance: IKnowledge | undefined;

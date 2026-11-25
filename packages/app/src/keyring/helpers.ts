@@ -10,7 +10,7 @@ import { ENV_ENCRYPTION_KEYS } from './constants.ts';
 
 const UNSET_MESSAGE = `${ENV_ENCRYPTION_KEYS} is not set: a module that stores connections needs it (\`<id>:<base64 32 bytes>\`, comma separated, the first active).`;
 
-/** The error of a keyring read while `CHAMVI_ENCRYPTION_KEYS` is unset. */
+/** The error of a keyring read while `ENCRYPTION_KEYS` is unset. */
 export function keyringUnsetError(): InvalidAgentDefinitionError {
     return new InvalidAgentDefinitionError(UNSET_MESSAGE);
 }

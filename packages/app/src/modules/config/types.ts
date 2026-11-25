@@ -11,6 +11,6 @@ import type { ILogger } from '../../logger/types.ts';
 export type ConfigModuleOptions = {
     /** `AppToken.CLOCK`; default `systemClock`. */
     clock?: IClock;
-    /** `AppToken.LOGGER`; default the JSON line logger at `CHAMVI_LOG_LEVEL`. */
+    /** `AppToken.LOGGER`; default the JSON line logger at `LOG_LEVEL`. */
     logger?: ILogger;
 };

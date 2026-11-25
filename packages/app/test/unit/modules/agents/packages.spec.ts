@@ -69,14 +69,14 @@ describe('package agents', () => {
         expect(setup.logger.entries.some((entry) => entry.msg.startsWith('the app has no agents'))).toBe(false);
     });
 
-    it('reads chamvi.json agents and CHAMVI_AGENTS after createApp\'s', async () => {
+    it('reads chamvi.json agents and AGENTS after createApp\'s', async () => {
         await installPackage(cwd, 'a', { agents: ['one'] });
         await installPackage(cwd, 'b', { agents: ['two'] });
         await installPackage(cwd, 'c', { agents: ['three'] });
         await writeTree(cwd, { 'chamvi.json': JSON.stringify({ agents: ['b'] }) });
 
         // the config file is the engine module's: located from the process cwd, here named absolutely
-        const setup = build({ packages: ['a'], env: { CHAMVI_AGENTS: 'c,b', CHAMVI_CONFIG_FILE: join(cwd, 'chamvi.json') } });
+        const setup = build({ packages: ['a'], env: { AGENTS: 'c,b', CONFIG_FILE: join(cwd, 'chamvi.json') } });
 
         await setup.harness.setup();
 
@@ -97,11 +97,11 @@ describe('package agents', () => {
     it('fails on an invalid chamvi.json agents field without calling it a model setting', async () => {
         await writeTree(cwd, { 'app.json': JSON.stringify({ agents: ['./x'] }) });
 
-        const setup = build({ env: { CHAMVI_CONFIG_FILE: join(cwd, 'app.json') } });
+        const setup = build({ env: { CONFIG_FILE: join(cwd, 'app.json') } });
         const attempt = setup.harness.setup();
 
         await expect(attempt).rejects.toThrow(
-            'CHAMVI_CONFIG_FILE: app.json: agents[0] is no bare package specifier (a package name such as @acme/agents, no path or URL).',
+            'CONFIG_FILE: app.json: agents[0] is no bare package specifier (a package name such as @acme/agents, no path or URL).',
         );
         await expect(attempt).rejects.not.toThrow('model settings');
     });

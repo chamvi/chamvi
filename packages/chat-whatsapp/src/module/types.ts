@@ -13,7 +13,7 @@ export type WhatsAppModuleOptions = Omit<WhatsAppChatOptions, 'auth' | 'onPairin
     connection: string;
     /** The session lease TTL; default 60 s (a crashed holder blocks the next for at most this long). */
     leaseTtlMs?: number;
-    /** The approval link; default the dashboard's approvals page under `CHAMVI_PUBLIC_URL`. */
+    /** The approval link; default the dashboard's approvals page under `PUBLIC_URL`. */
     approvalUrl?: WhatsAppChatOptions['approvalUrl'];
 };
 

@@ -19,7 +19,7 @@ The values stay small: image, environment, Secrets, ingress, replicas, sandbox a
 
 An ingress does not automatically make forwarded client addresses trustworthy to the app. Configure `httpModule({ trustProxy: [...] })` with the known source addresses or CIDRs of your ingress, and configure that ingress to sanitize incoming forwarded headers. Do not trust arbitrary forwarding headers from publicly reachable peers. Without this, the HTTP limiter may group all GitHub deliveries under the ingress IP; even correct forwarding can leave many deliveries sharing GitHub source IPs.
 
-Use `httpModule({ channelRateLimits: { github: { max: 3_000, windowMs: 60_000 } } })` for an independent GitHub request bucket, or `github: false` to disable only that intake limit. Neither changes signature validation or REST protection. These are code options, not chart env variables. See [GitHub bursts](/deployment/github-app#bursts-and-http-intake). `CHAMVI_MAX_CONCURRENT_RUNS` remains per pod/engine; use [agent/subscription ceilings](/guide/concurrency#shared-agent-and-subscription-ceilings) over a shared store for fleet-wide execution control.
+Use `httpModule({ channelRateLimits: { github: { max: 3_000, windowMs: 60_000 } } })` for an independent GitHub request bucket, or `github: false` to disable only that intake limit. Neither changes signature validation or REST protection. These are code options, not chart env variables. See [GitHub bursts](/deployment/github-app#bursts-and-http-intake). `MAX_CONCURRENT_RUNS` remains per pod/engine; use [agent/subscription ceilings](/guide/concurrency#shared-agent-and-subscription-ceilings) over a shared store for fleet-wide execution control.
 
 ## Graceful shutdown
 
@@ -55,7 +55,7 @@ Where a cluster allows only `restricted`, use the hardened mode: non-root with `
 
 A shared cache claim is shared trust: a malicious package one run fetched can sit in another run's cache (npm verifies integrity hashes, pip and Go's build cache less). Leave `cache` unset, or use one claim per trust level, where runs must not influence each other.
 
-Expired, failed and finished sandbox pods, and the pods of settled runs, are garbage-collected by the provider; each pod carries its `chamvi.dev/deployment` (`CHAMVI_DEPLOYMENT`), so deployments sharing a namespace leave each other's pods alone. Run the pods in their own namespace and give chamvi's service account this Role there:
+Expired, failed and finished sandbox pods, and the pods of settled runs, are garbage-collected by the provider; each pod carries its `chamvi.dev/deployment` (`DEPLOYMENT`), so deployments sharing a namespace leave each other's pods alone. Run the pods in their own namespace and give chamvi's service account this Role there:
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -70,13 +70,13 @@ rules:
   - apiGroups: [""]
     resources: ["pods/exec"]
     verbs: ["get", "create"]
-  # only with CHAMVI_SANDBOX_PERSISTENCE=true
+  # only with SANDBOX_PERSISTENCE=true
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
     verbs: ["create", "get", "list", "delete"]
 ```
 
-`pods/exec` needs both `get` (the exec WebSocket opens with a GET) and `create` (API servers with the WebSocket-upgrade authorization change). With `CHAMVI_SANDBOX_PERSISTENCE=true` every workspace keeps `/workspace` and its home on a claim of its own (`CHAMVI_SANDBOX_STORAGE_CLASS`, else the cluster's default class), so the pod of a run waiting for an approval can be deleted and rebuilt on resume ([waiting runs](/guide/workspaces#waiting-runs)).
+`pods/exec` needs both `get` (the exec WebSocket opens with a GET) and `create` (API servers with the WebSocket-upgrade authorization change). With `SANDBOX_PERSISTENCE=true` every workspace keeps `/workspace` and its home on a claim of its own (`SANDBOX_STORAGE_CLASS`, else the cluster's default class), so the pod of a run waiting for an approval can be deleted and rebuilt on resume ([waiting runs](/guide/workspaces#waiting-runs)).
 
 ::: danger NetworkPolicy required
 Without an enforced NetworkPolicy a workspace pod can reach cluster services, including the chamvi API and its database, and cloud metadata. Keep the chart's sandbox egress policy enabled and use a network plugin that enforces it. If the chart policy is disabled or unavailable, including when deploying sandbox pods without the chart, add an equivalent policy selecting `app.kubernetes.io/component=sandbox` that restricts egress to the required DNS and public HTTPS destinations and blocks access to the chamvi namespace and `169.254.169.254`.

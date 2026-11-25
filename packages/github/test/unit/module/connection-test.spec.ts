@@ -52,7 +52,7 @@ async function serve(modules: IModule[], agents: Agent[] = []): Promise<{ call: 
     const logger = createRecordingLogger();
     const harness = await createModuleHarness({
         env: {
-            CHAMVI_TOKENS: TOKENS,
+            TOKENS,
             HOST: '127.0.0.1',
             PORT: String(port),
         },

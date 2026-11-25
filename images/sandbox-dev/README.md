@@ -45,7 +45,7 @@ Git's workspace credential helper does not automatically authenticate `gh`. Conf
 
 ## Other images
 
-A run may ask for another image (`create_workspace({ image })`) only from the operator's allow-list (`allowImage`, `CHAMVI_SANDBOX_IMAGES`); the providers replace its entrypoint. The providers need `sh`, `git` and a GNU `timeout` that takes `-k` in it, plus `cat`, `head`, `mkdir`, `dirname`, `cp`, `mv` and `rm`; `create` probes the first three and fails with a message naming what is missing, before any checkout.
+A run may ask for another image (`create_workspace({ image })`) only from the operator's allow-list (`allowImage`, `SANDBOX_IMAGES`); the providers replace its entrypoint. The providers need `sh`, `git` and a GNU `timeout` that takes `-k` in it, plus `cat`, `head`, `mkdir`, `dirname`, `cp`, `mv` and `rm`; `create` probes the first three and fails with a message naming what is missing, before any checkout.
 
 ## Tags
 

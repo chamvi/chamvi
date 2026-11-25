@@ -126,12 +126,12 @@ A send is one `POST /channels/<channel or thread>/messages` with the body `{ con
 
 | Variable | Field | |
 |---|---|---|
-| `CHAMVI_DISCORD_TOKEN` (`_FILE`) | Bot token | Required, a secret |
-| `CHAMVI_DISCORD_APPLICATION_ID` | Application id | Required |
-| `CHAMVI_DISCORD_GUILDS`, `_CHANNELS`, `_USERS`, `_ROLES`, `_DM_USERS` | The policy | Comma-separated Discord ids; empty `_DM_USERS` turns direct messages off |
-| `CHAMVI_DISCORD_REQUIRE_MENTION` | Require mention | `true`, `false`, `1`, `0`; default `true` |
+| `DISCORD_TOKEN` (`_FILE`) | Bot token | Required, a secret |
+| `DISCORD_APPLICATION_ID` | Application id | Required |
+| `DISCORD_GUILDS`, `_CHANNELS`, `_USERS`, `_ROLES`, `_DM_USERS` | The policy | Comma-separated Discord ids; empty `_DM_USERS` turns direct messages off |
+| `DISCORD_REQUIRE_MENTION` | Require mention | `true`, `false`, `1`, `0`; default `true` |
 
-A module with `name` (the connection, channel, account and env prefix; default `discord`) reads `CHAMVI_DISCORD_<NAME>_*` (upper-cased, `-` as `_`). The names `dm` and `*-dm` are refused, since `<NAME>_USERS` would be another instance's `DM_USERS`. Code options win over env and the store, and a given `policy` fixes all its fields. A partial env fails the start naming the missing variable; nothing set starts an idle channel, which [`chatDiscordUiModule()`](/guide/ui#connection-pages) can configure. Saved values apply after a restart.
+A module with `name` (the connection, channel, account and env prefix; default `discord`) reads `DISCORD_<NAME>_*` (upper-cased, `-` as `_`). The names `dm` and `*-dm` are refused, since `<NAME>_USERS` would be another instance's `DM_USERS`. Code options win over env and the store, and a given `policy` fixes all its fields. A partial env fails the start naming the missing variable; nothing set starts an idle channel, which [`chatDiscordUiModule()`](/guide/ui#connection-pages) can configure. Saved values apply after a restart.
 
 ## What is not guaranteed
 

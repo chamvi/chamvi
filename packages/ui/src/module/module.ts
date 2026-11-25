@@ -49,9 +49,9 @@ export class UiModule implements IModule {
 }
 
 /**
- * The dashboard module (`/ui` under `CHAMVI_BASE_PATH`). Reads `AUTHUP_URL`
- * (which turns the authup login on), `CHAMVI_UI_AUTHUP_CLIENT_ID` (default
- * `chamvi`), `CHAMVI_UI_AUTHUP_REALM_ID` and `AUTHUP_REALM` (default `master`)
+ * The dashboard module (`/ui` under `BASE_PATH`). Reads `AUTHUP_URL`
+ * (which turns the authup login on), `AUTHUP_CLIENT_ID` (default
+ * `chamvi`) and `AUTHUP_REALM` (default `master`)
  * from `options.env ?? process.env` now, unless `auth` is given.
  */
 export function uiModule(options?: UiModuleOptions): IModule {

@@ -32,7 +32,7 @@ export async function isEmptyDirectory(path: string): Promise<boolean> {
 }
 
 /**
- * The agents dir a lifecycle loads, absolute: `dir` (CHAMVI_AGENTS_DIR)
+ * The agents dir a lifecycle loads, absolute: `dir` (AGENTS_DIR)
  * resolved against `cwd` whether it exists or not (a dir named explicitly
  * must exist, checked by the caller), else `./agents` when that is a
  * directory, else undefined.

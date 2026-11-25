@@ -20,12 +20,12 @@ function fail(message: string): never {
     throw new InvalidAgentDefinitionError(message);
 }
 
-/** `CHAMVI_MAIL_<ID>_<field>`: the id upper-cased, `-` as `_`. */
+/** `MAIL_<ID>_<field>`: the id upper-cased, `-` as `_`. */
 export function variableOf(id: string, field: string): string {
     return `${MAIL_VARIABLE_PREFIX}${id.toUpperCase().replaceAll('-', '_')}_${field}`;
 }
 
-/** One entry of `CHAMVI_MAIL_ACCOUNTS` as an account; its fields are checked by `normalizeAccount`. */
+/** One entry of `MAIL_ACCOUNTS` as an account; its fields are checked by `normalizeAccount`. */
 function accountOf(env: Env, entry: unknown, at: string, ids: Set<string>): MailEnvAccount {
     if (!isObject(entry)) {
         return fail(`${at} must be an object.`);
@@ -84,10 +84,10 @@ function accountOf(env: Env, entry: unknown, at: string, ids: Set<string>): Mail
 }
 
 /**
- * The accounts of `CHAMVI_MAIL_ACCOUNTS` (`[{ id?, address, host, port?,
+ * The accounts of `MAIL_ACCOUNTS` (`[{ id?, address, host, port?,
  * security?, folders?, gmail?, smtp?: { host, port?, security? } }]`) with their credentials from
- * `CHAMVI_MAIL_<ID>_USER` (default the address) and
- * `CHAMVI_MAIL_<ID>_PASSWORD`, each also from a `_FILE` variant; undefined
+ * `MAIL_<ID>_USER` (default the address) and
+ * `MAIL_<ID>_PASSWORD`, each also from a `_FILE` variant; undefined
  * without the variable. A password in neither env nor store fails in `setup`.
  * The id defaults to the address with `@`
  * and `.` as `-`. Errors are InvalidAgentDefinitionErrors naming the

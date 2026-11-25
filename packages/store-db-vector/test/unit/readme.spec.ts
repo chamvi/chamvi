@@ -85,9 +85,9 @@ describePostgres('README example on PostgreSQL', () => {
         await app.start({
             env: {
                 HOST: '127.0.0.1',
-                CHAMVI_LOG_LEVEL: 'error',
+                LOG_LEVEL: 'error',
                 PORT: String(await freePort()),
-                CHAMVI_TOKENS: JSON.stringify([{
+                TOKENS: JSON.stringify([{
                     value: 'a-static-token-of-length',
                     id: 'ops',
                     permissions: '*',

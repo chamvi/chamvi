@@ -47,13 +47,13 @@ const port = await new Promise((resolve) => {
 const env = {
     HOST: '127.0.0.1',
     PORT: String(port),
-    CHAMVI_TOKENS: JSON.stringify([{
+    TOKENS: JSON.stringify([{
         value: 'x'.repeat(32),
         id: 'ops',
         permissions: '*',
     }]),
-    CHAMVI_LOG_LEVEL: 'error',
-    CHAMVI_DRAIN_TIMEOUT_MS: '1000',
+    LOG_LEVEL: 'error',
+    DRAIN_TIMEOUT_MS: '1000',
 };
 
 const checked = await createApp({ agents: [echo] }).check({ env });

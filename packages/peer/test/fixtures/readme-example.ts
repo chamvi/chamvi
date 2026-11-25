@@ -14,7 +14,7 @@ export function createPeers(options: { clock?: IClock; fetch?: typeof fetch } = 
             dev: {
                 // the peer's public URL: its origin plus its basePath
                 url: 'https://dev.example',
-                // the bearer this app sends to dev (a static token of dev's CHAMVI_TOKENS)
+                // the bearer this app sends to dev (a static token of dev's TOKENS)
                 outgoing: { token: CHAMVI_PEER_DEV_TOKEN },
                 // dev calls this app as the static token principal "peer-dev"
                 incoming: { token: 'peer-dev' },

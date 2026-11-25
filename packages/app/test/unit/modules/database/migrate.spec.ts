@@ -126,7 +126,7 @@ async function envFor(url: string, extra: Record<string, string> = {}): Promise<
     return {
         HOST: '127.0.0.1',
         PORT: String(await freePort()),
-        CHAMVI_TOKENS: TOKENS,
+        TOKENS,
         DATABASE_URL: url,
         ...extra,
     };
@@ -202,14 +202,14 @@ describePostgres('databaseModule on PostgreSQL', () => {
         expect(await rowsOf(await admin(url), 'notes_migrations')).toEqual(['Init1795000000000']);
     });
 
-    it('CHAMVI_MIGRATE=false with a pending migration fails the start', async () => {
+    it('MIGRATE=false with a pending migration fails the start', async () => {
         const url = await createTestDatabaseUrl();
         const { app, logger } = build([databaseModule(notesDatabase())]);
 
-        const error = await rejectionOf(app.start({ env: await envFor(url, { CHAMVI_MIGRATE: 'false' }) }));
+        const error = await rejectionOf(app.start({ env: await envFor(url, { MIGRATE: 'false' }) }));
 
         expect(error).toMatchObject({ code: APP_ERROR_CODE.STORE_NOT_MIGRATED });
-        expect(error.message).toBe('The database "default" has 1 pending migration(s); run chamvi migrate or set CHAMVI_MIGRATE=true.');
+        expect(error.message).toBe('The database "default" has 1 pending migration(s); run chamvi migrate or set MIGRATE=true.');
         expect(inspect(error, { depth: 10 })).not.toContain(url);
         expect(logger.lines.join('\n')).not.toContain(new URL(url).password);
         expect(await tableExists(await admin(url), 'notes_migrations')).toBe(false);
@@ -246,9 +246,9 @@ describePostgres('databaseModule on PostgreSQL', () => {
     });
 
     for (const migrate of ['false', 'true']) {
-        it(`a check with pending migrations writes nothing (CHAMVI_MIGRATE=${migrate})`, async () => {
+        it(`a check with pending migrations writes nothing (MIGRATE=${migrate})`, async () => {
             const url = await createTestDatabaseUrl();
-            const env = await envFor(url, { CHAMVI_MIGRATE: migrate });
+            const env = await envFor(url, { MIGRATE: migrate });
             const check = await admin(url);
             const tablesBefore = await check.query('SELECT count(*)::int AS n FROM pg_tables WHERE schemaname = \'public\'') as Array<{ n: number }>;
 
@@ -276,7 +276,7 @@ describePostgres('databaseModule on PostgreSQL', () => {
 
         const { app } = build([databaseModule(notesDatabase())]);
 
-        await expect(app.check({ env: await envFor(url, { CHAMVI_MIGRATE: 'false' }) })).resolves.toEqual({ issues: [] });
+        await expect(app.check({ env: await envFor(url, { MIGRATE: 'false' }) })).resolves.toEqual({ issues: [] });
     });
 
     it('two database modules keep separate tables and locks', async () => {
@@ -315,7 +315,7 @@ describePostgres('databaseModule on PostgreSQL', () => {
     it('a migration class without a timestamp in its name is a configuration error with TypeORM\'s message', async () => {
         const url = await createTestDatabaseUrl();
 
-        for (const env of [{}, { CHAMVI_MIGRATE: 'false' }] as Array<Record<string, string>>) {
+        for (const env of [{}, { MIGRATE: 'false' }] as Array<Record<string, string>>) {
             const { app } = build([databaseModule(notesDatabase({ migrations: [Misnamed] }))]);
             const error = await rejectionOf(app.start({ env: await envFor(url, env) }));
 

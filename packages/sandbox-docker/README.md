@@ -84,7 +84,7 @@ Each workspace is a container `chamvi-ws-<id>`:
 
 The default image is `ghcr.io/chamvi/sandbox-dev:trixie` (`DEFAULT_SANDBOX_IMAGE`): Debian, git, curl, ripgrep, jq, build-essential, `tini` and [mise](https://mise.jdx.dev), which installs any toolchain at runtime (`mise use -g node@26`, `mise install`), built for `linux/amd64` and `linux/arm64` from [`images/sandbox-dev`](../../images/sandbox-dev). Tags: `trixie` (rebuilt on changes and weekly) and `trixie-<short sha>` (pushed once per commit that changes the image).
 
-- A run may pick an image (`create_workspace({ image })`) only when the manager has an allow-list (`allowImage`, or `CHAMVI_SANDBOX_IMAGES` in `sandboxModule()`); without one the tool has no `image` parameter.
+- A run may pick an image (`create_workspace({ image })`) only when the manager has an allow-list (`allowImage`, or `SANDBOX_IMAGES` in `sandboxModule()`); without one the tool has no `image` parameter.
 - `pull: 'missing'` (default) pulls an image once when the daemon lacks it, `'always'` before every create (a mutable tag then follows its rebuilds), `'never'` never. It covers every image: the provider's, the manager's `image` and one a run asked for (`create_workspace({ image })`).
 - Pin a digest in production (`image: 'ghcr.io/chamvi/sandbox-dev@sha256:...'`), or use `pull: 'always'`.
 - The image's entrypoint is replaced, so an image whose entrypoint is a command (`["git"]`) works too.
@@ -137,7 +137,7 @@ A create's `signal` (aborted by `release(runId)` and `manager.close()`) drops it
 | `user` | `string` | `'0:0'` | The container user (`uid:gid` or a name); a non-root user gets no capability |
 | `readOnlyRoot` | `boolean` | `false` | A read-only root filesystem |
 | `cache` | `{ volume: string }` | none (an anonymous volume per workspace) | A named `/cache` volume shared by every workspace (`false` and `{}` are refused) |
-| `suspend` | `boolean` | `false` | Stop the containers of long-waiting runs in the collection (`CHAMVI_SANDBOX_DOCKER_SUSPEND` with `sandboxModule()`) |
+| `suspend` | `boolean` | `false` | Stop the containers of long-waiting runs in the collection (`SANDBOX_DOCKER_SUSPEND` with `sandboxModule()`) |
 | `tmpSize` | `string` | `'1Gi'` | Size of the `/tmp` tmpfs |
 | `clock` | `IClock` | `systemClock` | Expiry and the exec guard |
 

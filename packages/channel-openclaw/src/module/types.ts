@@ -10,7 +10,7 @@ import type { OpenclawChannelOptions } from '../channel/types.ts';
 
 /**
  * `openclawChannel()` options; the ones not given come from env,
- * `approvalUrl` defaults to the UI link from `CHAMVI_PUBLIC_URL`, `clock` to
+ * `approvalUrl` defaults to the UI link from `PUBLIC_URL`, `clock` to
  * the app's.
  */
 export type OpenclawModuleOptions = Partial<OpenclawChannelOptions> & {

@@ -75,7 +75,7 @@ function build(agents: Agent[], modules: IModule[] = []) {
         clock,
         logger,
         store,
-        env: { CHAMVI_DRAIN_TIMEOUT_MS: String(DRAIN_MS) },
+        env: { DRAIN_TIMEOUT_MS: String(DRAIN_MS) },
     };
 }
 
@@ -254,7 +254,7 @@ describe('App.runJob', () => {
             apps.push(app);
 
             const error = await rejectionOf(app.runJob({
-                env: { CHAMVI_DRAIN_TIMEOUT_MS: String(DRAIN_MS), CHAMVI_AGENTS_DIR: dir.path },
+                env: { DRAIN_TIMEOUT_MS: String(DRAIN_MS), AGENTS_DIR: dir.path },
                 agent: 'greeter',
             }));
 

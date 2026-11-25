@@ -62,7 +62,7 @@ async function serve(dav: FakeCalDav): Promise<(method: string, path: string, bo
     const port = await freePort();
     const harness = await createModuleHarness({
         env: {
-            CHAMVI_TOKENS: JSON.stringify([{
+            TOKENS: JSON.stringify([{
                 value: TOKEN,
                 id: 'ops',
                 permissions: '*',

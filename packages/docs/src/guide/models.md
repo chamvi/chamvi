@@ -7,7 +7,7 @@ An agent names its model as `'<provider>/<model id>'`, or names none and uses th
 One provider, one model for every agent:
 
 ```bash
-CHAMVI_MODEL=anthropic/claude-sonnet-5-5
+MODEL=anthropic/claude-sonnet-5-5
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
@@ -16,7 +16,7 @@ npm install @ai-sdk/anthropic   # the provider package: an optional peer of @cha
 npx chamvi start --check        # checks it before you start
 ```
 
-`ANTHROPIC_API_KEY` creates a provider named `anthropic`; `CHAMVI_MODEL` makes `anthropic/claude-sonnet-5-5` the default of every agent without a `model`.
+`ANTHROPIC_API_KEY` creates a provider named `anthropic`; `MODEL` makes `anthropic/claude-sonnet-5-5` the default of every agent without a `model`.
 
 ## Model references
 
@@ -25,11 +25,11 @@ A `ModelRef` is a string or an AI SDK `LanguageModel` object:
 - `'anthropic/claude-sonnet-5-5'`: provider `anthropic`, model `claude-sonnet-5-5`. The string is split at the **first** `/`, so `'router/cc/claude-opus-4-6'` is provider `router`, model `cc/claude-opus-4-6` (routers such as 9router and OmniRoute use ids like that).
 - `anthropic('claude-sonnet-5-5')` from `@ai-sdk/anthropic`, or any other `LanguageModel`: used as is, no provider settings involved.
 
-An agent's `model` is optional. Without it the agent takes the app default (`CHAMVI_MODEL`, the config file's `model` or `createApp({ model })`). The engine checks every model agent when it is registered (a [simple agent](/guide/dispatch#simple-agents) has no model and skips the check): an agent with no model and no default, or a string naming a provider that is not configured, fails `start` for an agent passed in code (`createApp({ agents })`; `chamvi start` exits 2) and becomes a load issue for a [folder agent](/guide/agent-folders), which is then not registered:
+An agent's `model` is optional. Without it the agent takes the app default (`MODEL`, the config file's `model` or `createApp({ model })`). The engine checks every model agent when it is registered (a [simple agent](/guide/dispatch#simple-agents) has no model and skips the check): an agent with no model and no default, or a string naming a provider that is not configured, fails `start` for an agent passed in code (`createApp({ agents })`; `chamvi start` exits 2) and becomes a load issue for a [folder agent](/guide/agent-folders), which is then not registered:
 
 ```
-Agent "triage" has no model and the engine sets no default (EngineOptions.model; CHAMVI_MODEL in @chamvi/app).
-Agent "triage" uses provider "team-a", which is not configured. Set CHAMVI_PROVIDER_TEAM_A_TYPE and CHAMVI_PROVIDER_TEAM_A_API_KEY, or declare it in chamvi.json.
+Agent "triage" has no model and the engine sets no default (EngineOptions.model; MODEL in @chamvi/app).
+Agent "triage" uses provider "team-a", which is not configured. Set PROVIDER_TEAM_A_TYPE and PROVIDER_TEAM_A_API_KEY, or declare it in chamvi.json.
 ```
 
 ## Providers
@@ -78,10 +78,10 @@ A bare provider variable in the app's env creates a provider named after its typ
 Each named provider has its own credentials, so agents meant to be separated never share a key by accident:
 
 ```bash
-CHAMVI_PROVIDER_TEAM_A_TYPE=anthropic
-CHAMVI_PROVIDER_TEAM_A_API_KEY=sk-ant-...
-CHAMVI_PROVIDER_TEAM_B_TYPE=anthropic
-CHAMVI_PROVIDER_TEAM_B_API_KEY=sk-ant-...
+PROVIDER_TEAM_A_TYPE=anthropic
+PROVIDER_TEAM_A_API_KEY=sk-ant-...
+PROVIDER_TEAM_B_TYPE=anthropic
+PROVIDER_TEAM_B_API_KEY=sk-ant-...
 ```
 
 An agent with `model: 'team-a/claude-opus-4-6'` uses the first key, one with `'team-b/claude-opus-4-6'` the second. Provider names follow the agent-name rule (`^[a-z0-9]+(-[a-z0-9]+)*$`); in variables the name is upper snake case (`team-a` is `TEAM_A`, `a1` is `A1`).
@@ -91,23 +91,23 @@ An agent with `model: 'team-a/claude-opus-4-6'` uses the first key, one with `'t
 Self-hosted routers and servers speak the OpenAI API: declare them as `openai-compatible` with their base URL. That covers 9router and OmniRoute (both serve `http://<host>:20128/v1`), Ollama, vLLM, LiteLLM and OpenRouter.
 
 ```bash
-CHAMVI_PROVIDER_ROUTER_TYPE=openai-compatible
-CHAMVI_PROVIDER_ROUTER_BASE_URL=http://9router:20128/v1
-CHAMVI_PROVIDER_ROUTER_API_KEY=...                 # optional for openai-compatible
-CHAMVI_PROVIDER_ROUTER_HEADER_X_TEAM=a             # one variable per header: X_TEAM is x-team
-CHAMVI_MODEL=router/cc/claude-opus-4-6
+PROVIDER_ROUTER_TYPE=openai-compatible
+PROVIDER_ROUTER_BASE_URL=http://9router:20128/v1
+PROVIDER_ROUTER_API_KEY=...                 # optional for openai-compatible
+PROVIDER_ROUTER_HEADER_X_TEAM=a             # one variable per header: X_TEAM is x-team
+MODEL=router/cc/claude-opus-4-6
 ```
 
-The Vercel AI Gateway is the type `gateway`, used only when you declare a provider of it (`CHAMVI_PROVIDER_VERCEL_TYPE=gateway`, `CHAMVI_PROVIDER_VERCEL_API_KEY=...`, then `vercel/anthropic/claude-sonnet-5-5`).
+The Vercel AI Gateway is the type `gateway`, used only when you declare a provider of it (`PROVIDER_VERCEL_TYPE=gateway`, `PROVIDER_VERCEL_API_KEY=...`, then `vercel/anthropic/claude-sonnet-5-5`).
 
 ## Transcription models
 
 Voice messages are transcribed by an AI SDK transcription model, named like any other model (`'<provider>/<model id>'`). `openai-compatible` has no transcription models: a self-hosted speech-to-text server that speaks the OpenAI API (for example a Whisper server) is declared as `openai` with its base URL instead.
 
 ```bash
-CHAMVI_PROVIDER_STT_TYPE=openai
-CHAMVI_PROVIDER_STT_BASE_URL=http://whisper:8000/v1
-CHAMVI_PROVIDER_STT_API_KEY=...
+PROVIDER_STT_TYPE=openai
+PROVIDER_STT_BASE_URL=http://whisper:8000/v1
+PROVIDER_STT_API_KEY=...
 ```
 
 The model is then `stt/<id>` (for example `stt/whisper-1`). A provider without a transcription model of that id is refused with `Provider "stt" offers no transcription model "<id>".`
@@ -123,7 +123,7 @@ The model is then `stt/<id>` (for example `stt/whisper-1`). A provider without a
 
 ## The config file
 
-`chamvi.json` in the working directory is read when it exists; `CHAMVI_CONFIG_FILE` names another one (then it must exist). JSON only:
+`chamvi.json` in the working directory is read when it exists; `CONFIG_FILE` names another one (then it must exist). JSON only:
 
 ```json
 {
@@ -146,20 +146,20 @@ The file is meant to be committed, so it refuses a literal `apiKey` and a litera
 
 Sources, highest first: **env**, then **the config file**, then **`createApp()` code**. `createApp({ models })` wins over all of them for its ids.
 
-- The default model follows the same order: a code default (`createApp({ model })`) is overridden by the file's `model`, both by `CHAMVI_MODEL`.
-- Providers merge **per name and per field**: code or the file declares `router` with its `type` and `baseURL`, the deployment supplies only `CHAMVI_PROVIDER_ROUTER_API_KEY`.
+- The default model follows the same order: a code default (`createApp({ model })`) is overridden by the file's `model`, both by `MODEL`.
+- Providers merge **per name and per field**: code or the file declares `router` with its `type` and `baseURL`, the deployment supplies only `PROVIDER_ROUTER_API_KEY`.
 - A higher source that sets another `type` than a lower one replaces that provider wholesale, never a mix of two types.
-- A `CHAMVI_PROVIDER_<NAME>_*` variable without `_TYPE` is valid only when another source declares `<name>`; otherwise it is an error naming the missing `_TYPE` (a typo in the name shows up at once).
+- A `PROVIDER_<NAME>_*` variable without `_TYPE` is valid only when another source declares `<name>`; otherwise it is an error naming the missing `_TYPE` (a typo in the name shows up at once).
 - A declared provider replaces the implicit one of its name (see [Implicit providers](#implicit-providers)).
 
 | Variable | Value |
 |---|---|
-| `CHAMVI_MODEL` | The default model, `'<provider>/<model id>'` |
-| `CHAMVI_CONFIG_FILE` | The config file, relative to the working directory or absolute; unset, `./chamvi.json` when it exists |
-| `CHAMVI_PROVIDER_<NAME>_TYPE` | The provider's type |
-| `CHAMVI_PROVIDER_<NAME>_API_KEY` | Its key |
-| `CHAMVI_PROVIDER_<NAME>_BASE_URL` | Its base URL |
-| `CHAMVI_PROVIDER_<NAME>_HEADER_<HEADER>` | One header (`X_TEAM` is `x-team`) |
+| `MODEL` | The default model, `'<provider>/<model id>'` |
+| `CONFIG_FILE` | The config file, relative to the working directory or absolute; unset, `./chamvi.json` when it exists |
+| `PROVIDER_<NAME>_TYPE` | The provider's type |
+| `PROVIDER_<NAME>_API_KEY` | Its key |
+| `PROVIDER_<NAME>_BASE_URL` | Its base URL |
+| `PROVIDER_<NAME>_HEADER_<HEADER>` | One header (`X_TEAM` is `x-team`) |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, ... | The [implicit providers](#implicit-providers) |
 
 ## Check before you deploy
@@ -174,12 +174,12 @@ npx chamvi build && npx chamvi start --check
 chamvi: start check passed
 ```
 
-It needs what a start needs (`CHAMVI_TOKENS`, the provider keys, `DATABASE_URL`), so run it in CI with the production or staging env. Exit codes:
+It needs what a start needs (`TOKENS`, the provider keys, `DATABASE_URL`), so run it in CI with the production or staging env. Exit codes:
 
 | Code | Means |
 |---|---|
 | `0` | Clean: `chamvi: start check passed` on stdout |
-| `1` | A runtime failure: the store is unreachable, or it has pending migrations and `CHAMVI_MIGRATE` is off (`store_not_migrated`) |
+| `1` | A runtime failure: the store is unreachable, or it has pending migrations and `MIGRATE` is off (`store_not_migrated`) |
 | `2` | A configuration error (a provider that is not configured, a missing key or authenticator, an agent passed in code on an unknown channel), or an agent folder with a load issue, each on its own stderr line |
 
 Errors name the variable to set, never a value. The same check is `await app.check({ env })` in code ([reference](/reference/app#createapp)), resolving `{ issues }`.

@@ -285,15 +285,15 @@ describePostgres('storeModule on Postgres', () => {
         await harness.stop();
     });
 
-    it('a start with CHAMVI_MIGRATE=false on an unmigrated database fails with store_not_migrated and writes nothing', async () => {
+    it('a start with MIGRATE=false on an unmigrated database fails with store_not_migrated and writes nothing', async () => {
         const url = await createTestDatabaseUrl();
-        const { harness } = build({ env: { DATABASE_URL: url, CHAMVI_MIGRATE: 'false' } });
+        const { harness } = build({ env: { DATABASE_URL: url, MIGRATE: 'false' } });
 
         const error = await harness.setup().then(() => undefined, (e: unknown) => e);
 
         expect(error).toMatchObject({ code: APP_ERROR_CODE.STORE_NOT_MIGRATED });
         expect((error as Error).message).toBe(
-            `The store has ${STORE_MIGRATIONS.length} pending migration(s); run chamvi migrate or set CHAMVI_MIGRATE=true.`,
+            `The store has ${STORE_MIGRATIONS.length} pending migration(s); run chamvi migrate or set MIGRATE=true.`,
         );
 
         const ds = await openAdmin(url);
@@ -306,14 +306,14 @@ describePostgres('storeModule on Postgres', () => {
         }
     });
 
-    it('a start with CHAMVI_MIGRATE=false on a migrated database starts without migrating', async () => {
+    it('a start with MIGRATE=false on a migrated database starts without migrating', async () => {
         const url = await createTestDatabaseUrl();
         const first = build({ env: { DATABASE_URL: url } });
 
         await first.harness.setup();
         await first.harness.stop();
 
-        const { harness } = build({ env: { DATABASE_URL: url, CHAMVI_MIGRATE: 'false' } });
+        const { harness } = build({ env: { DATABASE_URL: url, MIGRATE: 'false' } });
 
         await harness.setup();
 
@@ -463,13 +463,13 @@ describePostgres('storeModule on Postgres', () => {
 
     it('check mode on an unmigrated database fails with store_not_migrated and creates nothing', async () => {
         const url = await createTestDatabaseUrl();
-        const { harness } = build({ check: true, env: { DATABASE_URL: url, CHAMVI_MIGRATE: 'false' } });
+        const { harness } = build({ check: true, env: { DATABASE_URL: url, MIGRATE: 'false' } });
 
         const error = await harness.setup().then(() => undefined, (e: unknown) => e);
 
         expect(error).toMatchObject({ code: APP_ERROR_CODE.STORE_NOT_MIGRATED });
         expect((error as Error).message).toBe(
-            `The store has ${STORE_MIGRATIONS.length} pending migration(s); run chamvi migrate or set CHAMVI_MIGRATE=true.`,
+            `The store has ${STORE_MIGRATIONS.length} pending migration(s); run chamvi migrate or set MIGRATE=true.`,
         );
 
         const ds = await openAdmin(url);
@@ -482,9 +482,9 @@ describePostgres('storeModule on Postgres', () => {
         }
     });
 
-    it('check mode with CHAMVI_MIGRATE=true passes and migrates nothing', async () => {
+    it('check mode with MIGRATE=true passes and migrates nothing', async () => {
         const url = await createTestDatabaseUrl();
-        const { harness } = build({ check: true, env: { DATABASE_URL: url, CHAMVI_MIGRATE: 'true' } });
+        const { harness } = build({ check: true, env: { DATABASE_URL: url, MIGRATE: 'true' } });
 
         await harness.setup();
         await harness.stop();
@@ -499,7 +499,7 @@ describePostgres('storeModule on Postgres', () => {
         }
     });
 
-    it('start --check exits 1 on an old-schema database with CHAMVI_MIGRATE=true', async () => {
+    it('start --check exits 1 on an old-schema database with MIGRATE=true', async () => {
         const url = await createTestDatabaseUrl();
         const ds = await openAdmin(url);
 
@@ -509,7 +509,7 @@ describePostgres('storeModule on Postgres', () => {
             await closeAdmin();
         }
 
-        const { harness } = build({ check: true, env: { DATABASE_URL: url, CHAMVI_MIGRATE: 'true' } });
+        const { harness } = build({ check: true, env: { DATABASE_URL: url, MIGRATE: 'true' } });
 
         const error = await harness.setup().then(() => undefined, (e: unknown) => e);
 
@@ -517,7 +517,7 @@ describePostgres('storeModule on Postgres', () => {
         expect((error as Error).message).toContain('cannot be upgraded in place');
     });
 
-    it('a start with CHAMVI_MIGRATE=false refuses an old-schema database', async () => {
+    it('a start with MIGRATE=false refuses an old-schema database', async () => {
         const url = await createTestDatabaseUrl();
         const ds = await openAdmin(url);
 
@@ -527,7 +527,7 @@ describePostgres('storeModule on Postgres', () => {
             await closeAdmin();
         }
 
-        const { harness } = build({ env: { DATABASE_URL: url, CHAMVI_MIGRATE: 'false' } });
+        const { harness } = build({ env: { DATABASE_URL: url, MIGRATE: 'false' } });
 
         await expect(harness.setup()).rejects.toMatchObject({ code: 'store_legacy_schema' });
     });
@@ -539,7 +539,7 @@ describePostgres('storeModule on Postgres', () => {
         await first.harness.setup();
         await first.harness.stop();
 
-        const { harness } = build({ check: true, env: { DATABASE_URL: url, CHAMVI_MIGRATE: 'false' } });
+        const { harness } = build({ check: true, env: { DATABASE_URL: url, MIGRATE: 'false' } });
 
         await harness.setup();
         expect(harness.container.resolve(AppToken.RUN_REPOSITORY)).toBeInstanceOf(DatabaseRunRepository);

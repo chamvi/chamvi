@@ -17,7 +17,7 @@ import type { SchedulerModuleOptions } from './types.ts';
  * to `CHANNELS` in start and job mode, so `cron.on()` subscriptions
  * validate; `engine.start()` starts it (a job never starts channels, its
  * runJob fires the one subscription itself) and the drain stops it. With
- * `CHAMVI_SCHEDULER` off, start mode contributes a `cron` channel that
+ * `SCHEDULER` off, start mode contributes a `cron` channel that
  * fires nothing. `setup` also contributes the folder agents' cron check
  * (`AGENT_CHECKS`).
  */

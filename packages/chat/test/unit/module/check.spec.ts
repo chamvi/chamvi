@@ -101,7 +101,7 @@ describe('chatModule under start --check', () => {
 
         apps.push(app);
 
-        await expect(app.check({ env: { CHAMVI_TOKENS: TOKENS, PORT: '4999' } })).resolves.toEqual({ issues: [] });
+        await expect(app.check({ env: { TOKENS, PORT: '4999' } })).resolves.toEqual({ issues: [] });
 
         expect(adapter.initializeCalls).toBe(0);
         expect(adapter.chat).toBeUndefined();

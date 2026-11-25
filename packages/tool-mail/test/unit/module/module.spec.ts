@@ -84,7 +84,7 @@ function envOf(port: number): Record<string, string> {
             port,
             security: 'plain',
         }]),
-        CHAMVI_MAIL_WORK_PASSWORD: PASSWORD,
+        MAIL_WORK_PASSWORD: PASSWORD,
     };
 }
 

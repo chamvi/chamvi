@@ -6,7 +6,7 @@ import { lookupIssue } from './tools/lookup-issue.ts';
 
 export default defineModelAgent({
     name: 'triage',
-    // no model: the app's default (CHAMVI_MODEL or createApp({ model }))
+    // no model: the app's default (MODEL or createApp({ model }))
     // read on every load, so an edit of prompt.md reloads the agent like any other file
     instructions: readFileSync(new URL('./prompt.md', import.meta.url), 'utf8'),
     tools: { lookup_issue: lookupIssue },

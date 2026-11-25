@@ -98,8 +98,8 @@ for (const agent of ['built-greeter', 'source-greeter']) {
     const result = await app.runJob({
         agent,
         env: {
-            CHAMVI_DRAIN_TIMEOUT_MS: '1000',
-            CHAMVI_LOG_LEVEL: 'error',
+            DRAIN_TIMEOUT_MS: '1000',
+            LOG_LEVEL: 'error',
         },
     });
     const steps = result.runId ? await engine.stepService.find(result.runId) : [];

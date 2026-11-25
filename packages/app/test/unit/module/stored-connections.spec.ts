@@ -165,7 +165,7 @@ describe('readStoredConnections()', () => {
         expect(logLines.join('\n')).not.toContain(SECRET);
     });
 
-    it('marks a row with stored secrets unreadable without CHAMVI_ENCRYPTION_KEYS, naming the variable', async () => {
+    it('marks a row with stored secrets unreadable without ENCRYPTION_KEYS, naming the variable', async () => {
         const store = createTestStore();
 
         await seed(store, 'mail-home', 'mail');
@@ -176,24 +176,24 @@ describe('readStoredConnections()', () => {
         expect(row).toMatchObject({
             name: 'mail-home',
             values: { host: 'h' },
-            unreadable: { secrets: ['password'], reason: expect.stringContaining('CHAMVI_ENCRYPTION_KEYS') },
+            unreadable: { secrets: ['password'], reason: expect.stringContaining('ENCRYPTION_KEYS') },
         });
     });
 
-    it('a malformed CHAMVI_ENCRYPTION_KEYS still fails, naming the connection and the variable', async () => {
+    it('a malformed ENCRYPTION_KEYS still fails, naming the connection and the variable', async () => {
         const store = createTestStore();
 
         await seed(store, 'mail-home', 'mail');
 
-        const harness = await harnessOf(store, { env: { CHAMVI_ENCRYPTION_KEYS: 'not-a-keyring' } });
+        const harness = await harnessOf(store, { env: { ENCRYPTION_KEYS: 'not-a-keyring' } });
         const error = await rejectionOf(readStoredConnections(harness.container, 'mail'));
 
         expect(error.message).toContain('mail-home');
-        expect(error.message).toContain('CHAMVI_ENCRYPTION_KEYS');
+        expect(error.message).toContain('ENCRYPTION_KEYS');
         expect(error.message).not.toContain('not-a-keyring');
     });
 
-    it('another configuration error of the read still fails without CHAMVI_ENCRYPTION_KEYS', async () => {
+    it('another configuration error of the read still fails without ENCRYPTION_KEYS', async () => {
         const store = createTestStore();
 
         await seed(store, 'mail-home', 'mail');

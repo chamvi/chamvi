@@ -8,7 +8,7 @@
 /** The authenticator entry's name. */
 export const STATIC_TOKENS_AUTHENTICATOR = 'static-tokens';
 
-/** The principal id of the token `dev` generates without CHAMVI_TOKENS. */
+/** The principal id of the token `dev` generates without TOKENS. */
 export const DEV_TOKEN_ID = 'dev';
 
 /** Random bytes of a generated dev token (base64url, 32 characters). */

@@ -53,7 +53,7 @@ const PASSWORD = 'app-specific-secret';
 
 const ENV = {
     [CALENDAR_ACCOUNTS_VARIABLE]: JSON.stringify([{ url: FAKE_CALDAV_URL, address: 'me@icloud.com' }]),
-    CHAMVI_CALENDAR_ME_ICLOUD_COM_PASSWORD: PASSWORD,
+    CALENDAR_ME_ICLOUD_COM_PASSWORD: PASSWORD,
 };
 
 const harnesses: ModuleHarness[] = [];
@@ -185,10 +185,10 @@ describe('toolCalendarModule()', () => {
         expect(harness.reported).toEqual([]);
     });
 
-    it('gives event times in CHAMVI_CALENDAR_TIMEZONE', async () => {
+    it('gives event times in CALENDAR_TIMEZONE', async () => {
         const server = fake();
         const harness = await harnessOf(toolCalendarModule({
-            env: { ...ENV, CHAMVI_CALENDAR_TIMEZONE: 'UTC' },
+            env: { ...ENV, CALENDAR_TIMEZONE: 'UTC' },
             fetch: server.fetch,
             timezone: 'America/New_York',
         }), { agents: [plannerAgent()] });
@@ -310,8 +310,8 @@ describe('toolCalendarModule()', () => {
 
     it('checks the env when the factory is called, never echoing a password', () => {
         expect(() => toolCalendarModule({ env: { [CALENDAR_ACCOUNTS_VARIABLE]: '{' } })).toThrow(InvalidAgentDefinitionError);
-        expect(() => toolCalendarModule({ env: { [CALENDAR_ACCOUNTS_VARIABLE]: JSON.stringify([{ url: 'ftp://x.test', address: 'me@icloud.com' }]) } })).toThrow(/CHAMVI_CALENDAR_ACCOUNTS/);
-        expect(() => toolCalendarModule({ env: { CHAMVI_CALENDAR_TIMEZONE: 'Mars/Olympus' } })).toThrow(/CHAMVI_CALENDAR_TIMEZONE/);
+        expect(() => toolCalendarModule({ env: { [CALENDAR_ACCOUNTS_VARIABLE]: JSON.stringify([{ url: 'ftp://x.test', address: 'me@icloud.com' }]) } })).toThrow(/CALENDAR_ACCOUNTS/);
+        expect(() => toolCalendarModule({ env: { CALENDAR_TIMEZONE: 'Mars/Olympus' } })).toThrow(/CALENDAR_TIMEZONE/);
         expect(() => toolCalendarModule({ timezone: 'Mars/Olympus' })).toThrow(InvalidAgentDefinitionError);
         expect(() => toolCalendarModule({ fetch: 'nope' as unknown as typeof fetch })).toThrow(InvalidAgentDefinitionError);
         expect(() => toolCalendarModule('nope' as never)).toThrow(InvalidAgentDefinitionError);

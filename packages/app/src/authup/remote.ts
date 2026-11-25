@@ -12,7 +12,7 @@ import type { ITokenVerifier } from '@authup/server-adapter-kit';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { envString, envUrl } from '../env/module.ts';
 import { readAuthupRealm } from '../module/helpers/ui-auth.ts';
-import { AUTHUP_CLIENT_ID_DEFAULT } from './constants.ts';
+import { AUTHUP_SERVER_CLIENT_ID_DEFAULT } from './constants.ts';
 import type { AuthupModuleOptions } from './types.ts';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -44,8 +44,8 @@ export function once<T>(load: () => Promise<T>): () => Promise<T> {
 
 /**
  * The authup server of `AUTHUP_URL` (options win), reached as the client
- * `AUTHUP_CLIENT_ID` (default `chamvi-server`) of the realm `AUTHUP_REALM`
- * (default `master`) with `AUTHUP_CLIENT_SECRET`: the remote token verifier,
+ * `AUTHUP_SERVER_CLIENT_ID` (default `chamvi-server`) of the realm `AUTHUP_REALM`
+ * (default `master`) with `AUTHUP_SERVER_CLIENT_SECRET`: the remote token verifier,
  * the permission catalog, the client's own realm and the id of a client by name.
  * The catalog is read fresh on every call (the authenticator caches it); the
  * realm is introspected once.
@@ -60,8 +60,8 @@ export function createAuthupRemote(options: AuthupModuleOptions): {
 } {
     const env = options.env ?? process.env;
     const url = options.url ?? envUrl(env, 'AUTHUP_URL', { required: true, protocols: ['http:', 'https:'] });
-    const id = options.clientId ?? envString(env, 'AUTHUP_CLIENT_ID') ?? AUTHUP_CLIENT_ID_DEFAULT;
-    const secret = options.clientSecret ?? envString(env, 'AUTHUP_CLIENT_SECRET', { required: true });
+    const id = options.clientId ?? envString(env, 'AUTHUP_SERVER_CLIENT_ID') ?? AUTHUP_SERVER_CLIENT_ID_DEFAULT;
+    const secret = options.clientSecret ?? envString(env, 'AUTHUP_SERVER_CLIENT_SECRET', { required: true });
     const realm = options.clientRealm ?? readAuthupRealm(env);
 
     const client = new Client({ baseURL: url });

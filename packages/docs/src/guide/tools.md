@@ -139,7 +139,7 @@ defineModelAgent({
 
 <<< @/snippets/tool-utils.ts#agent
 
-A model has no clock: tell it in the instructions to call `current_time` before using a relative date such as "today" or "next Friday". Dates are read in `timezone`, else `CHAMVI_TIMEZONE`, else UTC.
+A model has no clock: tell it in the instructions to call `current_time` before using a relative date such as "today" or "next Friday". Dates are read in `timezone`, else `TIMEZONE`, else UTC.
 
 ## Mail and calendar tools
 
@@ -159,7 +159,7 @@ Writing, next to the mail write tools:
 
 Every read tool declares `trust: { taint: true }`: mails and invites are written by other people. A failed request is a tool error with code `mail_request` or `calendar_request` and a generic message naming the tool and the account, never the server's text or a credential.
 
-In an app, `toolMailModule()` and `toolCalendarModule()` read the accounts from `CHAMVI_MAIL_ACCOUNTS` and `CHAMVI_CALENDAR_ACCOUNTS` with one `..._<ID>_PASSWORD` (or `..._PASSWORD_FILE`) per account and provide one client on the engine, so agents use `mailTools()` and `calendarTools()` without accounts (see [Apps & Modules](/guide/app#modules)).
+In an app, `toolMailModule()` and `toolCalendarModule()` read the accounts from `MAIL_ACCOUNTS` and `CALENDAR_ACCOUNTS` with one `..._<ID>_PASSWORD` (or `..._PASSWORD_FILE`) per account and provide one client on the engine, so agents use `mailTools()` and `calendarTools()` without accounts (see [Apps & Modules](/guide/app#modules)).
 
 The tool results stay in the run store: the steps and checkpoints hold the mails and events the model read, and its answer is derived from them. Whoever reads the agent's runs (the dashboard, `GET /runs`, the run stream) reads them, so define such agents with `private: true`: only `chamvi_agent_read` for the agent then reads their runs and state (see [private agents](/guide/http#private-agents)).
 

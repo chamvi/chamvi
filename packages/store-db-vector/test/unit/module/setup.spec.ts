@@ -85,7 +85,7 @@ describePostgres('vectorStoreModule() setup on PostgreSQL', () => {
         pending.error = new storeDb.DatabaseOptionsError('the pending read failed');
 
         // with migrate on the base check counts nothing: the vector store's own read is the first
-        const error = await app.check({ env: { CHAMVI_MIGRATE: 'true' } }).then(() => undefined, (e: unknown) => e);
+        const error = await app.check({ env: { MIGRATE: 'true' } }).then(() => undefined, (e: unknown) => e);
 
         await expect.poll(() => sessionsOn(database)).toBe(0);
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);

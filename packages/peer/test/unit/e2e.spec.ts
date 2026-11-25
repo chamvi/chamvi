@@ -183,8 +183,8 @@ async function startSide(options: {
         env: {
             HOST: '127.0.0.1',
             PORT: String(options.port),
-            CHAMVI_PUBLIC_URL: url,
-            CHAMVI_TOKENS: options.tokens,
+            PUBLIC_URL: url,
+            TOKENS: options.tokens,
         },
     });
 

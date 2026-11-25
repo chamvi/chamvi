@@ -18,19 +18,19 @@ type KnowledgeModuleOptions = {
     collections?: readonly KnowledgeCollectionDefinition[];
     repository?: IKnowledgeCollectionRepository; // else a backend module's (vectorStoreModule()), else in memory, warned outside dev
     owner?: string;                     // the indexer's lock owner, default `${hostname}-${pid}`
-    embeddingModel?: string | EmbeddingModel; // managed collections' model; CHAMVI_KNOWLEDGE_MODEL wins
-    env?: Record<string, string | undefined>; // where CHAMVI_KNOWLEDGE_MODEL is read, default process.env
+    embeddingModel?: string | EmbeddingModel; // managed collections' model; KNOWLEDGE_MODEL wins
+    env?: Record<string, string | undefined>; // where KNOWLEDGE_MODEL is read, default process.env
     routes?: false;                     // contribute no knowledgeRoutes()
 };
 
-const KNOWLEDGE_MODEL_VARIABLE: 'CHAMVI_KNOWLEDGE_MODEL';
+const KNOWLEDGE_MODEL_VARIABLE: 'KNOWLEDGE_MODEL';
 const KNOWLEDGE_REPOSITORY_MODULE_NAME: 'chamvi:knowledge-repository';
 const KnowledgeToken: { REPOSITORY: TypedToken<IKnowledgeCollectionRepository> };
 ```
 
 A storage backend is a module named `KNOWLEDGE_REPOSITORY_MODULE_NAME` that registers its repository under `KnowledgeToken.REPOSITORY` in its `setup` (`vectorStoreModule()` of [`@chamvi/store-db-vector`](/guide/knowledge#storage)); the knowledge module depends on it optionally, so it sets up first, and a second one in an app fails as a duplicate module. `repository` wins over it.
 
-The options are checked and `CHAMVI_KNOWLEDGE_MODEL` is read when the factory is called; a variable that does not resolve through the app's providers fails the setup with an error naming it, never its value. In a start (not a check) the module contributes `knowledgeRoutes()` to the http app unless `routes: false`. `setup` (start, job and a check) builds `createKnowledge()` over the app's lock service (`AppToken.LOCK_SERVICE`), the app's model resolver (`AppToken.MODELS`) and clock, its errors logged as `knowledge error`; `onReady` runs `knowledge.check()`, so a folder that is no directory or a declared name the store holds as managed fails the boot and `start --check`. Only a start indexes (the `knowledge-managed` component starts it; it stops in the `stopping` phase, before the drain); the engine gets the knowledge provided, for `injectKnowledgeContext(ctx)`.
+The options are checked and `KNOWLEDGE_MODEL` is read when the factory is called; a variable that does not resolve through the app's providers fails the setup with an error naming it, never its value. In a start (not a check) the module contributes `knowledgeRoutes()` to the http app unless `routes: false`. `setup` (start, job and a check) builds `createKnowledge()` over the app's lock service (`AppToken.LOCK_SERVICE`), the app's model resolver (`AppToken.MODELS`) and clock, its errors logged as `knowledge error`; `onReady` runs `knowledge.check()`, so a folder that is no directory or a declared name the store holds as managed fails the boot and `start --check`. Only a start indexes (the `knowledge-managed` component starts it; it stops in the `stopping` phase, before the drain); the engine gets the knowledge provided, for `injectKnowledgeContext(ctx)`.
 
 ## Collections and sources
 

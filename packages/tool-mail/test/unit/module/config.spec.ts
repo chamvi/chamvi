@@ -149,7 +149,7 @@ function envAccount(port: number, extra: Record<string, unknown> = {}) {
 function envOf(account: Record<string, unknown>): Record<string, string> {
     return {
         [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([account]),
-        CHAMVI_MAIL_WORK_PASSWORD: PASSWORD,
+        MAIL_WORK_PASSWORD: PASSWORD,
     };
 }
 
@@ -402,7 +402,7 @@ describe('toolMailModule() configuration', () => {
                 smtp: { host: 'smtp.y.test' },
             }],
             pinned: false,
-            env: { CHAMVI_MAIL_WORK_PASSWORD: PASSWORD },
+            env: { MAIL_WORK_PASSWORD: PASSWORD },
             logger: testLogger(),
             rows: [storedRow('mail-work', {
                 user: 'stored-user',
@@ -441,7 +441,7 @@ describe('toolMailModule() configuration', () => {
                 smtp: { host: 'smtp.env.test' },
             }],
             pinned: false,
-            env: { CHAMVI_MAIL_WORK_PASSWORD: PASSWORD },
+            env: { MAIL_WORK_PASSWORD: PASSWORD },
             logger: testLogger(),
             rows: [storedRow('mail-work', {
                 smtpHost: 'smtp.stored.test',
@@ -537,7 +537,7 @@ describe('toolMailModule() configuration', () => {
         expect(work.resolved.values.user).toBe('stored-user');
         expect(work.resolved.sources.host).toEqual({ kind: 'env', variable: MAIL_ACCOUNTS_VARIABLE });
         expect(work.resolved.sources.user).toEqual({ kind: 'store' });
-        expect(work.resolved.sources.password).toEqual({ kind: 'env', variable: 'CHAMVI_MAIL_WORK_PASSWORD' });
+        expect(work.resolved.sources.password).toEqual({ kind: 'env', variable: 'MAIL_WORK_PASSWORD' });
     });
 
     it('an env-declared account is listed locked and not deletable', async () => {
@@ -551,7 +551,7 @@ describe('toolMailModule() configuration', () => {
         expect(work.loadedRevision).toBeUndefined();
         expect(work.resolved.state).toBe('configured');
         expect(work.resolved.sources.address).toEqual({ kind: 'env', variable: MAIL_ACCOUNTS_VARIABLE });
-        expect(work.resolved.sources.password).toEqual({ kind: 'env', variable: 'CHAMVI_MAIL_WORK_PASSWORD' });
+        expect(work.resolved.sources.password).toEqual({ kind: 'env', variable: 'MAIL_WORK_PASSWORD' });
         expect(providerOf(harness).creatable()).toBe(true);
     });
 
@@ -583,7 +583,7 @@ describe('toolMailModule() configuration', () => {
         const harness = await harnessOf({
             store,
             agents: [accountsAgent()],
-            options: { env: { CHAMVI_MAIL_HOME_USER: 'env-user', CHAMVI_MAIL_HOME_PASSWORD: PASSWORD } },
+            options: { env: { MAIL_HOME_USER: 'env-user', MAIL_HOME_PASSWORD: PASSWORD } },
         });
 
         await runAccounts(harness);
@@ -592,8 +592,8 @@ describe('toolMailModule() configuration', () => {
         expect(logins(server).join('\n')).not.toContain('env-user');
         expect(logins(server).join('\n')).not.toContain(PASSWORD);
         expect(connectionOf(harness, 'mail-home').resolved.sources).toMatchObject({ user: { kind: 'unset' }, password: { kind: 'store' } });
-        expect(logLines.join('\n')).toContain('CHAMVI_MAIL_HOME_USER');
-        expect(logLines.join('\n')).toContain('CHAMVI_MAIL_HOME_PASSWORD');
+        expect(logLines.join('\n')).toContain('MAIL_HOME_USER');
+        expect(logLines.join('\n')).toContain('MAIL_HOME_PASSWORD');
         expect(logLines.join('\n')).not.toContain('env-user');
         expect(logLines.join('\n')).not.toContain(PASSWORD);
     });
@@ -642,7 +642,7 @@ describe('toolMailModule() configuration', () => {
 
         const harness = await harnessOf({
             store,
-            options: { env: { CHAMVI_MAIL_HOME_USER: 'env-user', CHAMVI_MAIL_HOME_PASSWORD: PASSWORD } },
+            options: { env: { MAIL_HOME_USER: 'env-user', MAIL_HOME_PASSWORD: PASSWORD } },
         });
 
         expect(connectionOf(harness, 'mail-home').resolved).toMatchObject({ state: 'incomplete', missing: ['password'] });
@@ -667,7 +667,7 @@ describe('toolMailModule() configuration', () => {
             options: {
                 env: {
                     [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([envAccount(server.port, { id })]),
-                    [`CHAMVI_MAIL_${id.toUpperCase().replaceAll('-', '_')}_PASSWORD`]: PASSWORD,
+                    [`MAIL_${id.toUpperCase().replaceAll('-', '_')}_PASSWORD`]: PASSWORD,
                 },
             },
         });
@@ -819,7 +819,7 @@ describe('toolMailModule() configuration', () => {
             store,
             check: true,
             options: { env: { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([envAccount(1)]) } },
-        })).rejects.toThrow(/CHAMVI_MAIL_WORK_PASSWORD/);
+        })).rejects.toThrow(/MAIL_WORK_PASSWORD/);
     });
 
     it('an unreadable stored account is listed failed and not used; the app starts and the env account works', async () => {
@@ -970,7 +970,7 @@ describe('toolMailModule() configuration', () => {
         const env = { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([envAccount(1)]) };
 
         expect(() => toolMailModule({ env })).not.toThrow();
-        await expect(harnessOf({ store: storeOf(), options: { env } })).rejects.toThrow(/CHAMVI_MAIL_WORK_PASSWORD/);
+        await expect(harnessOf({ store: storeOf(), options: { env } })).rejects.toThrow(/MAIL_WORK_PASSWORD/);
     });
 
     it('a store without connections fails a declared account missing its password', async () => {
@@ -979,10 +979,10 @@ describe('toolMailModule() configuration', () => {
         await expect(harnessOf({
             store,
             options: { env: { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([envAccount(1)]) } },
-        })).rejects.toThrow(/CHAMVI_MAIL_WORK_PASSWORD/);
+        })).rejects.toThrow(/MAIL_WORK_PASSWORD/);
     });
 
-    it('an invalid CHAMVI_MAIL_ACCOUNTS still throws at the factory', () => {
+    it('an invalid MAIL_ACCOUNTS still throws at the factory', () => {
         expect(() => toolMailModule({ env: { [MAIL_ACCOUNTS_VARIABLE]: '{' } })).toThrow(InvalidAgentDefinitionError);
         expect(() => toolMailModule({ env: { [MAIL_ACCOUNTS_VARIABLE]: '{' } })).toThrow(new RegExp(MAIL_ACCOUNTS_VARIABLE));
     });

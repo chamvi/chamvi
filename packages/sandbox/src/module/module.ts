@@ -74,7 +74,7 @@ export class SandboxModule implements IModule {
     protected engine: IEngine | undefined;
 
     /**
-     * True when the deployment was named (`CHAMVI_DEPLOYMENT` or the option):
+     * True when the deployment was named (`DEPLOYMENT` or the option):
      * only then is a run this engine does not know settled, since several
      * apps share the default deployment on one host.
      */
@@ -100,12 +100,12 @@ export class SandboxModule implements IModule {
 
     /**
      * The manager's sources: the `credentials` option, the tokens of
-     * `CHAMVI_GIT_TOKENS`, then the contributed ones (asked on each lookup,
+     * `SANDBOX_GIT_TOKENS`, then the contributed ones (asked on each lookup,
      * so modules set up after this one count too).
      */
     protected credentialSources(env: Env, credentials: SandboxModuleOptions['credentials']): IGitCredentials[] {
         const sources = credentials === undefined ? [] : [credentials].flat();
-        const tokens = envJson(env, 'CHAMVI_GIT_TOKENS');
+        const tokens = envJson(env, 'SANDBOX_GIT_TOKENS');
 
         if (tokens !== undefined) {
             try {
@@ -113,7 +113,7 @@ export class SandboxModule implements IModule {
             } catch (error) {
                 // the message names an entry and a rule, never a token
                 const message = Error.isError(error) ? error.message.replace(/^staticGitCredentials\(\) ?/, '') : 'is invalid';
-                throw new InvalidAgentDefinitionError(`CHAMVI_GIT_TOKENS ${message}`);
+                throw new InvalidAgentDefinitionError(`SANDBOX_GIT_TOKENS ${message}`);
             }
         }
 
@@ -156,7 +156,7 @@ export class SandboxModule implements IModule {
             throw new InvalidAgentDefinitionError(`suspendAfterMs must be a non-negative integer, got ${JSON.stringify(suspendAfterMs)}.`);
         }
 
-        this.suspendAfterMs = envInteger(env, 'CHAMVI_SANDBOX_SUSPEND_AFTER_MS') ?? suspendAfterMs ?? SUSPEND_AFTER_MS;
+        this.suspendAfterMs = envInteger(env, 'SANDBOX_SUSPEND_AFTER_MS') ?? suspendAfterMs ?? SUSPEND_AFTER_MS;
 
         if (suspend !== undefined && typeof suspend !== 'boolean') {
             throw new InvalidAgentDefinitionError(`suspend must be a boolean, got ${JSON.stringify(suspend)}.`);
@@ -177,11 +177,11 @@ export class SandboxModule implements IModule {
             return;
         }
 
-        const deployment = envString(env, 'CHAMVI_DEPLOYMENT') ?? managerOptions.deployment;
+        const deployment = envString(env, 'DEPLOYMENT') ?? managerOptions.deployment;
 
         this.ownsDeployment = deployment !== undefined;
 
-        const name = envOneOf(env, 'CHAMVI_SANDBOX_PROVIDER', SANDBOX_PROVIDER_NAMES) ??
+        const name = envOneOf(env, 'SANDBOX_PROVIDER', SANDBOX_PROVIDER_NAMES) ??
             (typeof provider === 'string' ? provider : undefined);
 
         let target: ISandboxProvider;
@@ -191,20 +191,20 @@ export class SandboxModule implements IModule {
         } else {
             const selected = name ?? 'local';
             const resolved: ProviderSettings = {
-                image: envString(env, 'CHAMVI_SANDBOX_IMAGE') ?? image ?? DEFAULT_SANDBOX_IMAGE,
-                namespace: envString(env, 'CHAMVI_SANDBOX_NAMESPACE') ?? namespace,
+                image: envString(env, 'SANDBOX_IMAGE') ?? image ?? DEFAULT_SANDBOX_IMAGE,
+                namespace: envString(env, 'SANDBOX_NAMESPACE') ?? namespace,
             };
 
             if (selected === 'kubernetes' && !resolved.namespace) {
-                throw new InvalidAgentDefinitionError('CHAMVI_SANDBOX_NAMESPACE is required for CHAMVI_SANDBOX_PROVIDER=kubernetes.');
+                throw new InvalidAgentDefinitionError('SANDBOX_NAMESPACE is required for SANDBOX_PROVIDER=kubernetes.');
             }
 
             // a claim per workspace exists only on kubernetes: the variables are read for it alone
             if (selected === 'kubernetes') {
-                const enabled = envBoolean(env, 'CHAMVI_SANDBOX_PERSISTENCE') ?? persistence !== undefined;
+                const enabled = envBoolean(env, 'SANDBOX_PERSISTENCE') ?? persistence !== undefined;
 
                 if (enabled) {
-                    const storageClassName = envString(env, 'CHAMVI_SANDBOX_STORAGE_CLASS') ?? persistence?.storageClassName;
+                    const storageClassName = envString(env, 'SANDBOX_STORAGE_CLASS') ?? persistence?.storageClassName;
 
                     resolved.persistence = {
                         ...persistence,
@@ -214,7 +214,7 @@ export class SandboxModule implements IModule {
             }
 
             // a stopped container frees nothing Docker reserved: suspension is opt-in there
-            if (selected === 'docker' && (envBoolean(env, 'CHAMVI_SANDBOX_DOCKER_SUSPEND') ?? suspend ?? false)) {
+            if (selected === 'docker' && (envBoolean(env, 'SANDBOX_DOCKER_SUSPEND') ?? suspend ?? false)) {
                 resolved.suspend = true;
             }
 
@@ -245,8 +245,8 @@ export class SandboxModule implements IModule {
             });
         } catch (error) {
             // name the variable, never echo its value
-            if (envString(env, 'CHAMVI_DEPLOYMENT') !== undefined && error instanceof InvalidAgentDefinitionError && /deployment/.test(error.message)) {
-                throw new InvalidAgentDefinitionError(`CHAMVI_DEPLOYMENT ${error.message.replace(/^deployment /, '')}`);
+            if (envString(env, 'DEPLOYMENT') !== undefined && error instanceof InvalidAgentDefinitionError && /deployment/.test(error.message)) {
+                throw new InvalidAgentDefinitionError(`DEPLOYMENT ${error.message.replace(/^deployment /, '')}`);
             }
 
             throw error;
@@ -383,7 +383,7 @@ export class SandboxModule implements IModule {
         } catch (error) {
             // only the provider package itself, not a module it imports (dockerode, @kubernetes/client-node)
             if (isPackageNotFound(error, SANDBOX_PROVIDER_PACKAGES[name])) {
-                throw new InvalidAgentDefinitionError(`CHAMVI_SANDBOX_PROVIDER=${name} needs ${SANDBOX_PROVIDER_PACKAGES[name]} installed.`);
+                throw new InvalidAgentDefinitionError(`SANDBOX_PROVIDER=${name} needs ${SANDBOX_PROVIDER_PACKAGES[name]} installed.`);
             }
 
             throw error;
@@ -442,7 +442,7 @@ export class SandboxModule implements IModule {
 }
 
 /**
- * The sandbox module. The provider is `CHAMVI_SANDBOX_PROVIDER` (`local`,
+ * The sandbox module. The provider is `SANDBOX_PROVIDER` (`local`,
  * `docker`, `kubernetes`), else `options.provider`, else `local`, read from
  * `options.env ?? process.env` now; its package is imported in `setup`.
  */

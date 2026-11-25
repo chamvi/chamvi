@@ -89,10 +89,10 @@ type WorldInput = {
 
 function discordEnv(patch: Record<string, string | undefined> = {}): Record<string, string | undefined> {
     return {
-        CHAMVI_DISCORD_TOKEN: SENTINEL_TOKEN,
-        CHAMVI_DISCORD_APPLICATION_ID: APP_ID,
-        CHAMVI_DISCORD_GUILDS: GUILD,
-        CHAMVI_DISCORD_USERS: ALICE,
+        DISCORD_TOKEN: SENTINEL_TOKEN,
+        DISCORD_APPLICATION_ID: APP_ID,
+        DISCORD_GUILDS: GUILD,
+        DISCORD_USERS: ALICE,
         ...patch,
     };
 }
@@ -204,14 +204,14 @@ describe('discordModule', () => {
             ['requireMention', 'boolean', false],
         ]);
         expect(provider?.definition.fields.map((field) => field.env?.('discord'))).toEqual([
-            'CHAMVI_DISCORD_TOKEN',
-            'CHAMVI_DISCORD_APPLICATION_ID',
-            'CHAMVI_DISCORD_GUILDS',
-            'CHAMVI_DISCORD_CHANNELS',
-            'CHAMVI_DISCORD_USERS',
-            'CHAMVI_DISCORD_ROLES',
-            'CHAMVI_DISCORD_DM_USERS',
-            'CHAMVI_DISCORD_REQUIRE_MENTION',
+            'DISCORD_TOKEN',
+            'DISCORD_APPLICATION_ID',
+            'DISCORD_GUILDS',
+            'DISCORD_CHANNELS',
+            'DISCORD_USERS',
+            'DISCORD_ROLES',
+            'DISCORD_DM_USERS',
+            'DISCORD_REQUIRE_MENTION',
         ]);
 
         const connection = w.connection();
@@ -222,7 +222,7 @@ describe('discordModule', () => {
             deletable: false,
         });
         expect(connection.resolved.state).toBe('configured');
-        expect(connection.resolved.sources.token).toEqual({ kind: 'env', variable: 'CHAMVI_DISCORD_TOKEN' });
+        expect(connection.resolved.sources.token).toEqual({ kind: 'env', variable: 'DISCORD_TOKEN' });
         expect(connection.loadedRevision).toBeUndefined();
     });
 
@@ -272,12 +272,12 @@ describe('discordModule', () => {
         expect(w.lines.join('\n')).toContain('is not configured');
     });
 
-    it('CHAMVI_DISCORD_TOKEN set without an application id fails naming the variable', async () => {
-        const w = world({ moduleEnv: { CHAMVI_DISCORD_TOKEN: SENTINEL_TOKEN } });
+    it('DISCORD_TOKEN set without an application id fails naming the variable', async () => {
+        const w = world({ moduleEnv: { DISCORD_TOKEN: SENTINEL_TOKEN } });
         const failure = await w.harness.setup().catch((error: unknown) => error);
 
         expect(failure).toBeInstanceOf(InvalidAgentDefinitionError);
-        expect((failure as Error).message).toContain('CHAMVI_DISCORD_APPLICATION_ID');
+        expect((failure as Error).message).toContain('DISCORD_APPLICATION_ID');
         expect((failure as Error).message).not.toContain(SENTINEL_TOKEN);
     });
 
@@ -307,7 +307,7 @@ describe('discordModule', () => {
         const malformed = (() => {
             try {
                 discordModule({
-                    env: discordEnv({ CHAMVI_DISCORD_GUILDS: SENTINEL_TOKEN }),
+                    env: discordEnv({ DISCORD_GUILDS: SENTINEL_TOKEN }),
                     resolveInvoker: () => undefined,
                     state: createMemoryState(),
                 });
@@ -319,7 +319,7 @@ describe('discordModule', () => {
         })();
 
         expect(malformed).toBeInstanceOf(InvalidAgentDefinitionError);
-        expect(malformed?.message).toContain('CHAMVI_DISCORD_GUILDS');
+        expect(malformed?.message).toContain('DISCORD_GUILDS');
         expect(malformed?.message).not.toContain(SENTINEL_TOKEN);
     });
 
@@ -327,10 +327,10 @@ describe('discordModule', () => {
         const w = world({
             patch: { name: 'support-bot' },
             moduleEnv: {
-                CHAMVI_DISCORD_TOKEN: 'the-default-token',
-                CHAMVI_DISCORD_SUPPORT_BOT_TOKEN: SENTINEL_TOKEN,
-                CHAMVI_DISCORD_SUPPORT_BOT_APPLICATION_ID: APP_ID,
-                CHAMVI_DISCORD_SUPPORT_BOT_GUILDS: GUILD,
+                DISCORD_TOKEN: 'the-default-token',
+                DISCORD_SUPPORT_BOT_TOKEN: SENTINEL_TOKEN,
+                DISCORD_SUPPORT_BOT_APPLICATION_ID: APP_ID,
+                DISCORD_SUPPORT_BOT_GUILDS: GUILD,
             },
         });
 
@@ -364,11 +364,11 @@ describe('discordModule', () => {
     it('builds the policy from the resolved lists', async () => {
         const w = world({
             moduleEnv: discordEnv({
-                CHAMVI_DISCORD_USERS: undefined,
-                CHAMVI_DISCORD_ROLES: ` ${ROLE} `,
-                CHAMVI_DISCORD_DM_USERS: ALICE,
-                CHAMVI_DISCORD_CHANNELS: CHANNEL,
-                CHAMVI_DISCORD_REQUIRE_MENTION: 'false',
+                DISCORD_USERS: undefined,
+                DISCORD_ROLES: ` ${ROLE} `,
+                DISCORD_DM_USERS: ALICE,
+                DISCORD_CHANNELS: CHANNEL,
+                DISCORD_REQUIRE_MENTION: 'false',
             }),
         });
 
@@ -387,7 +387,7 @@ describe('discordModule', () => {
         const store = await storedWorld('discord', { settings: { applicationId: 'stored' } });
         const w = world({
             store,
-            moduleEnv: { CHAMVI_DISCORD_USERS: ROLE },
+            moduleEnv: { DISCORD_USERS: ROLE },
             patch: {
                 token: SENTINEL_TOKEN,
                 applicationId: APP_ID,
@@ -455,7 +455,7 @@ describe('discordModule', () => {
             secrets: { set: { token: SENTINEL_TOKEN } },
         }, createKeyring([{ id: 'k1', key: randomBytes(32) }]));
         // the application id from env: a token only the unreadable row holds is no deployment error
-        const w = world({ moduleEnv: { CHAMVI_DISCORD_APPLICATION_ID: APP_ID }, store });
+        const w = world({ moduleEnv: { DISCORD_APPLICATION_ID: APP_ID }, store });
 
         await w.harness.setup();
 
@@ -472,7 +472,7 @@ describe('discordModule', () => {
         expect(w.lines.join('\n')).not.toContain(SENTINEL_TOKEN);
     });
 
-    it('stored settings without CHAMVI_PUBLIC_URL stay idle, env settings fail', async () => {
+    it('stored settings without PUBLIC_URL stay idle, env settings fail', async () => {
         const store = await storedWorld('discord', {
             settings: { applicationId: APP_ID, guilds: [GUILD] },
             secrets: { set: { token: 'stored-token' } },
@@ -486,25 +486,25 @@ describe('discordModule', () => {
         await stored.harness.setup();
         expect(stored.clients.clients).toEqual([]);
         expect(stored.connection().resolved.state).toBe('incomplete');
-        expect(stored.connection().resolved.reason).toContain('CHAMVI_PUBLIC_URL');
+        expect(stored.connection().resolved.reason).toContain('PUBLIC_URL');
 
         const env = world({ patch: { approvalUrl: undefined } });
 
-        await expect(env.harness.setup()).rejects.toThrow(/CHAMVI_PUBLIC_URL/);
+        await expect(env.harness.setup()).rejects.toThrow(/PUBLIC_URL/);
     });
 
-    it('an env deployment with an old row still fails without CHAMVI_PUBLIC_URL', async () => {
+    it('an env deployment with an old row still fails without PUBLIC_URL', async () => {
         const store = await storedWorld('discord', { settings: { applicationId: 'old-row' } });
         const w = world({ store, patch: { approvalUrl: undefined } });
 
-        await expect(w.harness.setup()).rejects.toThrow(/CHAMVI_PUBLIC_URL/);
+        await expect(w.harness.setup()).rejects.toThrow(/PUBLIC_URL/);
     });
 
-    it('a complete env deployment fails without CHAMVI_PUBLIC_URL although a row stores an optional field', async () => {
+    it('a complete env deployment fails without PUBLIC_URL although a row stores an optional field', async () => {
         const store = await storedWorld('discord', { settings: { roles: [ROLE] } });
         const w = world({ store, patch: { approvalUrl: undefined } });
 
-        await expect(w.harness.setup()).rejects.toThrow(/CHAMVI_PUBLIC_URL/);
+        await expect(w.harness.setup()).rejects.toThrow(/PUBLIC_URL/);
     });
 
     it.each([

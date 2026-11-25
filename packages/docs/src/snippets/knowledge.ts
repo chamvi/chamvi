@@ -52,7 +52,7 @@ export default createApp({
                 resyncMs: 3_600_000,
             }),
         ],
-        // managed collections (filled over REST); CHAMVI_KNOWLEDGE_MODEL wins over it
+        // managed collections (filled over REST); KNOWLEDGE_MODEL wins over it
         embeddingModel: 'openai/text-embedding-3-small',
     })],
 });

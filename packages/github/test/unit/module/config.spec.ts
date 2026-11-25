@@ -107,7 +107,7 @@ async function serve(modules: IModule[], agents: Agent[]): Promise<{ harness: Mo
     const port = await freePort();
     const harness = await createModuleHarness({
         env: {
-            CHAMVI_TOKENS: TOKENS,
+            TOKENS,
             HOST: '127.0.0.1',
             PORT: String(port),
         },
@@ -239,8 +239,8 @@ describe('githubModule configuration', () => {
         ], { agents })).resolves.toBeDefined();
     });
 
-    it('a named module reads CHAMVI_GITHUB_ACME_APP_ID', async () => {
-        const module = githubModule({ name: 'acme', env: envOf('CHAMVI_GITHUB_ACME_') });
+    it('a named module reads GITHUB_ACME_APP_ID', async () => {
+        const module = githubModule({ name: 'acme', env: envOf('GITHUB_ACME_') });
 
         await setup([module]);
 
@@ -249,7 +249,7 @@ describe('githubModule configuration', () => {
     });
 
     it('a named module defaults its channel to its name', async () => {
-        const harness = await setup([githubModule({ name: 'acme', env: envOf('CHAMVI_GITHUB_ACME_') })]);
+        const harness = await setup([githubModule({ name: 'acme', env: envOf('GITHUB_ACME_') })]);
 
         expect(harness.container.resolveAll(AppToken.CHANNELS).map((channel) => channel.name)).toContain('acme');
     });
@@ -257,7 +257,7 @@ describe('githubModule configuration', () => {
     it('channel.name wins over name', async () => {
         const harness = await setup([githubModule({
             name: 'acme',
-            env: envOf('CHAMVI_GITHUB_ACME_'),
+            env: envOf('GITHUB_ACME_'),
             channel: { name: 'custom' },
         })]);
         const names = harness.container.resolveAll(AppToken.CHANNELS).map((channel) => channel.name);
@@ -285,7 +285,7 @@ describe('githubModule configuration', () => {
         const port = await freePort();
         const harness = await createModuleHarness({
             env: {
-                CHAMVI_TOKENS: TOKENS,
+                TOKENS,
                 HOST: '127.0.0.1',
                 PORT: String(port),
             },
@@ -620,9 +620,9 @@ describe('githubModule configuration', () => {
                 name: 'acme',
                 agents: ['triager'],
                 env: {
-                    ...envOf('CHAMVI_GITHUB_ACME_'),
-                    CHAMVI_GITHUB_ACME_WEBHOOK_SECRET: 'acme-secret',
-                    CHAMVI_GITHUB_ACME_APP_SLUG: 'acme',
+                    ...envOf('GITHUB_ACME_'),
+                    GITHUB_ACME_WEBHOOK_SECRET: 'acme-secret',
+                    GITHUB_ACME_APP_SLUG: 'acme',
                 },
             }),
         ], [agentNamed('triager')]);
@@ -671,9 +671,9 @@ describe('githubModule configuration', () => {
                 name: 'acme',
                 agents: ['triager'],
                 env: {
-                    CHAMVI_GITHUB_ACME_APP_ID: '2',
-                    CHAMVI_GITHUB_ACME_APP_PRIVATE_KEY: acmeFake.privateKey,
-                    CHAMVI_GITHUB_ACME_WEBHOOK_SECRET: 'acme-secret',
+                    GITHUB_ACME_APP_ID: '2',
+                    GITHUB_ACME_APP_PRIVATE_KEY: acmeFake.privateKey,
+                    GITHUB_ACME_WEBHOOK_SECRET: 'acme-secret',
                 },
                 clock,
                 fetch: acmeFake.fetch,
@@ -722,7 +722,7 @@ describe('githubModule configuration', () => {
             githubModule({
                 name: 'acme',
                 agents: ['triager'],
-                env: envOf('CHAMVI_GITHUB_ACME_'),
+                env: envOf('GITHUB_ACME_'),
             }),
         ]);
 
@@ -733,7 +733,7 @@ describe('githubModule configuration', () => {
             githubModule({
                 name: 'acme',
                 agents: ['triager'],
-                env: envOf('CHAMVI_GITHUB_ACME_'),
+                env: envOf('GITHUB_ACME_'),
                 credentials: {},
             }),
         ]);
@@ -769,7 +769,7 @@ describe('githubModule configuration', () => {
             githubModule({
                 name: 'acme',
                 agents: ['triager'],
-                env: envOf('CHAMVI_GITHUB_ACME_'),
+                env: envOf('GITHUB_ACME_'),
             }),
         ]);
         const providers = harness.container.resolveAll(AppToken.CONNECTION_TYPES);

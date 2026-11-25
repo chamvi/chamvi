@@ -60,7 +60,7 @@ async function login(options: (url: string) => AuthupModuleOptions) {
 
 describe('authupModule client credentials', () => {
     it('defaults the client to chamvi-server in the realm master', async () => {
-        const requests = await login((url) => ({ env: { AUTHUP_URL: url, AUTHUP_CLIENT_SECRET: 'secret' } }));
+        const requests = await login((url) => ({ env: { AUTHUP_URL: url, AUTHUP_SERVER_CLIENT_SECRET: 'secret' } }));
 
         expect(requests.length).toBeGreaterThan(0);
 
@@ -74,12 +74,12 @@ describe('authupModule client credentials', () => {
         }
     });
 
-    it('reads AUTHUP_CLIENT_ID and AUTHUP_REALM', async () => {
+    it('reads AUTHUP_SERVER_CLIENT_ID and AUTHUP_REALM', async () => {
         const requests = await login((url) => ({
             env: {
                 AUTHUP_URL: url,
-                AUTHUP_CLIENT_ID: 'agents',
-                AUTHUP_CLIENT_SECRET: 'secret',
+                AUTHUP_SERVER_CLIENT_ID: 'agents',
+                AUTHUP_SERVER_CLIENT_SECRET: 'secret',
                 AUTHUP_REALM: 'tenant',
             },
         }));
@@ -93,8 +93,8 @@ describe('authupModule client credentials', () => {
             clientRealm: 'code-realm',
             env: {
                 AUTHUP_URL: url,
-                AUTHUP_CLIENT_ID: 'agents',
-                AUTHUP_CLIENT_SECRET: 'secret',
+                AUTHUP_SERVER_CLIENT_ID: 'agents',
+                AUTHUP_SERVER_CLIENT_SECRET: 'secret',
                 AUTHUP_REALM: 'tenant',
             },
         }));
@@ -119,7 +119,7 @@ describe('authupModule client credentials', () => {
     });
 
     it('refuses an empty clientRealm', () => {
-        expect(() => authupModule({ clientRealm: '', env: { AUTHUP_URL: 'https://auth.example', AUTHUP_CLIENT_SECRET: 's' } }))
+        expect(() => authupModule({ clientRealm: '', env: { AUTHUP_URL: 'https://auth.example', AUTHUP_SERVER_CLIENT_SECRET: 's' } }))
             .toThrow(new InvalidAgentDefinitionError('authup: clientRealm must be a non-empty string.'));
     });
 });

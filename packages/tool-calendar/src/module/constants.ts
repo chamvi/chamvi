@@ -8,13 +8,13 @@
 export const TOOL_CALENDAR_MODULE_NAME = 'chamvi:tool-calendar';
 
 /** A JSON array of `{ id?, url, address? }`, read by `toolCalendarModule()`. */
-export const CALENDAR_ACCOUNTS_VARIABLE = 'CHAMVI_CALENDAR_ACCOUNTS';
+export const CALENDAR_ACCOUNTS_VARIABLE = 'CALENDAR_ACCOUNTS';
 
 /** The IANA zone event times are given in; wins over the module's `timezone` option. */
-export const CALENDAR_TIMEZONE_VARIABLE = 'CHAMVI_CALENDAR_TIMEZONE';
+export const CALENDAR_TIMEZONE_VARIABLE = 'CALENDAR_TIMEZONE';
 
-/** The prefix of an account's credential variables: `CHAMVI_CALENDAR_<ID>_USER`, `..._PASSWORD`. */
-export const CALENDAR_VARIABLE_PREFIX = 'CHAMVI_CALENDAR_';
+/** The prefix of an account's credential variables: `CALENDAR_<ID>_USER`, `..._PASSWORD`. */
+export const CALENDAR_VARIABLE_PREFIX = 'CALENDAR_';
 
 /** The connection type of a calendar account; its stored name is `calendar-<id>`. */
 export const CALENDAR_CONNECTION_TYPE = 'calendar';

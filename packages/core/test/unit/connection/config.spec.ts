@@ -170,7 +170,7 @@ describe('createConnectionConfigStore', () => {
 
         it('rejects with the keyring error and writes nothing, also without a secret', async () => {
             const { store, connections } = setup();
-            const failure = new Error('CHAMVI_ENCRYPTION_KEYS is not set');
+            const failure = new Error('ENCRYPTION_KEYS is not set');
             const config = createConnectionConfigStore({
                 connectionService: store.connectionService,
                 lockService: store.lockService,
@@ -688,7 +688,7 @@ describe('createConnectionConfigStore', () => {
                 lockService: store.lockService,
                 keyring: () => keyring,
             });
-            const failure = new Error('CHAMVI_ENCRYPTION_KEYS is not set');
+            const failure = new Error('ENCRYPTION_KEYS is not set');
             const keyless = createConnectionConfigStore({
                 connectionService: store.connectionService,
                 lockService: store.lockService,
