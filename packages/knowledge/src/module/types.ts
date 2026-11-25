@@ -22,11 +22,11 @@ export type KnowledgeModuleOptions = {
     owner?: string;
     /**
      * The model of managed collections (a string resolves through the app's
-     * providers); `CHAMVI_KNOWLEDGE_MODEL` wins over it. Without either,
+     * providers); `KNOWLEDGE_MODEL` wins over it. Without either,
      * creating a managed collection is refused.
      */
     embeddingModel?: EmbeddingModelRef;
-    /** Where `CHAMVI_KNOWLEDGE_MODEL` is read, when the factory is called; default `process.env`. */
+    /** Where `KNOWLEDGE_MODEL` is read, when the factory is called; default `process.env`. */
     env?: Record<string, string | undefined>;
     /** `false` contributes no `knowledgeRoutes()` to the http app. */
     routes?: false;

@@ -83,7 +83,7 @@ export function checkModuleOptions(options: KnowledgeModuleOptions | undefined):
 }
 
 /**
- * Resolves `CHAMVI_KNOWLEDGE_MODEL` through the app's resolver before
+ * Resolves `KNOWLEDGE_MODEL` through the app's resolver before
  * `createKnowledge()` does, so a failure names the variable and never its
  * value (the env rule of `@chamvi/app`'s readers).
  */

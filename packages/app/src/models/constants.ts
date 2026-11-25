@@ -117,7 +117,7 @@ export const SECRET_HEADER_PATTERN = /authorization|api[-_]?key|token|secret|aut
 export const HEADER_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /** Names the config file (relative to the cwd); unset, `DEFAULT_CONFIG_FILE` is read when it exists. */
-export const CONFIG_FILE_VARIABLE = 'CHAMVI_CONFIG_FILE';
+export const CONFIG_FILE_VARIABLE = 'CONFIG_FILE';
 
-/** Read from the cwd when it exists and CHAMVI_CONFIG_FILE is unset. */
+/** Read from the cwd when it exists and CONFIG_FILE is unset. */
 export const DEFAULT_CONFIG_FILE = 'chamvi.json';

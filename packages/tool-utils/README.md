@@ -68,9 +68,9 @@ export function createBriefingAgent(model: LanguageModel) {
 
 | Option | Meaning |
 |--------|---------|
-| `timezone` | The default IANA zone. Wins over `CHAMVI_TIMEZONE`, which wins over `UTC`. |
+| `timezone` | The default IANA zone. Wins over `TIMEZONE`, which wins over `UTC`. |
 | `include` | The tool names to build (default all; an empty list is refused). |
-| `env` | Where `CHAMVI_TIMEZONE` is read (default `process.env`). |
+| `env` | Where `TIMEZONE` is read (default `process.env`). |
 
 A misconfigured option throws `InvalidAgentDefinitionError` when `utilityTools()` is called.
 

@@ -6,7 +6,7 @@
  */
 
 /** The optional env variable naming the default IANA zone. */
-export const TIMEZONE_VARIABLE = 'CHAMVI_TIMEZONE';
+export const TIMEZONE_VARIABLE = 'TIMEZONE';
 
 /** The zone used when neither the option nor the variable is set. */
 export const DEFAULT_TIMEZONE = 'UTC';

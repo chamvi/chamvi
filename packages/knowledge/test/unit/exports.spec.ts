@@ -128,7 +128,7 @@ describe('public api', () => {
         expect(knowledgeModuleEntry.knowledgeModule).toBeTypeOf('function');
         expect(knowledgeModuleEntry.KnowledgeModule).toBeTypeOf('function');
         expect(knowledgeModuleEntry.KNOWLEDGE_MODULE_NAME).toBe('chamvi:knowledge');
-        expect(knowledgeModuleEntry.KNOWLEDGE_MODEL_VARIABLE).toBe('CHAMVI_KNOWLEDGE_MODEL');
+        expect(knowledgeModuleEntry.KNOWLEDGE_MODEL_VARIABLE).toBe('KNOWLEDGE_MODEL');
         expect(knowledgeModuleEntry.KNOWLEDGE_REPOSITORY_MODULE_NAME).toBe('chamvi:knowledge-repository');
         expect(knowledgeModuleEntry.KnowledgeToken.REPOSITORY.name).toBe('chamvi.knowledge-repository');
     });

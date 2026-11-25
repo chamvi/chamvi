@@ -66,7 +66,7 @@ const triage = defineModelAgent({
 
 // chamvi start | run-job | migrate load this default export
 export default createApp({
-    // the default model; CHAMVI_MODEL overrides it, ANTHROPIC_API_KEY configures the provider
+    // the default model; MODEL overrides it, ANTHROPIC_API_KEY configures the provider
     model: 'anthropic/claude-sonnet-5-5',
     agents: [triage],
     // tools write to it with ctx.channels.findOneOrFail('console').emit(...)
@@ -144,9 +144,9 @@ Every variable is read once per lifecycle. An empty string counts as unset, inte
 | `CHAMVI_DRAIN_TIMEOUT_MS` | http shutdown | int | `30000` (`--dev` 5000) |
 | `CHAMVI_CLOSE_TIMEOUT_MS` | http shutdown | int | `5000` |
 | `CHAMVI_TOKENS` | static tokens | JSON `[{ "value", "id", "permissions" }]`, `value` at least 16 characters and unique; `permissions` is `"*"` (every chamvi permission) or an array of permission bindings (`{ "permission": { "name": "chamvi_agent_run" }, "policies": [...] }`) | unset (`--dev`: one random `*` token, warned); required when no other authenticator is configured |
-| `CHAMVI_MODEL` | engine | `'<provider>/<model id>'` | the config file's `model`, else `createApp({ model })`; required when an agent has no model of its own |
-| `CHAMVI_CONFIG_FILE` | engine | path of a JSON file | unset: `./chamvi.json` when it exists |
-| `CHAMVI_PROVIDER_<NAME>_TYPE`, `_API_KEY`, `_BASE_URL`, `_HEADER_<HEADER>` | engine | type, secret, http(s) URL, secret | unset; each wins over the config file and code for provider `<name>` (see [Models](#models)) |
+| `MODEL` | engine | `'<provider>/<model id>'` | the config file's `model`, else `createApp({ model })`; required when an agent has no model of its own |
+| `CONFIG_FILE` | engine | path of a JSON file | unset: `./chamvi.json` when it exists |
+| `PROVIDER_<NAME>_TYPE`, `_API_KEY`, `_BASE_URL`, `_HEADER_<HEADER>` | engine | type, secret, http(s) URL, secret | unset; each wins over the config file and code for provider `<name>` (see [Models](#models)) |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `MISTRAL_API_KEY`, `XAI_API_KEY` | engine | string | unset; each creates the implicit provider of its type (`ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL` set its base URL) unless a source declares that name |
 | `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` (PEM, literal `\n` allowed), `GITHUB_WEBHOOK_SECRET` (comma-separated for rotation) | `githubModule` | string | required without options |
 | `GITHUB_INSTALLATION_ID`, `GITHUB_APP_SLUG`, `GITHUB_API_URL` | `githubModule` | int, slug, https URL | unset |
@@ -312,14 +312,14 @@ await harness.stop();
 An agent's `model` is optional: without one it takes the app's default. A model string `'<provider>/<model id>'` (split at the first `/`, so `router/cc/claude-opus-4-6` is provider `router`) resolves through the providers the app declares, never through the Vercel AI Gateway or the AI SDK's global provider; a `LanguageModel` object is used as is.
 
 ```bash
-CHAMVI_MODEL=anthropic/claude-sonnet-5-5            # the default model
+MODEL=anthropic/claude-sonnet-5-5            # the default model
 ANTHROPIC_API_KEY=...                               # the implicit provider "anthropic"
-CHAMVI_PROVIDER_ROUTER_TYPE=openai-compatible       # a named provider: 9router, OmniRoute, Ollama, vLLM, LiteLLM, OpenRouter
-CHAMVI_PROVIDER_ROUTER_BASE_URL=http://9router:20128/v1
-CHAMVI_PROVIDER_ROUTER_API_KEY=...
+PROVIDER_ROUTER_TYPE=openai-compatible       # a named provider: 9router, OmniRoute, Ollama, vLLM, LiteLLM, OpenRouter
+PROVIDER_ROUTER_BASE_URL=http://9router:20128/v1
+PROVIDER_ROUTER_API_KEY=...
 ```
 
-The same settings come from `createApp({ model, providers })` and a `chamvi.json` file (`CHAMVI_CONFIG_FILE`); env wins over the file, the file over code, per provider and field, and `createApp({ models })` (AI SDK provider objects by id) wins over all for its ids. An agent with no model and no default, or a string naming a provider that is not configured, fails `start` and `runJob` with `InvalidAgentDefinitionError` naming the variable to set (the CLI exits 2); a folder agent becomes a load issue instead. `chamvi start --check` (`app.check()`) runs the same checks against the real configuration and store, without starting anything or writing to the store.
+The same settings come from `createApp({ model, providers })` and a `chamvi.json` file (`CONFIG_FILE`); env wins over the file, the file over code, per provider and field, and `createApp({ models })` (AI SDK provider objects by id) wins over all for its ids. An agent with no model and no default, or a string naming a provider that is not configured, fails `start` and `runJob` with `InvalidAgentDefinitionError` naming the variable to set (the CLI exits 2); a folder agent becomes a load issue instead. `chamvi start --check` (`app.check()`) runs the same checks against the real configuration and store, without starting anything or writing to the store.
 
 See [Pick a Model](https://chamvi.dev/guide/models) for providers, secrets, gateways, the config file and the precedence rules.
 

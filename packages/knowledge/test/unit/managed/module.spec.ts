@@ -153,7 +153,7 @@ describe('managed collections', () => {
         const without = create(setup);
 
         await expect(without.createCollection('wiki')).rejects.toThrow(new InvalidRunStateError(
-            'Managed collections need an embedding model: set CHAMVI_KNOWLEDGE_MODEL or knowledgeModule({ embeddingModel }).',
+            'Managed collections need an embedding model: set KNOWLEDGE_MODEL or knowledgeModule({ embeddingModel }).',
         ));
         expect(await setup.service.findOneCollection('wiki')).toBeUndefined();
     });

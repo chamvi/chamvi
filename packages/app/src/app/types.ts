@@ -32,7 +32,7 @@ export type AppOptions = {
     conversations?: ConversationOptions;
     /** Extra modules; one named like a built-in (`ModuleName`) replaces it. */
     modules?: IModule[];
-    /** The default model of agents without one; CHAMVI_MODEL and the config file win. */
+    /** The default model of agents without one; MODEL and the config file win. */
     model?: ModelRef;
     /** Named providers model strings resolve through; env and the config file win per field. */
     providers?: Record<string, ProviderConfig>;

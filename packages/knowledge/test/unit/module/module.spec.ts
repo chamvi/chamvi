@@ -354,11 +354,11 @@ describe('knowledgeModule()', () => {
         expect((await request(harness, '/knowledge/collections')).status).toBe(404);
     });
 
-    it('CHAMVI_KNOWLEDGE_MODEL wins over embeddingModel', async () => {
+    it('KNOWLEDGE_MODEL wins over embeddingModel', async () => {
         const module = knowledgeModule({
             repository: createMemoryKnowledgeRepository(),
             embeddingModel: 'mock/embed',
-            env: { CHAMVI_KNOWLEDGE_MODEL: 'mock/other' },
+            env: { KNOWLEDGE_MODEL: 'mock/other' },
         });
 
         await harnessOf({ knowledge: module, models: embeddingProviders(mockEmbeddingModel(), mockEmbeddingModel()) });
@@ -366,11 +366,11 @@ describe('knowledgeModule()', () => {
         expect((await module.knowledge.createCollection('notes')).model).toBe('mock/other');
     });
 
-    it('embeddingModel is the managed default without CHAMVI_KNOWLEDGE_MODEL', async () => {
+    it('embeddingModel is the managed default without KNOWLEDGE_MODEL', async () => {
         const module = knowledgeModule({
             repository: createMemoryKnowledgeRepository(),
             embeddingModel: 'mock/embed',
-            env: { CHAMVI_KNOWLEDGE_MODEL: '' },
+            env: { KNOWLEDGE_MODEL: '' },
         });
 
         await harnessOf({ knowledge: module, models: embeddingProviders(mockEmbeddingModel()) });
@@ -381,14 +381,14 @@ describe('knowledgeModule()', () => {
     it.each([
         ['an unknown provider', 'secretprovider/embed'],
         ['a model the provider does not offer', 'mock/secretmodel'],
-    ])('an unresolvable CHAMVI_KNOWLEDGE_MODEL fails the setup naming the variable (%s)', async (_, value) => {
+    ])('an unresolvable KNOWLEDGE_MODEL fails the setup naming the variable (%s)', async (_, value) => {
         const harness = buildModuleHarness({
             models: embeddingProviders(mockEmbeddingModel()),
             modules: [
                 configModule({ logger: createRecordingLogger() }),
                 storeModule(),
                 engineModule(),
-                knowledgeModule({ repository: createMemoryKnowledgeRepository(), env: { CHAMVI_KNOWLEDGE_MODEL: value } }),
+                knowledgeModule({ repository: createMemoryKnowledgeRepository(), env: { KNOWLEDGE_MODEL: value } }),
             ],
         });
 
@@ -397,7 +397,7 @@ describe('knowledgeModule()', () => {
         const error = await harness.setup().catch((e: unknown) => e);
 
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-        expect((error as Error).message).toMatch(/^CHAMVI_KNOWLEDGE_MODEL /);
+        expect((error as Error).message).toMatch(/^KNOWLEDGE_MODEL /);
         expect((error as Error).message).not.toMatch(/secret/);
     });
 

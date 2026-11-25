@@ -76,7 +76,7 @@ export type AppContext = {
     report(error: unknown, context?: Record<string, unknown>): void;
     /** createApp's `models`: AI SDK providers by id, winning over every provider setting for their ids. */
     models?: ModelProviders;
-    /** createApp's `model`: the default model of agents without one (CHAMVI_MODEL and the config file win). */
+    /** createApp's `model`: the default model of agents without one (MODEL and the config file win). */
     model?: ModelRef;
     /** createApp's `providers` (env and the config file win per field). */
     providers?: Readonly<Record<string, ProviderConfig>>;
