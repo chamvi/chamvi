@@ -18,10 +18,10 @@
     },
     "scripts": {
         "dev": "vitepress dev src",
-        "build": "vitepress build src",
+        "build:types": "tsc --noEmit -p tsconfig.json",
+        "build": "npm run build:types && vitepress build src",
         "preview": "vitepress preview src",
-        "test": "vitest --config test/vitest.config.ts --run",
-        "check:types": "tsc --noEmit -p tsconfig.json"
+        "test": "vitest --config test/vitest.config.ts --run"
     },
     "engines": {
         "node": ">=26.0.0"

@@ -15,8 +15,8 @@ chamvi/
 │   │   │   └── utils/               # mock-model.ts, clock.ts (private ControllableClock copy)
 │   │   ├── README.md                # Package README (must contain the fixture verbatim)
 │   │   ├── tsdown.config.ts         # Builds dist/index.mjs + .d.mts
-│   │   ├── tsconfig.json            # src + test (check:types)
-│   │   └── tsconfig.build.json      # src only (build:types)
+│   │   ├── tsconfig.json            # src + test (type checked by build:types)
+│   │   └── tsconfig.build.json      # src only (read by tsdown and ui-kit declarations)
 │   ├── channel-cron/                # @chamvi/channel-cron (same layout)
 │   ├── http/                        # @chamvi/http (same layout)
 │   ├── test-kit/                    # @chamvi/test-kit (same layout)

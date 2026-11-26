@@ -34,11 +34,10 @@
         "node": ">=26.0.0"
     },
     "scripts": {
-        "build:types": "tsc --noEmit -p tsconfig.build.json",
+        "build:types": "tsc --noEmit -p tsconfig.json",
         "build:js": "tsdown",
         "build": "npm run build:types && npm run build:js",
         "dev": "node --loader ts-node/esm src/cli.ts",
-        "check:types": "tsc --noEmit -p tsconfig.json",
         "test": "vitest --config test/vitest.config.ts --run",
         "test:coverage": "vitest --config test/vitest.config.ts --run --coverage"
     },
