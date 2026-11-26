@@ -20,7 +20,7 @@ npm run lint
 - **Package manager**: npm (workspaces)
 - **Build orchestration**: nx (`nx run-many`), packages built with tsdown (ESM only)
 
-Packages live in `packages/*`, container images in `images/*`; the existing and the planned ones are listed in [Project Structure](.agents/structure.md).
+Packages live in `packages/*`, apps in `apps/*`, images in `images/*`; the existing and the planned ones are listed in [Project Structure](.agents/structure.md).
 
 ## Detailed Guides
 

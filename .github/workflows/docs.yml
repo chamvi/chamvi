@@ -5,12 +5,14 @@ on:
         branches:
             - master
         paths:
+            - 'apps/**'
             - 'packages/**'
             - '.github/workflows/docs.yml'
     pull_request:
         branches:
             - master
         paths:
+            - 'apps/**'
             - 'packages/**'
             - '.github/workflows/docs.yml'
 

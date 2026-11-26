@@ -4,6 +4,10 @@
 
 ```
 chamvi/
+├── apps/
+│   └── cli/                         # @chamvi/cli (bin chamvi -> dist/cli.mjs)
+│       ├── src/cli.ts               # the bin (shebang, then the header)
+│       └── test/fixtures/           # apps the commands and the spawned bin run
 ├── packages/
 │   ├── access/                      # @chamvi/access (same layout)
 │   ├── core/                        # @chamvi/core
@@ -46,9 +50,6 @@ chamvi/
 │   ├── app/                         # @chamvi/app
 │   │   ├── src/                     # main entry src/index.ts, subpath entries src/{authup,testing}/index.ts
 │   │   └── test/                    # global-setup.ts (postgres:18-alpine via testcontainers), utils/harness.ts (aliases @chamvi/app/testing's harness)
-│   ├── cli/                         # @chamvi/cli (bin chamvi -> dist/cli.mjs)
-│   │   ├── src/cli.ts               # the bin (shebang, then the header)
-│   │   └── test/fixtures/           # apps the commands and the spawned bin run
 │   ├── store/, store-memory/        # @chamvi/store (the ports), @chamvi/store-memory (`src/repositories/<aggregate>`): a folder per aggregate
 │   ├── store-db/               # @chamvi/store-db (same layout)
 │   │   ├── src/{entity,database,migration,query,schema,migrations,repositories/<aggregate>}/
@@ -109,7 +110,7 @@ chamvi/
 | `@chamvi/ui-kit` | Exists (unpublished) | The Vue base of the dashboard and `*-ui` pages: session, `AppShell`, connection components, `mountPage()`; `/vite`: `definePageConfig()`; peer on core, access, http(-kit), Vue and vuecs |
 | `@chamvi/{tool-mail,tool-calendar,github,chat-discord,chat-whatsapp}-ui` | Exists (unpublished) | One prebuilt dashboard page each at `<uiBase>/ext/<slug>`; `/module`: `toolMailUiModule()`, ... over `uiPageModule()`; only peer the optional `@chamvi/app`; `chat-whatsapp-ui` owns the QR |
 | `@chamvi/app` | Exists | `createApp()` (`IApp`: `start`, `check`, `stop`, `runJob`, `migrate`), built-in orkos modules (config, store, static tokens, engine, agents, scheduler, components, http: see app.md; plus the optional `consoleChannelModule()`, `uiPageModule()`) over an eldin container, `AppToken`s (a repository and a service token per aggregate, `HTTP_CONTROLLERS`, `OPENAPI_DOCUMENTS`), `databaseModule()`, env readers, `readConfig()`, the JSON line logger, the model settings and resolver (`MODEL`, `PROVIDER_*`, `chamvi.json`); the module contract (tokens, `ModuleName`, `approvalUrlOf`, `AppContext`, `ILifecycleHook`, the orkos `IModule` and eldin `IContainer` types); subpaths `/authup` (`authupModule`, `oidcModule`) and `/testing` (`buildModuleHarness()`, `createModuleHarness()`, `memoryStoreModule()`), the other optional modules live in their feature packages on `/module`; re-exports core, access and part of http; depends on access, core, store, store-memory, store-db, http, channel-cron, `hubwire`, `orkos`, `eldin`, `envix`, `routup`, `smob`, `locter`, peer on `ai`, `typeorm`, `pg`, `@routup/decorators` (optional: the AI SDK provider packages and the two `@authup/*` packages; no `@chamvi/*` feature package in any dependency field) |
-| `@chamvi/cli` | Exists | The `chamvi` bin (citty): `dev`, `build`, `start` (`--check`), `run-job`, `migrate`, `migration`, entry loading (a TypeScript entry through `module.registerHooks()` and tsdown's rolldown with the tsconfig tsdown finds from the cwd), signals, exit codes `0/1/2`; `runCli()`; depends on store-db, `citty`, `@oxc-project/runtime`, peer on app (optional `tsdown`) |
+| `@chamvi/cli` (`apps/cli`) | Exists | The `chamvi` bin (citty): `dev`, `build`, `start` (`--check`), `run-job`, `migrate`, `migration`, entry loading (a TypeScript entry through `module.registerHooks()` and tsdown's rolldown with the tsconfig tsdown finds from the cwd), signals, exit codes `0/1/2`; `runCli()`; depends on store-db, `citty`, `@oxc-project/runtime`, peer on app (optional `tsdown`) |
 | `@chamvi/coding-claude-code` | Planned | Claude Code coding backend |
 | `@chamvi/github` | Exists | `createGithubApp()` (App JWT, `IClock` installation-token cache, Octokit per installation), `githubChannel()` (`in`: the signed deliveries, one run per matching agent with the address `<owner>/<repo>#<n>`; `out`: one comment per key, deduplicated by `effectMarker()` found before posting), `github.on()`, `github.to()`, read tools and effect write tools, the context pair `provideGithubContext`/`injectGithubContext`; `/module`: `githubModule()` (optional peer on `@chamvi/app`; contributes the channel); depends on `@octokit/core` + `plugin-paginate-rest`, `@ebec/http`, `smob`, peer on core and `ai` (http a devDependency for tests) |
 | `@chamvi/channel-openclaw` | Exists | `openclawChannel()` (out only): `POST <hooksPath>/agent` with `Idempotency-Key`, a deterministic message with the approval link, an `IClock` timeout; `/module`: `openclawModule()` (optional peer on `@chamvi/app`; contributes the channel); no runtime dependencies, peer on core |

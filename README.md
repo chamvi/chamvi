@@ -69,7 +69,7 @@ Workflow DevKit, Mastra, Inngest and Trigger.dev also make agent runs durable. H
 | [`@chamvi/store-memory`](./packages/store-memory) | [![npm](https://img.shields.io/npm/v/@chamvi/store-memory)](https://www.npmjs.com/package/@chamvi/store-memory) | In-memory repositories with row locks, transactions and foreign keys, for development and tests |
 | [`@chamvi/access`](./packages/access) | [![npm](https://img.shields.io/npm/v/@chamvi/access)](https://www.npmjs.com/package/@chamvi/access) | Permission checks over authup policy bindings, in Node.js and the browser |
 | [`@chamvi/app`](./packages/app) | [![npm](https://img.shields.io/npm/v/@chamvi/app)](https://www.npmjs.com/package/@chamvi/app) | `createApp()`: config, store, engine, channels and HTTP as modules booted from env and `chamvi.json`, plus agent folders and agent packages |
-| [`@chamvi/cli`](./packages/cli) | [![npm](https://img.shields.io/npm/v/@chamvi/cli)](https://www.npmjs.com/package/@chamvi/cli) | The `chamvi` bin: `dev`, `build`, `start` (`--check`), `run-job`, `migrate` |
+| [`@chamvi/cli`](./apps/cli) | [![npm](https://img.shields.io/npm/v/@chamvi/cli)](https://www.npmjs.com/package/@chamvi/cli) | The `chamvi` bin: `dev`, `build`, `start` (`--check`), `run-job`, `migrate` |
 
 **Channels**
 

@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import swc from 'unplugin-swc';
 import { defineConfig } from 'vitest/config';
 
-const source = (path: string) => fileURLToPath(new URL(`../../${path}`, import.meta.url));
+const source = (path: string) => fileURLToPath(new URL(`../../../packages/${path}`, import.meta.url));
 
 export default defineConfig({
     plugins: [
@@ -35,7 +35,7 @@ export default defineConfig({
             { find: /^@chamvi\/github\/module$/, replacement: source('github/src/module/index.ts') },
             { find: /^@chamvi\/app$/, replacement: source('app/src/index.ts') },
             { find: /^@chamvi\/app\/(authup|testing)$/, replacement: `${source('app/src/')}$1/index.ts` },
-            { find: /^@chamvi\/cli$/, replacement: source('cli/src/index.ts') },
+            { find: /^@chamvi\/cli$/, replacement: fileURLToPath(new URL('../src/index.ts', import.meta.url)) },
         ],
     },
     test: {
