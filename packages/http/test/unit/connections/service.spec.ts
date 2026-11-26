@@ -65,9 +65,9 @@ describe('ConnectionHttpService', () => {
     it('refuses a detail without a grant (403), then answers an unknown name 404', async () => {
         const { service } = setup([handleOf('alpha')]);
 
-        await expect(service.get('alpha', nobody)).rejects.toMatchObject({ status: 403 });
-        await expect(service.get('nope', nobody)).rejects.toMatchObject({ status: 403 });
-        await expect(service.get('nope', reader)).rejects.toMatchObject({ status: 404 });
+        await expect(service.get('alpha', nobody)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.get('nope', nobody)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.get('nope', reader)).rejects.toMatchObject({ code: 'not_found' });
     });
 
     it('shows widgets to a writer only', async () => {
@@ -91,9 +91,9 @@ describe('ConnectionHttpService', () => {
     it('requires write for a writable handle: 403 for a reader, then 404', async () => {
         const { service } = setup([handleOf('alpha')]);
 
-        await expect(service.requireWritable('alpha', reader)).rejects.toMatchObject({ status: 403 });
-        await expect(service.requireWritable('nope', reader)).rejects.toMatchObject({ status: 403 });
-        await expect(service.requireWritable('nope', writer)).rejects.toMatchObject({ status: 404 });
+        await expect(service.requireWritable('alpha', reader)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.requireWritable('nope', reader)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.requireWritable('nope', writer)).rejects.toMatchObject({ code: 'not_found' });
         expect((await service.requireWritable('alpha', writer)).name).toBe('alpha');
     });
 
@@ -105,9 +105,9 @@ describe('ConnectionHttpService', () => {
             handleOf('held', { status: 'held_elsewhere', reset }),
         ]);
 
-        await expect(service.reset('alpha', reader)).rejects.toMatchObject({ status: 403 });
-        await expect(service.reset('plain', writer)).rejects.toMatchObject({ status: 404, message: 'The connection "plain" offers no reset.' });
-        await expect(service.reset('held', writer)).rejects.toMatchObject({ status: 409 });
+        await expect(service.reset('alpha', reader)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.reset('plain', writer)).rejects.toMatchObject({ code: 'not_found', message: 'The connection "plain" offers no reset.' });
+        await expect(service.reset('held', writer)).rejects.toMatchObject({ code: 'conflict' });
         expect(reset).not.toHaveBeenCalled();
     });
 

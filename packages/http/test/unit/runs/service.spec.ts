@@ -72,18 +72,18 @@ describe('RunHttpService.start', () => {
         const { service } = setup();
 
         await expect(service.start({ agent: 'echo', data: {} }, principalOf(Permission.RUN_READ))).rejects.toMatchObject({
-            status: 403,
+            code: 'forbidden',
             message: 'Missing permission "chamvi_agent_run".',
         });
-        await expect(service.start({ agent: 'nope', data: {} }, principalOf(Permission.RUN_READ))).rejects.toMatchObject({ status: 403 });
-        await expect(service.start({ agent: 'nope', data: {} }, admin)).rejects.toMatchObject({ status: 404 });
+        await expect(service.start({ agent: 'nope', data: {} }, principalOf(Permission.RUN_READ))).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.start({ agent: 'nope', data: {} }, admin)).rejects.toMatchObject({ code: 'not_found' });
     });
 
     it('answers 404 for an agent without an http subscription', async () => {
         const { service } = setup();
 
         await expect(service.start({ agent: 'sweep', data: {} }, admin)).rejects.toMatchObject({
-            status: 404,
+            code: 'not_found',
             message: 'Agent "sweep" has no http subscription.',
         });
     });
@@ -91,11 +91,11 @@ describe('RunHttpService.start', () => {
     it('answers 400 with issues for a payload the subscription schema refuses', async () => {
         const { service } = setup();
         const error = await service.start({ agent: 'strict', data: { payload: { n: 'x' } } }, admin).catch((e: unknown) => e) as {
-            status: number;
+            code: string;
             issues: unknown[];
         };
 
-        expect(error.status).toBe(400);
+        expect(error.code).toBe('bad_request');
         expect(error.issues.length).toBeGreaterThan(0);
     });
 
@@ -147,13 +147,13 @@ describe('RunHttpService.start', () => {
             data: {},
             idempotencyHeader: 'k'.repeat(KEY_MAX_LENGTH + 1),
         }, admin))
-            .rejects.toMatchObject({ status: 400 });
+            .rejects.toMatchObject({ code: 'bad_request' });
         await expect(service.start({
             agent: 'echo',
             data: {},
             idempotencyHeader: '',
         }, admin))
-            .rejects.toMatchObject({ status: 400 });
+            .rejects.toMatchObject({ code: 'bad_request' });
     });
 
     it('passes attachments only when there are some', async () => {
@@ -205,7 +205,7 @@ describe('RunHttpService.start', () => {
 
         const runner = principalOf(restricted(Permission.AGENT_RUN, { private: false }));
 
-        await expect(service.start({ agent: 'swap', data: { payload: { n: 1 } } }, runner)).rejects.toMatchObject({ status: 403 });
+        await expect(service.start({ agent: 'swap', data: { payload: { n: 1 } } }, runner)).rejects.toMatchObject({ code: 'forbidden' });
         expect(dispatch).not.toHaveBeenCalled();
         expect((await engine.runService.find({})).data).toEqual([]);
     });
@@ -219,7 +219,7 @@ describe('RunHttpService reads', () => {
         const stranger = principalOf(Permission.STATE_READ);
 
         await expect(service.getReadable(secret.runId, stranger)).rejects.toMatchObject({ code: ErrorCode.RUN_NOT_FOUND });
-        await expect(service.getReadable(echo.runId, stranger)).rejects.toMatchObject({ status: 403 });
+        await expect(service.getReadable(echo.runId, stranger)).rejects.toMatchObject({ code: 'forbidden' });
         await expect(service.getReadable('missing', admin)).rejects.toMatchObject({ code: ErrorCode.RUN_NOT_FOUND });
         expect((await service.getReadable(echo.runId, admin)).id).toBe(echo.runId);
     });
@@ -255,9 +255,9 @@ describe('RunHttpService.cancel', () => {
         const { service } = setup();
         const { runId } = await service.start({ agent: 'echo', data: {} }, admin);
 
-        await expect(service.cancel(runId, principalOf(Permission.RUN_READ))).rejects.toMatchObject({ status: 403 });
+        await expect(service.cancel(runId, principalOf(Permission.RUN_READ))).rejects.toMatchObject({ code: 'forbidden' });
         await expect(service.cancel(runId, principalOf(restricted(Permission.RUN_CANCEL, { agent: 'gate' }))))
-            .rejects.toMatchObject({ status: 403 });
+            .rejects.toMatchObject({ code: 'forbidden' });
         expect(await service.cancel(runId, admin)).toEqual({ runId, status: 'cancelled' });
     });
 });
@@ -275,7 +275,7 @@ describe('RunHttpService.approve', () => {
         const { runId } = await service.start({ agent: 'echo', data: {} }, admin);
 
         await expect(service.approve(runId, {} as never, principalOf(Permission.RUN_READ))).rejects.toMatchObject({
-            status: 403,
+            code: 'forbidden',
             message: 'Missing permission "chamvi_agent_approve".',
         });
     });

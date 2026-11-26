@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { NotFoundError } from '@ebec/http';
+import { NotFoundError } from '@chamvi/errors';
 import { decorators } from '@routup/decorators';
 import { App, defineCoreHandler } from 'routup';
 import { AgentController, ScheduleController } from '../agents/controller/index.ts';

@@ -7,7 +7,7 @@
 
 import { RunStatus } from '@chamvi/store';
 import type { Run } from '@chamvi/store';
-import { BadRequestError } from '@ebec/http';
+import { BadRequestError } from '@chamvi/errors';
 
 /** The step index a `Last-Event-ID` header names; -1 for none or garbage. */
 export function parseLastEventId(header: string | null): number {

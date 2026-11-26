@@ -423,7 +423,7 @@ describe('authup', () => {
 
     it('rejects a token the verifier rejects with 401', async () => {
         await expect(setup().authenticate(request('Bearer bad'))).rejects.toMatchObject({
-            status: 401,
+            code: 'unauthorized',
             message: 'The access token is invalid.',
         });
     });
@@ -438,7 +438,7 @@ describe('authup', () => {
         }
 
         await expect(setup({ data }).authenticate(request('Bearer good'))).rejects.toMatchObject({
-            status: 401,
+            code: 'unauthorized',
             message: 'The access token names no subject.',
         });
     });
@@ -455,10 +455,10 @@ describe('authup', () => {
         };
 
         await expect(authup(timedOut)(request('Bearer good'))).rejects.toMatchObject({
-            status: 503,
+            code: 'service_unavailable',
             message: 'The access token could not be verified in time.',
         });
-        await expect(setup().authenticate(request('Bearer bad'))).rejects.toMatchObject({ status: 401 });
+        await expect(setup().authenticate(request('Bearer bad'))).rejects.toMatchObject({ code: 'unauthorized' });
     });
 
     it.each([['upstream_error'], ['upstream_timeout']])('answers 503 when the verifier reports authup unreachable (%s)', async (code) => {
@@ -473,13 +473,13 @@ describe('authup', () => {
         };
 
         await expect(authup(unreachable)(request('Bearer good'))).rejects.toMatchObject({
-            status: 503,
+            code: 'service_unavailable',
             message: 'The access token could not be verified: authup is unreachable.',
         });
     });
 
     it('rejects a malformed header with 401', async () => {
-        await expect(setup().authenticate(request('Bearer'))).rejects.toMatchObject({ status: 401 });
+        await expect(setup().authenticate(request('Bearer'))).rejects.toMatchObject({ code: 'unauthorized' });
     });
     describe('the snapshot', () => {
         const OTHER_REALM = 'c641912c-21e5-4cb4-84b6-169e2b2bb024';

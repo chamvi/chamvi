@@ -17,7 +17,7 @@ import type {
 } from '@chamvi/core';
 import { IssueCode, defineIssueItem } from '@ebec/core';
 import type { Issue } from '@ebec/core';
-import { ConflictError } from '@ebec/http';
+import { ConflictError } from '@chamvi/errors';
 import { ValidupError } from 'validup';
 import type { ConfigTarget, ConnectionHttpServiceContext, FormInput } from '../types.ts';
 import { isStored, lockOf, normalizeSetting } from './fields.ts';

@@ -8,7 +8,7 @@
 import { isPermissionAuthorization, isPermissionBinding } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { Invoker } from '@chamvi/store';
-import { UnauthorizedError } from '@ebec/http';
+import { UnauthorizedError } from '@chamvi/errors';
 import type { IAppEvent } from 'routup';
 import { isObject } from 'smob';
 import { useHttpContext } from '../../app/helpers/index.ts';

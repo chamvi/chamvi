@@ -7,7 +7,7 @@
 
 import { Permission } from '@chamvi/access';
 import type { Agent, IClock } from '@chamvi/core';
-import { ForbiddenError, NotFoundError } from '@ebec/http';
+import { ForbiddenError, NotFoundError } from '@chamvi/errors';
 import { agentResource, isGranted } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
 import type { HttpAgents } from '../../app/types.ts';

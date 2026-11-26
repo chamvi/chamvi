@@ -8,7 +8,7 @@
 import { permissionNames } from '@chamvi/access';
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 import type { McpHttpHandler } from '@modelcontextprotocol/server';
-import { UnauthorizedError } from '@ebec/http';
+import { UnauthorizedError } from '@chamvi/errors';
 import { defineCoreHandler } from 'routup';
 import type { App } from 'routup';
 import { refuseWhenClosed } from '../app/helpers/index.ts';

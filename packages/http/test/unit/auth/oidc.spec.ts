@@ -114,19 +114,19 @@ describe('oidc', () => {
     it('rejects an expired token with token_expired', async () => {
         const token = await signToken(key.privateKey, claims(), { expiresIn: Math.floor(Date.now() / 1000) - 600 });
 
-        await expect(make()(request(token))).rejects.toMatchObject({ status: 401, code: 'token_expired' });
+        await expect(make()(request(token))).rejects.toMatchObject({ code: 'token_expired' });
     });
 
     it('rejects a wrong audience with claim_invalid', async () => {
         const token = await signToken(key.privateKey, claims({ aud: 'someone-else' }));
 
-        await expect(make()(request(token))).rejects.toMatchObject({ status: 401, code: 'claim_invalid' });
+        await expect(make()(request(token))).rejects.toMatchObject({ code: 'claim_invalid' });
     });
 
     it('rejects a token signed by another key with signature_invalid', async () => {
         const token = await signToken(other.privateKey, claims());
 
-        await expect(make()(request(token))).rejects.toMatchObject({ status: 401, code: 'signature_invalid' });
+        await expect(make()(request(token))).rejects.toMatchObject({ code: 'signature_invalid' });
     });
 
     it('resolves undefined for another issuer or a non-JWT token', async () => {
@@ -146,20 +146,20 @@ describe('oidc', () => {
         };
         const token = await signToken(key.privateKey, claims());
 
-        await expect(make(mapper, [failing])(request(token))).rejects.toMatchObject({ status: 503 });
+        await expect(make(mapper, [failing])(request(token))).rejects.toMatchObject({ code: 'service_unavailable' });
     });
 
     it('answers 401 for a kid the issuer does not publish', async () => {
         const token = await signToken(key.privateKey, claims(), { kid: 'k2' });
 
-        await expect(make()(request(token))).rejects.toMatchObject({ status: 401, code: 'key_unavailable' });
+        await expect(make()(request(token))).rejects.toMatchObject({ code: 'key_unavailable' });
     });
 
     it('rejects a token the mapper does not allow', async () => {
         const token = await signToken(key.privateKey, claims());
 
         await expect(make(() => undefined)(request(token))).rejects.toMatchObject({
-            status: 401,
+            code: 'unauthorized',
             message: 'The token is not allowed.',
         });
     });

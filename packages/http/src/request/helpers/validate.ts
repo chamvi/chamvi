@@ -7,7 +7,7 @@
 
 import { flattenIssueItems } from '@ebec/core';
 import type { Issue } from '@ebec/core';
-import { BadRequestError } from '@ebec/http';
+import { BadRequestError } from '@chamvi/errors';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
 import { isObject } from 'smob';

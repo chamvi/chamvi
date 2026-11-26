@@ -7,7 +7,7 @@
 
 import { flattenIssueItems } from '@ebec/core';
 import type { Issue } from '@ebec/core';
-import { BadRequestError } from '@ebec/http';
+import { BadRequestError } from '@chamvi/errors';
 import { createURLCodec } from '@rapiq/codec-url';
 import {
     CodecError,

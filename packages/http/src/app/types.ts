@@ -226,7 +226,7 @@ export type HttpRoute = {
     prefix?: true;
     /**
      * Not authenticated by the app's authenticators unless the handler calls
-     * `request.authorize()`. Thrown @ebec/http and core errors render like any route's.
+     * `request.authorize()`. Thrown chamvi and @ebec/http errors render like any route's.
      */
     handler: (request: HttpRouteRequest, ctx: HttpRouteContext) => Promise<HttpRouteResult>;
 };

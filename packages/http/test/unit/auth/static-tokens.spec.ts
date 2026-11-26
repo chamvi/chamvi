@@ -116,7 +116,7 @@ describe('staticTokens', () => {
     });
 
     it('rejects another scheme with 401', async () => {
-        await expect(auth(request('Basic abc'))).rejects.toMatchObject({ status: 401 });
+        await expect(auth(request('Basic abc'))).rejects.toMatchObject({ code: 'unauthorized' });
     });
 
     it('resolves every token of a principal that holds several', async () => {

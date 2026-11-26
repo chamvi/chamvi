@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { TooManyRequestsError } from '@ebec/http';
+import { TooManyRequestsError } from '@chamvi/errors';
 import { cors } from '@routup/cors';
 import { prometheus } from '@routup/prometheus';
 import { rateLimit } from '@routup/rate-limit';

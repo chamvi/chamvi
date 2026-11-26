@@ -5,7 +5,22 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError, ErrorCode } from '@chamvi/errors';
+import {
+    ERROR_CODE_TO_STATUS,
+    ErrorCode,
+    isBadRequestError,
+    isChamviError,
+    isConflictError,
+    isForbiddenError,
+    isInternalError,
+    isNotFoundError,
+    isRequestEntityTooLargeError,
+    isServiceUnavailableError,
+    isTooManyRequestsError,
+    isUnauthorizedError,
+    isUnsupportedMediaTypeError,
+} from '@chamvi/errors';
+import type { ChamviError } from '@chamvi/errors';
 import type { Issue } from '@ebec/core';
 import { isHTTPError } from '@ebec/http';
 import type { IHTTPError } from '@ebec/http';
@@ -25,23 +40,42 @@ type ErrorBody = {
     fixed?: boolean;
 };
 
-const CORE_STATUS: Record<string, number> = {
-    [ErrorCode.VALIDATION]: 400,
-    [ErrorCode.AGENT_NOT_FOUND]: 404,
-    [ErrorCode.AGENT_REPLACED]: 409,
-    [ErrorCode.RUN_NOT_FOUND]: 404,
-    [ErrorCode.ARTIFACT_NOT_FOUND]: 404,
-    [ErrorCode.CONNECTION_CHANGED]: 409,
-    [ErrorCode.CONNECTION_HELD]: 409,
-    // a stored seal no key of the keyring opens (one dropped); the message names at most a key id
-    [ErrorCode.DECRYPTION_FAILED]: 409,
-    [ErrorCode.REPOSITORY_NOT_FOUND]: 404,
-    [ErrorCode.INVALID_RUN_STATE]: 409,
-    // retryable: rendered with `Retry-After` (RETRY_AFTER_SECONDS), never reported
-    [ErrorCode.PEER_START_BUSY]: 503,
-};
-
 const APP_ERROR_CODE = 'APP_ERROR';
+
+/** The class of a built-in decides its status when its code is one of its own (an oidc 401 carries the vouchly code). */
+const BUILT_IN_STATUS: ReadonlyArray<readonly [(error: unknown) => boolean, ErrorCode]> = [
+    [isBadRequestError, ErrorCode.BAD_REQUEST],
+    [isUnauthorizedError, ErrorCode.UNAUTHORIZED],
+    [isForbiddenError, ErrorCode.FORBIDDEN],
+    [isNotFoundError, ErrorCode.NOT_FOUND],
+    [isConflictError, ErrorCode.CONFLICT],
+    [isRequestEntityTooLargeError, ErrorCode.REQUEST_ENTITY_TOO_LARGE],
+    [isUnsupportedMediaTypeError, ErrorCode.UNSUPPORTED_MEDIA_TYPE],
+    [isTooManyRequestsError, ErrorCode.TOO_MANY_REQUESTS],
+    [isServiceUnavailableError, ErrorCode.SERVICE_UNAVAILABLE],
+    [isInternalError, ErrorCode.INTERNAL_ERROR],
+];
+
+/**
+ * The status a chamvi error renders with: its code's (`ERROR_CODE_TO_STATUS`),
+ * else its built-in class's, else `undefined` (an internal error).
+ */
+export function statusOfChamviError(error: ChamviError): number | undefined {
+    const status = ERROR_CODE_TO_STATUS[error.code as ErrorCode];
+
+    if (status !== undefined) {
+        return status;
+    }
+
+    const builtIn = BUILT_IN_STATUS.find(([guard]) => guard(error));
+
+    return builtIn ? ERROR_CODE_TO_STATUS[builtIn[1]] : undefined;
+}
+
+/** A refusal the caller retries after `Retry-After` (a busy peer start): never reported. */
+export function isRetryableErrorCode(code: string): boolean {
+    return Object.hasOwn(RETRY_AFTER_SECONDS, code);
+}
 
 export function renderError(event: IAppEvent, body: ErrorBody): Response {
     const headers = new Headers(event.response.headers);
@@ -130,6 +164,20 @@ function toErrorBody(cause: unknown): ErrorBody | undefined {
         return storage;
     }
 
+    if (isChamviError(cause)) {
+        const status = statusOfChamviError(cause);
+
+        if (status === undefined) {
+            return undefined;
+        }
+
+        return withIssues({
+            status,
+            code: cause.code,
+            message: cause.message,
+        }, cause.issues);
+    }
+
     if (isHTTPError(cause) && !isBareAppError(cause)) {
         return withIssues({
             status: cause.status,
@@ -146,20 +194,6 @@ function toErrorBody(cause: unknown): ErrorBody | undefined {
         }, cause.issues);
     }
 
-    if (cause instanceof ChamviError) {
-        const status = CORE_STATUS[cause.code];
-
-        if (status === undefined) {
-            return undefined;
-        }
-
-        return withIssues({
-            status,
-            code: cause.code,
-            message: cause.message,
-        }, cause.issues);
-    }
-
     return undefined;
 }
 
@@ -171,7 +205,7 @@ export function createErrorHandler(ctx: HttpContext): Handler {
     return defineErrorHandler((error, event) => {
         const cause = unwrapAppError(error);
         let body = toErrorBody(cause);
-        const retryAfter = body && Object.hasOwn(RETRY_AFTER_SECONDS, body.code) ? RETRY_AFTER_SECONDS[body.code] : undefined;
+        const retryAfter = body && isRetryableErrorCode(body.code) ? RETRY_AFTER_SECONDS[body.code] : undefined;
 
         // an expected refusal the caller retries: not reported
         if (body && retryAfter !== undefined) {

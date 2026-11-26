@@ -9,9 +9,8 @@ import { authorizationCatalogSchema, isAuthorizationCatalogStaleError } from '@a
 import type { TokenVerificationData } from '@authup/server-adapter-kit';
 import { verifyRequest } from '@authup/server-adapter-web';
 import type { PermissionAuthorization, PermissionIdentity } from '@chamvi/access';
-import { ErrorCode } from '@chamvi/errors';
+import { ErrorCode, ServiceUnavailableError, UnauthorizedError } from '@chamvi/errors';
 import { InvalidAgentDefinitionError, systemClock } from '@chamvi/core';
-import { ServiceUnavailableError, UnauthorizedError } from '@ebec/http';
 import { isObject } from 'smob';
 import type { Authenticator } from '../types.ts';
 import { createCatalogCache } from './catalog.ts';
