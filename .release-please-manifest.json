@@ -36,5 +36,6 @@
     "packages/tool-calendar": "0.12.0",
     "packages/access": "0.12.0",
     "packages/http-kit": "0.12.0",
-    "packages/peer": "0.12.0"
+    "packages/peer": "0.12.0",
+    "packages/errors": "0.12.0"
 }
