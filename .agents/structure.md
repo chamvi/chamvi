@@ -15,7 +15,7 @@ chamvi/
 │   │   │   └── utils/               # mock-model.ts, clock.ts (private ControllableClock copy)
 │   │   ├── README.md                # Package README (must contain the fixture verbatim)
 │   │   ├── tsdown.config.ts         # Builds dist/index.mjs + .d.mts
-│   │   ├── tsconfig.json            # src + test (typecheck)
+│   │   ├── tsconfig.json            # src + test (check:types)
 │   │   └── tsconfig.build.json      # src only (build:types)
 │   ├── channel-cron/                # @chamvi/channel-cron (same layout)
 │   ├── http/                        # @chamvi/http (same layout)
@@ -56,7 +56,7 @@ chamvi/
 │   ├── store-db-vector/             # @chamvi/store-db-vector (tests on pgvector/pgvector:pg18)
 │   └── docs/                        # @chamvi/docs (private, not released): VitePress site (npm run docs:dev / docs:build)
 │       ├── src/.vitepress/          # config.mts, theme/, components/
-│       └── src/snippets/            # Code samples included via <<<, type-checked by the docs typecheck
+│       └── src/snippets/            # Code samples included via <<<, type-checked by the docs
 ├── images/
 │   ├── node/                        # Dockerfile + README of ghcr.io/chamvi/node:26 (the app base image: node:26-trixie-slim, tini, uid 1000)
 │   └── sandbox-dev/                 # Dockerfile + README of ghcr.io/chamvi/sandbox-dev (Debian, git, build tools, ripgrep, jq, mise; root)

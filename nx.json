@@ -15,7 +15,7 @@
           "build",
           "lint",
           "test",
-          "typecheck"
+          "check:types"
         ]
       }
     }

@@ -267,7 +267,7 @@ The [deployment guide](https://chamvi.dev/deployment/) covers Docker, Kubernetes
 npm install
 npm run build
 npm run test
-npm run typecheck
+npm run check:types
 npm run lint
 ```
 
