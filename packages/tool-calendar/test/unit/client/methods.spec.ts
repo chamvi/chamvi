@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import { ControllableClock } from '@chamvi/test-kit';
 import { CALENDAR_REQUEST_ERROR_CODE, createCalendarClient } from '@chamvi/tool-calendar';
 import { guardedFetch } from '../../../src/client/guard.ts';

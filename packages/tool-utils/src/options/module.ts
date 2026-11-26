@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
 import { UTILITY_TOOL_NAMES } from '../tools/constants.ts';
 import { resolveZone } from '../tools/zone.ts';

@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ChamviError, ValidationError } from '@chamvi/core';
+import { ChamviError, ValidationError } from '@chamvi/errors';
 import { ControllableClock } from '@chamvi/test-kit';
 import { CALENDAR_CHANGED_MESSAGE, CALENDAR_REQUEST_ERROR_CODE, createCalendarWriteClient } from '@chamvi/tool-calendar';
 import { encodeCalendarEventId } from '../../../src/event-id/module.ts';

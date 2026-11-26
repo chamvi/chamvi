@@ -14,7 +14,8 @@ import {
     expect,
     it,
 } from 'vitest';
-import { SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError } from '@chamvi/core';
 import type { ContractWorkspace, WorkspaceContractFactory, WorkspaceContractOptions } from './types.ts';
 
 const TEST_TIMEOUT_MS = 30_000;

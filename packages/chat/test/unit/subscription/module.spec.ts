@@ -8,7 +8,8 @@
 
 import { Chat } from 'chat';
 import { describe, expect, it } from 'vitest';
-import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import {
     CHAT_ADDRESS_PREFIX,
     chat,

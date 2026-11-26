@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError, ErrorCode } from '@chamvi/core';
+import { ChamviError, ErrorCode } from '@chamvi/errors';
 import type { ClockTimer, ConnectionTypeDefinition, ConnectionValues } from '@chamvi/core';
 import { TEST_MESSAGE_MAX_LENGTH, TEST_TIMEOUT_MS } from '../constants.ts';
 import type { ConnectionHttpServiceContext } from '../types.ts';

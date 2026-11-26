@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ErrorCode } from '@chamvi/core';
+import { ErrorCode } from '@chamvi/errors';
 
 /** The waits before the second and the third attempt of a message whose dispatch failed transiently. */
 export const CHAT_INTAKE_RETRY_DELAYS_MS: readonly number[] = [1000, 2000];

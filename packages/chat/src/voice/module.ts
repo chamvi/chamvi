@@ -5,8 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { TimeoutError, ValidationError } from '@chamvi/core';
-import type { ChamviError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { TimeoutError } from '@chamvi/core';
+import type { ChamviError } from '@chamvi/errors';
 import { transcribe } from 'ai';
 import { isObject } from 'smob';
 import { hashKey, reportError } from '../channel/helpers.ts';

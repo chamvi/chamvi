@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { mockEmbeddingModel } from '@chamvi/test-kit';
 import { MockEmbeddingModelV4 } from 'ai/test';
 import { 

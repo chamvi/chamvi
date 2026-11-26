@@ -8,7 +8,7 @@
 import { createHash } from 'node:crypto';
 import { matchesGlob } from 'node:path';
 import type { ToolExecutionOptions } from 'ai';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import type { ToolContext } from '@chamvi/core';
 import type { GithubProposalsOptions } from '../../app/types.ts';
 import type { GithubProposeChangeInput, RepoTarget } from '../types.ts';

@@ -9,6 +9,7 @@ export default defineConfig({
         alias: [
             { find: /^@chamvi\/http-kit$/, replacement: fileURLToPath(new URL('../src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/access$/, replacement: source('access') },
+            { find: /^@chamvi\/errors$/, replacement: source('errors') },
             { find: /^@chamvi\/core$/, replacement: source('core') },
             { find: /^@chamvi\/http$/, replacement: source('http') },
             { find: /^@chamvi\/store$/, replacement: source('store') },

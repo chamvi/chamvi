@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { describe, expect, it } from 'vitest';
 import type { IKnowledgeSource, KnowledgeDocumentInput } from '@chamvi/knowledge';
 import { defineKnowledgeSource } from '@chamvi/knowledge';

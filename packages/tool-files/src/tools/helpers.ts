@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError, isArtifactMediaType } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { isArtifactMediaType } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
 import { aggregateLimitMessage } from '../runner/helpers.ts';

@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError, InvalidRunStateError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { InvalidRunStateError } from '@chamvi/core';
 import type {
     ChannelContext,
     ChannelRequest,

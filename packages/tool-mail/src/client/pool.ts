@@ -6,7 +6,7 @@
  */
 
 import type { ClockTimer, IClock } from '@chamvi/core';
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import type { ImapFlow, ListResponse } from 'imapflow';
 import type { MailAccountNormalized } from '../options/types.ts';
 import { requestError } from './asserts.ts';

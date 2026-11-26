@@ -18,7 +18,7 @@ import {
     it,
     vi,
 } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import type {
     BashJobResult,
     BashKillResult,

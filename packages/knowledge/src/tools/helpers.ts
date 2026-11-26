@@ -7,7 +7,8 @@
 
 import { jsonSchema } from 'ai';
 import type { JSONSchema7 } from 'ai';
-import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
 import { assertCollectionName } from '../collection/helpers.ts';

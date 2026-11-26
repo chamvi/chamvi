@@ -12,7 +12,8 @@ import {
     expect,
     it,
 } from 'vitest';
-import { SandboxError, ValidationError, systemClock } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError, systemClock } from '@chamvi/core';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import type { IWorkspace } from '@chamvi/sandbox';
 import { CONTAINER_NAME_PREFIX, createDockerSandbox } from '@chamvi/sandbox-docker';

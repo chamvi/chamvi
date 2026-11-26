@@ -57,6 +57,7 @@
     "devDependencies": {
         "@chamvi/app": "^0.12.0",
         "@chamvi/core": "^0.12.0",
+        "@chamvi/errors": "^0.12.0",
         "@chamvi/store": "^0.12.0",
         "@chamvi/store-memory": "^0.12.0",
         "ai": "^7.0.181",
@@ -65,6 +66,7 @@
     "peerDependencies": {
         "@chamvi/app": "^0.12.0",
         "@chamvi/core": "^0.12.0",
+        "@chamvi/errors": "^0.12.0",
         "@chamvi/store": "^0.12.0",
         "ai": "^7"
     },

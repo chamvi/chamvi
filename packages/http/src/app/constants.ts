@@ -6,7 +6,7 @@
  */
 
 import { StoreErrorCode } from '@chamvi/store';
-import { ErrorCode } from '@chamvi/core';
+import { ErrorCode } from '@chamvi/errors';
 import { PEER_START_RETRY_AFTER_SECONDS } from '../runs/constants.ts';
 
 /** Where `createHttpApp` puts the HttpContext in `event.store`, for the middleware classes; internal. */

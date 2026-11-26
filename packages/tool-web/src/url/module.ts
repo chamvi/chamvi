@@ -6,7 +6,7 @@
  */
 
 import { isIP } from 'node:net';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { isBlockedAddress } from '../address/module.ts';
 import type { WebToolsOptionsNormalized } from '../options/types.ts';
 import { messageOf, requestError } from '../request/asserts.ts';

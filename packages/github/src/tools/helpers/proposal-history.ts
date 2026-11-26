@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
 import type { GithubOctokit, GithubProposalsOptions } from '../../app/types.ts';
 import { MAX_HISTORY_COMMITS } from '../constants.ts';

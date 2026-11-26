@@ -11,7 +11,7 @@ import {
     it,
     vi,
 } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { createTestEngine } from '@chamvi/test-kit';
 import { fileTools } from '@chamvi/tool-files';
 import { listTool, toolContext } from '../../utils/context.ts';

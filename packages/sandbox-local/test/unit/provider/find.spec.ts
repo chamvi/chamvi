@@ -15,7 +15,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import { createLocalSandbox } from '@chamvi/sandbox-local';
 import { ControllableClock, createGitFixture } from '@chamvi/test-kit';

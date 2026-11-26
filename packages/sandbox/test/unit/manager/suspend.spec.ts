@@ -6,7 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type { IEngine, RunEvent } from '@chamvi/core';
 import type { Run } from '@chamvi/store';

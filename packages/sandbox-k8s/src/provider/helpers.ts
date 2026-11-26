@@ -13,7 +13,8 @@ import type {
     V1Volume,
     V1VolumeMount,
 } from '@kubernetes/client-node';
-import { ChamviError, InvalidAgentDefinitionError, SandboxError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError, SandboxError } from '@chamvi/core';
 import {
     CACHE_DIR,
     CACHE_ENV,

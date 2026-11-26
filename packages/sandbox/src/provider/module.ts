@@ -6,7 +6,8 @@
  */
 
 import { createHash } from 'node:crypto';
-import { InvalidAgentDefinitionError, SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError, SandboxError } from '@chamvi/core';
 import { isObject } from 'smob';
 import { assertSandboxEnv, parseMemory } from '../limits/module.ts';
 import { isNormalizedRepo } from '../repo/helpers.ts';

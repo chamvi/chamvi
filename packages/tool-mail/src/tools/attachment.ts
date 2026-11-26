@@ -6,7 +6,8 @@
  */
 
 import type { Tool } from 'ai';
-import { ValidationError, defineTool } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { defineTool } from '@chamvi/core';
 import type { MailAttachmentText } from '../client/types.ts';
 import { MAIL_ATTACHMENT_MAX_CHARS } from '../text/constants.ts';
 import {

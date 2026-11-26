@@ -16,7 +16,8 @@ import {
 } from 'vitest';
 import { Buffer } from 'node:buffer';
 import type { ToolSet } from 'ai';
-import { SandboxError, ValidationError, artifactFilePart } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError, artifactFilePart } from '@chamvi/core';
 import type { GitFixture } from '@chamvi/test-kit';
 import { createFixture, setupCoding } from '../../utils/setup.ts';
 import type { CodingSetup } from '../../utils/setup.ts';

@@ -6,7 +6,8 @@
  */
 
 import type { IClock } from '@chamvi/core';
-import { SandboxError, ValidationError, systemClock } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError, systemClock } from '@chamvi/core';
 import { createOutputCollector } from '../output/module.ts';
 import { abortedCreate } from '../provider/module.ts';
 import type { IExecTransport } from '../remote/types.ts';

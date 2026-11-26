@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import type { Token } from './types.ts';
 
 const NUMBER = /^(?:\d+(?:\.\d+)?|\.\d+)/;

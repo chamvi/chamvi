@@ -13,11 +13,8 @@ import {
     it,
     vi,
 } from 'vitest';
-import {
-    ContextNotProvidedError,
-    InvalidAgentDefinitionError,
-    ValidationError,
-} from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { ContextNotProvidedError, InvalidAgentDefinitionError } from '@chamvi/core';
 import { createTestEngine, mockEmbeddingModel } from '@chamvi/test-kit';
 import type { MockEmbeddingModel } from '@chamvi/test-kit';
 import type { IKnowledge, KnowledgeSearchResult } from '@chamvi/knowledge';

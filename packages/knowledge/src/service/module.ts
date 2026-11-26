@@ -6,7 +6,8 @@
  */
 
 import type { IClock } from '@chamvi/core';
-import { LeaseLostError, RepositoryNotFoundError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { LeaseLostError, RepositoryNotFoundError } from '@chamvi/core';
 import { EntityConflictError } from '@chamvi/store';
 import {
     and,

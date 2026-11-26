@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
 import { parseInstant } from '../client/asserts.ts';
 import { CALENDAR_DESCRIPTION_MAX_CHARS, CALENDAR_FIELD_MAX_CHARS } from '../expand/constants.ts';

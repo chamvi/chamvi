@@ -10,11 +10,8 @@ import {
     expect,
     it,
 } from 'vitest';
-import {
-    InvalidAgentDefinitionError,
-    ValidationError,
-    defineModelAgent,
-} from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import type { ChannelContext, ChannelRequest, IChannel } from '@chamvi/core';
 import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import {

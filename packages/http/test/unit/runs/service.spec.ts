@@ -13,7 +13,8 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import { Permission } from '@chamvi/access';
-import { ErrorCode, defineModelAgent } from '@chamvi/core';
+import { ErrorCode } from '@chamvi/errors';
+import { defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import type { StandardSchemaV1 } from '@standard-schema/spec';

@@ -7,7 +7,8 @@
 
 import type { V1Pod } from '@kubernetes/client-node';
 import { describe, expect, it } from 'vitest';
-import { SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError } from '@chamvi/core';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import { POLL_MS, START_TIMEOUT_MS, createKubernetesSandbox } from '@chamvi/sandbox-k8s';
 import type { KubernetesSandboxOptions } from '@chamvi/sandbox-k8s';

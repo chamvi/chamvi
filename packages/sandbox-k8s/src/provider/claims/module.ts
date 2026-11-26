@@ -6,7 +6,8 @@
  */
 
 import type { V1PersistentVolumeClaim, V1Pod } from '@kubernetes/client-node';
-import { ChamviError, SandboxError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { SandboxError } from '@chamvi/core';
 import {
     WORKSPACE_LABEL,
     probeImage,

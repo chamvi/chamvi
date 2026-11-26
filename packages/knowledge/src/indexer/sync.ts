@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { CHUNKER_VERSION } from '../chunk/constants.ts';
 import { contentHash } from '../chunk/module.ts';
 import { managedNameError } from '../collection/helpers.ts';

@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
 import { PeerRequestError } from '../errors/request.ts';
 import { redact, retryAfterMsOf } from '../errors/helpers.ts';

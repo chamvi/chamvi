@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { CALENDAR_REQUEST_ERROR_CODE } from '@chamvi/tool-calendar';
 import { writeGuardedFetch } from '../../../src/write-client/guard.ts';
 import { resourceRequest, resourceUrlOf, statusError } from '../../../src/write-client/resource.ts';

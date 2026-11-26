@@ -14,12 +14,8 @@ import {
     expect,
     it,
 } from 'vitest';
-import {
-    ChamviError,
-    InvalidAgentDefinitionError,
-    InvalidRunStateError,
-    defineModelAgent,
-} from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError, InvalidRunStateError, defineModelAgent } from '@chamvi/core';
 import type { Engine, IClock, IEngine } from '@chamvi/core';
 import {
     CHAT_ANSWER_TIMEOUT_MS,

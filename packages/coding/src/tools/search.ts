@@ -6,7 +6,8 @@
  */
 
 import type { Tool } from 'ai';
-import { SandboxError, ValidationError, defineTool } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError, defineTool } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
 import type { ExecResult } from '@chamvi/sandbox';
 import {

@@ -7,7 +7,8 @@
 
 import type { EmbeddingModel, Tool } from 'ai';
 import { embed } from 'ai';
-import { ValidationError, defineTool } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { defineTool } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
 import { injectKnowledgeContext } from '../context/module.ts';

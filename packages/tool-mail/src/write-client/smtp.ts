@@ -6,7 +6,7 @@
  */
 
 import type { ClockTimer, IClock } from '@chamvi/core';
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import { createTransport } from 'nodemailer';
 import SMTPConnection from 'nodemailer/lib/smtp-connection';
 import { isObject } from 'smob';

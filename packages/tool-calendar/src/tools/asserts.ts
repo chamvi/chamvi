@@ -7,7 +7,8 @@
 
 import { jsonSchema } from 'ai';
 import type { JSONSchema7 } from 'ai';
-import { ValidationError, inject } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { inject } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
 import type { ICalendarClient } from '../client/types.ts';

@@ -18,7 +18,8 @@ import {
     InvalidAgentDefinitionError,
     defineModelAgent,
 } from '@chamvi/core';
-import type { ChamviError, IEngine } from '@chamvi/core';
+import type { ChamviError } from '@chamvi/errors';
+import type { IEngine } from '@chamvi/core';
 import { createHttpApp, staticTokens } from '@chamvi/http';
 import { CHAT_BODY_LIMIT_BYTES, CHAT_INTAKE_FAILED_ERROR_CODE, CHAT_WEBHOOK_TIMEOUT_MS } from '@chamvi/chat';
 import type { ChatChannel } from '@chamvi/chat';

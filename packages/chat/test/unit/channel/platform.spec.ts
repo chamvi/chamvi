@@ -13,11 +13,8 @@ import {
     expectTypeOf,
     it,
 } from 'vitest';
-import {
-    InvalidAgentDefinitionError,
-    ValidationError,
-    defineModelAgent,
-} from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import type {
     Agent,
     ChannelMessage,

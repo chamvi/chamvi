@@ -6,7 +6,8 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { ChamviError, SandboxError, systemClock } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { SandboxError, systemClock } from '@chamvi/core';
 import {
     DEFAULT_SANDBOX_IMAGE,
     DEPLOYMENT_LABEL,

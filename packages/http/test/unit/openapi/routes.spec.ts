@@ -13,8 +13,9 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ErrorCode, InvalidAgentDefinitionError } from '@chamvi/core';
-import type { ChamviError } from '@chamvi/core';
+import { ErrorCode } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
+import type { ChamviError } from '@chamvi/errors';
 import {
     afterAll,
     describe,

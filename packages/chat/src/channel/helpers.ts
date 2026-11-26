@@ -6,11 +6,8 @@
  */
 
 import { createHash } from 'node:crypto';
-import {
-    InvalidAgentDefinitionError,
-    TRIGGER_KEY_MAX_LENGTH,
-    ValidationError,
-} from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError, TRIGGER_KEY_MAX_LENGTH } from '@chamvi/core';
 import type { Adapter } from 'chat';
 import { isObject } from 'smob';
 import { CHAT_ANSWER_TIMEOUT_MS } from '../answer/constants.ts';

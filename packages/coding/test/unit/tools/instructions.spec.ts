@@ -17,7 +17,8 @@ import {
 } from 'vitest';
 import { codingTools } from '@chamvi/coding';
 import type { CodingToolsOptions, ReadFileResult } from '@chamvi/coding';
-import { InvalidAgentDefinitionError, SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError, SandboxError } from '@chamvi/core';
 import type { GitFixture } from '@chamvi/test-kit';
 import { createFixture, setupCoding } from '../../utils/setup.ts';
 import type { CodingSetup } from '../../utils/setup.ts';

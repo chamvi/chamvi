@@ -5,12 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import {
-    ChamviError,
-    DecryptionFailedError,
-    InvalidAgentDefinitionError,
-    resolveConnection,
-} from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { DecryptionFailedError, InvalidAgentDefinitionError, resolveConnection } from '@chamvi/core';
 import type { ConnectionValues, ResolveConnectionInput, ResolvedConnection } from '@chamvi/core';
 import type { AgentIssue } from '@chamvi/http';
 import type { IContainer } from 'eldin';

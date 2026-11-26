@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError } from '@chamvi/core';
 import type { IWorkspace } from '../../workspace/types.ts';
 import { WORKSPACE_MANAGER_CLOSED_MESSAGE, WORKSPACE_NOT_FOUND_MESSAGE } from '../context/constants.ts';
 import type { WorkspaceManagerContext } from '../context/module.ts';

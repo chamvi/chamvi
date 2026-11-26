@@ -12,8 +12,9 @@ import {
     vi,
 } from 'vitest';
 import type { Tool } from 'ai';
-import type { ChamviError, ToolTrust } from '@chamvi/core';
-import { ValidationError } from '@chamvi/core';
+import type { ChamviError } from '@chamvi/errors';
+import type { ToolTrust } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { ControllableClock } from '@chamvi/test-kit';
 import {
     WEB_FETCH_MAX_CHARS,

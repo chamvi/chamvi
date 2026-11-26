@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError, pendingApprovalOf } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { pendingApprovalOf } from '@chamvi/core';
 import type { Run } from '@chamvi/store';
 import { isHTTPError } from '@ebec/http';
 import type { CallToolResult } from '@modelcontextprotocol/server';

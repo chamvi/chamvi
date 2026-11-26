@@ -7,7 +7,8 @@
 
 import { randomUUID } from 'node:crypto';
 import type { V1PersistentVolumeClaim, V1Pod } from '@kubernetes/client-node';
-import { ChamviError, SandboxError, ValidationError } from '@chamvi/core';
+import { ChamviError, ValidationError } from '@chamvi/errors';
+import { SandboxError } from '@chamvi/core';
 import {
     DEPLOYMENT_LABEL,
     RUN_LABEL,

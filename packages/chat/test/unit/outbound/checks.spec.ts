@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import type { ChannelMessage } from '@chamvi/core';
 import { chatAddress } from '@chamvi/chat';
 import { createChatChecks } from '../../../src/outbound/module.ts';

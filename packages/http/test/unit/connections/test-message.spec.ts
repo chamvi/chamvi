@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import { describe, expect, it } from 'vitest';
 import { testFailureMessage } from '../../../src/connections/helpers/test.ts';
 

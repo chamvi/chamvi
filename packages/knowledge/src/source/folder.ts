@@ -14,7 +14,8 @@ import {
     join,
     resolve,
 } from 'node:path';
-import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
 import { compareCodePoints } from '../store/helpers.ts';
 import { FOLDER_EXTENSIONS, FOLDER_FILE_MAX_BYTES } from './constants.ts';

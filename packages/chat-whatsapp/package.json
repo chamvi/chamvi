@@ -59,6 +59,7 @@
         "@chamvi/app": "^0.12.0",
         "@chamvi/chat": "^0.12.0",
         "@chamvi/core": "^0.12.0",
+        "@chamvi/errors": "^0.12.0",
         "@chamvi/store": "^0.12.0",
         "@chamvi/store-db": "^0.12.0",
         "@chamvi/store-memory": "^0.12.0",
@@ -77,6 +78,7 @@
         "@chamvi/app": "^0.12.0",
         "@chamvi/chat": "^0.12.0",
         "@chamvi/core": "^0.12.0",
+        "@chamvi/errors": "^0.12.0",
         "@chamvi/store": "^0.12.0",
         "baileys": "7.0.0-rc14",
         "chat": "^4.45.0"

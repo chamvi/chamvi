@@ -8,7 +8,7 @@
 import { createHash } from 'node:crypto';
 import { CHAT_REQUEST_ERROR_CODE } from '@chamvi/chat';
 import type { ChatPlatformPost } from '@chamvi/chat';
-import { ChamviError, ValidationError } from '@chamvi/core';
+import { ChamviError, ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
 import type { DiscordSend, DiscordSenderOptions } from './types.ts';
 

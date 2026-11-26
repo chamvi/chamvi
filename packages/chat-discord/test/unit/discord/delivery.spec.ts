@@ -14,7 +14,8 @@ import {
     expect,
     it,
 } from 'vitest';
-import { ValidationError, defineModelAgent, defineTool } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { defineModelAgent, defineTool } from '@chamvi/core';
 import type {
     Agent,
     ChannelMessage,

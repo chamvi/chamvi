@@ -8,13 +8,13 @@
 import type { DataSource } from 'typeorm';
 import { afterEach, expect, it } from 'vitest';
 import type { IClock, ILockService } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { 
     ConnectionChangedError, 
     ConnectionService, 
     LeaseLostError, 
     LockService, 
     RepositoryNotFoundError, 
-    ValidationError,
 } from '@chamvi/core';
 import type { ConnectionInput } from '@chamvi/store';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';

@@ -6,7 +6,8 @@
  */
 
 import { can } from '@chamvi/access';
-import { RepositoryNotFoundError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { RepositoryNotFoundError } from '@chamvi/core';
 import type {
     HttpRoute,
     HttpRouteContext,

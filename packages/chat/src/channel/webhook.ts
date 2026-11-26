@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import type { ChannelContext, ChannelRequest, ClockTimer } from '@chamvi/core';
 import { readRequestBody } from '@chamvi/http';
 import { trackIngress } from '../ingress/module.ts';

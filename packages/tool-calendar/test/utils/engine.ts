@@ -7,7 +7,8 @@
 
 import type { LanguageModel, ToolSet } from 'ai';
 import { afterEach } from 'vitest';
-import { ValidationError, defineModelAgent } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { defineModelAgent } from '@chamvi/core';
 import type {
     AgentLimits,
     ChannelMessage,

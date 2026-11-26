@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import type { IPeerTransport, PeerStartInput } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import { PEER_REQUEST_ERROR_CODE, PeerRequestError, createPeerResolver } from '@chamvi/peer';

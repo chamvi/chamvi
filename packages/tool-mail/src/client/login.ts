@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import { ImapFlow } from 'imapflow';
 import { MAIL_REQUEST_ERROR_CODE } from '../errors/constants.ts';
 import type { MailAccountNormalized } from '../options/types.ts';

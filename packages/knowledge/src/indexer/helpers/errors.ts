@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ErrorCode } from '@chamvi/core';
+import { ErrorCode } from '@chamvi/errors';
 import { isObject } from 'smob';
 
 export function messageOf(error: unknown): string {

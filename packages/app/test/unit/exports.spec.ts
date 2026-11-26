@@ -100,6 +100,9 @@ describe('public api', () => {
         'isPermissionAuthorization',
         'allPermissions',
         'permissionNames',
+        // @chamvi/errors
+        'ChamviError',
+        'ValidationError',
         'resolveModel',
         'checkAgentModel',
         'agentChannel',

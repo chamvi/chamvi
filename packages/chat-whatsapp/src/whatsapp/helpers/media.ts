@@ -7,7 +7,7 @@
 
 import { createDecipheriv, createHmac, timingSafeEqual } from 'node:crypto';
 import { CHAT_REQUEST_ERROR_CODE } from '@chamvi/chat';
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import {
     DEFAULT_ORIGIN,
     extractMessageContent,

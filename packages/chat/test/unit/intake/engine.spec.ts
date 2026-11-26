@@ -13,11 +13,8 @@ import {
     it,
     vi,
 } from 'vitest';
-import {
-    ChamviError,
-    ErrorCode,
-    defineModelAgent,
-} from '@chamvi/core';
+import { ChamviError, ErrorCode } from '@chamvi/errors';
+import { defineModelAgent } from '@chamvi/core';
 import type {
     Agent,
     IEngine,

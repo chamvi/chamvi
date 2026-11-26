@@ -6,7 +6,7 @@
  */
 
 import { CHAT_REQUEST_ERROR_CODE } from '@chamvi/chat';
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import { DISCORD_API_URL } from './constants.ts';
 
 function failure(message: string): ChamviError {

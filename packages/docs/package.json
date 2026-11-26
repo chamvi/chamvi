@@ -38,6 +38,7 @@
         "@chamvi/cli": "*",
         "@chamvi/coding": "*",
         "@chamvi/core": "*",
+        "@chamvi/errors": "*",
         "@chamvi/github": "*",
         "@chamvi/http": "*",
         "@chamvi/knowledge": "*",

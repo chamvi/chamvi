@@ -13,13 +13,12 @@ import {
     vi,
 } from 'vitest';
 import { Permission } from '@chamvi/access';
-import {
-    ChamviError,
-    ErrorCode,
-    InvalidAgentDefinitionError,
-    createConnectionConfigStore,
-    createKeyring,
-    resolveConnection,
+import { ChamviError, ErrorCode } from '@chamvi/errors';
+import { 
+    InvalidAgentDefinitionError, 
+    createConnectionConfigStore, 
+    createKeyring, 
+    resolveConnection, 
 } from '@chamvi/core';
 import type {
     ConnectionTypeDefinition,

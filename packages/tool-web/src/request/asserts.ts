@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import { WEB_REQUEST_ERROR_CODE } from './constants.ts';
 
 /** A failed request as a tool error (code `web_request`). */

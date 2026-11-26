@@ -7,7 +7,7 @@
 
 import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { encodeMailId } from '@chamvi/tool-mail';
 import type { MailAttachmentText, MailMessage, MailSearchResult } from '@chamvi/tool-mail';
 import {

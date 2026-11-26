@@ -7,11 +7,8 @@
 
 
 import { describe, expect, it } from 'vitest';
-import {
-    ErrorCode,
-    InvalidAgentDefinitionError,
-    ValidationError,
-} from '@chamvi/core';
+import { ErrorCode, ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { ChannelMessage } from '@chamvi/core';
 import { 
     CHAT_ANSWER_HINT, 

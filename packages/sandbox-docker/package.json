@@ -56,12 +56,14 @@
     "devDependencies": {
         "@chamvi/coding": "^0.12.0",
         "@chamvi/core": "^0.12.0",
+        "@chamvi/errors": "^0.12.0",
         "@chamvi/sandbox": "^0.12.0",
         "@chamvi/test-kit": "^0.12.0",
         "ai": "^7.0.181"
     },
     "peerDependencies": {
         "@chamvi/core": "^0.12.0",
+        "@chamvi/errors": "^0.12.0",
         "@chamvi/sandbox": "^0.12.0"
     }
 }

@@ -6,7 +6,7 @@
  */
 
 import type { KeyObject } from 'node:crypto';
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import type { IClock } from '@chamvi/core';
 import { PaginatedOctokit } from '../app/helpers/index.ts';
 import type { GithubOctokit, GithubPermissions } from '../app/types.ts';

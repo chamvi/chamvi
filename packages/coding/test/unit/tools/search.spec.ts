@@ -18,7 +18,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import type { GitFixture } from '@chamvi/test-kit';
 import { GREP_SCRIPT } from '../../../src/tools/constants.ts';
 import { createFixture, setupCoding } from '../../utils/setup.ts';

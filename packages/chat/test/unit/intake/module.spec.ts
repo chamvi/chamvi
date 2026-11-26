@@ -13,13 +13,8 @@ import {
     it,
     vi,
 } from 'vitest';
-import {
-    ChamviError,
-    ErrorCode,
-    InvalidRunStateError,
-    ValidationError,
-    defineModelAgent,
-} from '@chamvi/core';
+import { ChamviError, ErrorCode, ValidationError } from '@chamvi/errors';
+import { InvalidRunStateError, defineModelAgent } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import type { Invoker } from '@chamvi/store';
 import { CHAT_INTAKE_FAILED_ERROR_CODE } from '@chamvi/chat';

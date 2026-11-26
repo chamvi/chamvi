@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError } from '@chamvi/core';
 import { assertImage } from '../../image/module.ts';
 import type { WorkspaceCreateOptions } from '../../provider/types.ts';
 import { assertGitRef, normalizeRepo } from '../../repo/module.ts';

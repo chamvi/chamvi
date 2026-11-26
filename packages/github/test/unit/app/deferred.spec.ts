@@ -6,7 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ConnectionNotConfiguredError, ErrorCode } from '@chamvi/core';
+import { ErrorCode } from '@chamvi/errors';
+import { ConnectionNotConfiguredError } from '@chamvi/core';
 import { createDeferredGithubApp } from '../../../src/app/deferred.ts';
 
 describe('createDeferredGithubApp', () => {

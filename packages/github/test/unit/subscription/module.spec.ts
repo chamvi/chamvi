@@ -6,7 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { InvalidAgentDefinitionError, ValidationError, defineModelAgent } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import { github, githubChannel } from '@chamvi/github';
 import type { GithubEvent } from '@chamvi/github';
 import { defaultConcurrencyKey, matchesGithubSubscription } from '../../../src/subscription/helpers.ts';

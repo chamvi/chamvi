@@ -6,8 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { ChamviError } from '@chamvi/core';
-import { ValidationError } from '@chamvi/core';
+import type { ChamviError } from '@chamvi/errors';
+import { ValidationError } from '@chamvi/errors';
 import { MAIL_REQUEST_ERROR_CODE, encodeMailId } from '@chamvi/tool-mail';
 import type { FakeFolder } from '../../utils/imap.ts';
 import { genericFolders, untagged } from '../../utils/mail.ts';

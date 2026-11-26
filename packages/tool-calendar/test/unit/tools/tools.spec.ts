@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import { calendarTools, createCalendarClient } from '@chamvi/tool-calendar';
 import { encodeCalendarEventId } from '../../../src/event-id/module.ts';
 import { FAKE_CALDAV_URL, createFakeCalDav } from '../../utils/caldav.ts';

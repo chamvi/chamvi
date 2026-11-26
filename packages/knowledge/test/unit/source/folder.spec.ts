@@ -17,7 +17,8 @@ import { execFileSync } from 'node:child_process';
 import { closeSync, constants, openSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
-import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import {
     afterEach,
     beforeEach,

@@ -7,7 +7,7 @@
 
 import { createHash } from 'node:crypto';
 import type { IClock } from '@chamvi/core';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { resolveWorkspacePath } from '../path/module.ts';
 import type { ExecResult, IWorkspace } from '../workspace/types.ts';
 import {

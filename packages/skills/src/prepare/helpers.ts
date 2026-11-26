@@ -7,7 +7,8 @@
 
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { ChamviError, InvalidAgentDefinitionError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isDiagnostic } from 'skills';
 import { SKILL_PREPARATION_FAILED_ERROR_CODE, SKILL_PREPARATION_LOCKED_ERROR_CODE } from './constants.ts';
 import type { PrepareSkillsOptions } from './types.ts';

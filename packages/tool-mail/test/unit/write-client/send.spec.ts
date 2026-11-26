@@ -7,13 +7,9 @@
 
 import { createServer } from 'node:net';
 import { describe, expect, it } from 'vitest';
-import type { ChamviError } from '@chamvi/core';
-import {
-    ConnectionNotConfiguredError,
-    InvalidAgentDefinitionError,
-    ValidationError,
-    effectMarker,
-} from '@chamvi/core';
+import type { ChamviError } from '@chamvi/errors';
+import { ValidationError } from '@chamvi/errors';
+import { ConnectionNotConfiguredError, InvalidAgentDefinitionError, effectMarker } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import {
     MAIL_REQUEST_ERROR_CODE,

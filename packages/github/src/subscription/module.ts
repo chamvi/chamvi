@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { InvalidAgentDefinitionError, ValidationError, assertConcurrencyMaxRuns } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError, assertConcurrencyMaxRuns } from '@chamvi/core';
 import type { ChannelSubscription } from '@chamvi/core';
 import { isObject } from 'smob';
 import { GITHUB_CHANNEL_NAME } from '../channel/constants.ts';

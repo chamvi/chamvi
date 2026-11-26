@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { CALENDAR_EVENT_ID_MESSAGE } from '../../../src/event-id/constants.ts';
 import { encodeCalendarEventId, parseCalendarEventId } from '../../../src/event-id/module.ts';
 

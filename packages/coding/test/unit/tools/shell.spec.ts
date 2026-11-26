@@ -16,7 +16,8 @@ import {
     expect,
     it,
 } from 'vitest';
-import { SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError } from '@chamvi/core';
 import type { BashResult, ReadFileResult } from '@chamvi/coding';
 import { codingTools } from '@chamvi/coding';
 import type { GitFixture } from '@chamvi/test-kit';

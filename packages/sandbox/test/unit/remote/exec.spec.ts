@@ -6,7 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError } from '@chamvi/core';
 import {
     ALIVE_PROBE_TIMEOUT_MS,
     EXEC_GRACE_MS,
