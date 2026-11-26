@@ -48,7 +48,7 @@ export default [
     {
         // long files are hard to read: a source file stays within a few screens
         // (tests and migrations exempt)
-        files: ['packages/*/src/**/*.ts', 'packages/*/app/**/*.{ts,vue}'],
+        files: ['{apps,packages}/*/src/**/*.ts', 'packages/*/app/**/*.{ts,vue}'],
         ignores: ['**/migrations/**'],
         rules: {
             'max-lines': ['error', {

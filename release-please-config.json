@@ -7,6 +7,7 @@
     "initial-version": "0.1.0",
     "packages": {
         ".": {"component": "root"},
+        "apps/cli": {"component": "cli"},
         "packages/access": {"component": "access"},
         "packages/app": {"component": "app"},
         "packages/channel-cron": {"component": "channel-cron"},
@@ -14,7 +15,6 @@
         "packages/chat": {"component": "chat"},
         "packages/chat-discord": {"component": "chat-discord"},
         "packages/chat-whatsapp": {"component": "chat-whatsapp"},
-        "packages/cli": {"component": "cli"},
         "packages/coding": {"component": "coding"},
         "packages/core": {"component": "core"},
         "packages/github": {"component": "github"},
