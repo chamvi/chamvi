@@ -44,7 +44,7 @@ Run `make generate` (docker; a first run can fail while images pull, run it agai
 In a worktree off `origin/main`: bump `@chamvi/app`, `@chamvi/cli`, `@chamvi/ui` to `^<version>`, `npm install` (check `npm ls --all | grep @chamvi` all resolve to the version), add a "For 0.<prev> to 0.<minor>" block under "Upgrading chamvi" in `README.md`, and mention new env variables in `.env.example` and `.agents/deployment.md`. Verify as CI does:
 
 ```bash
-npm run lint && npm run typecheck && npm run test && npm run build
+npm run lint && npm run check:types && npm run test && npm run build
 ANTHROPIC_API_KEY=ci-placeholder-not-a-real-key SCHEDULER=false \
 TOKENS='[{"value":"ci-placeholder-token-0001","id":"ci","permissions":[]}]' \
 node node_modules/@chamvi/cli/dist/cli.mjs start --check

@@ -21,7 +21,7 @@
         "build": "vitepress build src",
         "preview": "vitepress preview src",
         "test": "vitest --config test/vitest.config.ts --run",
-        "typecheck": "tsc --noEmit -p tsconfig.json"
+        "check:types": "tsc --noEmit -p tsconfig.json"
     },
     "engines": {
         "node": ">=26.0.0"

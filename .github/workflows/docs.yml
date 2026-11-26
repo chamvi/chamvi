@@ -38,7 +38,7 @@ jobs:
 
             # the snippets the pages include must compile against the current sources
             -   name: Typecheck snippets
-                run: npm run typecheck -w @chamvi/docs
+                run: npm run check:types -w @chamvi/docs
 
             -   name: Build docs
                 run: npm run docs:build

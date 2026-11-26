@@ -13,7 +13,7 @@ npm install
 # Development
 npm run build
 npm run test
-npm run typecheck
+npm run check:types
 npm run lint
 ```
 

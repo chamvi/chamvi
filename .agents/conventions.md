@@ -5,9 +5,9 @@
 | Tool | Purpose |
 |------|---------|
 | ESLint 10 (`@tada5hi/eslint-config`) | Linting (`npm run lint`, `npm run lint:fix`) |
-| TypeScript 6 (`@tada5hi/tsconfig`) | Typecheck (`npm run typecheck`) |
+| TypeScript 6 (`@tada5hi/tsconfig`) | Type check (`npm run check:types`) |
 | tsdown | Build each entry (`index`, `testing`) to `dist/<entry>.mjs` + `.d.mts` |
-| nx | Runs `build`, `test`, `typecheck` across packages |
+| nx | Runs `build`, `test`, `check:types` across packages |
 | commitlint + husky | Conventional Commits enforcement (`.husky/commit-msg`) |
 | release-please | One linked version for every package, one release and changelog (`linked-versions`) |
 | Dependabot | Daily npm + GitHub Actions updates, grouped by prod/dev and major/minor+patch |
@@ -93,7 +93,7 @@ Migrations live in `packages/store-db/src/migrations/` (PostgreSQL), with the or
 - Domain validation, identity and selection rules live in the service (one for every driver); a repository owns queries and storage only.
 - After local fixes, review the whole feature with its callers and configuration. Report design/convention findings apart from test results; passing checks alone do not prove completion.
 
-- After changes run `npm run build && npm run test && npm run typecheck && npm run lint`. Run `npm run lint:fix` before hand-fixing formatting.
+- After changes run `npm run build && npm run test && npm run check:types && npm run lint`. Run `npm run lint:fix` before hand-fixing formatting.
 - Never edit `dist/` (generated, git-ignored). Never hand-edit `.release-please-manifest.json` or package versions; release-please owns them.
 - Keep runtime `dependencies` minimal (the house libraries `@ebec/core`, `smob`, `validup` are fine); tooling belongs in `devDependencies`, and the AI SDK (`ai`) stays a peer dependency.
 - Host-local Git (skills preparation, the test-kit fixture) uses bounded `execFile`: raw stdout, rejects nonzero exits and signals, default 1 MiB stdout/stderr limits each, SIGTERM. Skills preparation: 5 minutes for the pinned-tree fetch, 30 seconds for metadata; fixture commands keep their isolated environment, no timeout. The SDK owns cloning; sandbox Git stays on `workspace.exec`. See [simple-git.md](references/simple-git.md).
