@@ -84,9 +84,9 @@ describe('resolveConnection', () => {
                 definition: { ...definition, fields },
                 preset: { a: { value: 'preset-a', source: { kind: 'code' } } },
                 stored: {
-                    a: 'stored-a', 
-                    b: 'stored-b', 
-                    c: 'stored-c', 
+                    a: 'stored-a',
+                    b: 'stored-b',
+                    c: 'stored-c',
                 },
             },
         );
@@ -94,9 +94,9 @@ describe('resolveConnection', () => {
         expect(resolved).toEqual({
             name: 'work',
             values: {
-                a: 'preset-a', 
-                b: 'env-b', 
-                c: 'stored-c', 
+                a: 'preset-a',
+                b: 'env-b',
+                c: 'stored-c',
             },
             sources: {
                 a: { kind: 'code' },
@@ -120,9 +120,9 @@ describe('resolveConnection', () => {
             definition: {
                 ...definition,
                 fields: [{
-                    key: 'port', 
-                    label: 'Port', 
-                    kind: 'number', 
+                    key: 'port',
+                    label: 'Port',
+                    kind: 'number',
                 }],
             },
             stored: { port: 993 },
@@ -272,35 +272,35 @@ describe('resolveConnection', () => {
             ...definition,
             fields: [
                 {
-                    key: 'port', 
-                    label: 'Port', 
-                    kind: 'number', 
-                    env: () => 'PORT', 
+                    key: 'port',
+                    label: 'Port',
+                    kind: 'number',
+                    env: () => 'PORT',
                 },
                 {
-                    key: 'tls', 
-                    label: 'TLS', 
-                    kind: 'boolean', 
-                    env: () => 'TLS', 
+                    key: 'tls',
+                    label: 'TLS',
+                    kind: 'boolean',
+                    env: () => 'TLS',
                 },
                 {
-                    key: 'hosts', 
-                    label: 'Hosts', 
-                    kind: 'list', 
-                    env: () => 'HOSTS', 
+                    key: 'hosts',
+                    label: 'Hosts',
+                    kind: 'list',
+                    env: () => 'HOSTS',
                 },
                 {
-                    key: 'mode', 
-                    label: 'Mode', 
-                    kind: 'select', 
-                    options: ['a'], 
-                    env: () => 'MODE', 
+                    key: 'mode',
+                    label: 'Mode',
+                    kind: 'select',
+                    options: ['a'],
+                    env: () => 'MODE',
                 },
                 {
-                    key: 'token', 
-                    label: 'Token', 
-                    kind: 'secret', 
-                    env: () => 'TOKEN', 
+                    key: 'token',
+                    label: 'Token',
+                    kind: 'secret',
+                    env: () => 'TOKEN',
                 },
             ],
         };
@@ -414,9 +414,9 @@ describe('resolveConnection', () => {
             });
 
             expect(resolved.values).toEqual({
-                port: '993', 
-                tls: 'yes', 
-                hosts: 'a,b', 
+                port: '993',
+                tls: 'yes',
+                hosts: 'a,b',
             });
         });
     });

@@ -644,9 +644,9 @@ describe('ConnectionService', () => {
 
     it('replace bumps the config revision and keeps the id and createdAt', async () => {
         const {
-            clock, 
-            connections, 
-            hold, 
+            clock,
+            connections,
+            hold,
         } = setup();
         const key = makeConnection('wa').wrappedKey;
 

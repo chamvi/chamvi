@@ -53,9 +53,9 @@ const START: PeerStartInput = {
     peer: {
         standIn: 'stand-in-1',
         parent: {
-            runId: 'parent-1', 
-            agent: 'alfred', 
-            depth: 1, 
+            runId: 'parent-1',
+            agent: 'alfred',
+            depth: 1,
         },
         taint: true,
         origin: 'Peter',
@@ -84,9 +84,9 @@ describe('peer transport', () => {
             ...START,
             attachments: [
                 {
-                    mediaType: 'text/plain', 
-                    filename: 'a.txt', 
-                    data: new TextEncoder().encode('hello'), 
+                    mediaType: 'text/plain',
+                    filename: 'a.txt',
+                    data: new TextEncoder().encode('hello'),
                 },
                 { mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) },
             ],
@@ -107,9 +107,9 @@ describe('peer transport', () => {
             peer: START.peer,
             attachments: [
                 {
-                    mediaType: 'text/plain', 
-                    filename: 'a.txt', 
-                    data: 'aGVsbG8=', 
+                    mediaType: 'text/plain',
+                    filename: 'a.txt',
+                    data: 'aGVsbG8=',
                 },
                 { mediaType: 'image/png', data: 'AQID' },
             ],

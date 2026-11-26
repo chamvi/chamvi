@@ -20,9 +20,9 @@ function failure(message: string): ChamviError {
 export async function verifyDiscordToken(
     token: string,
     options: {
-        signal: AbortSignal; 
-        apiUrl?: string; 
-        fetch?: typeof fetch 
+        signal: AbortSignal;
+        apiUrl?: string;
+        fetch?: typeof fetch
     },
 ): Promise<void> {
     const { signal } = options;

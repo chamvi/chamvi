@@ -188,9 +188,9 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
             const values = { ...config.settings, ...secrets } as ConnectionValues;
 
             return {
-                values, 
-                revision: config.revision, 
-                generation: config.generation, 
+                values,
+                revision: config.revision,
+                generation: config.generation,
             };
         },
 

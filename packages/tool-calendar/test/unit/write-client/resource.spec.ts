@@ -47,9 +47,9 @@ describe('resourceUrlOf', () => {
 describe('resourceRequest', () => {
     it('sends Basic auth through the guard with redirect: manual', async () => {
         const server = createFakeCalDav([{
-            slug: 'home', 
-            name: 'Home', 
-            objects: [weeklyStandup()], 
+            slug: 'home',
+            name: 'Home',
+            objects: [weeklyStandup()],
         }]);
         const response = await resourceRequest(writeGuardedFetch(server.fetch), ACCOUNT, {
             method: 'GET',
@@ -67,15 +67,15 @@ describe('resourceRequest', () => {
 
     it('does not follow a redirected write', async () => {
         const server = createFakeCalDav([{
-            slug: 'home', 
-            name: 'Home', 
-            objects: [], 
+            slug: 'home',
+            name: 'Home',
+            objects: [],
         }]);
 
         server.fail = {
-            method: 'PUT', 
-            status: 301, 
-            location: 'https://evil.test/x.ics', 
+            method: 'PUT',
+            status: 301,
+            location: 'https://evil.test/x.ics',
         };
 
         const response = await resourceRequest(writeGuardedFetch(server.fetch), ACCOUNT, {

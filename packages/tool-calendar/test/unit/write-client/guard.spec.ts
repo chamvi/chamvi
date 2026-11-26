@@ -99,9 +99,9 @@ describe('writeGuardedFetch', () => {
 
         // a Request carries its own headers and redirect mode: only a URL is accepted for a write
         await rejection(fetch(new Request(URL_OF_EVENT, {
-            method: 'PUT', 
-            body: 'x', 
-            headers: { 'If-None-Match': '*' }, 
+            method: 'PUT',
+            body: 'x',
+            headers: { 'If-None-Match': '*' },
         })));
         await rejection(fetch(new Request(URL_OF_EVENT, { method: 'DELETE', headers: { 'If-Match': '"0"' } })));
         await rejection(fetch(new Request(URL_OF_EVENT), { method: 'PUT', headers: { 'If-None-Match': '*' } }));

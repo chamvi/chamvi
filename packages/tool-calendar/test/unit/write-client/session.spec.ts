@@ -29,9 +29,9 @@ function account(id = 'icloud', user = 'me@example.com') {
 function fake() {
     return createFakeCalDav([
         {
-            slug: 'home', 
-            name: 'Home', 
-            objects: [weeklyStandup()], 
+            slug: 'home',
+            name: 'Home',
+            objects: [weeklyStandup()],
         },
         {
             slug: 'reminders',

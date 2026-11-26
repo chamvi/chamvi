@@ -155,9 +155,9 @@ export function knowledgeSearchTool(options: KnowledgeToolsOptionsNormalized): T
         }, ['query']),
         execute: async (input, { abortSignal, context }) => {
             const {
-                query, 
-                collection, 
-                topK, 
+                query,
+                collection,
+                topK,
             } = readInput(input);
 
             if (collection !== undefined && !options.collections.includes(collection)) {

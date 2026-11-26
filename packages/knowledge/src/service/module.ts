@@ -298,9 +298,9 @@ export class KnowledgeService implements IKnowledgeService {
             // served generation), which keeps the details it was written with until the switch
             await repository.chunks.updateOrigin(
                 {
-                    collectionId: record.id, 
-                    document: id, 
-                    generation: document.generation, 
+                    collectionId: record.id,
+                    document: id,
+                    generation: document.generation,
                 },
                 { title: details.title, source: details.source },
             );

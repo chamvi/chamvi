@@ -10,11 +10,11 @@ import { describe, expect, it } from 'vitest';
 import { ErrorCode, ValidationError } from '@chamvi/errors';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { ChannelMessage } from '@chamvi/core';
-import { 
-    CHAT_ANSWER_HINT, 
-    CHAT_ANSWER_HINT_PLAIN, 
-    CHAT_ANSWER_TIMEOUT_MS, 
-    CHAT_TEXT_MAX_CHARS, 
+import {
+    CHAT_ANSWER_HINT,
+    CHAT_ANSWER_HINT_PLAIN,
+    CHAT_ANSWER_TIMEOUT_MS,
+    CHAT_TEXT_MAX_CHARS,
 } from '@chamvi/chat';
 import type { ChatApprovalRef } from '@chamvi/chat';
 import { renderChatMessage } from '../../../src/outbound/helpers.ts';
@@ -262,9 +262,9 @@ describe('renderChatMessage({ answers, direct })', () => {
     it('renders the reply hint without approvalUrl for an approval without options', () => {
         expect(CHAT_ANSWER_HINT).toBe('Reply to this message to approve or deny.');
         expect(renderChatMessage(approval(), {
-            answers, 
-            direct: true, 
-            quotes: true, 
+            answers,
+            direct: true,
+            quotes: true,
         })).toBe([
             'Deploy to prod?',
             'Release v1.2.0.',
@@ -272,9 +272,9 @@ describe('renderChatMessage({ answers, direct })', () => {
         ].join('\n\n'));
         // no expiry: the hint alone
         expect(renderChatMessage(approval({ expiresAt: undefined }), {
-            answers, 
-            direct: true, 
-            quotes: true, 
+            answers,
+            direct: true,
+            quotes: true,
         }))
             .toBe('Deploy to prod?\n\nRelease v1.2.0.\n\nReply to this message to approve or deny.');
     });
@@ -325,9 +325,9 @@ describe('renderChatMessage({ answers, direct })', () => {
 
         // the same prose fits the default bound uncut
         const text = renderChatMessage(approval({ body: 'b'.repeat(2000) }), {
-            answers, 
-            direct: true, 
-            quotes: true, 
+            answers,
+            direct: true,
+            quotes: true,
         });
 
         expect(text).toContain('b'.repeat(2000));
@@ -337,9 +337,9 @@ describe('renderChatMessage({ answers, direct })', () => {
     it('still requires approvalUrl for an approval with options, and renders no hint for one', () => {
         const options = [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }];
         const render = () => renderChatMessage(approval({ options }), {
-            answers, 
-            direct: true, 
-            quotes: true, 
+            answers,
+            direct: true,
+            quotes: true,
         });
 
         expect(render).toThrow(InvalidAgentDefinitionError);
@@ -359,9 +359,9 @@ describe('renderChatMessage({ answers, direct })', () => {
     it('requires approvalUrl for a generic approval, and renders no hint for one', () => {
         const generic = approval({ body: 'An outbound operation requires review in the approval inbox.', generic: true });
         const render = () => renderChatMessage(generic, {
-            answers, 
-            direct: true, 
-            quotes: true, 
+            answers,
+            direct: true,
+            quotes: true,
         });
 
         expect(render).toThrow(InvalidAgentDefinitionError);

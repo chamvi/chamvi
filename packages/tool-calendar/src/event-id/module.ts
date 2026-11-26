@@ -90,9 +90,9 @@ export function parseCalendarEventId(id: unknown): CalendarEventRef {
                 isSafeResourceName(name) &&
                 isSafeEventEtag(etag) &&
                 encodeCalendarEventId({
-                    calendar, 
-                    name, 
-                    etag, 
+                    calendar,
+                    name,
+                    etag,
                 }) === id
             ) {
                 return {

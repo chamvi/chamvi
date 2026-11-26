@@ -263,14 +263,14 @@ export function buildPod(input: PodInput): V1Pod {
         {
             mounts: [
                 {
-                    name: 'workspace', 
-                    mountPath: WORKSPACE_ROOT, 
-                    subPath: 'workspace', 
+                    name: 'workspace',
+                    mountPath: WORKSPACE_ROOT,
+                    subPath: 'workspace',
                 },
                 {
-                    name: 'workspace', 
-                    mountPath: WORKSPACE_HOME, 
-                    subPath: 'home', 
+                    name: 'workspace',
+                    mountPath: WORKSPACE_HOME,
+                    subPath: 'home',
                 },
             ],
             volumes: [{ name: 'workspace', persistentVolumeClaim: { claimName: input.claim } }],

@@ -93,9 +93,9 @@ async function settledSoon(promise: Promise<unknown>): Promise<boolean> {
     let done = false;
 
     promise.then(() => {
-        done = true; 
+        done = true;
     }, () => {
-        done = true; 
+        done = true;
     });
 
     for (let i = 0; i < 5; i++) {
@@ -116,9 +116,9 @@ afterEach(async () => {
 });
 
 async function setup(modules: IModule[], options: {
-    mode?: AppMode; 
-    check?: boolean; 
-    env?: Record<string, string> 
+    mode?: AppMode;
+    check?: boolean;
+    env?: Record<string, string>
 } = {}) {
     const clock = new ControllableClock();
     const logger = createRecordingLogger(clock);
@@ -132,9 +132,9 @@ async function setup(modules: IModule[], options: {
     harnesses.push(harness);
 
     return {
-        harness, 
-        clock, 
-        logger, 
+        harness,
+        clock,
+        logger,
     };
 }
 

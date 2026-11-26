@@ -91,9 +91,9 @@ function idOf(entry: CalendarEntry, object: DAVCalendarObject): string | undefin
     }
 
     return encodeCalendarEventId({
-        calendar: entry.view.calendar, 
-        name, 
-        etag: object.etag, 
+        calendar: entry.view.calendar,
+        name,
+        etag: object.etag,
     });
 }
 

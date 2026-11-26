@@ -133,16 +133,16 @@ describe('folder', () => {
         expect(errors).toEqual([]);
         expect(documents).toEqual([
             {
-                id: 'a.md', 
-                source: 'a.md', 
-                title: 'The Title', 
-                content: 'intro\n\n# The Title  \n\nbody', 
+                id: 'a.md',
+                source: 'a.md',
+                title: 'The Title',
+                content: 'intro\n\n# The Title  \n\nbody',
             },
             {
-                id: 'sub/b.txt', 
-                source: 'sub/b.txt', 
-                title: 'b', 
-                content: 'plain text', 
+                id: 'sub/b.txt',
+                source: 'sub/b.txt',
+                title: 'b',
+                content: 'plain text',
             },
         ]);
     });
@@ -219,9 +219,9 @@ describe('folder', () => {
 
         try {
             const {
-                documents, 
-                errors, 
-                incomplete, 
+                documents,
+                errors,
+                incomplete,
             } = await collect(folder(root));
 
             expect(documents.map((document) => document.id)).toEqual(['ok.md']);

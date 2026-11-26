@@ -27,9 +27,9 @@ function refusal(id: unknown): unknown {
 describe('calendar event ids', () => {
     it('round-trips a calendar, resource name and etag', () => {
         const id = encodeCalendarEventId({
-            calendar: 'icloud:home', 
-            name: 'event-0.ics', 
-            etag: '"0"', 
+            calendar: 'icloud:home',
+            name: 'event-0.ics',
+            etag: '"0"',
         });
 
         expect(id).toBe(`icloud:home:${b64('event-0.ics')}:${b64('"0"')}`);
@@ -44,9 +44,9 @@ describe('calendar event ids', () => {
 
     it('round-trips a slug with colons and a percent-encoded name', () => {
         const ref = {
-            calendar: 'work:a:b', 
-            name: 'my%20event.ics', 
-            etag: 'W/"abc"', 
+            calendar: 'work:a:b',
+            name: 'my%20event.ics',
+            etag: 'W/"abc"',
         };
 
         expect(parseCalendarEventId(encodeCalendarEventId(ref))).toEqual({
@@ -103,9 +103,9 @@ describe('calendar event ids', () => {
 
     it('accepts a name and etag of 255 characters', () => {
         const ref = {
-            calendar: 'icloud:home', 
-            name: 'x'.repeat(255), 
-            etag: 'y'.repeat(255), 
+            calendar: 'icloud:home',
+            name: 'x'.repeat(255),
+            etag: 'y'.repeat(255),
         };
 
         expect(parseCalendarEventId(encodeCalendarEventId(ref)).name).toBe(ref.name);

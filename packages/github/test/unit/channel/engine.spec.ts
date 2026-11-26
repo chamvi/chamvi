@@ -299,10 +299,10 @@ describe('github channel with the engine', () => {
                     model: mockModel([
                         {
                             parts: [{
-                                type: 'tool-call', 
-                                toolName: 'ask', 
-                                input: { number }, 
-                            }], 
+                                type: 'tool-call',
+                                toolName: 'ask',
+                                input: { number },
+                            }],
                         },
                         { parts: [{ type: 'text', text: 'Asked.' }] },
                     ]),

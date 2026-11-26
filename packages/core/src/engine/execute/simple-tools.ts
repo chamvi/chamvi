@@ -63,9 +63,9 @@ export function createSimpleTools(options: SimpleToolsOptions): SimpleRunContext
         const startedAt = now();
         const outcome = await executePendingCall({
             call: {
-                toolCallId, 
-                toolName, 
-                input, 
+                toolCallId,
+                toolName,
+                input,
             },
             tools,
             activeTools,

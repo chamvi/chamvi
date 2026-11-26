@@ -113,8 +113,8 @@ class MailWriteClient implements IMailWriteClient {
         const found = await findSentMail(this.pool, account as MailSmtpAccount, lookup, signal);
 
         return found ? {
-            account: account.id, 
-            messageId: lookup.messageId, 
+            account: account.id,
+            messageId: lookup.messageId,
             filed: true,
             refused: [],
         } : undefined;

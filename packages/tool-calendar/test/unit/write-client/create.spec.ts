@@ -50,9 +50,9 @@ function timed(overrides: Partial<CalendarCreateRequest> = {}): CalendarCreateRe
 
 function setup() {
     const server = createFakeCalDav([{
-        slug: 'home', 
-        name: 'Home', 
-        objects: [], 
+        slug: 'home',
+        name: 'Home',
+        objects: [],
     }]);
     const clock = new ControllableClock(new Date('2026-11-01T12:00:00Z'));
     const client = createCalendarWriteClient([ACCOUNT], { fetch: server.fetch, clock });
@@ -113,9 +113,9 @@ describe('createCalendarWriteClient: create', () => {
             calendar: 'icloud:home',
             uid: request.uid,
             event: encodeCalendarEventId({
-                calendar: 'icloud:home', 
-                name: request.name, 
-                etag: '"w1"', 
+                calendar: 'icloud:home',
+                name: request.name,
+                etag: '"w1"',
             }),
             start: '2026-11-05T09:00:00+01:00',
             end: '2026-11-05T10:30:00+01:00',
@@ -135,9 +135,9 @@ describe('createCalendarWriteClient: create', () => {
         expect(ics).toContain('\r\nDTSTART;VALUE=DATE:20261105\r\n');
         expect(ics).toContain('\r\nDTEND;VALUE=DATE:20261106\r\n');
         expect(result).toMatchObject({
-            start: '2026-11-05', 
-            end: '2026-11-06', 
-            allDay: true, 
+            start: '2026-11-05',
+            end: '2026-11-06',
+            allDay: true,
         });
     });
 
@@ -147,9 +147,9 @@ describe('createCalendarWriteClient: create', () => {
         const description = `Line one\nLine two, with; marks\n${'long '.repeat(40)}`;
 
         await client.create(timed({
-            title, 
-            description, 
-            location: 'Room 1, floor 2', 
+            title,
+            description,
+            location: 'Room 1, floor 2',
         }));
 
         expect(parseEvent(fakeObjectsOf(server.calendars[0]!)[0]!.ics)).toMatchObject({
@@ -190,9 +190,9 @@ describe('createCalendarWriteClient: create', () => {
         const request = timed();
 
         server.calendars[0]!.objects = [{
-            name: request.name, 
-            ics: calendar(vevent('UID:other', 'DTSTART:20261105T080000Z', 'SUMMARY:x')), 
-            etag: '"x"', 
+            name: request.name,
+            ics: calendar(vevent('UID:other', 'DTSTART:20261105T080000Z', 'SUMMARY:x')),
+            etag: '"x"',
         }];
 
         const error = await rejection(client.create(request));
@@ -211,9 +211,9 @@ describe('createCalendarWriteClient: create', () => {
 
         expect(server.requests.filter((r) => r.method === 'GET')).toHaveLength(1);
         expect(result.event).toBe(encodeCalendarEventId({
-            calendar: 'icloud:home', 
-            name: request.name, 
-            etag: '"w1"', 
+            calendar: 'icloud:home',
+            name: request.name,
+            etag: '"w1"',
         }));
 
         const other = setup();
@@ -236,9 +236,9 @@ describe('createCalendarWriteClient: create', () => {
         const moved = setup();
 
         moved.server.fail = {
-            method: 'PUT', 
-            status: 301, 
-            location: 'https://evil.test/x.ics', 
+            method: 'PUT',
+            status: 301,
+            location: 'https://evil.test/x.ics',
         };
         expect((await rejection(moved.client.create(timed()))).message).toBe('calendar_create: icloud: request failed');
         expect(moved.server.requests.filter((r) => r.method === 'PUT')).toHaveLength(1);
@@ -362,9 +362,9 @@ describe('createCalendarWriteClient: create, hostile text and stored variants', 
             calendar: 'icloud:home',
             uid: request.uid,
             event: encodeCalendarEventId({
-                calendar: 'icloud:home', 
-                name: request.name, 
-                etag: '"s"', 
+                calendar: 'icloud:home',
+                name: request.name,
+                etag: '"s"',
             }),
             start: '2026-11-05T09:00:00+01:00',
             end: '2026-11-05T10:30:00+01:00',

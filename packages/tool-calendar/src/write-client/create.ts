@@ -132,10 +132,10 @@ function resultOf(
         uid: event.uid,
         ...(etag && {
             event: encodeCalendarEventId({
-                calendar, 
-                name, 
-                etag, 
-            }), 
+                calendar,
+                name,
+                etag,
+            }),
         }),
         start: printTime(event.start, zone),
         end: printTime(event.end, zone),

@@ -91,14 +91,14 @@ describe('calendarTools', () => {
             toolContext(),
         );
         const standup = encodeCalendarEventId({
-            calendar: 'me:home', 
-            name: 'event-0.ics', 
-            etag: '"0"', 
+            calendar: 'me:home',
+            name: 'event-0.ics',
+            etag: '"0"',
         });
         const holiday = encodeCalendarEventId({
-            calendar: 'me:home', 
-            name: 'event-1.ics', 
-            etag: '"1"', 
+            calendar: 'me:home',
+            name: 'event-1.ics',
+            etag: '"1"',
         });
         const occurrences = result.events.filter((event) => event.uid === 'standup');
 
@@ -142,24 +142,24 @@ describe('calendarTools', () => {
             name: 'Home',
             objects: [
                 {
-                    name: '..%2Fwork%2Fx.ics', 
-                    ics: ics('encoded'), 
-                    etag: '"1"', 
+                    name: '..%2Fwork%2Fx.ics',
+                    ics: ics('encoded'),
+                    etag: '"1"',
                 },
                 {
-                    name: 'star.ics', 
-                    ics: ics('star'), 
-                    etag: '*', 
+                    name: 'star.ics',
+                    ics: ics('star'),
+                    etag: '*',
                 },
                 {
-                    name: 'list.ics', 
-                    ics: ics('list'), 
-                    etag: '"a", "b"', 
+                    name: 'list.ics',
+                    ics: ics('list'),
+                    etag: '"a", "b"',
                 },
                 {
-                    name: 'fine%20name.ics', 
-                    ics: ics('fine'), 
-                    etag: '"2"', 
+                    name: 'fine%20name.ics',
+                    ics: ics('fine'),
+                    etag: '"2"',
                 },
             ],
         }]);
@@ -177,9 +177,9 @@ describe('calendarTools', () => {
         expect(ids.star).toBeUndefined();
         expect(ids.list).toBeUndefined();
         expect(ids.fine).toBe(encodeCalendarEventId({
-            calendar: 'me:home', 
-            name: 'fine%20name.ics', 
-            etag: '"2"', 
+            calendar: 'me:home',
+            name: 'fine%20name.ics',
+            etag: '"2"',
         }));
     });
 

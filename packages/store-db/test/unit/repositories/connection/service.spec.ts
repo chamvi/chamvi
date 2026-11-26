@@ -9,12 +9,12 @@ import type { DataSource } from 'typeorm';
 import { afterEach, expect, it } from 'vitest';
 import type { IClock, ILockService } from '@chamvi/core';
 import { ValidationError } from '@chamvi/errors';
-import { 
-    ConnectionChangedError, 
-    ConnectionService, 
-    LeaseLostError, 
-    LockService, 
-    RepositoryNotFoundError, 
+import {
+    ConnectionChangedError,
+    ConnectionService,
+    LeaseLostError,
+    LockService,
+    RepositoryNotFoundError,
 } from '@chamvi/core';
 import type { ConnectionInput } from '@chamvi/store';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
@@ -302,9 +302,9 @@ describePostgres('connection service in postgres', () => {
 
         const before = (await connections.findConfig('wa'))!;
         const replacement = {
-            ...stored, 
-            wrappedKey: new Uint8Array([9]), 
-            createdAt: new Date(2_000), 
+            ...stored,
+            wrappedKey: new Uint8Array([9]),
+            createdAt: new Date(2_000),
         };
 
         await lockService.acquire(fence.lock, fence.owner, 60_000);

@@ -463,10 +463,10 @@ describe('the stand-in run: start', () => {
         // the start went to a target an earlier definition named
         await store.effectService.save(`remote-start:${runId}`, {
             attempt: {
-                ...attempt, 
-                peer: 'ops', 
-                agent: 'builder', 
-            }, 
+                ...attempt,
+                peer: 'ops',
+                agent: 'builder',
+            },
         });
         clock.advance(120_000);
         await engine.recover();

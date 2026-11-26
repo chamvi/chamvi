@@ -419,9 +419,9 @@ describe('chatChannel({ maxTextChars })', () => {
         const fixture = await started({
             agents: () => [],
             patch: {
-                platform, 
-                maxTextChars: 2000, 
-                approvalUrl: URL_OF, 
+                platform,
+                maxTextChars: 2000,
+                approvalUrl: URL_OF,
             },
         });
 

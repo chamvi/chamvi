@@ -234,9 +234,9 @@ export async function assertUnique(
             const stored = rowsByName.has(declared.name) ? await ctx.connectionConfigs?.describe(declared.name) : undefined;
             const current = stored ?
                 identityValues({
-                    name: declared.name, 
-                    definition, 
-                    declared, 
+                    name: declared.name,
+                    definition,
+                    declared,
                 }, stored.settings) :
                 declared.resolved.values;
 

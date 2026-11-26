@@ -9,11 +9,11 @@ import { ValidationError } from '@chamvi/errors';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { mockEmbeddingModel } from '@chamvi/test-kit';
 import { MockEmbeddingModelV4 } from 'ai/test';
-import { 
-    afterEach, 
-    describe, 
-    expect, 
-    it, 
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
     vi,
 } from 'vitest';
 import type { IKnowledge } from '@chamvi/knowledge';
@@ -227,8 +227,8 @@ describe('indexing failures', () => {
         });
         const knowledge = createKnowledge(setup.options({
             collections: [knowledgeCollection('docs', {
-                model, 
-                sources: [mapSource(new Map([['a.md', 'Refunds within thirty days.']]))], 
+                model,
+                sources: [mapSource(new Map([['a.md', 'Refunds within thirty days.']]))],
             })],
         }));
 

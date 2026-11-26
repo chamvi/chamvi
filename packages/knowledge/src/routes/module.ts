@@ -90,9 +90,9 @@ function readHandler(knowledge: IKnowledge): Handler {
             const body: KnowledgeDocumentListView = {
                 data: page.data.map((document) => toDocumentView(document)),
                 meta: {
-                    total: page.total, 
-                    limit: query.limit, 
-                    offset: query.offset, 
+                    total: page.total,
+                    limit: query.limit,
+                    offset: query.offset,
                 },
             };
 
@@ -250,10 +250,10 @@ export function knowledgeRoutes(knowledge: IKnowledge): HttpRoute[] {
                 return {
                     status: 404,
                     body: {
-                        status: 404, 
-                        code: 'not_found', 
-                        message: 'Not Found', 
-                    }, 
+                        status: 404,
+                        code: 'not_found',
+                        message: 'Not Found',
+                    },
                 };
             }
 

@@ -24,7 +24,7 @@ import { createIndexerSetup, gatedModel, mapSource } from '../../utils/indexer.t
 const source = defineKnowledgeSource({
     async* documents() {
         yield* [];
-    }, 
+    },
 });
 
 function base(options: Partial<KnowledgeOptions> = {}): KnowledgeOptions {
@@ -78,9 +78,9 @@ describe('createKnowledge', () => {
                 return model;
             }),
             collections: [knowledgeCollection('docs', {
-                model: 'openai/text-embedding-3-small', 
-                sources: [source], 
-                trusted: false, 
+                model: 'openai/text-embedding-3-small',
+                sources: [source],
+                trusted: false,
             })],
         }));
 
@@ -152,11 +152,11 @@ describe('createKnowledge', () => {
     it('re-checks a hand-built definition', () => {
         expect(() => createKnowledge(base({
             collections: [{
-                name: 'Bad Name', 
-                model: mockEmbeddingModel(), 
-                sources: [source], 
-                trusted: true, 
-            }], 
+                name: 'Bad Name',
+                model: mockEmbeddingModel(),
+                sources: [source],
+                trusted: true,
+            }],
         }))).toThrow(InvalidAgentDefinitionError);
     });
 

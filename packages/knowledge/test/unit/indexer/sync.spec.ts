@@ -146,9 +146,9 @@ describe('syncing a declared collection', () => {
         });
         expect((await setup.service.search('docs', 1, (await mockEmbeddingModel().doEmbed({ values: ['Text\uFFFD.'] })).embeddings[0]!, { topK: 1 }))[0])
             .toMatchObject({
-                text: 'Text\uFFFD.', 
-                title: 'a\uFFFDb', 
-                source: 's\uFFFD', 
+                text: 'Text\uFFFD.',
+                title: 'a\uFFFDb',
+                source: 's\uFFFD',
             });
     });
 

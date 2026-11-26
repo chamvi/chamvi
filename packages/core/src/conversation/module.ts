@@ -18,8 +18,8 @@ import type {
     ConversationOperationLiteral,
     ConversationOptions,
     IConversationService,
-    IConversations, 
-    ResolvedConversationLimits, 
+    IConversations,
+    ResolvedConversationLimits,
 } from './types.ts';
 import type { IEffectService } from '../effect/types.ts';
 import type { IRunService } from '../run/types.ts';

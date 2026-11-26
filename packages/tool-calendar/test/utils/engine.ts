@@ -85,9 +85,9 @@ export function createWriteEngine(options: {
     const sent: WriteEngine['sent'] = [];
     const client = options.client ?? (options.fake ?
         createCalendarWriteClient([WRITE_ACCOUNT], {
-            fetch: options.fake.fetch, 
-            clock, 
-            timezone: 'Europe/Berlin', 
+            fetch: options.fake.fetch,
+            clock,
+            timezone: 'Europe/Berlin',
         }) :
         undefined);
     const chat: IChannel = {

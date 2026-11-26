@@ -270,33 +270,33 @@ describe('the receiver: dispatchPeer()', () => {
             envelope: envelope(),
             fields: fields({
                 parent: {
-                    runId: 'caller-1', 
-                    agent: 'other', 
-                    depth: 0, 
-                }, 
-            }), 
+                    runId: 'caller-1',
+                    agent: 'other',
+                    depth: 0,
+                },
+            }),
         })],
         ['a local name in from', () => ({
             envelope: envelope({ agent: 'gated' }),
             fields: fields({
                 role: 'default',
                 parent: {
-                    runId: 'caller-1', 
-                    agent: 'lead', 
-                    depth: 0, 
-                }, 
-            }), 
+                    runId: 'caller-1',
+                    agent: 'lead',
+                    depth: 0,
+                },
+            }),
         })],
         ['no such role', () => ({ envelope: envelope(), fields: fields({ role: 'missing' }) })],
         ['a depth above maxDepth', () => ({
             envelope: envelope(),
             fields: fields({
                 parent: {
-                    runId: 'caller-1', 
-                    agent: 'maintainer', 
-                    depth: 2, 
-                }, 
-            }), 
+                    runId: 'caller-1',
+                    agent: 'maintainer',
+                    depth: 2,
+                },
+            }),
         })],
         ['a schema failure', () => ({ envelope: envelope({ payload: { text: 1 } }), fields: fields() })],
         ['no idempotency key', () => ({ envelope: envelope({ idempotencyKey: undefined }), fields: fields() })],
@@ -330,10 +330,10 @@ describe('the receiver: dispatchPeer()', () => {
 
         for (const f of [fields(), fields({ role: 'missing' }), fields({
             parent: {
-                runId: 'caller-1', 
-                agent: 'other', 
-                depth: 7, 
-            }, 
+                runId: 'caller-1',
+                agent: 'other',
+                depth: 7,
+            },
         })]) {
             const error = await engine.dispatchPeer(ungranted, f).catch((e: unknown) => e);
 
@@ -358,9 +358,9 @@ describe('the receiver: dispatchPeer()', () => {
         })}`;
         const squat = await engine.dispatchPeer(
             envelope({
-                agent: 'sink', 
-                payload, 
-                idempotencyKey: localKey, 
+                agent: 'sink',
+                payload,
+                idempotencyKey: localKey,
             }),
             fields({ role: 'default', standIn: 'evil' }),
         );
@@ -379,9 +379,9 @@ describe('the receiver: dispatchPeer()', () => {
         // the same peer key still dedupes into the same run
         expect(await engine.dispatchPeer(
             envelope({
-                agent: 'sink', 
-                payload, 
-                idempotencyKey: localKey, 
+                agent: 'sink',
+                payload,
+                idempotencyKey: localKey,
             }),
             fields({ role: 'default', standIn: 'evil' }),
         )).toEqual({ runId: squat.runId, deduplicated: true });
@@ -431,10 +431,10 @@ describe('the receiver: dispatchPeer()', () => {
             fields({
                 standIn: 'd',
                 parent: {
-                    runId: 'caller-2', 
-                    agent: 'maintainer', 
-                    depth: 0, 
-                }, 
+                    runId: 'caller-2',
+                    agent: 'maintainer',
+                    depth: 0,
+                },
             }),
         )).toMatchObject({ deduplicated: false });
         expect(await allRuns(store)).toHaveLength(3);
@@ -469,9 +469,9 @@ describe('the receiver: dispatchPeer()', () => {
         const { engine, store } = setup();
         const { runId } = await engine.dispatch({
             ...envelope({
-                agent: 'notify', 
-                trigger: 'notify', 
-                channel: 'test', 
+                agent: 'notify',
+                trigger: 'notify',
+                channel: 'test',
             }),
             parent: fields() as never,
             taint: true,
@@ -518,9 +518,9 @@ describe('the receiver: startup check', () => {
 describe('the receiver: ping and notification', () => {
     it('wakes the stand-in once when a peer-started run settles', async () => {
         const {
-            engine, 
-            peers, 
-            errors, 
+            engine,
+            peers,
+            errors,
         } = setup();
 
         await engine.start();
@@ -533,9 +533,9 @@ describe('the receiver: ping and notification', () => {
 
     it('wakes the stand-in when a run below the peer-started run pauses on an approval', async () => {
         const {
-            engine, 
-            store, 
-            peers, 
+            engine,
+            store,
+            peers,
         } = setup();
 
         await engine.start();
@@ -557,9 +557,9 @@ describe('the receiver: ping and notification', () => {
 
     it('wakes the stand-in when a nested stand-in surfaces a remote approval', async () => {
         const {
-            engine, 
-            store, 
-            peers, 
+            engine,
+            store,
+            peers,
         } = setup();
 
         peers.script('start', { runId: 'ops-1' });
@@ -684,9 +684,9 @@ describe('the receiver: ping and notification', () => {
         expect(grandchild?.waiting?.kind).toBe('approval');
         expect(chat).toHaveLength(1);
         expect(chat[0]!.message).toMatchObject({
-            runId: grandchild!.id, 
-            agent: 'gated', 
-            title: 'Go?', 
+            runId: grandchild!.id,
+            agent: 'gated',
+            title: 'Go?',
         });
         expect(peers.calls.wake.map((c) => c.runId)).toEqual(['stand-in-1']);
     });

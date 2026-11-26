@@ -160,9 +160,9 @@ describe('Discord inbound', () => {
             discordMessage({ channel: failing }),
             discordMessage({ id: '300000000000000002', channel: publicThread(THREAD, null) }),
             discordMessage({
-                id: '300000000000000003', 
-                channel: refused, 
-                author: { id: MALLORY }, 
+                id: '300000000000000003',
+                channel: refused,
+                author: { id: MALLORY },
             }),
         );
         await settle();

@@ -14,11 +14,11 @@ import {
 } from 'vitest';
 import { Permission } from '@chamvi/access';
 import { ChamviError, ErrorCode } from '@chamvi/errors';
-import { 
-    InvalidAgentDefinitionError, 
-    createConnectionConfigStore, 
-    createKeyring, 
-    resolveConnection, 
+import {
+    InvalidAgentDefinitionError,
+    createConnectionConfigStore,
+    createKeyring,
+    resolveConnection,
 } from '@chamvi/core';
 import type {
     ConnectionTypeDefinition,
@@ -188,9 +188,9 @@ describe('ConnectionConfigService', () => {
     it('refuses an update without write (403) and of a connection set in code (409)', async () => {
         const { service } = setup({ declared: (definition) => [declare(definition, 'mail-work', { editable: false })] });
         const data = {
-            settings: { host: 'h' }, 
-            secrets: { set: { password: PASSWORD } }, 
-            revision: 0, 
+            settings: { host: 'h' },
+            secrets: { set: { password: PASSWORD } },
+            revision: 0,
         };
 
         await expect(service.update('mail-work', data, reader)).rejects.toMatchObject({ code: 'forbidden' });

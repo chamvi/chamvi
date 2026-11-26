@@ -40,9 +40,9 @@ export function normalizeOptions(options: KnowledgeToolsOptions): KnowledgeTools
     }
 
     const {
-        collections, 
-        topK, 
-        minScore, 
+        collections,
+        topK,
+        minScore,
     } = options;
 
     if (!Array.isArray(collections) || collections.length === 0) {
@@ -83,9 +83,9 @@ export function readInput(input: unknown): KnowledgeSearchInput {
     }
 
     const {
-        query, 
-        collection, 
-        topK, 
+        query,
+        collection,
+        topK,
     } = input;
 
     if (typeof query !== 'string' || query.trim().length === 0 || query.length > KNOWLEDGE_QUERY_MAX_LENGTH) {
