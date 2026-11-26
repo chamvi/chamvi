@@ -36,10 +36,7 @@ jobs:
                 with:
                     node-version: ${{ env.PRIMARY_NODE_VERSION }}
 
-            # the snippets the pages include must compile against the current sources
-            -   name: Typecheck snippets
-                run: npm run check:types -w @chamvi/docs
-
+            # the docs build type checks the snippets the pages include against the current sources
             -   name: Build docs
                 run: npm run docs:build
 

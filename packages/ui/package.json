@@ -35,11 +35,10 @@
         "node": ">=26.0.0"
     },
     "scripts": {
-        "build:types": "tsc --noEmit -p tsconfig.build.json",
+        "build:types": "vue-tsc --noEmit -p tsconfig.json && vue-tsc --noEmit -p app/tsconfig.json",
         "build:js": "tsdown",
         "build:app": "vite build",
         "build": "npm run build:types && npm run build:js && npm run build:app",
-        "check:types": "vue-tsc --noEmit -p tsconfig.json && vue-tsc --noEmit -p app/tsconfig.json",
         "test": "vitest --config test/vitest.config.ts --run",
         "test:coverage": "vitest --config test/vitest.config.ts --run --coverage",
         "test:e2e": "playwright test",
