@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import {
     afterEach,
     describe,
@@ -12,7 +13,6 @@ import {
     it,
 } from 'vitest';
 import { z } from 'zod';
-import { ValidationError } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type { Run } from '@chamvi/store';

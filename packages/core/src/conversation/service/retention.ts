@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import {
     and,
     defineQuery,
@@ -17,7 +18,7 @@ import type { ICondition } from '@rapiq/core';
 import { isObject } from 'smob';
 import { CONVERSATION_ITEM_STORED_ORDER } from '@chamvi/store';
 import type { ConversationIdentity, ConversationScope, IConversationRepository } from '@chamvi/store';
-import { InvalidRunStateError, ValidationError } from '../../errors/index.ts';
+import { InvalidRunStateError } from '../../errors/index.ts';
 import { isNoteActive, readScope } from '../helpers.ts';
 import { identityId } from '../persistence/module.ts';
 import type { ConversationServiceContext, ResolvedConversationLimits } from '../types.ts';

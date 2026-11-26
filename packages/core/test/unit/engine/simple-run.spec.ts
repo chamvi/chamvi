@@ -5,12 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { describe, expect, it } from 'vitest';
-import {
-    ValidationError,
-    approve,
-    defineSimpleAgent,
-} from '@chamvi/core';
+import { approve, defineSimpleAgent } from '@chamvi/core';
 import type { Engine, IChannel, SimpleAgentDefinition } from '@chamvi/core';
 import type { Run } from '@chamvi/store';
 import { ControllableClock } from '../../utils/clock.ts';

@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { LanguageModel } from 'ai';
 import {
     afterEach,
@@ -17,7 +18,6 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     TRIGGER_KEY_MAX_LENGTH,
-    ValidationError,
     defineModelAgent,
 } from '@chamvi/core';
 import type {

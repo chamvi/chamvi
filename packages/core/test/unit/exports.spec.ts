@@ -12,6 +12,7 @@ import {
     expectTypeOf,
     it,
 } from 'vitest';
+import { ErrorCode } from '@chamvi/errors';
 import * as core from '@chamvi/core';
 import type * as store from '@chamvi/store';
 import type * as sdk from 'ai';
@@ -232,7 +233,6 @@ describe('public api', () => {
         'once',
         'toolLimitApproved',
         'runSource',
-        'ChamviError',
         'BudgetExceededError',
         'ArtifactNotFoundError',
         'RepositoryNotFoundError',
@@ -320,8 +320,8 @@ describe('public api', () => {
         expect(core.REMOTE_TIMEOUT_DEFAULT_MS).toBe(86_400_000);
         expect(core.PEER_REQUEST_TIMEOUT_MS).toBe(30_000);
         expect(core.PEER_ORIGIN_MAX_LENGTH).toBe(128);
-        expect(core.ErrorCode.REMOTE_FAILED).toBe('remote_failed');
-        expect(core.ErrorCode.PEER_START_BUSY).toBe('peer_start_busy');
+        expect(ErrorCode.REMOTE_FAILED).toBe('remote_failed');
+        expect(ErrorCode.PEER_START_BUSY).toBe('peer_start_busy');
         expect(new core.PeerStartBusyError('dev', 'r1').code).toBe('peer_start_busy');
         expect(core.AGENT_NAME_MAX_LENGTH).toBe(64);
         expect(core.isAgentName('dev-ops')).toBe(true);
@@ -616,7 +616,7 @@ describe('public api', () => {
         expect(core).not.toHaveProperty('createResumeToken');
         expect(core).not.toHaveProperty('verifyResumeToken');
         expect(core).not.toHaveProperty('InvalidResumeTokenError');
-        expect(core.ErrorCode).not.toHaveProperty('INVALID_RESUME_TOKEN');
+        expect(ErrorCode).not.toHaveProperty('INVALID_RESUME_TOKEN');
     });
 
     it('exports the channel types', () => {
@@ -659,19 +659,19 @@ describe('public api', () => {
     });
 
     it('exports the sandbox error code', () => {
-        expect(core.ErrorCode.SANDBOX).toBe('sandbox_error');
+        expect(ErrorCode.SANDBOX).toBe('sandbox_error');
     });
 
     it('exports the context error code', () => {
-        expect(core.ErrorCode.CONTEXT_NOT_PROVIDED).toBe('context_not_provided');
+        expect(ErrorCode.CONTEXT_NOT_PROVIDED).toBe('context_not_provided');
     });
 
     it('exports the agent not found error code', () => {
-        expect(core.ErrorCode.AGENT_NOT_FOUND).toBe('agent_not_found');
+        expect(ErrorCode.AGENT_NOT_FOUND).toBe('agent_not_found');
     });
 
     it('exports the keyring contract', () => {
-        expect(core.ErrorCode.DECRYPTION_FAILED).toBe('decryption_failed');
+        expect(ErrorCode.DECRYPTION_FAILED).toBe('decryption_failed');
         expect(core.KEYRING_KEY_LENGTH).toBe(32);
         expect(core).not.toHaveProperty('SEAL_IV_LENGTH');
         expect(core).not.toHaveProperty('assertKeyId');
@@ -750,8 +750,8 @@ describe('public api', () => {
     });
 
     it('exports the connection type contract', () => {
-        expect(core.ErrorCode.CONNECTION_NOT_CONFIGURED).toBe('connection_not_configured');
-        expect(core.ErrorCode.CONNECTION_CHANGED).toBe('connection_changed');
+        expect(ErrorCode.CONNECTION_NOT_CONFIGURED).toBe('connection_not_configured');
+        expect(ErrorCode.CONNECTION_CHANGED).toBe('connection_changed');
         expectTypeOf<ReturnType<typeof core.resolveConnection>>().toEqualTypeOf<core.ResolvedConnection>();
         expectTypeOf<Parameters<typeof core.resolveConnection>[0]>().toEqualTypeOf<core.ResolveConnectionInput>();
         expectTypeOf<core.ConnectionFieldKind>().toEqualTypeOf<'string' | 'number' | 'boolean' | 'select' | 'list' | 'secret'>();
@@ -788,7 +788,7 @@ describe('public api', () => {
     });
 
     it('exports the connection vault', () => {
-        expect(core.ErrorCode.CONNECTION_HELD).toBe('connection_held');
+        expect(ErrorCode.CONNECTION_HELD).toBe('connection_held');
         expect(core.DEFAULT_CONNECTION_LEASE_TTL_MS).toBe(60_000);
         expect(core).not.toHaveProperty('ConnectionSession');
         expect(core).not.toHaveProperty('lockKeyOf');
@@ -821,8 +821,8 @@ describe('public api', () => {
     });
 
     it('exports the agent cancel reason codes', () => {
-        expect(core.ErrorCode.AGENT_REPLACED).toBe('agent_replaced');
-        expect(core.ErrorCode.AGENT_REMOVED).toBe('agent_removed');
+        expect(ErrorCode.AGENT_REPLACED).toBe('agent_replaced');
+        expect(ErrorCode.AGENT_REMOVED).toBe('agent_removed');
     });
 
     it('keeps the agent registry internals internal', () => {

@@ -5,9 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ChamviError, ErrorCode } from '@chamvi/errors';
 import type { ApprovalWaitPoint, Run } from '@chamvi/store';
 import { RunStatus } from '@chamvi/store';
-import { ChamviError, ChannelNotFoundError, ErrorCode } from '../../errors/index.ts';
+import { ChannelNotFoundError } from '../../errors/index.ts';
 import { deliverOnce } from '../notify/module.ts';
 import { approvalMessageOf } from './message.ts';
 import type { ApprovalDeliveryContext } from './types.ts';

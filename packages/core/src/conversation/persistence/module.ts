@@ -5,10 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { ModelMessage } from 'ai';
 import { isObject } from 'smob';
 import { stableHash } from '../../effect/helpers.ts';
-import { ValidationError } from '../../errors/index.ts';
 import { compareCodePoints } from '../helpers.ts';
 import {
     CONVERSATION_FIELD_MAX_LENGTH,

@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type {
     JSONValue,
     ModelMessage,
@@ -14,7 +15,7 @@ import type {
 import { TypeValidationError, asSchema } from 'ai';
 import { isObject } from 'smob';
 import { validateToolInput } from '../../../effect/helpers.ts';
-import { ToolNotAllowedError, ValidationError } from '../../../errors/index.ts';
+import { ToolNotAllowedError } from '../../../errors/index.ts';
 import type { PendingToolCall } from '../types.ts';
 
 /**

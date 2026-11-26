@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { tool } from 'ai';
 import type { LanguageModel } from 'ai';
 import {
@@ -14,11 +15,7 @@ import {
     it,
 } from 'vitest';
 import { z } from 'zod';
-import {
-    ValidationError,
-    defineModelAgent,
-    requireToolPermission,
-} from '@chamvi/core';
+import { defineModelAgent, requireToolPermission } from '@chamvi/core';
 import type {
     AgentDefinition,
     IEngine,

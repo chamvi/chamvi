@@ -5,9 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { TriggerSource } from '@chamvi/store';
 import { isObject } from 'smob';
-import { ValidationError } from '../../errors/index.ts';
 import { assertDispatchKey } from './keys.ts';
 
 /**

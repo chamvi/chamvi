@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { tool } from 'ai';
 import type { ToolSet } from 'ai';
 import {
@@ -14,7 +15,7 @@ import {
     it,
 } from 'vitest';
 import { z } from 'zod';
-import { ValidationError, defineModelAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { EFFECT } from '../../../src/effect/constants.ts';
 import { wrapToolsForRun } from '../../../src/effect/wrap.ts';

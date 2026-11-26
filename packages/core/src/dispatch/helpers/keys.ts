@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { createHash } from 'node:crypto';
-import { ValidationError } from '../../errors/index.ts';
 import { TRIGGER_KEY_MAX_LENGTH } from '../../trigger/constants.ts';
 
 /**

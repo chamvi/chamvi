@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '../errors/index.ts';
+import { ValidationError } from '@chamvi/errors';
 import { TRIGGER_KEY_MAX_LENGTH } from './constants.ts';
 
 /**

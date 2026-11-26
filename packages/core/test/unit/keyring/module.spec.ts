@@ -5,13 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ErrorCode, ValidationError } from '@chamvi/errors';
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
     DecryptionFailedError,
-    ErrorCode,
     InvalidAgentDefinitionError,
-    ValidationError,
     createKeyring,
     open,
     parseKeyring,

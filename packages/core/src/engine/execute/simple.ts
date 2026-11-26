@@ -5,11 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { SimpleRunContext } from '../../agent/types.ts';
 import { bindRunSnapshot } from '../../dispatch/helpers/index.ts';
 import { runToolCall } from '../../effect/frame.ts';
 import type { ToolCallFrame } from '../../effect/types.ts';
-import { InvalidAgentDefinitionError, ValidationError } from '../../errors/index.ts';
+import { InvalidAgentDefinitionError } from '../../errors/index.ts';
 import { RunStatus } from '@chamvi/store';
 import { untilAborted } from '../../run/helpers.ts';
 import type { RunContext } from '../../run/types.ts';

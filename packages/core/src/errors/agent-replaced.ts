@@ -5,8 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from './base.ts';
-import { ErrorCode } from './constants.ts';
+import { ChamviError, ErrorCode } from '@chamvi/errors';
 
 /** dispatch() refused: the registry holds another object for the agent than the one the caller checked. */
 export class AgentReplacedError extends ChamviError {

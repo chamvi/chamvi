@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { randomUUID } from 'node:crypto';
 import { Permission, can } from '@chamvi/access';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
@@ -13,7 +14,7 @@ import { AGENT_CHANNEL_NAME } from '../../channel/constants.ts';
 import type { DispatchResult } from '../../channel/types.ts';
 import { stableHash } from '../../effect/helpers.ts';
 import type { DispatchEnvelope } from '../../engine/types.ts';
-import { AgentNotFoundError, PeerStartBusyError, ValidationError } from '../../errors/index.ts';
+import { AgentNotFoundError, PeerStartBusyError } from '../../errors/index.ts';
 import {
     assertDispatchKey,
     findDispatchRole,

@@ -5,10 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { randomUUID } from 'node:crypto';
 import { RunStatus } from '@chamvi/store';
 import type { Invoker, RemoteWaitPoint, Run } from '@chamvi/store';
-import { ValidationError } from '../../../errors/index.ts';
 import type { PeerRunView } from '../../../peer/types.ts';
 import { toRunError } from '../../execute/helpers/index.ts';
 import type { WakeOutcome } from '../../types.ts';

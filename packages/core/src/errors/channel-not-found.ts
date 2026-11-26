@@ -5,8 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from './base.ts';
-import { ErrorCode } from './constants.ts';
+import { ChamviError, ErrorCode } from '@chamvi/errors';
 
 /**
  * ctx.channels.findOneOrFail() named a channel the engine does not have, or

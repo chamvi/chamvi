@@ -5,11 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { ToolSet } from 'ai';
 import { isObject } from 'smob';
 import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
 import { APPROVAL_TIMEOUT_MAX_MS } from '../approval/constants.ts';
-import { InvalidAgentDefinitionError, ValidationError } from '../errors/index.ts';
+import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { LIMIT_KEY_MAX_LENGTH, LIMIT_WEIGHT_MAX } from './constants.ts';
 import type { AgentLimits, ToolLimit } from './types.ts';
 

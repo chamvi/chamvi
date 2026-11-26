@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ErrorCode } from '@chamvi/errors';
 import { DISPATCH_DEPTH_MAX } from '../../dispatch/constants.ts';
 import {
     isRunSettled,
@@ -14,7 +15,7 @@ import {
     waitRecordKey,
 } from '../../dispatch/helpers/index.ts';
 import type { DispatchWaitRecord } from '../../dispatch/types.ts';
-import { ErrorCode, InvalidRunStateError } from '../../errors/index.ts';
+import { InvalidRunStateError } from '../../errors/index.ts';
 import { RunStatus } from '@chamvi/store';
 import type { DispatchWaitPoint, Run } from '@chamvi/store';
 import type { CancelReason } from '../registry/types.ts';

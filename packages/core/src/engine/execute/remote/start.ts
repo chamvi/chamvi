@@ -5,8 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { RunStatus } from '@chamvi/store';
-import { ArtifactNotFoundError, TimeoutError, ValidationError } from '../../../errors/index.ts';
+import { ArtifactNotFoundError, TimeoutError } from '../../../errors/index.ts';
 import {
     buildRemoteStartInput,
     cancelLostRemoteStart,

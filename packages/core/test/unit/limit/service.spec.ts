@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import {
     beforeEach,
     describe,
@@ -18,7 +19,6 @@ import {
     LIMIT_LOCK_RETRY_MS,
     LIMIT_LOCK_TTL_MS,
     LimitService,
-    ValidationError,
 } from '../../../src/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 

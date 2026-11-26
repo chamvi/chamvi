@@ -5,10 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
 import { RunStatus } from '@chamvi/store';
 import type { RemoteApproval, Usage } from '@chamvi/store';
-import { ValidationError } from '../../../errors/index.ts';
 import type { PeerRunView } from '../../../peer/types.ts';
 import { REMOTE_ERROR_CODE_MAX_LENGTH, REMOTE_ERROR_MESSAGE_MAX_LENGTH } from '../constants.ts';
 import type { RemoteOutcome } from '../types.ts';

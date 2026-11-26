@@ -6,6 +6,7 @@
  */
 
 /* eslint-disable max-classes-per-file */
+import { ValidationError } from '@chamvi/errors';
 import type { LanguageModel } from 'ai';
 import {
     afterEach,
@@ -19,7 +20,6 @@ import {
     AgentReplacedError,
     Engine,
     TRIGGER_KEY_MAX_LENGTH,
-    ValidationError,
     defineModelAgent,
 } from '@chamvi/core';
 import type {

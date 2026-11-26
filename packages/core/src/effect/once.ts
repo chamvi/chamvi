@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { InvalidRunStateError, ValidationError } from '../errors/index.ts';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidRunStateError } from '../errors/index.ts';
 import type { StateSchema } from '../state/types.ts';
 import type { ToolContext } from '../tool/types.ts';
 import { ONCE_NAME_MAX_LENGTH } from './constants.ts';

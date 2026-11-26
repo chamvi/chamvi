@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import {
     and,
     defineQuery,
@@ -27,12 +28,11 @@ import type {
 } from '@chamvi/store';
 import { MemoryRegistry, MemoryRunRepository } from '@chamvi/store-memory';
 import type { IRunService, RunUpdateOptions } from '../../../src/index.ts';
-import { 
-    InvalidRunStateError, 
-    RepositoryNotFoundError, 
-    RunNotFoundError, 
-    RunService, 
-    ValidationError, 
+import {
+    InvalidRunStateError,
+    RepositoryNotFoundError,
+    RunNotFoundError,
+    RunService,
 } from '../../../src/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 

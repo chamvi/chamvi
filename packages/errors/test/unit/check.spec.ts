@@ -41,9 +41,9 @@ describe('isChamviError', () => {
 
     it('rejects a chain-less payload', () => {
         expect(isChamviError({
-            name: 'ChamviError', 
-            message: 'foo', 
-            code: 'x', 
+            name: 'ChamviError',
+            message: 'foo',
+            code: 'x',
         })).toBe(false);
     });
 

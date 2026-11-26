@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { createHash } from 'node:crypto';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
@@ -12,7 +13,6 @@ import { TypeValidationError, asSchema } from 'ai';
 import type { FlexibleSchema } from 'ai';
 import { isObject } from 'smob';
 import type { EffectRecord } from '@chamvi/store';
-import { ValidationError } from '../errors/index.ts';
 import { describeIssues } from '../state/helpers.ts';
 import type { EffectResult } from './types.ts';
 

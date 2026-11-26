@@ -5,8 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ErrorCode } from '@chamvi/errors';
 import { randomUUID } from 'node:crypto';
-import { ErrorCode, InvalidRunStateError } from '../../errors/index.ts';
+import { InvalidRunStateError } from '../../errors/index.ts';
 import { AGENT_LOCK_TTL_MS, REVISION_PREFIX_LENGTH } from '../constants.ts';
 import type { CancelReason, RegistryContext } from './types.ts';
 

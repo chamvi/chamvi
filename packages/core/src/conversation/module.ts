@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
 import type {
     ConversationIdentity,
@@ -22,7 +23,7 @@ import type {
 } from './types.ts';
 import type { IEffectService } from '../effect/types.ts';
 import type { IRunService } from '../run/types.ts';
-import { InvalidAgentDefinitionError, InvalidRunStateError, ValidationError } from '../errors/index.ts';
+import { InvalidAgentDefinitionError, InvalidRunStateError } from '../errors/index.ts';
 import { ConversationOperation, ConversationTurnKind } from './constants.ts';
 import { RunStatus } from '@chamvi/store';
 import { matchesEmitReceipt, normalizeConversationLimits } from './helpers.ts';

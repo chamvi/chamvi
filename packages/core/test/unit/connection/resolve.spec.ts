@@ -5,11 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ErrorCode } from '@chamvi/errors';
 import { describe, expect, it } from 'vitest';
 import {
     ConnectionChangedError,
     ConnectionNotConfiguredError,
-    ErrorCode,
     InvalidAgentDefinitionError,
     resolveConnection,
     storedConnectionName,

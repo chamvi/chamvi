@@ -5,9 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { Run } from '@chamvi/store';
 import type { ArtifactInput, IArtifactService } from '../../../artifact/types.ts';
-import { ArtifactNotFoundError, ValidationError } from '../../../errors/index.ts';
+import { ArtifactNotFoundError } from '../../../errors/index.ts';
 import { PEER_ORIGIN_MAX_LENGTH } from '../../../peer/constants.ts';
 import { IDEMPOTENCY_TTL_MS } from '../../constants.ts';
 import type { PeerStartInput } from '../../../peer/types.ts';

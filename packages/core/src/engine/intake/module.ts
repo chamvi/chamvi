@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { randomUUID } from 'node:crypto';
 import { uuidv7 } from 'uuidv7';
 import type {
@@ -24,7 +25,6 @@ import {
     AgentNotFoundError,
     AgentReplacedError,
     InvalidRunStateError,
-    ValidationError,
 } from '../../errors/index.ts';
 import type { PeerStartInput } from '../../peer/types.ts';
 import { idempotencyScope, toInvoker } from '../../trigger/helpers.ts';

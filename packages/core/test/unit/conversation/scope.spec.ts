@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { createHash } from 'node:crypto';
 import {
     describe,
@@ -17,7 +18,6 @@ import {
     CONVERSATION_LIMITS_MAX,
     DEFAULT_CONVERSATION_LIMITS,
     InvalidAgentDefinitionError,
-    ValidationError,
 } from '@chamvi/core';
 import type { ChannelDispatchEnvelope, DispatchEnvelope } from '@chamvi/core';
 import type {

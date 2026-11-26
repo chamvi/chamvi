@@ -5,9 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
 import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
-import { ValidationError } from '../errors/index.ts';
 import {
     CONNECTION_ENTRY_KEY_MAX_LENGTH,
     CONNECTION_SECRET_FIELD_MAX_LENGTH,

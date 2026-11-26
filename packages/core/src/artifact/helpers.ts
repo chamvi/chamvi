@@ -5,10 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { FilePart, ModelMessage } from 'ai';
 import { isObject } from 'smob';
 import type { Artifact, ArtifactRecord } from '@chamvi/store';
-import { ArtifactNotFoundError, ValidationError } from '../errors/index.ts';
+import { ArtifactNotFoundError } from '../errors/index.ts';
 import type { ArtifactInput, IArtifactService  } from './types.ts';
 import { ARTIFACT_KEY_MAX_LENGTH, ARTIFACT_URI_PREFIX } from './constants.ts';
 import { isArtifactMediaType } from './media-type.ts';

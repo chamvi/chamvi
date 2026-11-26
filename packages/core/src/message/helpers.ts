@@ -5,10 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { ModelMessage, SystemModelMessage } from 'ai';
 import { isObject } from 'smob';
 import type { AgentInstruction, AgentInstructions } from '../agent/types.ts';
-import { InvalidAgentDefinitionError, ValidationError } from '../errors/index.ts';
+import { InvalidAgentDefinitionError } from '../errors/index.ts';
 
 /** Validate the configuration boundary; native SDK validation owns role-specific content. */
 export function assertInstructions(value: unknown): asserts value is AgentInstructions {

@@ -5,12 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { Output, asSchema, generateText } from 'ai';
 import { isObject } from 'smob';
 import type { StateSchema } from '../state/types.ts';
 import { assertFrameActive, currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
-import { InvalidRunStateError, ValidationError } from '../errors/index.ts';
+import { InvalidRunStateError } from '../errors/index.ts';
 import { resolveModel } from '../model/module.ts';
 import type { ToolContext } from '../tool/types.ts';
 import { assertTrust, markUntrusted } from '../trust/module.ts';

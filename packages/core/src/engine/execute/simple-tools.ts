@@ -5,11 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { SimpleRunContext } from '../../agent/types.ts';
 import { SUSPENDED_RESULT } from '../../approval/constants.ts';
 import { SuspendSignal } from '../../approval/request.ts';
 import { assertFrameActive } from '../../effect/frame.ts';
-import { FatalToolError, ValidationError } from '../../errors/index.ts';
+import { FatalToolError } from '../../errors/index.ts';
 import { executePendingCall, toRunError } from './helpers/index.ts';
 import type { SimpleToolsOptions } from './types.ts';
 

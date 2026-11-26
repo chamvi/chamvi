@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import {
     and,
     defineQuery,
@@ -13,7 +14,6 @@ import {
 import { isObject } from 'smob';
 import { CONVERSATION_ITEM_STORED_ORDER } from '@chamvi/store';
 import type { ConversationItem, ConversationItemRecord, ConversationScope } from '@chamvi/store';
-import { ValidationError } from '../../errors/index.ts';
 import { readItem } from '../helpers.ts';
 import {
     assertConversationScope,
