@@ -22,7 +22,7 @@ function read(path: string): string {
     return readFileSync(`${ROOT}${path}`, 'utf8');
 }
 
-const SOURCES = ['packages/*/src/**/*.{ts,mts,cts,vue}'];
+const SOURCES = ['{apps,packages}/*/src/**/*.{ts,mts,cts,vue}'];
 
 /** A repository port (`IRunRepository`, `IEntityRepository`, ...), named anywhere in a file. */
 const PORT = /\bI[A-Z]\w*Repository\b/g;
@@ -124,7 +124,7 @@ function portViolations(files: Array<{ path: string; source: string }>): string[
     return violations;
 }
 
-/** What the store aggregate was; nothing in `packages/` names it. */
+/** What the store aggregate was; nothing in `apps/` or `packages/` names it. */
 const REMOVED = [
     /\bIStore\b/,
     /\bcreateMemoryStore\b/,
@@ -219,7 +219,7 @@ function guideViolations(guide: string): string[] {
 function removedNameViolations(): string[] {
     const violations: string[] = [];
 
-    for (const path of filesOf(['packages/**/*.{ts,mts,cts,js,mjs,cjs,vue,md,json}'])) {
+    for (const path of filesOf(['{apps,packages}/**/*.{ts,mts,cts,js,mjs,cjs,vue,md,json}'])) {
         const exempt = REMOVED_EXEMPTIONS.some((exemption) => exemption.test(path));
 
         if (exempt) {
@@ -273,7 +273,7 @@ describe('layering', () => {
         ]);
     });
 
-    it('nothing in packages/ names the store aggregate, the guide only where it says it was removed', () => {
+    it('nothing in apps/ or packages/ names the store aggregate, the guide only where it says it was removed', () => {
         expect(removedNameViolations()).toEqual([]);
     });
 
