@@ -149,7 +149,7 @@ function runCli(argv: string[], context?: Partial<CliContext>): Promise<void>;
 
 The bin is `await runCli(process.argv.slice(2), processContext(...))`. Every process touch point is injectable, which is how the CLI's own tests run commands in-process:
 
-<<< ../../../cli/src/run/types.ts{ts}
+<<< ../../../../apps/cli/src/run/types.ts{ts}
 
 ```ts
 type ProcessEvent = 'SIGTERM' | 'SIGINT' | 'SIGHUP' | 'exit';
