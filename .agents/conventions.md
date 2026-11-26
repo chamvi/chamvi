@@ -5,7 +5,7 @@
 | Tool | Purpose |
 |------|---------|
 | ESLint 10 (`@tada5hi/eslint-config`) | Linting (`npm run lint`, `npm run lint:fix`) |
-| TypeScript 6 (`@tada5hi/tsconfig`) | Type check (`npm run check:types`) |
+| TypeScript 6 (`@tada5hi/tsconfig`) | Types (`npm run check:types`) |
 | tsdown | Build each entry (`index`, `testing`) to `dist/<entry>.mjs` + `.d.mts` |
 | nx | Runs `build`, `test`, `check:types` across packages |
 | commitlint + husky | Conventional Commits enforcement (`.husky/commit-msg`) |
