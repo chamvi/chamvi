@@ -5,16 +5,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { applyQuery } from '@rapiq/adapter-memory';
-import { Query, Sorts } from '@rapiq/core';
-import type { IFilters, IQuery } from '@rapiq/core';
-import { isEqual } from 'smob';
 import {
     EntityConflictError,
     EntityNotFoundError,
     EntityQueryError,
     EntityRelationError,
-} from '@chamvi/store';
+} from '@chamvi/errors';
+import { applyQuery } from '@rapiq/adapter-memory';
+import { Query, Sorts } from '@rapiq/core';
+import type { IFilters, IQuery } from '@rapiq/core';
+import { isEqual } from 'smob';
 import type {
     EntityFindManyResult,
     EntityRecord,
@@ -144,7 +144,7 @@ export class MemoryEntityRepository<T extends EntityRecord> implements IEntityRe
     async findOneById(id: string): Promise<T | null> {
         // no key matches no row: never the first row of a where without a condition
         if (id === undefined || id === null) {
-            throw new EntityQueryError(this.entity);
+            throw new EntityQueryError({ entity: this.entity });
         }
 
         return this.findOneWhere({ [this.keyField]: id });
@@ -224,11 +224,11 @@ export class MemoryEntityRepository<T extends EntityRecord> implements IEntityRe
         const created = this.created.has(entity);
 
         if (created && stored) {
-            this.abort(new EntityConflictError(this.entity));
+            this.abort(new EntityConflictError({ entity: this.entity }));
         }
 
         if (!created && !stored) {
-            throw new EntityNotFoundError(this.entity);
+            throw new EntityNotFoundError({ entity: this.entity });
         }
 
         const snapshot = this.snapshots.get(entity);
@@ -261,7 +261,7 @@ export class MemoryEntityRepository<T extends EntityRecord> implements IEntityRe
 
         // a stored key under other upsert key values is no row this upsert replaces, as a database's insert reports it
         if (!replacing && stored) {
-            this.abort(new EntityConflictError(this.entity));
+            this.abort(new EntityConflictError({ entity: this.entity }));
         }
 
         await this.write(entity, key, row, stored);
@@ -299,7 +299,7 @@ export class MemoryEntityRepository<T extends EntityRecord> implements IEntityRe
         const partial = entities.some((entity) => this.partial.has(entity));
 
         if (partial) {
-            throw new EntityQueryError(this.entity);
+            throw new EntityQueryError({ entity: this.entity });
         }
     }
 
@@ -402,7 +402,7 @@ export class MemoryEntityRepository<T extends EntityRecord> implements IEntityRe
         const referencing = this.registry.findReferencingAny(this.entity, removed, this.tx);
 
         if (referencing) {
-            this.abort(new EntityRelationError(referencing, this.entity));
+            this.abort(new EntityRelationError({ entity: referencing, relation: this.entity }));
         }
     }
 
@@ -412,7 +412,7 @@ export class MemoryEntityRepository<T extends EntityRecord> implements IEntityRe
         const missing = this.registry.findMissingReference(this.entity, data, this.tx);
 
         if (missing) {
-            throw new EntityRelationError(this.entity, missing.entity);
+            throw new EntityRelationError({ entity: this.entity, relation: missing.entity });
         }
     }
 
@@ -423,7 +423,7 @@ export class MemoryEntityRepository<T extends EntityRecord> implements IEntityRe
         const ownKey = existing ? this.registry.keyOf(this.entity, existing) : undefined;
 
         if (this.registry.hasConflict(this.entity, groups, data, this.tx, ownKey)) {
-            throw new EntityConflictError(this.entity);
+            throw new EntityConflictError({ entity: this.entity });
         }
     }
 
@@ -545,7 +545,7 @@ export class MemoryEntityRepository<T extends EntityRecord> implements IEntityRe
         const missing = this.registry.findMissingReference(this.entity, row, transaction);
 
         if (missing) {
-            this.abort(new EntityRelationError(this.entity, missing.entity));
+            this.abort(new EntityRelationError({ entity: this.entity, relation: missing.entity }));
         }
 
         const groups = this.registry.uniqueGroupsOf(this.entity, row)
@@ -557,7 +557,7 @@ export class MemoryEntityRepository<T extends EntityRecord> implements IEntityRe
         }
 
         if (this.registry.hasConflict(this.entity, groups, row, transaction, key)) {
-            this.abort(new EntityConflictError(this.entity));
+            this.abort(new EntityConflictError({ entity: this.entity }));
         }
 
         this.registry.write(this.entity, key, row, transaction);

@@ -10,9 +10,13 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 
 `@chamvi/errors` is a new package: the packages that use it peer on it, so install it next to core when you do not use `@chamvi/app`. `@chamvi/http` and `@chamvi/github` throw its generic built-ins (`BadRequestError`, `ForbiddenError`, ...) instead of `@ebec/http` errors; the HTTP error handler still renders `@ebec/http` errors thrown by your own controllers. Errors thrown by `authorizeRequest`, `assertGranted`, `usePrincipal` and `decodeQuery` (re-exported by `@chamvi/app`) are `@chamvi/errors` built-ins: they no longer carry `status`/`statusCode` and fail `isHTTPError()`; use `httpStatusOf()` or the `is<Name>Error` guards.
 
+The six storage errors (`EntityNotFoundError`, ...) move from `@chamvi/store` to `@chamvi/errors` and extend `ChamviError`; `StoreErrorCode` is gone, its codes are in `ErrorCode` with unchanged values. Each takes a message or options naming the entity, no longer positional labels. Response bodies and statuses are unchanged.
+
 | Before | After |
 |---|---|
 | `import { ChamviError, ErrorCode, ValidationError } from '@chamvi/core'` | `import { ChamviError, ErrorCode, ValidationError } from '@chamvi/errors'` (or `@chamvi/app`) |
+| `import { EntityNotFoundError, StoreErrorCode } from '@chamvi/store'` | `import { EntityNotFoundError, ErrorCode } from '@chamvi/errors'` (or `@chamvi/app`) |
+| `new EntityNotFoundError('run')`, `new EntityRelationError('step', 'run')`, `new EntityInvalidError('run', 'save', 'status')` | `new EntityNotFoundError({ entity: 'run' })`, `new EntityRelationError({ entity: 'step', relation: 'run' })`, `new EntityInvalidError({ entity: 'run', operation: 'save', field: 'status' })` |
 
 ## Upgrading to 0.12
 

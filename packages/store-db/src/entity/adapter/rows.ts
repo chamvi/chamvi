@@ -5,13 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityQueryError } from '@chamvi/errors';
 import { In, IsNull, Or } from 'typeorm';
 import type {
     FindOptionsOrder,
     FindOptionsWhere,
     ObjectLiteral,
 } from 'typeorm';
-import { EntityQueryError } from '@chamvi/store';
 import type { EntityRecord } from '@chamvi/store';
 import {
     isJsonColumn,
@@ -38,7 +38,7 @@ export abstract class EntityRowAdapter<T extends EntityRecord, E extends ObjectL
         const parts = splitWhereValues(values, this.parameterLimit - reserved);
 
         if (!parts) {
-            throw new EntityQueryError(this.options.entity);
+            throw new EntityQueryError({ entity: this.options.entity });
         }
 
         return parts
@@ -99,7 +99,7 @@ export abstract class EntityRowAdapter<T extends EntityRecord, E extends ObjectL
         const partial = entities.some((entity) => this.marks.partial.has(entity));
 
         if (partial) {
-            throw new EntityQueryError(this.options.entity);
+            throw new EntityQueryError({ entity: this.options.entity });
         }
     }
 

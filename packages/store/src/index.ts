@@ -13,7 +13,6 @@ export * from './connection/index.ts';
 export * from './conversation/index.ts';
 export * from './effect/index.ts';
 export * from './entity/index.ts';
-export * from './error/index.ts';
 export * from './idempotency/index.ts';
 export * from './limit/index.ts';
 export * from './lock/index.ts';

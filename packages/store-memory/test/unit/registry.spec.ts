@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityDeadlockError } from '@chamvi/errors';
 import { describe, expect, it } from 'vitest';
-import { EntityDeadlockError } from '@chamvi/store';
 import { MemoryRegistry } from '@chamvi/store-memory';
 
 describe('memory registry locks', () => {

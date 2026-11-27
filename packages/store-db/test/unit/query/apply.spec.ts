@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityQueryError } from '@chamvi/errors';
 import {
     defineQuery,
     eq,
@@ -22,7 +23,6 @@ import {
     expect,
     it,
 } from 'vitest';
-import { EntityQueryError } from '@chamvi/store';
 import type { EntityContractChild, EntityContractParent } from '@chamvi/test-kit';
 import { applyQuery } from '../../../src/query/index.ts';
 import { postgres } from '../../utils/database.ts';

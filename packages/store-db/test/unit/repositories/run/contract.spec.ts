@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityRelationError } from '@chamvi/errors';
 import type { DataSource } from 'typeorm';
 import {
     afterAll,
@@ -13,7 +14,6 @@ import {
     it,
 } from 'vitest';
 import { ConversationService, systemClock } from '@chamvi/core';
-import { EntityRelationError } from '@chamvi/store';
 import { describeRunRepositoryContract, testUuid } from '@chamvi/test-kit';
 import { DatabaseRunRepository } from '../../../../src/repositories/run/index.ts';
 import { DatabaseConversationRepository } from '../../../../src/repositories/conversation/index.ts';

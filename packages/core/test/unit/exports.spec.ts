@@ -31,7 +31,6 @@ import type {
     IStateRepository,
     IStepRepository,
 } from '@chamvi/store';
-import type { AgentRevision } from '@chamvi/core-kit';
 
 describe('public api', () => {
     it('keeps the engine interface aligned with the public class contract', () => {
@@ -196,10 +195,10 @@ describe('public api', () => {
         expectTypeOf<core.EngineOptions['agentRevisionService']>().toEqualTypeOf<core.IAgentRevisionService>();
         expectTypeOf<core.IEngine['agentRevisionService']>().toEqualTypeOf<core.IAgentRevisionService>();
         expectTypeOf<core.AgentRevisionServiceContext['repository']>().toEqualTypeOf<IAgentRevisionRepository>();
-        expectTypeOf<core.AgentRevisionService['findOne']>().toEqualTypeOf<(agent: string) => Promise<AgentRevision | undefined>>();
-        expectTypeOf<core.AgentRevisionService['save']>().toEqualTypeOf<(revision: AgentRevision) => Promise<AgentRevision>>();
+        expectTypeOf<core.AgentRevisionService['findOne']>().toEqualTypeOf<(agent: string) => Promise<kit.AgentRevision | undefined>>();
+        expectTypeOf<core.AgentRevisionService['save']>().toEqualTypeOf<(revision: kit.AgentRevision) => Promise<kit.AgentRevision>>();
         expectTypeOf<core.AgentRevisionService['delete']>().toEqualTypeOf<(agent: string) => Promise<void>>();
-        expectTypeOf<core.AgentRevisionService['find']>().toEqualTypeOf<() => Promise<AgentRevision[]>>();
+        expectTypeOf<core.AgentRevisionService['find']>().toEqualTypeOf<() => Promise<kit.AgentRevision[]>>();
 
         // the port moved to @chamvi/store, the memory repository to @chamvi/store-memory
         for (const name of ['MemoryAgentRevisionRepository', 'IAgentRevisionRepository']) {

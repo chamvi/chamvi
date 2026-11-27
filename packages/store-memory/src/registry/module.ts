@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityDeadlockError, EntityRelationError } from '@chamvi/errors';
 import { isEqual } from 'smob';
-import { EntityDeadlockError, EntityRelationError } from '@chamvi/store';
 import type { EntityRecord } from '@chamvi/store';
 import { valueAt } from './helpers.ts';
 import type {
@@ -409,7 +409,7 @@ export class MemoryRegistry {
         }
 
         if (transaction.ended) {
-            throw new EntityDeadlockError(entity);
+            throw new EntityDeadlockError({ entity });
         }
     }
 
@@ -420,7 +420,7 @@ export class MemoryRegistry {
                     const missing = this.findMissingReference(entity, row, transaction);
 
                     if (missing) {
-                        throw new EntityRelationError(entity, missing.entity);
+                        throw new EntityRelationError({ entity, relation: missing.entity });
                     }
 
                     continue;
@@ -430,7 +430,7 @@ export class MemoryRegistry {
                 const referencing = committed ? this.findReferencing(entity, committed, transaction) : undefined;
 
                 if (referencing) {
-                    throw new EntityRelationError(referencing, entity);
+                    throw new EntityRelationError({ entity: referencing, relation: entity });
                 }
             }
         }
@@ -464,7 +464,7 @@ export class MemoryRegistry {
             const ahead = [lock.owner, ...lock.queue.map((item) => item.transaction)];
 
             if (this.reaches(ahead, transaction)) {
-                const error = new EntityDeadlockError(entity);
+                const error = new EntityDeadlockError({ entity });
 
                 this.abort(transaction, error);
 
@@ -535,7 +535,7 @@ export class MemoryRegistry {
             if (index !== -1) {
                 const [waiter] = lock.queue.splice(index, 1);
 
-                waiter!.reject(reason ?? new EntityDeadlockError(waiter!.entity));
+                waiter!.reject(reason ?? new EntityDeadlockError({ entity: waiter!.entity }));
             }
         }
     }

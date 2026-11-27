@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityQueryError } from '@chamvi/errors';
 import {
     Field,
     Fields,
@@ -17,7 +18,6 @@ import {
     isFilters,
 } from '@rapiq/core';
 import type { ICondition, IFilters, IQuery } from '@rapiq/core';
-import { EntityQueryError } from '@chamvi/store';
 import type { Driver, EntityMetadata } from 'typeorm';
 import type { EntityColumn } from '../types.ts';
 import { isUuidColumn, isUuidValue } from './uuid.ts';
@@ -108,7 +108,7 @@ function dateValue(column: EntityColumn, driver: Driver, entity: string): Conver
         const date = value instanceof Date || typeof value === 'string' || typeof value === 'number' ? new Date(value) : undefined;
 
         if (!date || Number.isNaN(date.getTime())) {
-            throw new EntityQueryError(entity);
+            throw new EntityQueryError({ entity });
         }
 
         const stored: unknown = driver.preparePersistentValue(date, column);

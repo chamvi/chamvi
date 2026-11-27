@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityRelationError } from '@chamvi/errors';
 import {
     afterAll,
     beforeAll,
@@ -12,7 +13,6 @@ import {
     expect,
     it,
 } from 'vitest';
-import { EntityRelationError } from '@chamvi/store';
 import type { EntityContractParent } from '@chamvi/test-kit';
 import { describePostgres } from '../../utils/database.ts';
 import { openFixtureDataSource } from '../../utils/entity/data-source.ts';

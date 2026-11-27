@@ -10,6 +10,12 @@ import {
     BadRequestError,
     ChamviError,
     ConflictError,
+    EntityConflictError,
+    EntityDeadlockError,
+    EntityInvalidError,
+    EntityNotFoundError,
+    EntityQueryError,
+    EntityRelationError,
     ErrorCode,
     ForbiddenError,
     InternalError,
@@ -23,6 +29,12 @@ import {
     isBadRequestError,
     isChamviError,
     isConflictError,
+    isEntityConflictError,
+    isEntityDeadlockError,
+    isEntityInvalidError,
+    isEntityNotFoundError,
+    isEntityQueryError,
+    isEntityRelationError,
     isForbiddenError,
     isInternalError,
     isNotFoundError,
@@ -122,6 +134,48 @@ const CASES: Case[] = [
         code: ErrorCode.VALIDATION,
         message: 'invalid',
     },
+    {
+        name: 'EntityNotFoundError',
+        create: (input) => new EntityNotFoundError(input),
+        guard: isEntityNotFoundError,
+        code: ErrorCode.ENTITY_NOT_FOUND,
+        message: 'Entity not found.',
+    },
+    {
+        name: 'EntityConflictError',
+        create: (input) => new EntityConflictError(input),
+        guard: isEntityConflictError,
+        code: ErrorCode.ENTITY_CONFLICT,
+        message: 'Entity conflicts with a stored entity.',
+    },
+    {
+        name: 'EntityRelationError',
+        create: (input) => new EntityRelationError(input),
+        guard: isEntityRelationError,
+        code: ErrorCode.ENTITY_RELATION_INVALID,
+        message: 'Entity relation does not exist.',
+    },
+    {
+        name: 'EntityInvalidError',
+        create: (input) => new EntityInvalidError(input),
+        guard: isEntityInvalidError,
+        code: ErrorCode.ENTITY_INVALID,
+        message: 'Entity holds a value its table refuses.',
+    },
+    {
+        name: 'EntityQueryError',
+        create: (input) => new EntityQueryError(input),
+        guard: isEntityQueryError,
+        code: ErrorCode.ENTITY_QUERY_INVALID,
+        message: 'Entity request is not valid.',
+    },
+    {
+        name: 'EntityDeadlockError',
+        create: (input) => new EntityDeadlockError(input),
+        guard: isEntityDeadlockError,
+        code: ErrorCode.ENTITY_DEADLOCK,
+        message: 'Entity could not be written: the transaction deadlocked.',
+    },
 ];
 
 describe.each(CASES)('$name', (entry) => {
@@ -176,5 +230,46 @@ describe('built-in options', () => {
         const error = new ValidationError('invalid', issues);
 
         expect(error.issues).toEqual(issues);
+    });
+});
+
+describe('entity errors', () => {
+    it.each([
+        [() => new EntityNotFoundError({ entity: 'run' }), 'The run was not found.'],
+        [() => new EntityConflictError({ entity: 'run' }), 'The run conflicts with a stored run.'],
+        [() => new EntityDeadlockError({ entity: 'run' }), 'The run could not be written: the transaction deadlocked.'],
+        [() => new EntityQueryError({ entity: 'run' }), 'The run request is not valid.'],
+    ])('names the entity (%#)', (create, message) => {
+        const error = create();
+
+        expect(error.message).toBe(message);
+        expect(error.entity).toBe('run');
+    });
+
+    it('names the referenced entity of a relation error', () => {
+        const error = new EntityRelationError({ entity: 'run', relation: 'agent' });
+
+        expect(error.code).toBe(ErrorCode.ENTITY_RELATION_INVALID);
+        expect(error.message).toBe("The run's agent does not exist.");
+        expect(error.entity).toBe('run');
+        expect(error.relation).toBe('agent');
+    });
+
+    it('names the operation and, when given, the column or constraint of an invalid entity', () => {
+        const error = new EntityInvalidError({
+            entity: 'run',
+            operation: 'save',
+            field: 'status',
+        });
+
+        expect(error.message).toBe('The run holds a value its table refuses (save, status).');
+        expect(error.entity).toBe('run');
+        expect(error.operation).toBe('save');
+        expect(error.field).toBe('status');
+
+        const unnamed = new EntityInvalidError({ entity: 'step', operation: 'insert' });
+
+        expect(unnamed.message).toBe('The step holds a value its table refuses (insert).');
+        expect(unnamed.field).toBeUndefined();
     });
 });

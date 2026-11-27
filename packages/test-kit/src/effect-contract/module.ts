@@ -5,13 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError } from '@chamvi/errors';
 import {
     beforeEach,
     describe,
     expect,
     it,
 } from 'vitest';
-import { EntityConflictError } from '@chamvi/store';
 import type { IEffectRepository } from '@chamvi/store';
 import type { EffectRecord } from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';

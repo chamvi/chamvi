@@ -48,16 +48,7 @@ The aggregates' ports extend it: `IRunRepository` (with `findByWaitKind(kind, qu
 
 ## Errors
 
-| Class | `code` | Extra field |
-|-------|--------|-------------|
-| `EntityNotFoundError` | `entity_not_found` | |
-| `EntityConflictError` | `entity_conflict` | |
-| `EntityRelationError` | `entity_relation_invalid` | `relation`: the referenced entity |
-| `EntityDeadlockError` | `entity_deadlock` | |
-| `EntityQueryError` | `entity_query_invalid` | |
-| `EntityInvalidError` | `entity_invalid` | `operation`, and `field`: the column or constraint the storage named, if any |
-
-Each extends ebec's `BaseError`, takes the entity's label (`entity`) and has a fixed message: no error carries an id, a key or any stored value. The codes are `StoreErrorCode`.
+The storage errors a repository reports (`EntityNotFoundError`, `EntityConflictError`, `EntityRelationError`, `EntityDeadlockError`, `EntityQueryError`, `EntityInvalidError`) live in `@chamvi/errors`.
 
 ## License
 

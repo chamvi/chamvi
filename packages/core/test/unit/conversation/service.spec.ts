@@ -5,12 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError } from '@chamvi/errors';
 import {
     MemoryConversationRepository,
     MemoryRegistry,
     MemoryRunRepository,
 } from '@chamvi/store-memory';
-import { EntityConflictError } from '@chamvi/store';
 import { ConversationService } from '../../../src/conversation/index.ts';
 import { describeConversationServiceCases, makeRun } from '../../fixtures/conversation-service.ts';
 

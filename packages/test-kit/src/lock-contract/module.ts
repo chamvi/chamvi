@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError } from '@chamvi/errors';
 import {
     beforeEach,
     describe,
@@ -12,7 +13,6 @@ import {
     it,
 } from 'vitest';
 import { LockService } from '@chamvi/core';
-import { EntityConflictError } from '@chamvi/store';
 import type { ILockRepository } from '@chamvi/store';
 import type { Lock } from '@chamvi/core-kit';
 import { ControllableClock } from '../clock/index.ts';

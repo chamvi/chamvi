@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError } from '@chamvi/errors';
 import { expect, it } from 'vitest';
-import { EntityConflictError } from '@chamvi/store';
 import { testUuid } from '../fixture/helpers.ts';
 import type { ConversationContractContext } from './context.ts';
 import { KEY } from './constants.ts';

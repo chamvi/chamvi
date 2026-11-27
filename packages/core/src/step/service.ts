@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityRelationError } from '@chamvi/errors';
 import { defineQuery, eq } from '@rapiq/core';
-import { EntityRelationError } from '@chamvi/store';
 import { STEP_STORED_ORDER } from '@chamvi/core-kit';
 import type { Step } from '@chamvi/core-kit';
 import type { IStepRepository } from '@chamvi/store';

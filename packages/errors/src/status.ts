@@ -29,6 +29,9 @@ export const ERROR_CODE_TO_STATUS: Readonly<Partial<Record<ErrorCode, number>>> 
     // 400
     [ErrorCode.VALIDATION]: 400,
     [ErrorCode.BAD_REQUEST]: 400,
+    [ErrorCode.ENTITY_INVALID]: 400,
+    [ErrorCode.ENTITY_QUERY_INVALID]: 400,
+    [ErrorCode.ENTITY_RELATION_INVALID]: 400,
 
     // 401
     [ErrorCode.UNAUTHORIZED]: 401,
@@ -42,6 +45,7 @@ export const ERROR_CODE_TO_STATUS: Readonly<Partial<Record<ErrorCode, number>>> 
     [ErrorCode.RUN_NOT_FOUND]: 404,
     [ErrorCode.ARTIFACT_NOT_FOUND]: 404,
     [ErrorCode.REPOSITORY_NOT_FOUND]: 404,
+    [ErrorCode.ENTITY_NOT_FOUND]: 404,
 
     // 409
     [ErrorCode.CONFLICT]: 409,
@@ -51,6 +55,9 @@ export const ERROR_CODE_TO_STATUS: Readonly<Partial<Record<ErrorCode, number>>> 
     // a stored seal no key of the keyring opens (one dropped); the message names at most a key id
     [ErrorCode.DECRYPTION_FAILED]: 409,
     [ErrorCode.INVALID_RUN_STATE]: 409,
+    [ErrorCode.ENTITY_CONFLICT]: 409,
+    // a lock cycle victim; nothing it wrote was kept, the caller retries
+    [ErrorCode.ENTITY_DEADLOCK]: 409,
 
     // 413
     [ErrorCode.REQUEST_ENTITY_TOO_LARGE]: 413,

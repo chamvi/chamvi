@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { EntityQueryError } from '@chamvi/store';
+import { EntityQueryError } from '@chamvi/errors';
 import type { EntityRecord } from '@chamvi/store';
 
 /**
@@ -17,6 +17,6 @@ export function assertWhere(entity: string, where: EntityRecord, remove = false)
     const values = Object.values(where);
 
     if (values.includes(undefined) || (remove && values.length === 0)) {
-        throw new EntityQueryError(entity);
+        throw new EntityQueryError({ entity });
     }
 }

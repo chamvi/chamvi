@@ -5,13 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError } from '@chamvi/errors';
 import {
     beforeEach,
     describe,
     expect,
     it,
 } from 'vitest';
-import { EntityConflictError } from '@chamvi/store';
 import { RunStatus } from '@chamvi/core-kit';
 import type { Checkpoint } from '@chamvi/core-kit';
 import { MemoryCheckpointRepository, MemoryRegistry, MemoryRunRepository } from '@chamvi/store-memory';

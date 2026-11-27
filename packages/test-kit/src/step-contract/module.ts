@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityQueryError, EntityRelationError } from '@chamvi/errors';
 import { defineQuery, eq } from '@rapiq/core';
 import {
     beforeEach,
@@ -12,7 +13,6 @@ import {
     expect,
     it,
 } from 'vitest';
-import { EntityQueryError, EntityRelationError } from '@chamvi/store';
 import { STEP_STORED_ORDER } from '@chamvi/core-kit';
 import type { Step } from '@chamvi/core-kit';
 import type { IRunRepository, IStepRepository } from '@chamvi/store';

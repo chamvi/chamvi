@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError, EntityRelationError } from '@chamvi/errors';
 import {
     and,
     defineQuery,
@@ -18,7 +19,6 @@ import {
     expect,
     it,
 } from 'vitest';
-import { EntityConflictError, EntityRelationError } from '@chamvi/store';
 import { RunStatus } from '@chamvi/core-kit';
 import type { ApprovalWaitPoint, Run } from '@chamvi/core-kit';
 import type { IRunRepository } from '@chamvi/store';

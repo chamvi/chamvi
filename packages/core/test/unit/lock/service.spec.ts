@@ -5,13 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityDeadlockError } from '@chamvi/errors';
 import {
     beforeEach,
     describe,
     expect,
     it,
 } from 'vitest';
-import { EntityDeadlockError } from '@chamvi/store';
 import type { Lock } from '@chamvi/core-kit';
 import { MemoryLockRepository, MemoryRegistry } from '@chamvi/store-memory';
 import { type ILockService, LockService } from '../../../src/index.ts';
@@ -387,7 +387,7 @@ describe('LockService', () => {
         const failing = new ProbedLockRepository({ registry: new MemoryRegistry() });
 
         failing.save = async () => {
-            throw new EntityDeadlockError('lock');
+            throw new EntityDeadlockError({ entity: 'lock' });
         };
 
         await expect(new LockService({ repository: failing, clock }).acquire('k', 'a', 1_000)).rejects.toBeInstanceOf(EntityDeadlockError);

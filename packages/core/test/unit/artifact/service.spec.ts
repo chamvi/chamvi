@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError, EntityRelationError } from '@chamvi/errors';
 import {
     beforeEach,
     describe,
@@ -12,7 +13,6 @@ import {
     it,
     vi,
 } from 'vitest';
-import { EntityConflictError, EntityRelationError } from '@chamvi/store';
 import type { Artifact } from '@chamvi/core-kit';
 import { MemoryArtifactRepository, MemoryRegistry } from '@chamvi/store-memory';
 import {
@@ -184,7 +184,7 @@ describe('ArtifactService', () => {
 
     it('a run the repository cannot reference is RunNotFoundError with today\'s message', async () => {
         // the transaction's bound repository shares the prototype, not the instance's own properties
-        const save = vi.spyOn(MemoryArtifactRepository.prototype, 'save').mockRejectedValue(new EntityRelationError('artifact', 'run'));
+        const save = vi.spyOn(MemoryArtifactRepository.prototype, 'save').mockRejectedValue(new EntityRelationError({ entity: 'artifact', relation: 'run' }));
         const refusing = new ArtifactService({ repository });
 
         try {

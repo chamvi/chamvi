@@ -5,17 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError, EntityDeadlockError, EntityRelationError } from '@chamvi/errors';
 import {
     beforeEach,
     describe,
     expect,
     it,
 } from 'vitest';
-import {
-    EntityConflictError,
-    EntityDeadlockError,
-    EntityRelationError,
-} from '@chamvi/store';
 import { MemoryEntityRepository, MemoryRegistry } from '@chamvi/store-memory';
 
 type Parent = { id: string; name: string };

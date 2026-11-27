@@ -19,16 +19,8 @@ import * as store from '@chamvi/store';
 const SRC = fileURLToPath(new URL('../../src/', import.meta.url));
 
 describe('public api', () => {
-    it('exports exactly the errors and their codes', () => {
-        expect(Object.keys(store).sort()).toEqual([
-            'EntityConflictError',
-            'EntityDeadlockError',
-            'EntityInvalidError',
-            'EntityNotFoundError',
-            'EntityQueryError',
-            'EntityRelationError',
-            'StoreErrorCode',
-        ]);
+    it('exports no runtime value: the ports are types', () => {
+        expect(Object.keys(store)).toEqual([]);
     });
 
     it('exports the ports of checkpoints, effects, artifacts and state over the generic entity port', () => {

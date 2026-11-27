@@ -10,6 +10,12 @@ import { isChamviError } from '../check.ts';
 import { ErrorCode } from '../constants.ts';
 import { BAD_REQUEST_ERROR_INSTANCE, type BadRequestError } from './bad-request.ts';
 import { CONFLICT_ERROR_INSTANCE, type ConflictError } from './conflict.ts';
+import { ENTITY_CONFLICT_ERROR_INSTANCE, type EntityConflictError } from './entity-conflict.ts';
+import { ENTITY_DEADLOCK_ERROR_INSTANCE, type EntityDeadlockError } from './entity-deadlock.ts';
+import { ENTITY_INVALID_ERROR_INSTANCE, type EntityInvalidError } from './entity-invalid.ts';
+import { ENTITY_NOT_FOUND_ERROR_INSTANCE, type EntityNotFoundError } from './entity-not-found.ts';
+import { ENTITY_QUERY_ERROR_INSTANCE, type EntityQueryError } from './entity-query.ts';
+import { ENTITY_RELATION_ERROR_INSTANCE, type EntityRelationError } from './entity-relation.ts';
 import { FORBIDDEN_ERROR_INSTANCE, type ForbiddenError } from './forbidden.ts';
 import { INTERNAL_ERROR_INSTANCE, type InternalError } from './internal.ts';
 import { NOT_FOUND_ERROR_INSTANCE, type NotFoundError } from './not-found.ts';
@@ -42,6 +48,78 @@ export function isConflictError(input: unknown): input is ConflictError {
     }
 
     return input.code === ErrorCode.CONFLICT;
+}
+
+export function isEntityConflictError(input: unknown): input is EntityConflictError {
+    if (matchesInstanceof(input, ENTITY_CONFLICT_ERROR_INSTANCE)) {
+        return true;
+    }
+
+    if (!isChamviError(input)) {
+        return false;
+    }
+
+    return input.code === ErrorCode.ENTITY_CONFLICT;
+}
+
+export function isEntityDeadlockError(input: unknown): input is EntityDeadlockError {
+    if (matchesInstanceof(input, ENTITY_DEADLOCK_ERROR_INSTANCE)) {
+        return true;
+    }
+
+    if (!isChamviError(input)) {
+        return false;
+    }
+
+    return input.code === ErrorCode.ENTITY_DEADLOCK;
+}
+
+export function isEntityInvalidError(input: unknown): input is EntityInvalidError {
+    if (matchesInstanceof(input, ENTITY_INVALID_ERROR_INSTANCE)) {
+        return true;
+    }
+
+    if (!isChamviError(input)) {
+        return false;
+    }
+
+    return input.code === ErrorCode.ENTITY_INVALID;
+}
+
+export function isEntityNotFoundError(input: unknown): input is EntityNotFoundError {
+    if (matchesInstanceof(input, ENTITY_NOT_FOUND_ERROR_INSTANCE)) {
+        return true;
+    }
+
+    if (!isChamviError(input)) {
+        return false;
+    }
+
+    return input.code === ErrorCode.ENTITY_NOT_FOUND;
+}
+
+export function isEntityQueryError(input: unknown): input is EntityQueryError {
+    if (matchesInstanceof(input, ENTITY_QUERY_ERROR_INSTANCE)) {
+        return true;
+    }
+
+    if (!isChamviError(input)) {
+        return false;
+    }
+
+    return input.code === ErrorCode.ENTITY_QUERY_INVALID;
+}
+
+export function isEntityRelationError(input: unknown): input is EntityRelationError {
+    if (matchesInstanceof(input, ENTITY_RELATION_ERROR_INSTANCE)) {
+        return true;
+    }
+
+    if (!isChamviError(input)) {
+        return false;
+    }
+
+    return input.code === ErrorCode.ENTITY_RELATION_INVALID;
 }
 
 export function isForbiddenError(input: unknown): input is ForbiddenError {

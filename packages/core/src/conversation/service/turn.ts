@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/errors';
+import { EntityRelationError, ValidationError } from '@chamvi/errors';
 import {
     and,
     defineQuery,
@@ -13,7 +13,6 @@ import {
     lt,
 } from '@rapiq/core';
 import type { ICondition } from '@rapiq/core';
-import { EntityRelationError } from '@chamvi/store';
 import { CONVERSATION_ITEM_STORED_ORDER } from '@chamvi/core-kit';
 import type {
     ConversationItemRecord,

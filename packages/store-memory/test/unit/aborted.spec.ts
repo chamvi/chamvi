@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError, EntityDeadlockError } from '@chamvi/errors';
 import { describe, expect, it } from 'vitest';
-import { EntityConflictError, EntityDeadlockError } from '@chamvi/store';
 import { MemoryEntityRepository, MemoryRegistry } from '@chamvi/store-memory';
 
 type Parent = { id: string; name: string };

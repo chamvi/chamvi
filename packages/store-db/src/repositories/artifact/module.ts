@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityRelationError } from '@chamvi/errors';
 import type { DataSource, DeepPartial, EntityManager } from 'typeorm';
-import { EntityRelationError } from '@chamvi/store';
 import type { IArtifactRepository } from '@chamvi/store';
 import type { ArtifactRecord } from '@chamvi/core-kit';
 import { ArtifactEntity } from '../../entities/index.ts';
@@ -114,7 +114,7 @@ export class DatabaseArtifactRepository extends EntityRepositoryAdapter<Artifact
 
     protected assertRunId(entity: ArtifactRecord): void {
         if (entity.runId !== undefined && !isUuidValue(entity.runId)) {
-            throw new EntityRelationError(this.options.entity, 'run');
+            throw new EntityRelationError({ entity: this.options.entity, relation: 'run' });
         }
     }
 }

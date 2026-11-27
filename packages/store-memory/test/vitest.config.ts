@@ -5,6 +5,7 @@ export default defineConfig({
     resolve: {
         // the sources, not dist
         alias: [
+            { find: /^@chamvi\/errors$/, replacement: fileURLToPath(new URL('../../errors/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/store$/, replacement: fileURLToPath(new URL('../../store/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/core-kit$/, replacement: fileURLToPath(new URL('../../core-kit/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/store-memory$/, replacement: fileURLToPath(new URL('../src/index.ts', import.meta.url)) },

@@ -12,3 +12,22 @@ export type ChamviErrorOptions = ErrorOptions & {
 };
 
 export type ChamviErrorInput = string | ChamviErrorOptions;
+
+export type ChamviEntityErrorOptions = ChamviErrorOptions & {
+    /** The entity's label (`run`, `step`), never an id or a value. */
+    entity?: string,
+};
+
+export type ChamviEntityErrorInput = string | ChamviEntityErrorOptions;
+
+export type ChamviEntityRelationErrorOptions = ChamviEntityErrorOptions & {
+    /** The label of the referenced entity, never its id. */
+    relation?: string,
+};
+
+export type ChamviEntityInvalidErrorOptions = ChamviEntityErrorOptions & {
+    /** The repository operation that was refused, e.g. `save`. */
+    operation?: string,
+    /** The column or constraint the storage named, if it named one. */
+    field?: string,
+};

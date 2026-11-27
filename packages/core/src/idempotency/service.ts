@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError } from '@chamvi/errors';
 import { uuidv7 } from 'uuidv7';
-import { EntityConflictError } from '@chamvi/store';
 import type { IIdempotencyRepository } from '@chamvi/store';
 import type { IClock } from '../clock/index.ts';
 import type { IIdempotencyService, IdempotencyClaim, IdempotencyServiceContext } from './types.ts';
