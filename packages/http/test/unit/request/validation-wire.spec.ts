@@ -1232,7 +1232,7 @@ describe('POST /agents/:name/runs (the peer start body)', () => {
             expected: { status: 202 },
         },
         {
-            title: 'accepts every field at its bound',
+            title: 'passes the body check with every string at its bound, then the dispatch depth limit refuses',
             body: body(
                 {
                     idempotencyKey: chars(255),
@@ -1242,6 +1242,23 @@ describe('POST /agents/:name/runs (the peer start body)', () => {
                 {
                     standIn: chars(255),
                     parent: { runId: chars(255), agent: 'caller', depth: 1 },
+                    taint: false,
+                    origin: chars(128),
+                },
+            ),
+            expected: { status: 400, body: { status: 400, code: 'validation_error', message: 'Agent "worker" role "review" accepts dispatches up to depth 1.' } },
+        },
+        {
+            title: 'passes the body check at the wire depth maximum of 8, then the dispatch depth limit refuses',
+            body: body(
+                {
+                    idempotencyKey: chars(255),
+                    address: chars(255),
+                    attachments: [{ mediaType: 'text/plain', data: 'aGk=' }],
+                },
+                {
+                    standIn: chars(255),
+                    parent: { runId: chars(255), agent: 'caller', depth: 8 },
                     taint: false,
                     origin: chars(128),
                 },
@@ -2624,7 +2641,7 @@ describe('connection bodies', () => {
             onError: () => {},
         });
 
-        return { app };
+        return { app, configs };
     }
 
     describe('what a valid create and save store', () => {
@@ -2639,7 +2656,7 @@ describe('connection bodies', () => {
         };
 
         it('answers and stores the values untouched, never a secret', async () => {
-            const { app } = world();
+            const { app, configs } = world();
             const created = await call(app, 'POST', '/connection-types/mail/connections', {
                 token: ADMIN_TOKEN,
                 body: {
@@ -2668,10 +2685,12 @@ describe('connection bodies', () => {
             const read = await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN });
 
             expect(await read.json()).toEqual(expected);
+            expect(JSON.stringify(expected)).not.toContain(SECRET);
+            expect((await configs.read('mail-work'))?.values).toMatchObject({ host: ' h.test ', password: SECRET });
         });
 
         it('saves the settings and the secrets as sent, then clears a secret', async () => {
-            const { app } = world();
+            const { app, configs } = world();
 
             await call(app, 'POST', '/connection-types/mail/connections', {
                 token: ADMIN_TOKEN,
@@ -2714,6 +2733,7 @@ describe('connection bodies', () => {
             expect(saved.status).toBe(200);
             expect(await saved.json()).toEqual(expected);
             expect(await current()).toMatchObject({ revision: 2 });
+            expect((await configs.read('mail-work'))?.values).toMatchObject({ host: ' h2.test ', password: ` ${SECRET}2 ` });
 
             const second = await current();
             const cleared = await call(app, 'PUT', '/connections/mail-work/config', {
@@ -2726,6 +2746,7 @@ describe('connection bodies', () => {
             });
 
             expect(cleared.status).toBe(200);
+            expect((await configs.read('mail-work'))?.values.password).toBeUndefined();
             expect(await cleared.json()).toEqual({
                 ...expected,
                 revision: 3,
