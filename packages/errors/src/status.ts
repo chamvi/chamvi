@@ -22,8 +22,8 @@ import type { ChamviError } from './module.ts';
 
 /**
  * Default mapping from `ErrorCode` to HTTP status. Adapters apply this and
- * may layer their own overrides on top. Codes not listed here fall back to
- * 400 (Bad Request).
+ * may layer their own overrides on top. The http handler uses `httpStatusOf`
+ * and treats a code not listed here as internal (500).
  */
 export const ERROR_CODE_TO_STATUS: Readonly<Partial<Record<ErrorCode, number>>> = {
     // 400
@@ -72,7 +72,7 @@ export const ERROR_CODE_TO_STATUS: Readonly<Partial<Record<ErrorCode, number>>> 
 
 /**
  * Resolve an HTTP status for a given error code. Unknown codes fall back
- * to `fallback` (default 400).
+ * to `fallback` (default 400); the http handler does not use this, it uses `httpStatusOf`.
  */
 export function httpStatusFromCode(code: string, fallback = 400): number {
     return ERROR_CODE_TO_STATUS[code as ErrorCode] ?? fallback;

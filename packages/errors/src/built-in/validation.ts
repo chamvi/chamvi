@@ -15,7 +15,7 @@ export const VALIDATION_ERROR_INSTANCE = Symbol.for('@chamvi/errors/ValidationEr
 /**
  * A value failed its validation (e.g. a state document on upsert). Not
  * named after an HTTP status: core code stays transport-agnostic, and an
- * http adapter maps `ErrorCode.VALIDATION` to 400 (`httpStatusFromCode`).
+ * http adapter maps `ErrorCode.VALIDATION` to 400 (`httpStatusOf`).
  * `issues` holds the validup issues.
  */
 export class ValidationError extends ChamviError {
