@@ -53,17 +53,17 @@ export class ConnectionAPI extends BaseAPI implements IConnectionAPI {
 
     create(type: string, body: ConnectionCreateBody, options?: APIRequestOptions): Promise<ConnectionSettingsWire & { name: string }> {
         return this.request({
-            url: `${path('connection-types', type)}/connections`, 
-            method: 'POST', 
-            body, 
+            url: `${path('connection-types', type)}/connections`,
+            method: 'POST',
+            body,
         }, options);
     }
 
     save(name: string, body: ConnectionSaveBody, options?: APIRequestOptions): Promise<ConnectionSettingsWire> {
         return this.request({
-            url: `${path('connections', name)}/config`, 
-            method: 'PUT', 
-            body, 
+            url: `${path('connections', name)}/config`,
+            method: 'PUT',
+            body,
         }, options);
     }
 

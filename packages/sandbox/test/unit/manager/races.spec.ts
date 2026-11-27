@@ -89,9 +89,9 @@ function pendingWriteCredentials() {
     };
 
     return {
-        write, 
-        state, 
-        credentials, 
+        write,
+        state,
+        credentials,
     };
 }
 
@@ -381,9 +381,9 @@ describe('workspace manager: races', () => {
 
     it('drops the failed disposals of a released run even when they fail again', async () => {
         const {
-            manager, 
-            provider, 
-            errors, 
+            manager,
+            provider,
+            errors,
         } = setup({ isSettled: async () => true });
         const { workspace } = await manager.acquire('r1', {});
         const scripted = provider.workspaces.get(workspace.id)!;
@@ -439,9 +439,9 @@ describe('workspace manager: races', () => {
 
     it('rejects an acquire as closed when the manager closed during the credential refresh, keeping the workspace', async () => {
         const {
-            write, 
-            state, 
-            credentials, 
+            write,
+            state,
+            credentials,
         } = pendingWriteCredentials();
         const { manager, provider } = setup({ credentials });
 
@@ -466,9 +466,9 @@ describe('workspace manager: races', () => {
 
     it('reports no credential failure of a workspace a release disposed during the refresh', async () => {
         const {
-            write, 
-            state, 
-            credentials, 
+            write,
+            state,
+            credentials,
         } = pendingWriteCredentials();
         const { manager, errors } = setup({ credentials });
 
@@ -490,9 +490,9 @@ describe('workspace manager: races', () => {
 
     it('hands a second acquire of the key the workspace only once its credential refresh finished', async () => {
         const {
-            write, 
-            state, 
-            credentials, 
+            write,
+            state,
+            credentials,
         } = pendingWriteCredentials();
         const { manager } = setup({ credentials });
 
@@ -521,9 +521,9 @@ describe('workspace manager: races', () => {
 
     it('rejects an acquire whose workspace went gone during the credential refresh', async () => {
         const {
-            write, 
-            state, 
-            credentials, 
+            write,
+            state,
+            credentials,
         } = pendingWriteCredentials();
         const { manager, provider } = setup({ credentials });
 

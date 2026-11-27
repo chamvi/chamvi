@@ -15,11 +15,11 @@ import {
 import { isObject } from 'smob';
 import { uuidv7 } from 'uuidv7';
 import type { IConversationRepository } from '@chamvi/store';
-import type { 
-    ConversationNote, 
-    ConversationNoteOperation, 
-    ConversationOperationRecord, 
-    ConversationScope, 
+import type {
+    ConversationNote,
+    ConversationNoteOperation,
+    ConversationOperationRecord,
+    ConversationScope,
 } from '@chamvi/core-kit';
 import { CONVERSATION_NOTES_MAX } from '../constants.ts';
 import {

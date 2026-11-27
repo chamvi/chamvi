@@ -9,12 +9,12 @@ import { ValidationError } from '@chamvi/errors';
 import { randomUUID } from 'node:crypto';
 import { uuidv7 } from 'uuidv7';
 import { RunStatus } from '@chamvi/core-kit';
-import type { 
-    ConversationBinding, 
-    PeerStartInput, 
-    Run, 
-    TriggerEnvelope, 
-    TriggerParent, 
+import type {
+    ConversationBinding,
+    PeerStartInput,
+    Run,
+    TriggerEnvelope,
+    TriggerParent,
 } from '@chamvi/core-kit';
 import { assertArtifactInput } from '../../artifact/helpers.ts';
 import { storeArtifact } from '../../artifact/module.ts';

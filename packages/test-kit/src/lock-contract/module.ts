@@ -229,9 +229,9 @@ export function describeLockRepositoryContract(input: LockRepositoryContractInpu
 
                 expect(second).toBeGreaterThan(first);
                 expect(await locks.findOneBy({ key: 'k' })).toMatchObject({
-                    id, 
-                    owner: 'b', 
-                    token: second, 
+                    id,
+                    owner: 'b',
+                    token: second,
                 });
             });
 

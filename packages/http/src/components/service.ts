@@ -35,16 +35,16 @@ export class ComponentService implements IComponentService {
         await assertGranted(principal, this.clock, Permission.COMPONENT_READ);
 
         const entries: {
-            name: string; 
-            kind: ComponentView['kind']; 
-            read: () => ChannelStatus 
+            name: string;
+            kind: ComponentView['kind'];
+            read: () => ChannelStatus
         }[] = [];
 
         for (const component of this.ctx.components()) {
             entries.push({
-                name: component.name, 
-                kind: 'job', 
-                read: () => component.status(), 
+                name: component.name,
+                kind: 'job',
+                read: () => component.status(),
             });
         }
 
@@ -53,9 +53,9 @@ export class ComponentService implements IComponentService {
 
             if (typeof status === 'function') {
                 entries.push({
-                    name: channel.name, 
-                    kind: 'channel', 
-                    read: () => status.call(channel), 
+                    name: channel.name,
+                    kind: 'channel',
+                    read: () => status.call(channel),
                 });
             }
         }

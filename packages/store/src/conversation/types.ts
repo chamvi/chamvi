@@ -5,11 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { 
-    ConversationItemRecord, 
-    ConversationNoteRecord, 
-    ConversationOperationRecord, 
-    ConversationRecord, 
+import type {
+    ConversationItemRecord,
+    ConversationNoteRecord,
+    ConversationOperationRecord,
+    ConversationRecord,
 } from '@chamvi/core-kit';
 import type { IEntityRepository } from '../entity/types.ts';
 

@@ -8,11 +8,11 @@
 import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
 import { RunStatus } from '@chamvi/core-kit';
-import type { 
-    ConversationIdentity, 
-    ConversationScope, 
-    Invoker, 
-    Run, 
+import type {
+    ConversationIdentity,
+    ConversationScope,
+    Invoker,
+    Run,
 } from '@chamvi/core-kit';
 import type {
     ConversationInspection,

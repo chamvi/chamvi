@@ -6,12 +6,12 @@
  */
 
 import { RunStatus } from '@chamvi/core-kit';
-import type { 
-    PeerParent, 
-    RemoteApproval, 
-    RemoteWaitPoint, 
-    Run, 
-    RunStatusLiteral, 
+import type {
+    PeerParent,
+    RemoteApproval,
+    RemoteWaitPoint,
+    Run,
+    RunStatusLiteral,
 } from '@chamvi/core-kit';
 import type { IRunService } from '../../../run/types.ts';
 

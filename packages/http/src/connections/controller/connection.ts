@@ -26,12 +26,12 @@ import { usePrincipal } from '../../auth/helpers/index.ts';
 import { ForceLoggedInMiddleware, RequiredJsonBodyMiddleware } from '../../middleware/index.ts';
 import { streamConnection } from '../stream/module.ts';
 import type { ConnectionControllerContext, IConnectionConfigService, IConnectionHttpService } from '../types.ts';
-import type { 
-    ConnectionDetailView, 
-    ConnectionSaveBody, 
-    ConnectionSettingsView, 
-    ConnectionTestView, 
-    ConnectionView, 
+import type {
+    ConnectionDetailView,
+    ConnectionSaveBody,
+    ConnectionSettingsView,
+    ConnectionTestView,
+    ConnectionView,
 } from '@chamvi/core-kit';
 
 /** Responses that can carry a pairing QR or stored settings stay out of every cache. */

@@ -5,11 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 import { RunStatus } from '@chamvi/core-kit';
-import type { 
-    ApprovalWaitPoint, 
-    DispatchWaitPoint, 
-    PeerParent, 
-    RemoteWaitPoint, 
+import type {
+    ApprovalWaitPoint,
+    DispatchWaitPoint,
+    PeerParent,
+    RemoteWaitPoint,
 } from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';
 

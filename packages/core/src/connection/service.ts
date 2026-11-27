@@ -18,14 +18,14 @@ import {
     readConfig,
     readConnection,
 } from './helpers.ts';
-import type { 
-    ConnectionConfig, 
-    ConnectionConfigWrite, 
-    ConnectionEntryWrite, 
-    ConnectionFence, 
-    ConnectionServiceContext, 
+import type {
+    ConnectionConfig,
+    ConnectionConfigWrite,
+    ConnectionEntryWrite,
+    ConnectionFence,
+    ConnectionServiceContext,
     ConnectionWriteExpectation,
-    IConnectionService, 
+    IConnectionService,
 } from './types.ts';
 import {
     assertConnection,

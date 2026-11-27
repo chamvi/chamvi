@@ -8,15 +8,15 @@
 import type { LanguageModel, TranscriptionModel } from 'ai';
 import type { Agent } from '../agent/types.ts';
 import type { IArtifactService } from '../artifact/types.ts';
-import type { 
-    ArtifactInput, 
-    ConversationIdentity, 
-    ConversationScope, 
-    Invoker, 
-    PeerStartInput, 
-    Run, 
-    Step, 
-    TriggerEnvelope, 
+import type {
+    ArtifactInput,
+    ConversationIdentity,
+    ConversationScope,
+    Invoker,
+    PeerStartInput,
+    Run,
+    Step,
+    TriggerEnvelope,
 } from '@chamvi/core-kit';
 import type { ChannelContext, DispatchResult, IChannel } from '../channel/types.ts';
 import type { IClock } from '../clock/index.ts';

@@ -14,7 +14,7 @@ import {
     it,
 } from 'vitest';
 import {
-    CheckpointService, 
+    CheckpointService,
     ConversationService,
     type ICheckpointService,
     RunNotFoundError,

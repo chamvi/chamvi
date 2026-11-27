@@ -17,7 +17,7 @@ import { MemoryRegistry, MemoryRunRepository, MemoryStepRepository } from '@cham
 import {
     type IStepService,
     RepositoryNotFoundError,
-    RunNotFoundError, 
+    RunNotFoundError,
     StepService,
 } from '../../../src/index.ts';
 

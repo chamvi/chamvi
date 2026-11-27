@@ -15,11 +15,11 @@ import { EntityConflictError } from '@chamvi/store';
 import { RunStatus } from '@chamvi/core-kit';
 import type { Checkpoint } from '@chamvi/core-kit';
 import { MemoryCheckpointRepository, MemoryRegistry, MemoryRunRepository } from '@chamvi/store-memory';
-import { 
-    CheckpointService, 
-    type ICheckpointService, 
-    RepositoryNotFoundError, 
-    RunNotFoundError, 
+import {
+    CheckpointService,
+    type ICheckpointService,
+    RepositoryNotFoundError,
+    RunNotFoundError,
 } from '../../../src/index.ts';
 
 function uuid(label: string): string {

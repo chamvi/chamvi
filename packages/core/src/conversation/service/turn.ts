@@ -15,11 +15,11 @@ import {
 import type { ICondition } from '@rapiq/core';
 import { EntityRelationError } from '@chamvi/store';
 import { CONVERSATION_ITEM_STORED_ORDER } from '@chamvi/core-kit';
-import type { 
-    ConversationItemRecord, 
-    ConversationRecord, 
-    ConversationScope, 
-    ConversationSnapshot, 
+import type {
+    ConversationItemRecord,
+    ConversationRecord,
+    ConversationScope,
+    ConversationSnapshot,
 } from '@chamvi/core-kit';
 import type { IConversationRepository } from '@chamvi/store';
 import { InvalidRunStateError, RunNotFoundError } from '../../errors/index.ts';

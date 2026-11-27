@@ -739,9 +739,9 @@ describe('answering approvals in chat intake', () => {
     it('points to the dashboard when several are open on a platform that cannot match quotes', async () => {
         const model = classifier('approve');
         const ctx = await setup({
-            model, 
-            askers: [asker('asker-a'), asker('asker-b')], 
-            patch: { platform: {} }, 
+            model,
+            askers: [asker('asker-a'), asker('asker-b')],
+            patch: { platform: {} },
         });
 
         await ctx.fixture.adapter.deliver(ctx.reply({ id: 'r-1', text: 'yes' }));

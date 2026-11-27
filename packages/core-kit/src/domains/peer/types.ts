@@ -6,11 +6,11 @@
  */
 
 import type { ArtifactInput } from '../artifact/types.ts';
-import type { 
-    RemoteApproval, 
-    RunStatusLiteral, 
-    Usage, 
-    WaitPoint, 
+import type {
+    RemoteApproval,
+    RunStatusLiteral,
+    Usage,
+    WaitPoint,
 } from '../run/types.ts';
 
 /** A remote run to start at a peer: the target, its input and the caller's lineage. */

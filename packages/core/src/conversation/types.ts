@@ -8,15 +8,15 @@
 import type { ConversationOperation, ConversationTurnKind } from './constants.ts';
 import type { IClock } from '../clock/index.ts';
 import type { IConversationRepository } from '@chamvi/store';
-import type { 
-    ConversationIdentity, 
-    ConversationItem, 
-    ConversationNote, 
-    ConversationNoteOperation, 
-    ConversationScope, 
-    ConversationSnapshot, 
-    Invoker, 
-    Run, 
+import type {
+    ConversationIdentity,
+    ConversationItem,
+    ConversationNote,
+    ConversationNoteOperation,
+    ConversationScope,
+    ConversationSnapshot,
+    Invoker,
+    Run,
 } from '@chamvi/core-kit';
 
 /** What a channel hands to the trusted intake: the identity fields it owns plus the user's text. */

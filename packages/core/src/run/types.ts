@@ -6,11 +6,11 @@
  */
 
 import type { EntityFindManyResult, IRunRepository } from '@chamvi/store';
-import type { 
-    Run, 
-    RunStatusLiteral, 
-    TriggerEnvelope, 
-    WaitPoint, 
+import type {
+    Run,
+    RunStatusLiteral,
+    TriggerEnvelope,
+    WaitPoint,
 } from '@chamvi/core-kit';
 import type { IClock } from '../clock/index.ts';
 import type { IQuery } from '@rapiq/core';

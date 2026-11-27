@@ -8,13 +8,13 @@
 import { envSecret, resolveStoredConnection } from '@chamvi/app';
 import type { Env, ILogger, StoredConnection } from '@chamvi/app';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import type { 
-    ConnectionField, 
-    ConnectionTypeDefinition, 
-    ConnectionValue, 
-    ConnectionValues, 
-    DeclaredConnection, 
-    ResolvedConnection, 
+import type {
+    ConnectionField,
+    ConnectionTypeDefinition,
+    ConnectionValue,
+    ConnectionValues,
+    DeclaredConnection,
+    ResolvedConnection,
 } from '@chamvi/core';
 import type { ConnectionFieldSource } from '@chamvi/core-kit';
 import { createGithubApp } from '../app/module.ts';

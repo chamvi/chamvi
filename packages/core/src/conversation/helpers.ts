@@ -10,14 +10,14 @@ import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { CONVERSATION_LIMITS_MAX, DEFAULT_CONVERSATION_LIMITS } from './constants.ts';
 import { assertConversationScope, identityId } from './persistence/module.ts';
 import type { ConversationLimits, ConversationNoteResult, ResolvedConversationLimits  } from './types.ts';
-import type { 
-    ConversationItem, 
-    ConversationItemRecord, 
-    ConversationNote, 
-    ConversationNoteRecord, 
-    ConversationOperationRecord, 
-    ConversationRecord, 
-    ConversationScope, 
+import type {
+    ConversationItem,
+    ConversationItemRecord,
+    ConversationNote,
+    ConversationNoteRecord,
+    ConversationOperationRecord,
+    ConversationRecord,
+    ConversationScope,
 } from '@chamvi/core-kit';
 
 const LIMIT_KEYS = Object.keys(DEFAULT_CONVERSATION_LIMITS) as (keyof ResolvedConversationLimits)[];

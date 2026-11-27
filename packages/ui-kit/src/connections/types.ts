@@ -27,10 +27,10 @@ export type ConnectionFormValues = Record<string, string>;
 
 /** The open in-page confirmation of the form, at most one. */
 export type ConnectionFormConfirmation = { kind: 'delete' } | {
-    kind: 'clear'; 
-    key: string; 
-    label: string; 
-    stopsNextStart: boolean 
+    kind: 'clear';
+    key: string;
+    label: string;
+    stopsNextStart: boolean
 };
 
 export type UseConnectionFormOptions = {

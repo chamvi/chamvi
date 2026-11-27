@@ -20,11 +20,11 @@ import {
     InvalidAgentDefinitionError,
 } from '@chamvi/core';
 import type { ChannelDispatchEnvelope, DispatchEnvelope } from '@chamvi/core';
-import type { 
-    Checkpoint, 
-    ConversationBinding, 
-    ConversationIdentity, 
-    Run, 
+import type {
+    Checkpoint,
+    ConversationBinding,
+    ConversationIdentity,
+    Run,
 } from '@chamvi/core-kit';
 import {
     conversationConcurrencyKey,

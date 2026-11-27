@@ -6,13 +6,13 @@
  */
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import type { 
-    ConnectionConfigUpdate, 
-    ConnectionConfigView, 
-    ConnectionField, 
-    ConnectionTypeDefinition, 
-    ConnectionValue, 
-    ConnectionValues, 
+import type {
+    ConnectionConfigUpdate,
+    ConnectionConfigView,
+    ConnectionField,
+    ConnectionTypeDefinition,
+    ConnectionValue,
+    ConnectionValues,
 } from '@chamvi/core';
 import type { ConnectionFieldSource } from '@chamvi/core-kit';
 import { IssueCode, defineIssueItem } from '@ebec/core';

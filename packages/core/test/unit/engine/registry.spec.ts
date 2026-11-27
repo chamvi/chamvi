@@ -1086,9 +1086,9 @@ describe('releaseRevision', () => {
 
     it('a start keeps a stamped run queued while its marker is stored', async () => {
         const {
-            store, 
-            code, 
-            stamped, 
+            store,
+            code,
+            stamped,
         } = await moved();
 
         await code.engine.start({ channels: false });

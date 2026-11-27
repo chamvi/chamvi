@@ -17,7 +17,7 @@ import type { Artifact } from '@chamvi/core-kit';
 import { MemoryArtifactRepository, MemoryRegistry } from '@chamvi/store-memory';
 import {
     ArtifactNotFoundError,
-    ArtifactService, 
+    ArtifactService,
     type IArtifactService,
     RepositoryNotFoundError,
     RunNotFoundError,

@@ -11,14 +11,14 @@ import { pid } from 'node:process';
 import type { Agent } from '../agent/types.ts';
 import type { ChannelContext, DispatchResult, IChannel } from '../channel/types.ts';
 import type { ConversationInspection, IConversationService, IConversations } from '../conversation/types.ts';
-import type { 
-    ConversationBinding, 
-    ConversationIdentity, 
-    ConversationScope, 
-    Invoker, 
-    PeerStartInput, 
-    Run, 
-    TriggerParent, 
+import type {
+    ConversationBinding,
+    ConversationIdentity,
+    ConversationScope,
+    Invoker,
+    PeerStartInput,
+    Run,
+    TriggerParent,
 } from '@chamvi/core-kit';
 import { CLOCK_KEY } from '../clock/context.ts';
 import { systemClock } from '../clock/index.ts';

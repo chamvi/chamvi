@@ -6,11 +6,11 @@
  */
 
 import type { DeepPartial } from 'typeorm';
-import type { 
-    Artifact, 
-    Run, 
-    TriggerEnvelope, 
-    WaitPoint, 
+import type {
+    Artifact,
+    Run,
+    TriggerEnvelope,
+    WaitPoint,
 } from '@chamvi/core-kit';
 import type { RunEntity } from '../../entities/index.ts';
 

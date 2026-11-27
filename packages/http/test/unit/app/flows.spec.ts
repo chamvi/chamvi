@@ -55,9 +55,9 @@ const authupVerifier: ITokenVerifier = {
             realm_id: AUTHUP_REALM,
             scope: 'global',
             permissions: [{
-                name: Permission.AGENT_APPROVE, 
-                realm_scope: 'own', 
-                policies: ['gate'], 
+                name: Permission.AGENT_APPROVE,
+                realm_scope: 'own',
+                policies: ['gate'],
             }],
         };
     },

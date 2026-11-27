@@ -13,13 +13,13 @@ import { Container } from 'validup';
 import { forbidden, isGranted } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
 import { validateBody } from '../../request/helpers/index.ts';
-import type { 
-    ConnectionCreateBody, 
-    ConnectionSaveBody, 
-    ConnectionSettingsView, 
-    ConnectionTestView, 
-    ConnectionTypeView, 
-    UiPage, 
+import type {
+    ConnectionCreateBody,
+    ConnectionSaveBody,
+    ConnectionSettingsView,
+    ConnectionTestView,
+    ConnectionTypeView,
+    UiPage,
 } from '@chamvi/core-kit';
 import { NO_STORE_MESSAGE } from '../constants.ts';
 import {

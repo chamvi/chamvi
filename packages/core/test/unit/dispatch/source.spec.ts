@@ -183,9 +183,9 @@ const SOURCE = { channel: 'gh', address: 'o/r#12' };
 describe('dispatch({ source })', () => {
     it('lets a tainted child emit and ask on its source without the gate', async () => {
         const {
-            engine, 
-            store, 
-            gh, 
+            engine,
+            store,
+            gh,
         } = setup({
             parent: [turn(call('handoff', { number: 12 })), text('done')],
             child: [turn(call('ask', { number: 12 })), text('asked')],
@@ -211,9 +211,9 @@ describe('dispatch({ source })', () => {
 
     it('still gates any other address of that channel', async () => {
         const {
-            engine, 
-            store, 
-            gh, 
+            engine,
+            store,
+            gh,
         } = setup({
             parent: [turn(call('handoff', { number: 13 })), text('done')],
             child: [turn(call('ask', { number: 13 })), text('asked')],
@@ -241,9 +241,9 @@ describe('dispatch({ source })', () => {
 
     it('leaves a child without source as it was: gated', async () => {
         const {
-            engine, 
-            store, 
-            gh, 
+            engine,
+            store,
+            gh,
         } = setup({
             parent: [turn(call('handoff', { number: 12 })), text('done')],
             child: [turn(call('ask', { number: 12 })), text('asked')],

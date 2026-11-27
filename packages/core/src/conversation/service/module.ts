@@ -5,12 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { 
-    ConversationIdentity, 
-    ConversationItem, 
-    ConversationNote, 
-    ConversationNoteOperation, 
-    ConversationScope, 
+import type {
+    ConversationIdentity,
+    ConversationItem,
+    ConversationNote,
+    ConversationNoteOperation,
+    ConversationScope,
 } from '@chamvi/core-kit';
 import { RepositoryNotFoundError } from '../../errors/index.ts';
 import type {

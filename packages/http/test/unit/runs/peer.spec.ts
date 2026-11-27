@@ -66,9 +66,9 @@ function fakeResolver(reads: string[]): IPeerResolver {
         names: () => ['dev', 'ops'],
         has: (name) => name === 'dev' || name === 'ops',
         settings: () => ({
-            pollMs: 60_000, 
-            untrusted: false, 
-            outgoing: true, 
+            pollMs: 60_000,
+            untrusted: false,
+            outgoing: true,
         }),
         transport: () => ({
             start: async () => ({ runId: 'unused' }),
@@ -141,9 +141,9 @@ function peerBody(patch: Record<string, unknown> = {}) {
         peer: {
             standIn: 'stand-in-1',
             parent: {
-                runId: 'caller-run-1', 
-                agent: 'caller', 
-                depth: 0, 
+                runId: 'caller-run-1',
+                agent: 'caller',
+                depth: 0,
             },
             taint: true,
             origin: 'Ann',
@@ -169,9 +169,9 @@ async function seedStandIn(engine: ReturnType<typeof setup>['engine'], peer: str
     const id = `stand-in-${peer}`;
     const now = new Date(engine.clock.now());
     const invoker: Invoker = {
-        kind: 'token', 
-        id: 'admin', 
-        bindings: [], 
+        kind: 'token',
+        id: 'admin',
+        bindings: [],
     };
 
     await engine.runService.create({
@@ -290,14 +290,14 @@ describe('POST /agents/:name/runs with peer fields', () => {
         const { app } = setup();
         const body = peerBody({ idempotencyKey: undefined });
         const first = await call(app, 'POST', '/agents/worker/runs', {
-            token: DEV_TOKEN, 
-            body, 
-            headers: { 'idempotency-key': 'h-1' }, 
+            token: DEV_TOKEN,
+            body,
+            headers: { 'idempotency-key': 'h-1' },
         });
         const second = await call(app, 'POST', '/agents/worker/runs', {
-            token: DEV_TOKEN, 
-            body, 
-            headers: { 'idempotency-key': 'h-1' }, 
+            token: DEV_TOKEN,
+            body,
+            headers: { 'idempotency-key': 'h-1' },
         });
 
         expect(first.status).toBe(202);
@@ -311,15 +311,15 @@ describe('POST /agents/:name/runs with peer fields', () => {
 
         expect(missing.status).toBe(404);
         expect(await missing.json()).toEqual({
-            status: 404, 
-            code: 'not_found', 
-            message: 'Agent "nope" was not found.', 
+            status: 404,
+            code: 'not_found',
+            message: 'Agent "nope" was not found.',
         });
         expect(ungranted.status).toBe(404);
         expect(await ungranted.json()).toEqual({
-            status: 404, 
-            code: 'not_found', 
-            message: 'Agent "worker" was not found.', 
+            status: 404,
+            code: 'not_found',
+            message: 'Agent "worker" was not found.',
         });
 
         // the grant is checked before the body: a malformed body to a held agent reads like a missing agent
@@ -339,9 +339,9 @@ describe('POST /agents/:name/runs with peer fields', () => {
     it('refuses malformed peer fields and a refused dispatch with 400', async () => {
         const { app, engine } = setup();
         const parent = {
-            runId: 'caller-run-1', 
-            agent: 'caller', 
-            depth: 0, 
+            runId: 'caller-run-1',
+            agent: 'caller',
+            depth: 0,
         };
         const bodies = [
             peerBody({ role: 'Not A Role' }),
@@ -349,55 +349,55 @@ describe('POST /agents/:name/runs with peer fields', () => {
             peerBody({ peer: { parent, taint: false } }),
             peerBody({
                 peer: {
-                    standIn: 's', 
-                    parent: { ...parent, depth: 9 }, 
-                    taint: false, 
-                }, 
+                    standIn: 's',
+                    parent: { ...parent, depth: 9 },
+                    taint: false,
+                },
             }),
             peerBody({
                 peer: {
-                    standIn: 's', 
-                    parent: { ...parent, depth: 1.5 }, 
-                    taint: false, 
-                }, 
+                    standIn: 's',
+                    parent: { ...parent, depth: 1.5 },
+                    taint: false,
+                },
             }),
             peerBody({
                 peer: {
-                    standIn: 's', 
-                    parent: { ...parent, agent: 'Bad/Agent' }, 
-                    taint: false, 
-                }, 
+                    standIn: 's',
+                    parent: { ...parent, agent: 'Bad/Agent' },
+                    taint: false,
+                },
             }),
             peerBody({
                 peer: {
-                    standIn: 's', 
-                    parent: { ...parent, runId: '' }, 
-                    taint: false, 
-                }, 
+                    standIn: 's',
+                    parent: { ...parent, runId: '' },
+                    taint: false,
+                },
             }),
             peerBody({
                 peer: {
-                    standIn: 's', 
-                    parent, 
-                    taint: 'yes', 
-                }, 
+                    standIn: 's',
+                    parent,
+                    taint: 'yes',
+                },
             }),
             peerBody({
                 peer: {
-                    standIn: 's', 
-                    parent, 
-                    taint: false, 
-                    origin: 'x'.repeat(129), 
-                }, 
+                    standIn: 's',
+                    parent,
+                    taint: false,
+                    origin: 'x'.repeat(129),
+                },
             }),
             // core's checks: no role `other`, `from` lacks `dev/stranger`, no idempotency key
             peerBody({ role: 'other' }),
             peerBody({
                 peer: {
-                    standIn: 's', 
-                    parent: { ...parent, agent: 'stranger' }, 
-                    taint: false, 
-                }, 
+                    standIn: 's',
+                    parent: { ...parent, agent: 'stranger' },
+                    taint: false,
+                },
             }),
             peerBody({ idempotencyKey: undefined }),
         ];
@@ -413,9 +413,9 @@ describe('POST /agents/:name/runs with peer fields', () => {
 
     it('answers 503 with Retry-After while another replica counts the call', async () => {
         const {
-            app, 
-            engine, 
-            errors, 
+            app,
+            engine,
+            errors,
         } = setup();
 
         expect(await engine.lockService.acquire('peer-count-lock:dev:caller-run-1:worker:review', 'other-replica', 60_000)).toBeTypeOf('number');
@@ -486,10 +486,10 @@ describe('GET /runs/:id for a peer', () => {
         const completed = await call(app, 'GET', `/runs/${done}`, { token: DEV_TOKEN });
 
         expect(await completed.json()).toMatchObject({
-            id: done, 
-            status: 'completed', 
-            output: 'worked', 
-            tainted: true, 
+            id: done,
+            status: 'completed',
+            output: 'worked',
+            tainted: true,
         });
 
         const missing = await call(app, 'GET', '/runs/missing', { token: DEV_TOKEN });
@@ -511,9 +511,9 @@ describe('GET /runs/:id for a peer', () => {
         const full = await call(app, 'GET', `/runs/${gate}`, { token: ADMIN_TOKEN });
 
         expect(await full.json()).toMatchObject({
-            id: gate, 
-            agent: 'gate', 
-            steps: expect.any(Array), 
+            id: gate,
+            agent: 'gate',
+            steps: expect.any(Array),
         });
         await engine.drain();
     });
@@ -575,9 +575,9 @@ describe('POST /runs/:id/cancel by a peer', () => {
 describe('POST /runs/:id/wake', () => {
     it('wake marks only a stand-in of that peer and answers every peer alike', async () => {
         const {
-            app, 
-            engine, 
-            reads, 
+            app,
+            engine,
+            reads,
         } = setup();
         const standIn = await seedStandIn(engine, 'dev');
         const own = await startAsPeer(app, 'worker');
@@ -612,9 +612,9 @@ describe('POST /runs/:id/wake', () => {
 
     it('ticks only for a fresh mark', async () => {
         const {
-            app, 
-            engine, 
-            reads, 
+            app,
+            engine,
+            reads,
         } = setup();
         const standIn = await seedStandIn(engine, 'dev', true);
         const woken = await call(app, 'POST', `/runs/${standIn}/wake`, { token: DEV_TOKEN });

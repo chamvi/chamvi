@@ -20,11 +20,11 @@ import {
     it,
 } from 'vitest';
 import { RunStatus } from '@chamvi/core-kit';
-import type { 
-    ApprovalWaitPoint, 
-    DispatchWaitPoint, 
-    Run, 
-    WaitPoint, 
+import type {
+    ApprovalWaitPoint,
+    DispatchWaitPoint,
+    Run,
+    WaitPoint,
 } from '@chamvi/core-kit';
 import { MemoryRegistry, MemoryRunRepository } from '@chamvi/store-memory';
 import type { IRunService, RunUpdateOptions } from '../../../src/index.ts';
