@@ -21,7 +21,7 @@ import type {
     IEngine,
     RunContext,
 } from '@chamvi/core';
-import type { Invoker } from '@chamvi/store';
+import type { Invoker } from '@chamvi/core-kit';
 import { Permission, allPermissions, can } from '@chamvi/access';
 import type { PermissionBinding } from '@chamvi/access';
 import { ControllableClock } from '../../utils/clock.ts';

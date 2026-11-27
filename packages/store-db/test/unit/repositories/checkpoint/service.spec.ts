@@ -21,7 +21,7 @@ import {
     systemClock,
 } from '@chamvi/core';
 import { EntityConflictError, EntityRelationError } from '@chamvi/store';
-import type { Checkpoint, CheckpointRecord } from '@chamvi/store';
+import type { Checkpoint, CheckpointRecord } from '@chamvi/core-kit';
 import { testUuid } from '@chamvi/test-kit';
 import { DatabaseCheckpointRepository } from '../../../../src/repositories/checkpoint/index.ts';
 import { DatabaseConversationRepository } from '../../../../src/repositories/conversation/index.ts';

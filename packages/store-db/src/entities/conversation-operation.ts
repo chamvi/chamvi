@@ -14,7 +14,7 @@ import {
     PrimaryColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
-import type { ConversationOperationRecord } from '@chamvi/store';
+import type { ConversationOperationRecord } from '@chamvi/core-kit';
 import { TableName } from './constants.ts';
 import { ConversationEntity } from './conversation.ts';
 import { RunEntity } from './run.ts';

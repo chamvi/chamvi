@@ -11,7 +11,7 @@ import {
 } from '@chamvi/core';
 import type { IRunArtifacts, ToolContext } from '@chamvi/core';
 import { createTestEngine } from '@chamvi/test-kit';
-import type { TriggerEnvelope } from '@chamvi/store';
+import type { TriggerEnvelope } from '@chamvi/core-kit';
 import { bindTrust } from '../../../core/src/trust/module.ts';
 import { START } from './app.ts';
 

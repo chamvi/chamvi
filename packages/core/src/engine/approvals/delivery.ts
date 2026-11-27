@@ -6,8 +6,8 @@
  */
 
 import { ChamviError, ErrorCode } from '@chamvi/errors';
-import type { ApprovalWaitPoint, Run } from '@chamvi/store';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { ApprovalWaitPoint, Run } from '@chamvi/core-kit';
 import { ChannelNotFoundError } from '../../errors/index.ts';
 import { deliverOnce } from '../notify/module.ts';
 import { approvalMessageOf } from './message.ts';

@@ -21,7 +21,7 @@ import type {
     IModule,
 } from '@chamvi/app';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
 import type { ClockTimer, IClock, IEngine } from '@chamvi/core';
 import { isObject } from 'smob';
 import { provideSandboxContext } from '../context/module.ts';

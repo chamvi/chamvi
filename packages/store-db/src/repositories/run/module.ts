@@ -7,12 +7,8 @@
 
 import type { IQuery } from '@rapiq/core';
 import type { DataSource, EntityManager } from 'typeorm';
-import type {
-    EntityFindManyResult,
-    IRunRepository,
-    Run,
-    WaitPoint,
-} from '@chamvi/store';
+import type { EntityFindManyResult, IRunRepository } from '@chamvi/store';
+import type { Run, WaitPoint } from '@chamvi/core-kit';
 import { ConversationEntity, RunEntity, StepEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 import { fromRunEntity, toRunEntity } from './helpers.ts';

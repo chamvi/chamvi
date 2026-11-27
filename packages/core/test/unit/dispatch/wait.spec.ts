@@ -27,7 +27,7 @@ import type {
     IEngine,
     ToolContext,
 } from '@chamvi/core';
-import type { DispatchWaitPoint, Run } from '@chamvi/store';
+import type { DispatchWaitPoint, Run } from '@chamvi/core-kit';
 import { answerDispatchWait } from '../../../src/engine/dispatch/module.ts';
 import type { RunUpdateOptions } from '../../../src/run/types.ts';
 import { ControllableClock } from '../../utils/clock.ts';

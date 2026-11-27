@@ -11,7 +11,7 @@ import type {
     IChannel,
     IClock,
 } from '@chamvi/core';
-import type { Invoker } from '@chamvi/store';
+import type { Invoker } from '@chamvi/core-kit';
 import type { Chat } from 'chat';
 import type { ChatAnswerOptions, ResolvedChatAnswerOptions } from '../answer/types.ts';
 import type { ChatIncoming, ChatIngress } from '../ingress/types.ts';

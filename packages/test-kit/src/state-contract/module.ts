@@ -13,12 +13,8 @@ import {
     it,
 } from 'vitest';
 import { EntityConflictError } from '@chamvi/store';
-import type {
-    IStateDocumentRepository,
-    IStateRepository,
-    StateDocument,
-    StateEntry,
-} from '@chamvi/store';
+import type { IStateDocumentRepository, IStateRepository } from '@chamvi/store';
+import type { StateDocument, StateEntry } from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';
 import type { StateRepositoryContractInput } from './types.ts';
 

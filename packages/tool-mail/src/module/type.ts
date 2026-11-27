@@ -11,16 +11,16 @@ import {
     InvalidAgentDefinitionError,
     storedConnectionName,
 } from '@chamvi/core';
-import type {
-    ConnectionField,
-    ConnectionFieldSource,
-    ConnectionTypeDefinition,
-    ConnectionValue,
-    ConnectionValues,
-    DeclaredConnection,
-    ResolveConnectionInput,
-    ResolvedConnection,
+import type { 
+    ConnectionField, 
+    ConnectionTypeDefinition, 
+    ConnectionValue, 
+    ConnectionValues, 
+    DeclaredConnection, 
+    ResolveConnectionInput, 
+    ResolvedConnection, 
 } from '@chamvi/core';
+import type { ConnectionFieldSource } from '@chamvi/core-kit';
 import { verifyMailLogin } from '../client/login.ts';
 import type { MailAccount } from '../client/types.ts';
 import { normalizeAccount } from '../options/module.ts';

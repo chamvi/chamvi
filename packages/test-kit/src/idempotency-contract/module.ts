@@ -12,7 +12,8 @@ import {
     it,
 } from 'vitest';
 import { EntityConflictError } from '@chamvi/store';
-import type { IIdempotencyRepository, IdempotencyKey } from '@chamvi/store';
+import type { IIdempotencyRepository } from '@chamvi/store';
+import type { IdempotencyKey } from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';
 import type { IdempotencyRepositoryContractInput } from './types.ts';
 

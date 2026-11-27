@@ -5,10 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Run } from '@chamvi/store';
+import type { PeerRunView, Run } from '@chamvi/core-kit';
 import type { RemoteAgent } from '../../../../agent/types.ts';
 import { ChannelNotFoundError, InvalidRunStateError, TimeoutError } from '../../../../errors/index.ts';
-import type { PeerRunView } from '../../../../peer/types.ts';
 import { deliverOnce } from '../../../notify/module.ts';
 import {
     isSameRemoteApproval,

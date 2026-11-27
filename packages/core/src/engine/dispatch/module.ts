@@ -16,8 +16,8 @@ import {
 } from '../../dispatch/helpers/index.ts';
 import type { DispatchWaitRecord } from '../../dispatch/types.ts';
 import { InvalidRunStateError } from '../../errors/index.ts';
-import { RunStatus } from '@chamvi/store';
-import type { DispatchWaitPoint, Run } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { DispatchWaitPoint, Run } from '@chamvi/core-kit';
 import type { CancelReason } from '../registry/types.ts';
 import type { DispatchEngineContext } from './types.ts';
 

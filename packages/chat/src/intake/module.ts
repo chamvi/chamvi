@@ -13,7 +13,7 @@ import type {
     ConversationTarget,
     IClock,
 } from '@chamvi/core';
-import type { Invoker } from '@chamvi/store';
+import type { Invoker } from '@chamvi/core-kit';
 import { isObject } from 'smob';
 import { answerChatApproval } from '../answer/module.ts';
 import { encodeChatAddress, hashKey, isDirectChatThread } from '../channel/helpers.ts';

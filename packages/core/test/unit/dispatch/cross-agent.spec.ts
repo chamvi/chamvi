@@ -28,7 +28,7 @@ import type {
     DispatchToInput,
     IEngine,
 } from '@chamvi/core';
-import type { Invoker, Run } from '@chamvi/store';
+import type { Invoker, Run } from '@chamvi/core-kit';
 import { Permission } from '@chamvi/access';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';

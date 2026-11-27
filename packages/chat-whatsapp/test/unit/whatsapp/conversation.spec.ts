@@ -13,7 +13,7 @@ import {
 } from 'vitest';
 import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { textModel } from '@chamvi/test-kit';
 import {
     ALICE,

@@ -7,9 +7,8 @@
 
 import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
-import { RunStatus } from '@chamvi/store';
-import type { RemoteApproval, Usage } from '@chamvi/store';
-import type { PeerRunView } from '../../../peer/types.ts';
+import { RunStatus } from '@chamvi/core-kit';
+import type { PeerRunView, RemoteApproval, Usage } from '@chamvi/core-kit';
 import { REMOTE_ERROR_CODE_MAX_LENGTH, REMOTE_ERROR_MESSAGE_MAX_LENGTH } from '../constants.ts';
 import type { RemoteOutcome } from '../types.ts';
 

@@ -5,14 +5,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type {
-    ApprovalWaitPoint,
-    Invoker,
-    Run,
-    Step,
-    Usage,
-} from '@chamvi/store';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { 
+    ApprovalWaitPoint, 
+    Invoker, 
+    Run, 
+    Step, 
+    Usage, 
+} from '@chamvi/core-kit';
 import { approvalDecisionKey, assertSelectionShape, toSelection } from '../../approval/helpers.ts';
 import { declaresDispatchRole } from '../../dispatch/helpers/index.ts';
 import { InvalidRunStateError } from '../../errors/index.ts';

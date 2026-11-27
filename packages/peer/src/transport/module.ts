@@ -6,13 +6,8 @@
  */
 
 import { ValidationError } from '@chamvi/errors';
-import type {
-    IClock,
-    IPeerTransport,
-    PeerRequestOptions,
-    PeerRunView,
-    PeerStartInput,
-} from '@chamvi/core';
+import type { IClock, IPeerTransport, PeerRequestOptions } from '@chamvi/core';
+import type { PeerRunView, PeerStartInput } from '@chamvi/core-kit';
 import { ApiError, Client } from '@chamvi/http-kit';
 import type { APIRequestOptions, ClientOptions } from '@chamvi/http-kit';
 import { isObject } from 'smob';

@@ -11,7 +11,7 @@ import type {
     ModelRef,
     SkillInput,
 } from '@chamvi/core';
-import type { AgentIssue } from '@chamvi/http';
+import type { AgentIssue } from '@chamvi/core-kit';
 import type { IModule } from 'orkos';
 import type { Env } from '../env/types.ts';
 import type { ModelProviders, ProviderConfig } from '../models/types.ts';

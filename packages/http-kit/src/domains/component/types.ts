@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ComponentView } from '@chamvi/http';
+import type { ComponentView } from '@chamvi/core-kit';
 import type { APIRequestOptions } from '../types.ts';
 
 /** One entry of `GET /components`: a background job or a channel with its last pass times (ISO strings). */

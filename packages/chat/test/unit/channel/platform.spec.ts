@@ -22,7 +22,7 @@ import type {
     ConversationTarget,
     IEngine,
 } from '@chamvi/core';
-import type { TriggerEnvelope } from '@chamvi/store';
+import type { TriggerEnvelope } from '@chamvi/core-kit';
 import {
     CHAT_REQUEST_ERROR_CODE,
     CHAT_TEXT_MAX_CHARS,

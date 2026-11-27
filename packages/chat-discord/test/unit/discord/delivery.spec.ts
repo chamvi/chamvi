@@ -21,7 +21,7 @@ import type {
     ChannelMessage,
     IEngine,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { chatAddress } from '@chamvi/chat';
 import type { ChatChannel, ChatPayload } from '@chamvi/chat';
 import { DISCORD_API_URL, DISCORD_TEXT_MAX_CHARS } from '@chamvi/chat-discord';

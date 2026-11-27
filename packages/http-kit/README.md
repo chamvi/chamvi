@@ -51,7 +51,7 @@ The REST API of [`@chamvi/http`](../http/README.md) is plain JSON over bearer to
 npm install @chamvi/http-kit
 ```
 
-ESM only, Node.js `>=26.0.0` or a browser. `@chamvi/core`, `@chamvi/http` and `@chamvi/store` are peer dependencies for their types. hapic, rapiq (`@rapiq/core`, `@rapiq/codec-url`), `@ebec/core` and `smob` are installed with the package.
+ESM only, Node.js `>=26.0.0` or a browser. `@chamvi/core-kit` is a peer dependency for the record and wire types. hapic, rapiq (`@rapiq/core`, `@rapiq/codec-url`), `@ebec/core` and `smob` are installed with the package.
 
 ## Usage
 

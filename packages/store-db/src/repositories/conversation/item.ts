@@ -6,7 +6,8 @@
  */
 
 import type { DataSource, EntityManager } from 'typeorm';
-import type { ConversationItemRecord, IConversationItemRepository } from '@chamvi/store';
+import type { IConversationItemRepository } from '@chamvi/store';
+import type { ConversationItemRecord } from '@chamvi/core-kit';
 import { ConversationEntity, ConversationItemEntity, RunEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 import { fromConversationItemEntity, toConversationItemEntity } from './helpers.ts';

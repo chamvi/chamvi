@@ -7,7 +7,8 @@
 
 import { defineQuery, eq } from '@rapiq/core';
 import { EntityConflictError, EntityRelationError } from '@chamvi/store';
-import type { Artifact, IArtifactRepository } from '@chamvi/store';
+import type { IArtifactRepository } from '@chamvi/store';
+import type { Artifact } from '@chamvi/core-kit';
 import { ArtifactNotFoundError, RepositoryNotFoundError, RunNotFoundError } from '../errors/index.ts';
 import { readArtifact } from './helpers.ts';
 import type { ArtifactServiceContext, IArtifactService } from './types.ts';

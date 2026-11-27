@@ -7,8 +7,8 @@
 
 import { ErrorCode, ValidationError } from '@chamvi/errors';
 import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
-import { RunStatus } from '@chamvi/store';
-import type { Usage } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Usage } from '@chamvi/core-kit';
 import { InvalidRunStateError, TimeoutError } from '../../../errors/index.ts';
 import { describeIssues } from '../../../state/helpers.ts';
 import { readRemoteStartRecord, remoteStartKey } from '../../remote/helpers/index.ts';

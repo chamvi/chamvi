@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { WaitPoint } from '@chamvi/store';
+import type { WaitPoint } from '@chamvi/core-kit';
 import type { SuspendRequest } from '../types.ts';
 
 /** Whether `waiting` is the wait point `waitId` (an approval by its approval id). */

@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONVERSATION_LIMITS } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createTestServices } from '../../utils/engine.ts';
 

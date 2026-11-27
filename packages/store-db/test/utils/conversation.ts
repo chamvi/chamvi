@@ -9,7 +9,7 @@ import type { DataSource } from 'typeorm';
 import type { IClock, IConversationService  } from '@chamvi/core';
 import { ConversationService } from '@chamvi/core';
 import { EntityConflictError } from '@chamvi/store';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { DatabaseConversationRepository } from '../../src/repositories/conversation/index.ts';
 import { DatabaseRunRepository } from '../../src/repositories/run/index.ts';
 

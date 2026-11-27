@@ -28,7 +28,7 @@ import type {
     IEngine,
     RunEvent,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import type { IClock } from '../../../src/clock/index.ts';
 import { systemClock } from '../../../src/clock/index.ts';
 import { approvalWait } from '../../utils/approvals.ts';

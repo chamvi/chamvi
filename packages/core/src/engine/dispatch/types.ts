@@ -6,7 +6,7 @@
  */
 
 import type { IClock } from '../../clock/index.ts';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import type { IRunService } from '../../run/types.ts';
 import type { CancelReason } from '../registry/types.ts';
 

@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import type { Invoker } from '@chamvi/store';
+import type { Invoker } from '@chamvi/core-kit';
 import { ControllableClock } from '@chamvi/test-kit';
 import { PEER_POLL_DEFAULT_MS, createPeerResolver } from '@chamvi/peer';
 import type { PeerOptions } from '@chamvi/peer';

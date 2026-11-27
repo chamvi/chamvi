@@ -7,8 +7,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { defineModelAgent } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
-import type { ApprovalWaitPoint, Run } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { ApprovalWaitPoint, Run } from '@chamvi/core-kit';
 import { approvalDecisionKey } from '../../../src/approval/helpers.ts';
 import { deliverApprovalMessage } from '../../../src/engine/approvals/delivery.ts';
 import { EngineApprovals } from '../../../src/engine/approvals/module.ts';

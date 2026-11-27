@@ -10,13 +10,9 @@ import {
     defineQuery,
     eq,
 } from '@rapiq/core';
-import { CONVERSATION_ITEM_STORED_ORDER } from '@chamvi/store';
-import type {
-    ConversationItem,
-    ConversationItemRecord,
-    ConversationScope,
-    IConversationRepository,
-} from '@chamvi/store';
+import { CONVERSATION_ITEM_STORED_ORDER } from '@chamvi/core-kit';
+import type { ConversationItem, ConversationItemRecord, ConversationScope } from '@chamvi/core-kit';
+import type { IConversationRepository } from '@chamvi/store';
 import { readItem } from '../helpers.ts';
 import { assertConversationScope, assertPage, itemBytes } from '../persistence/module.ts';
 import type { ConversationFindOptions, ConversationServiceContext } from '../types.ts';

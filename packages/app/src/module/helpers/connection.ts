@@ -8,7 +8,7 @@
 import { ChamviError } from '@chamvi/errors';
 import { DecryptionFailedError, InvalidAgentDefinitionError, resolveConnection } from '@chamvi/core';
 import type { ConnectionValues, ResolveConnectionInput, ResolvedConnection } from '@chamvi/core';
-import type { AgentIssue } from '@chamvi/http';
+import type { AgentIssue } from '@chamvi/core-kit';
 import type { IContainer } from 'eldin';
 import { isKeyringUnsetError } from '../../keyring/helpers.ts';
 import { AppToken } from '../constants.ts';

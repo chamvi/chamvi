@@ -13,7 +13,7 @@ import {
     PeerStartBusyError,
 } from '@chamvi/core';
 import { ServiceUnavailableError } from '@chamvi/errors';
-import type { Run, WaitPoint } from '@chamvi/store';
+import type { Run, WaitPoint } from '@chamvi/core-kit';
 import {
     findWaitingApproval,
     isWaitOver,

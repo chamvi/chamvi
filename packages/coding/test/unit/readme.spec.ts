@@ -16,7 +16,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import type { ApprovalWaitPoint, Run } from '@chamvi/store';
+import type { ApprovalWaitPoint, Run } from '@chamvi/core-kit';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import { createLocalSandbox } from '@chamvi/sandbox-local';
 import { createCodingAgent } from '../fixtures/readme-example.ts';

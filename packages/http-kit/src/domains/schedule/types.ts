@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ScheduleSummary } from '@chamvi/http';
+import type { ScheduleSummary } from '@chamvi/core-kit';
 import type { APIRequestOptions } from '../types.ts';
 
 /** One entry of `GET /schedules`. */

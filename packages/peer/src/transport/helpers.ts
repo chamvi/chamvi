@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ArtifactInput } from '@chamvi/core';
+import type { ArtifactInput } from '@chamvi/core-kit';
 import type { AttachmentWire } from '@chamvi/http-kit';
 
 /** An attachment in the start route's format: the bytes in base64. */

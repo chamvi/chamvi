@@ -6,7 +6,7 @@
  */
 
 import type { ModelMessage } from 'ai';
-import type { TriggerEnvelope } from '@chamvi/store';
+import type { TriggerEnvelope } from '@chamvi/core-kit';
 import { toFilePart } from '../../../artifact/helpers.ts';
 
 export function renderTrigger(envelope: TriggerEnvelope): string {

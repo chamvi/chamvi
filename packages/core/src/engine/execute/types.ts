@@ -6,16 +6,17 @@
  */
 
 import type { IConversations } from '../../conversation/types.ts';
-import type {
-    ApprovalOption,
-    ConversationSnapshot,
-    Run,
-    Step,
-    Usage,
-} from '@chamvi/store';
+import type { 
+    ApprovalOption, 
+    ConversationSnapshot, 
+    PeerStartInput, 
+    Run, 
+    Step, 
+    Usage, 
+} from '@chamvi/core-kit';
 import type { ToolSet } from 'ai';
 import type { ModelAgent, RemoteAgent, SimpleAgent } from '../../agent/types.ts';
-import type { IPeerResolver, PeerStartInput } from '../../peer/types.ts';
+import type { IPeerResolver } from '../../peer/types.ts';
 import type { IClock } from '../../clock/index.ts';
 import type { ContextKey } from '../../context/types.ts';
 import type { IEffectService, ToolCallFrame  } from '../../effect/types.ts';

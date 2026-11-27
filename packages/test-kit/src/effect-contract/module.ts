@@ -12,7 +12,8 @@ import {
     it,
 } from 'vitest';
 import { EntityConflictError } from '@chamvi/store';
-import type { EffectRecord, IEffectRepository } from '@chamvi/store';
+import type { IEffectRepository } from '@chamvi/store';
+import type { EffectRecord } from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';
 import type { EffectRepositoryContractInput } from './types.ts';
 

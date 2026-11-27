@@ -7,7 +7,7 @@
 
 import type { ToolCallFrame } from '../effect/types.ts';
 import type { ApprovalRequest } from '../engine/execute/types.ts';
-import type { ApprovalOption, Invoker } from '@chamvi/store';
+import type { ApprovalOption, Invoker } from '@chamvi/core-kit';
 
 /** What a tool asks the owner to approve (`approve()`, `ChannelHandle.approve()`). */
 export type ApprovalRequestInput = {

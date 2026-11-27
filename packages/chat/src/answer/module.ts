@@ -8,7 +8,7 @@
 import { Permission, can } from '@chamvi/access';
 import { ErrorCode } from '@chamvi/errors';
 import type { IEngine } from '@chamvi/core';
-import type { ApprovalWaitPoint, Invoker, Run } from '@chamvi/store';
+import type { ApprovalWaitPoint, Invoker, Run } from '@chamvi/core-kit';
 import type { LanguageModel } from 'ai';
 import { isObject } from 'smob';
 import { encodeChatAddress, hashKey, reportError } from '../channel/helpers.ts';

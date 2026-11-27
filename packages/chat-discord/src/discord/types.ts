@@ -13,7 +13,7 @@ import type {
 } from 'discord.js';
 import type { DiscordAdapter } from '@chat-adapter/discord';
 import type { ConversationRef, IClock } from '@chamvi/core';
-import type { Invoker } from '@chamvi/store';
+import type { Invoker } from '@chamvi/core-kit';
 import type {
     Chat,
     Logger,

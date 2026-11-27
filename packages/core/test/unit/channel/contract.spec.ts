@@ -28,7 +28,7 @@ import type {
     IEngine,
     ModelAgentDefinition,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { createTestServices, servicesOf } from '../../utils/engine.ts';
 
 const model = {} as LanguageModel;

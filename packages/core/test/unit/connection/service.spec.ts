@@ -7,7 +7,7 @@
 
 import { ValidationError } from '@chamvi/errors';
 import { describe, expect, it } from 'vitest';
-import type { ConnectionInput } from '@chamvi/store';
+import type { ConnectionInput } from '@chamvi/core-kit';
 import { MemoryConnectionRepository, MemoryLockRepository, MemoryRegistry } from '@chamvi/store-memory';
 import {
     ConnectionChangedError,

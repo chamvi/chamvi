@@ -7,12 +7,8 @@
 
 import { defineQuery } from '@rapiq/core';
 import { isEqual, isObject } from 'smob';
-import type {
-    EntityFindManyResult,
-    IStateDocumentRepository,
-    StateDocument,
-    StateDocumentPage,
-} from '@chamvi/store';
+import type { EntityFindManyResult, IStateDocumentRepository, StateDocumentPage } from '@chamvi/store';
+import type { StateDocument } from '@chamvi/core-kit';
 import { MemoryEntityRepository } from '../../entity/module.ts';
 import type { MemoryRepositoryOptions } from '../../entity/types.ts';
 

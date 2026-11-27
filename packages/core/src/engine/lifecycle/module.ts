@@ -7,7 +7,7 @@
 
 import type { Agent } from '../../agent/types.ts';
 import type { IChannel } from '../../channel/types.ts';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
 import { InvalidRunStateError } from '../../errors/index.ts';
 import { untilAborted } from '../../run/helpers.ts';
 import { DEFAULT_DRAIN_TIMEOUT_MS } from '../constants.ts';

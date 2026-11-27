@@ -6,7 +6,7 @@
  */
 
 import { ValidationError } from '@chamvi/errors';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
 import { ArtifactNotFoundError, TimeoutError } from '../../../errors/index.ts';
 import {
     buildRemoteStartInput,

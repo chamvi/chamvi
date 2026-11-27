@@ -6,7 +6,7 @@
  */
 
 import { join } from 'node:path';
-import type { AgentIssue } from '@chamvi/http';
+import type { AgentIssue } from '@chamvi/core-kit';
 import { defineIntervalComponent } from 'hubwire';
 import { formerAgentFolderHash, messageOf, relativize } from '../../loader/helpers/index.ts';
 import { hashAgentFolder, listAgentFolders, loadAgent } from '../../loader/module.ts';

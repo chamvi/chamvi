@@ -12,7 +12,7 @@ import {
     lte,
 } from '@rapiq/core';
 import { expect, it } from 'vitest';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
 import type { IRunRepository } from '@chamvi/store';
 import { makeRun, testUuid } from '../fixture/helpers.ts';
 import { APPROVAL } from './constants.ts';

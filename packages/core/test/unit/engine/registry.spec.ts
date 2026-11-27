@@ -26,7 +26,7 @@ import type {
     AgentRunsCancelled,
     IEngine,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import { AgentRevisionService, type IAgentRevisionService } from '../../../src/agent-revision/index.ts';

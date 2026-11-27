@@ -6,14 +6,13 @@
  */
 
 import type { IConnectionHandle, IConnectionTypeProvider } from '@chamvi/core';
-import type {
-    ConfigTarget,
-    ConnectionHttpServiceContext,
-    ConnectionSettingsFieldView,
-    ConnectionSettingsView,
-    ConnectionTypeView,
-    ConnectionView,
-} from '../types.ts';
+import type { ConfigTarget, ConnectionHttpServiceContext } from '../types.ts';
+import type { 
+    ConnectionSettingsFieldView, 
+    ConnectionSettingsView, 
+    ConnectionTypeView, 
+    ConnectionView, 
+} from '@chamvi/core-kit';
 import { sourceOf } from './fields.ts';
 import {
     accountOf,

@@ -7,7 +7,7 @@
 
 import type { Tool } from 'ai';
 import { defineTool } from '@chamvi/core';
-import type { TriggerEnvelope } from '@chamvi/store';
+import type { TriggerEnvelope } from '@chamvi/core-kit';
 import { isObject } from 'smob';
 import { objectSchema } from './asserts.ts';
 import { CRON_CHANNEL } from './constants.ts';

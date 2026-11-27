@@ -16,8 +16,9 @@ import {
 } from '@rapiq/core';
 import type { ICondition } from '@rapiq/core';
 import { isObject } from 'smob';
-import { CONVERSATION_ITEM_STORED_ORDER } from '@chamvi/store';
-import type { ConversationIdentity, ConversationScope, IConversationRepository } from '@chamvi/store';
+import { CONVERSATION_ITEM_STORED_ORDER } from '@chamvi/core-kit';
+import type { ConversationIdentity, ConversationScope } from '@chamvi/core-kit';
+import type { IConversationRepository } from '@chamvi/store';
 import { InvalidRunStateError } from '../../errors/index.ts';
 import { isNoteActive, readScope } from '../helpers.ts';
 import { identityId } from '../persistence/module.ts';

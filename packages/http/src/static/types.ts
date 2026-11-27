@@ -33,15 +33,3 @@ export type StaticRoutesOptions = {
     csp: (config: unknown) => string;
 };
 
-/**
- * A separately built page registered with the dashboard's shell. `path` is
- * relative to the app's `basePath`; `GET /ui-pages` answers it prefixed, so a
- * plain link works.
- */
-export type UiPage = {
-    slug: string;
-    label: string;
-    /** The connection types the page configures. */
-    types: readonly string[];
-    path: string;
-};

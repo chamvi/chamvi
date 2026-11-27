@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
 import type { IWorkspace } from '../../workspace/types.ts';
 
 /** True for the statuses after which a run never executes again. */

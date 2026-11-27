@@ -6,22 +6,9 @@
  */
 
 import type { ToolResultPart } from 'ai';
-import type { Artifact, IArtifactRepository } from '@chamvi/store';
+import type { IArtifactRepository } from '@chamvi/store';
+import type { Artifact, ArtifactInput } from '@chamvi/core-kit';
 
-/** A file to store: an attachment at dispatch or a tool's `artifacts.put()`. */
-export type ArtifactInput = {
-    /**
-     * `artifacts.put()` only (a dispatch attachment takes none): a stable name
-     * within the run, 1 to 255 characters without NUL. A repeated put with that
-     * key replaces the artifact and keeps its id. The key is private to the
-     * store and never part of an `Artifact`.
-     */
-    key?: string;
-    /** `type/subtype`, e.g. `image/png`. */
-    mediaType: string;
-    filename?: string;
-    data: Uint8Array;
-};
 
 /**
  * The artifacts of one run, part of the tool context. Not an effect by

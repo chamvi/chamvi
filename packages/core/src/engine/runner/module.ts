@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Run } from '@chamvi/store';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Run } from '@chamvi/core-kit';
 import type { ModelAgent, RemoteAgent, SimpleAgent } from '../../agent/types.ts';
 import { conversationKey } from '../../agent/asserts.ts';
 import { InvalidRunStateError, LeaseLostError } from '../../errors/index.ts';

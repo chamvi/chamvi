@@ -13,14 +13,13 @@ import {
     it,
 } from 'vitest';
 import { EntityConflictError, EntityRelationError } from '@chamvi/store';
-import type {
-    ConnectionEntryRecord,
-    ConnectionRecord,
-    ConnectionSecretRecord,
-    IConnectionRepository,
-    ILockRepository,
-    Lock,
-} from '@chamvi/store';
+import type { IConnectionRepository, ILockRepository } from '@chamvi/store';
+import type { 
+    ConnectionEntryRecord, 
+    ConnectionRecord, 
+    ConnectionSecretRecord, 
+    Lock, 
+} from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';
 import type { ConnectionRepositoryContractInput } from './types.ts';
 

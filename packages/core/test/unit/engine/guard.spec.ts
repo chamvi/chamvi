@@ -13,7 +13,7 @@ import {
 } from 'vitest';
 import { Engine, defineModelAgent, defineSimpleAgent } from '@chamvi/core';
 import type { EngineOptions, IEngine } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import { createTestServices, servicesOf } from '../../utils/engine.ts';

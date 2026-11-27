@@ -6,7 +6,7 @@
  */
 
 import type { ApprovalDecision, ApprovalRequestInput } from '../approval/types.ts';
-import type { ApprovalOption, TriggerEnvelope } from '@chamvi/store';
+import type { ApprovalOption, TriggerEnvelope } from '@chamvi/core-kit';
 import type { ConversationTarget } from '../conversation/types.ts';
 import type { DispatchEnvelope, IEngine } from '../engine/types.ts';
 

@@ -32,7 +32,7 @@ import type {
     DispatchInput,
     IEngine,
 } from '@chamvi/core';
-import type { Run, TriggerParent } from '@chamvi/store';
+import type { Run, TriggerParent } from '@chamvi/core-kit';
 import type { DispatchHost } from '../../../src/dispatch/types.ts';
 import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';

@@ -12,7 +12,7 @@ import type {
     ModelMessage,
     OutputInterface,
 } from 'ai';
-import type { Checkpoint } from '@chamvi/store';
+import type { Checkpoint } from '@chamvi/core-kit';
 
 /** Text of the last assistant message, '' when there is none. */
 export function lastAssistantText(messages: ModelMessage[]): string {

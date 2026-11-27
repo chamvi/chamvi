@@ -17,7 +17,7 @@ import {
     defineEffectTool,
     defineModelAgent,
 } from '@chamvi/core';
-import type { Checkpoint, Step } from '@chamvi/store';
+import type { Checkpoint, Step } from '@chamvi/core-kit';
 import type { 
     AgentRevisionService, 
     ArtifactService, 

@@ -8,13 +8,13 @@
 import { envSecret } from '@chamvi/app';
 import type { Env } from '@chamvi/app';
 import { InvalidAgentDefinitionError, resolveConnection } from '@chamvi/core';
-import type {
-    ConnectionFieldSource,
-    ConnectionTypeDefinition,
-    ConnectionValue,
-    ConnectionValues,
-    IConnectionHandle,
+import type { 
+    ConnectionTypeDefinition, 
+    ConnectionValue, 
+    ConnectionValues, 
+    IConnectionHandle, 
 } from '@chamvi/core';
+import type { ConnectionFieldSource } from '@chamvi/core-kit';
 import { isSnowflake } from '../discord/policy.ts';
 import type { DiscordConnectionStatus, DiscordPolicy } from '../discord/types.ts';
 import { DISCORD_CONNECTION_TYPE } from './constants.ts';

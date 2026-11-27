@@ -18,10 +18,8 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import { FatalToolError, defineModelAgent } from '@chamvi/core';
-import type {
-    Budget,
-    IEngine,
-} from '@chamvi/core';
+import type { IEngine } from '@chamvi/core';
+import type { Budget } from '@chamvi/core-kit';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';

@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { DISPATCH_DEPTH_MAX } from '../constants.ts';
 import type { DispatchHost } from '../types.ts';
 

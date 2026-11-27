@@ -14,12 +14,12 @@ import {
     PrimaryColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
-import type {
-    Run,
-    RunStatusLiteral,
-    RunTaint,
-    Usage,
-} from '@chamvi/store';
+import type { 
+    Run, 
+    RunStatusLiteral, 
+    RunTaint, 
+    Usage, 
+} from '@chamvi/core-kit';
 import { OPTIONAL_JSON_TRANSFORMER, TableName } from './constants.ts';
 import { ConversationEntity } from './conversation.ts';
 

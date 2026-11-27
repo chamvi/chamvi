@@ -88,6 +88,7 @@
     },
     "devDependencies": {
         "@chamvi/core": "^0.12.0",
+        "@chamvi/core-kit": "^0.12.0",
         "@chamvi/errors": "^0.12.0",
         "@chamvi/store": "^0.12.0",
         "@chamvi/store-memory": "^0.12.0",
@@ -107,6 +108,7 @@
     },
     "peerDependencies": {
         "@chamvi/core": "^0.12.0",
+        "@chamvi/core-kit": "^0.12.0",
         "@chamvi/errors": "^0.12.0",
         "@chamvi/store": "^0.12.0",
         "@routup/decorators": "^5.4.0"

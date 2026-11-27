@@ -12,11 +12,8 @@ import {
     it,
 } from 'vitest';
 import { EntityConflictError, EntityRelationError } from '@chamvi/store';
-import type {
-    CheckpointRecord,
-    ICheckpointRepository,
-    IRunRepository,
-} from '@chamvi/store';
+import type { ICheckpointRepository, IRunRepository } from '@chamvi/store';
+import type { CheckpointRecord } from '@chamvi/core-kit';
 import { makeRun, testUuid } from '../fixture/helpers.ts';
 import type { CheckpointRepositoryContractInput } from './types.ts';
 

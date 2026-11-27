@@ -34,7 +34,7 @@ import type {
     IEngine,
     ToolContext,
 } from '@chamvi/core';
-import type { Invoker, Run } from '@chamvi/store';
+import type { Invoker, Run } from '@chamvi/core-kit';
 import { stableHash } from '../../../src/effect/helpers.ts';
 import { EffectService } from '../../../src/effect/index.ts';
 import { approvalWait } from '../../utils/approvals.ts';

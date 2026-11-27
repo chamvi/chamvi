@@ -16,7 +16,7 @@ import {
 import { ChamviError, ErrorCode, ValidationError } from '@chamvi/errors';
 import { InvalidRunStateError, defineModelAgent } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
-import type { Invoker } from '@chamvi/store';
+import type { Invoker } from '@chamvi/core-kit';
 import { CHAT_INTAKE_FAILED_ERROR_CODE } from '@chamvi/chat';
 import type { ChatIncoming } from '@chamvi/chat';
 import { textModel } from '@chamvi/test-kit';

@@ -5,9 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { PeerRunView } from '@chamvi/core';
-import type { RunStatusLiteral, Step } from '@chamvi/store';
-import type { RunView } from '@chamvi/http';
+import type { 
+    PeerRunView, 
+    RunStatusLiteral, 
+    RunView, 
+    Step, 
+} from '@chamvi/core-kit';
 import type { EntityQueryInput } from '../../helpers/types.ts';
 import type { APIRequestOptions, Wire } from '../types.ts';
 

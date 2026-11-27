@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IStateRepository, StateEntry } from '@chamvi/store';
+import type { IStateRepository } from '@chamvi/store';
+import type { StateEntry } from '@chamvi/core-kit';
 import { MemoryEntityRepository } from '../../entity/module.ts';
 import type { MemoryRepositoryOptions } from '../../entity/types.ts';
 

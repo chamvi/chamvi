@@ -13,7 +13,7 @@ import {
     vi,
 } from 'vitest';
 import { EntityConflictError, EntityRelationError } from '@chamvi/store';
-import type { Artifact } from '@chamvi/store';
+import type { Artifact } from '@chamvi/core-kit';
 import { MemoryArtifactRepository, MemoryRegistry } from '@chamvi/store-memory';
 import {
     ArtifactNotFoundError,

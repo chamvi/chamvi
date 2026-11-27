@@ -10,7 +10,7 @@ import { path } from '../../helpers/path.ts';
 import { BaseAPI } from '../base.ts';
 import { dataOf } from '../helpers.ts';
 import type { APIRequestOptions } from '../types.ts';
-import type { ConnectionCreateBody, ConnectionSaveBody } from '@chamvi/http';
+import type { ConnectionCreateBody, ConnectionSaveBody } from '@chamvi/core-kit';
 import type {
     ConnectionDetailWire,
     ConnectionSettingsWire,

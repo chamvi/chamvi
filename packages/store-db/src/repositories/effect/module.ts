@@ -6,7 +6,8 @@
  */
 
 import type { DataSource, EntityManager } from 'typeorm';
-import type { EffectRecord, IEffectRepository } from '@chamvi/store';
+import type { IEffectRepository } from '@chamvi/store';
+import type { EffectRecord } from '@chamvi/core-kit';
 import { EffectEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 

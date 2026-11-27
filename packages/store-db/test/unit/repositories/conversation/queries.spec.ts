@@ -14,7 +14,7 @@ import {
     vi,
 } from 'vitest';
 import { CONVERSATION_LIMITS_MAX, DEFAULT_CONVERSATION_LIMITS, RunNotFoundError } from '@chamvi/core';
-import type { ConversationScope } from '@chamvi/store';
+import type { ConversationScope } from '@chamvi/core-kit';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { ConversationItemEntity, ConversationNoteEntity } from '../../../../src/entities/index.ts';
 import { conversationServiceOf, seedRun } from '../../../utils/conversation.ts';

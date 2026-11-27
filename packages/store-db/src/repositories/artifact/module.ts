@@ -7,7 +7,8 @@
 
 import type { DataSource, DeepPartial, EntityManager } from 'typeorm';
 import { EntityRelationError } from '@chamvi/store';
-import type { ArtifactRecord, IArtifactRepository } from '@chamvi/store';
+import type { IArtifactRepository } from '@chamvi/store';
+import type { ArtifactRecord } from '@chamvi/core-kit';
 import { ArtifactEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 import { isUuidValue } from '../../entity/helpers/index.ts';

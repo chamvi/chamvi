@@ -7,12 +7,8 @@
 
 import type { IQuery } from '@rapiq/core';
 import { isObject } from 'smob';
-import type {
-    EntityFindManyResult,
-    IRunRepository,
-    Run,
-    WaitPoint,
-} from '@chamvi/store';
+import type { EntityFindManyResult, IRunRepository } from '@chamvi/store';
+import type { Run, WaitPoint } from '@chamvi/core-kit';
 import { MemoryEntityRepository } from '../../entity/module.ts';
 import type { MemoryRepositoryOptions } from '../../entity/types.ts';
 

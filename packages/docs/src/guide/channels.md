@@ -72,7 +72,7 @@ A subscription may carry `concurrencyKey(payload)` and `idempotencyKey(payload)`
 
 ## The envelope
 
-<<< ../../../store/src/trigger/types.ts{ts}
+<<< ../../../core-kit/src/domains/trigger/types.ts{ts}
 
 `dispatch()` takes the envelope without `id` and `receivedAt`; it fills in a random UUID and the current time. `trigger` is the subscription id (`'http'`, `'webhook:/issues'`, ...), `channel` the name of the channel the run came from (`'mcp'` for a run started through `http.on()` over MCP). `address` is where the run came from on that channel, as the channel defines it (the issue for GitHub, a chat recipient); it is stored on the run as `run.address` and is where [`ctx.channels.findOne()`](#outbound-from-tools) answers. An `idempotencyKey`, `concurrencyKey` or `address` above 255 characters or with a NUL is refused (`ValidationError`) before anything is written.
 

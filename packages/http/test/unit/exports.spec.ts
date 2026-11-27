@@ -14,6 +14,7 @@ import {
 import type { PermissionAuthorization, PermissionBinding, PermissionIdentity } from '@chamvi/access';
 import type { ChannelStatus } from '@chamvi/core';
 import * as http from '@chamvi/http';
+import type * as kit from '@chamvi/core-kit';
 import type { swaggerUI } from '@routup/swagger-ui';
 
 describe('public api', () => {
@@ -137,14 +138,14 @@ describe('public api', () => {
     });
 
     it('exports the MeView, AuthorizationCheckBody, AuthorizationCheckView and ApproveBody types', () => {
-        expectTypeOf<http.MeView>().toEqualTypeOf<{
+        expectTypeOf<kit.MeView>().toEqualTypeOf<{
             id: string;
             kind: string;
             name?: string;
             identity?: PermissionIdentity;
         }>();
         expectTypeOf<http.AuthorizationCheckBody>().toEqualTypeOf<{ names?: string[] }>();
-        expectTypeOf<http.AuthorizationCheckView>().toEqualTypeOf<{ permissions: string[] }>();
+        expectTypeOf<kit.AuthorizationCheckView>().toEqualTypeOf<{ permissions: string[] }>();
         expectTypeOf<http.ApproveBody>().toEqualTypeOf<{
             approvalId: string;
             approved: boolean;
@@ -157,7 +158,7 @@ describe('public api', () => {
         expectTypeOf<http.HttpComponent['name']>().toEqualTypeOf<string>();
         expectTypeOf<ReturnType<http.HttpComponent['status']>>().toEqualTypeOf<ChannelStatus>();
         expectTypeOf<http.HttpAppOptions['components']>().toEqualTypeOf<(() => readonly http.HttpComponent[]) | undefined>();
-        expectTypeOf<http.ComponentView>().toEqualTypeOf<{
+        expectTypeOf<kit.ComponentView>().toEqualTypeOf<{
             name: string;
             kind: 'job' | 'channel';
             lastSuccessAt?: string;
@@ -165,6 +166,6 @@ describe('public api', () => {
             lastRunAt?: string;
             runningSince?: string;
         }>();
-        expectTypeOf<http.ComponentListView>().toEqualTypeOf<{ data: http.ComponentView[] }>();
+        expectTypeOf<http.ComponentListView>().toEqualTypeOf<{ data: kit.ComponentView[] }>();
     });
 });

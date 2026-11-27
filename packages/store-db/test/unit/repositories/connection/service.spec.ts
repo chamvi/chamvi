@@ -16,7 +16,7 @@ import {
     LockService,
     RepositoryNotFoundError,
 } from '@chamvi/core';
-import type { ConnectionInput } from '@chamvi/store';
+import type { ConnectionInput } from '@chamvi/core-kit';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseConnectionRepository } from '../../../../src/repositories/connection/index.ts';
 import { TableName } from '../../../../src/entities/constants.ts';

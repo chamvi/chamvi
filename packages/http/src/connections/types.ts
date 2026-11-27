@@ -5,137 +5,29 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { ConnectionTypeDefinition, DeclaredConnection, IConnectionHandle } from '@chamvi/core';
 import type {
-    ConnectionFieldKind,
-    ConnectionFieldSource,
-    ConnectionState,
-    ConnectionStatus,
-    ConnectionTypeDefinition,
-    ConnectionWidget,
-    DeclaredConnection,
-    IConnectionHandle,
-} from '@chamvi/core';
+    ConnectionCreateBody,
+    ConnectionDetailView,
+    ConnectionSaveBody,
+    ConnectionSettingsView,
+    ConnectionTestView,
+    ConnectionTypeView,
+    ConnectionView,
+    UiPage,
+} from '@chamvi/core-kit';
 import type { HttpContext } from '../app/types.ts';
 import type { Principal } from '../auth/types.ts';
-import type { UiPage } from '../static/types.ts';
 
-/**
- * One entry of `GET /connections` (never widgets): the handles and the
- * declared connections. `status` is `disconnected` for a connection with no
- * handle in this process (`live: false`, which is no failure); the
- * configuration fields only come with a type.
- */
-export type ConnectionView = {
-    name: string;
-    type: string;
-    status: ConnectionStatus;
-    /** The account id tools and variables use, for a multi-instance type. */
-    account?: string;
-    state?: ConnectionState;
-    /** The labels of the required fields without a value, when `state` is `incomplete`. */
-    missing?: string[];
-    /** Why the last start could not use it, when known: names options or variables, never a value. */
-    reason?: string;
-    /** `false`: no handle runs in this process, so `status` says nothing about the connection. */
-    live?: boolean;
-    editable?: boolean;
-    deletable?: boolean;
-};
 
-/** `GET /connections/{name}`: `widgets`, `canReset` and `live: true` only for a holder of `chamvi_connection_write` for it. */
-export type ConnectionDetailView = ConnectionView & {
-    widgets?: ConnectionWidget[];
-    /** The connection offers a reset (`POST /connections/{name}/reset` does not answer 404). */
-    canReset?: boolean;
-};
 
-/** A field of `GET /connection-types`: what a form needs. */
-export type ConnectionTypeFieldView = {
-    key: string;
-    label: string;
-    kind: ConnectionFieldKind;
-    required?: boolean;
-    description?: string;
-    options?: readonly string[];
-    multiline?: boolean;
-    /** Changing it needs every secret of the connection again. */
-    bindsSecrets?: boolean;
-};
 
-/** One entry of `GET /connection-types`. */
-export type ConnectionTypeView = {
-    type: string;
-    label: string;
-    multiple: boolean;
-    /** Accounts of the type can be added from the dashboard now. */
-    creatable: boolean;
-    /** `POST /connections/{name}/test` does not answer 404. */
-    testable: boolean;
-    fields: ConnectionTypeFieldView[];
-};
 
-export type ConnectionSettingsFieldView = {
-    key: string;
-    source: ConnectionFieldSource;
-    /** Only on a secret: whether it has a value. Never the value. */
-    set?: boolean;
-};
 
-/**
- * `GET /connections/{name}/config`. `settings` holds stored plain values only:
- * never a secret, and never a field locked by env or code.
- */
-export type ConnectionSettingsView = {
-    type: string;
-    state: ConnectionState;
-    /** The labels of the required fields without a value, when `state` is `incomplete`. */
-    missing?: string[];
-    /** Why the last start could not use it, when known and no save is waiting for a restart. */
-    reason?: string;
-    settings: Record<string, unknown>;
-    fields: ConnectionSettingsFieldView[];
-    /** The stored config revision, 0 without a row: a save sends it back. */
-    revision: number;
-    /** The row's generation, absent without a row: a save sends it back. */
-    generation?: string;
-    /** The stored revision or generation is not the one this process loaded. */
-    restartRequired: boolean;
-    editable: boolean;
-    deletable: boolean;
-};
 
-/** `POST /connections/{name}/test`; `message` never carries a secret. */
-export type ConnectionTestView = {
-    ok: boolean;
-    message?: string;
-};
 
-/** Secret values by field name; `''` or `null` keeps the stored value. */
-export type ConnectionSecretValues = Record<string, string | null>;
 
-/**
- * `PUT /connections/{name}/config`. An empty value is unset. `revision` and
- * `generation` are the ones of the view the save was made from: another save,
- * a reset or a delete and create since then answers 409 `connection_changed`.
- */
-export type ConnectionSaveBody = {
-    revision: number;
-    /** Absent when the view had none (no row yet). */
-    generation?: string;
-    /** The complete settings: replaces the stored ones. Absent keeps them. */
-    settings?: Record<string, unknown>;
-    secrets?: {
-        set?: ConnectionSecretValues;
-        clear?: string[];
-    };
-};
 
-/** `POST /connection-types/{type}/connections`; `secrets` by field name. */
-export type ConnectionCreateBody = {
-    account: string;
-    settings: Record<string, unknown>;
-    secrets?: ConnectionSecretValues;
-};
 
 // #region helpers
 /** What a configuration request addresses: a declared connection, or a stored account no process loaded yet. */

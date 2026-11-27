@@ -5,8 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { PeerStartInput } from '@chamvi/core';
-import type { AgentIssue, AgentSummary } from '@chamvi/http';
+import type { AgentIssue, AgentSummary, PeerStartInput } from '@chamvi/core-kit';
 import type { APIRequestOptions, Wire } from '../types.ts';
 
 export type AgentWire = AgentSummary;

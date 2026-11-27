@@ -7,7 +7,7 @@
 
 import { buildQueryString, decodeRunListQuery } from '@chamvi/http-kit';
 import type { RunListFields, RunListQuery } from '@chamvi/http-kit';
-import type { RunStatusLiteral } from '@chamvi/store';
+import type { RunStatusLiteral } from '@chamvi/core-kit';
 import {
     and,
     eq,

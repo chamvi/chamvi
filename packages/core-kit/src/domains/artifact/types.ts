@@ -27,3 +27,18 @@ export type ArtifactRecord = Artifact & {
     /** The bytes `save`/`upsert` write when set; read only through `readData`. */
     data?: Uint8Array;
 };
+
+/** A file to store: an attachment at dispatch or a tool's `artifacts.put()`. */
+export type ArtifactInput = {
+    /**
+     * `artifacts.put()` only (a dispatch attachment takes none): a stable name
+     * within the run, 1 to 255 characters without NUL. A repeated put with that
+     * key replaces the artifact and keeps its id. The key is private to the
+     * store and never part of an `Artifact`.
+     */
+    key?: string;
+    /** `type/subtype`, e.g. `image/png`. */
+    mediaType: string;
+    filename?: string;
+    data: Uint8Array;
+};

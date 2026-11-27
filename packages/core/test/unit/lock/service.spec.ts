@@ -12,7 +12,7 @@ import {
     it,
 } from 'vitest';
 import { EntityDeadlockError } from '@chamvi/store';
-import type { Lock } from '@chamvi/store';
+import type { Lock } from '@chamvi/core-kit';
 import { MemoryLockRepository, MemoryRegistry } from '@chamvi/store-memory';
 import { type ILockService, LockService } from '../../../src/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';

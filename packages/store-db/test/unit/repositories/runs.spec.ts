@@ -21,7 +21,7 @@ import {
     RunService,
     StepService,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseCheckpointRepository, DatabaseRunRepository, DatabaseStepRepository } from '@chamvi/store-db';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../utils/database.ts';

@@ -5,12 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type {
-    ConversationItemRecord,
-    ConversationNoteRecord,
-    ConversationOperationRecord,
-    ConversationRecord,
-} from '@chamvi/store';
+import type { 
+    ConversationItemRecord, 
+    ConversationNoteRecord, 
+    ConversationOperationRecord, 
+    ConversationRecord, 
+} from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';
 import { KEY } from './constants.ts';
 

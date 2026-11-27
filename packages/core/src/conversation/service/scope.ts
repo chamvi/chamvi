@@ -7,7 +7,7 @@
 
 import { uuidv7 } from 'uuidv7';
 import { EntityConflictError } from '@chamvi/store';
-import type { ConversationIdentity, ConversationRecord, ConversationScope } from '@chamvi/store';
+import type { ConversationIdentity, ConversationRecord, ConversationScope } from '@chamvi/core-kit';
 import { RepositoryNotFoundError } from '../../errors/index.ts';
 import { readScope } from '../helpers.ts';
 import { assertConversationScope, identityId } from '../persistence/module.ts';

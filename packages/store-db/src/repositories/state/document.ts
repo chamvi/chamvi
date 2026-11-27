@@ -8,12 +8,8 @@
 import { and, defineQuery, eq } from '@rapiq/core';
 import { JsonContains } from 'typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
-import type {
-    EntityFindManyResult,
-    IStateDocumentRepository,
-    StateDocument,
-    StateDocumentPage,
-} from '@chamvi/store';
+import type { EntityFindManyResult, IStateDocumentRepository, StateDocumentPage } from '@chamvi/store';
+import type { StateDocument } from '@chamvi/core-kit';
 import { DocEntity } from '../../entities/index.ts';
 import { toJsonParameter } from '../../entities/helpers.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';

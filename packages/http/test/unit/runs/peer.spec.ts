@@ -15,7 +15,7 @@ import {
     defineSimpleAgent,
 } from '@chamvi/core';
 import type { IPeerResolver } from '@chamvi/core';
-import type { Invoker, Run } from '@chamvi/store';
+import type { Invoker, Run } from '@chamvi/core-kit';
 import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { http, staticTokens } from '@chamvi/http';
 import {

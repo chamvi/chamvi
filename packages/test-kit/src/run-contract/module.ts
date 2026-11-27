@@ -18,12 +18,10 @@ import {
     expect,
     it,
 } from 'vitest';
-import {
-    EntityConflictError,
-    EntityRelationError,
-    RunStatus,
-} from '@chamvi/store';
-import type { ApprovalWaitPoint, IRunRepository, Run } from '@chamvi/store';
+import { EntityConflictError, EntityRelationError } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { ApprovalWaitPoint, Run } from '@chamvi/core-kit';
+import type { IRunRepository } from '@chamvi/store';
 import { makeChild, makeRun, testUuid } from '../fixture/helpers.ts';
 import {
     APPROVAL,

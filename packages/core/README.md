@@ -526,7 +526,7 @@ See the [instructions guide](https://chamvi.dev/guide/agents#instructions) for t
 
 Types: `Agent`, `AgentDefinition`, `ToolContext`, `ContextKey`, `IContextProvider`, `ToolPolicy`, `ToolPolicyContext`, `AgentHooks`, `ToolCallInfo`, `Budget`, `ApprovalRequestInput`, `ApprovalDecision`, `ApprovalAnswer`, `RunServiceContext`, `RunFindOptions`, `RunUpdateOptions`, `StepServiceContext`, `LockServiceContext`, `IdempotencyServiceContext`, `IdempotencyClaim`, `AgentRevisionServiceContext`, `ArtifactInput`, `IRunArtifacts`, `IChannel`, `ChannelSubscription`, `ChannelContext`, `ChannelMessage`, `ChannelSendOptions`, `ChannelHandle`, `EmitMessage`, `ConsoleChannelOptions`, `IAgentState`, `RunEvent`, `EngineOptions`, `ModelRef`, `IModelResolver`, `IClock`.
 
-The stored records (`Run`, `RunStatus`, `Step`, `Checkpoint`, `WaitPoint`, `Usage`, `Artifact`, `TriggerEnvelope`, `Invoker`) and `normalizeEnvelope()` live in [`@chamvi/store`](../store).
+The stored records (`Run`, `RunStatus`, `Step`, `Checkpoint`, `WaitPoint`, `Usage`, `Artifact`, `TriggerEnvelope`, `Invoker`) and `normalizeEnvelope()` live in [`@chamvi/core-kit`](../core-kit).
 
 Test helpers (`ControllableClock`, `createTestEngine`, the repository port suites) live in [`@chamvi/test-kit`](../test-kit).
 

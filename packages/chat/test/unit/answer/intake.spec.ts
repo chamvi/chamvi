@@ -21,7 +21,7 @@ import {
 } from '@chamvi/core';
 import type { Agent, IEngine } from '@chamvi/core';
 import type { LanguageModel } from 'ai';
-import type { ApprovalWaitPoint, Invoker, Run } from '@chamvi/store';
+import type { ApprovalWaitPoint, Invoker, Run } from '@chamvi/core-kit';
 import {
     CHAT_ANSWER_NOTICE_CLOSED,
     CHAT_ANSWER_NOTICE_SEVERAL,

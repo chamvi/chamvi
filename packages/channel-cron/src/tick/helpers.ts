@@ -6,7 +6,7 @@
  */
 
 import type { IRunService } from '@chamvi/core';
-import type { RunStatusLiteral } from '@chamvi/store';
+import type { RunStatusLiteral } from '@chamvi/core-kit';
 import type { OverlapPolicy } from '../subscription/types.ts';
 
 const ACTIVE: RunStatusLiteral[] = ['queued', 'running', 'waiting', 'interrupted'];

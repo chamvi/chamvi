@@ -20,11 +20,11 @@ const DEFAULT_TIMEOUT_MS: 900_000; // 15 minutes
 
 Throws `InvalidAgentDefinitionError` for an invalid name, instruction outer shape or role, duplicate subscription ids, a tool with `needsApproval` or a `toolsContext` entry naming a chamvi tool or no tool of a plain tool set (both in a plain tool set; a tools factory fails the run instead), `defineModelAgent()` also for `run`. `Agent` is `ModelAgent | SimpleAgent | RemoteAgent`, told apart (and narrowed, the definition too) by `kind` (`'model'`, `'simple'` or `'remote'`); `AgentDefinition` is `ModelAgentDefinition | SimpleAgentDefinition | RemoteAgentDefinition`. The engine refuses an agent whose `kind` is none of these or disagrees with its definition (a simple agent needs a function `run`, a model agent has none). `defineSimpleAgent()` also throws for a non-function `run`, a tools factory or any of `model`, `instructions`, `skills`, `output`, `conversation`, `toolsContext`; its `run(payload, ctx: SimpleRunContext)` gets the tool context plus `ctx.tools`. See [Agents](/guide/agents#simple-agents).
 
-A folder agent's `agent.ts` default-exports `defineModelAgent()`'s or `defineSimpleAgent()`'s result, named like its folder (rebuilt through the factory of its `kind`; one without `kind`, from an older core, as a model agent unless it has `run`); `AgentRevision` (`@chamvi/store`) is the store's revision marker of a folder agent (see [Agent Folders](/guide/agent-folders)):
+A folder agent's `agent.ts` default-exports `defineModelAgent()`'s or `defineSimpleAgent()`'s result, named like its folder (rebuilt through the factory of its `kind`; one without `kind`, from an older core, as a model agent unless it has `run`); `AgentRevision` (`@chamvi/core-kit`) is the store's revision marker of a folder agent (see [Agent Folders](/guide/agent-folders)):
 
 <<< ../../../core/src/agent/types.ts{ts}
 
-<<< ../../../store/src/agent-revision/types.ts{ts}
+<<< ../../../core-kit/src/domains/agent-revision/types.ts{ts}
 
 ## Native messages and instructions
 
@@ -56,9 +56,9 @@ function assertTriggerKey(name: string, value: string | undefined): void;     //
 
 `consoleChannel()` writes `[chamvi] <kind>: <title or the body's first line> (agent <agent>, run <runId>, key <key>)`, then the body lines and, for an approval, with options `select one:` (or `select one or more:`) and one `option <id>: <label>` line per option, then `approval <approvalId> waits until <ISO>`, one `write` call per line. It never throws; an invalid `name` throws `InvalidAgentDefinitionError`.
 
-The envelope (`TriggerEnvelope`, `Invoker`, from `@chamvi/store`):
+The envelope (`TriggerEnvelope`, `Invoker`, from `@chamvi/core-kit`):
 
-<<< ../../../store/src/trigger/types.ts{ts}
+<<< ../../../core-kit/src/domains/trigger/types.ts{ts}
 
 `agent.on()` (dispatch roles) is in core, see [Dispatch](#dispatch). The other subscription builders live in the channel packages: `http.on()` and `webhook.on()` in [`@chamvi/http`](/reference/http), `cron.on()` in [`@chamvi/channel-cron`](/reference/channel-cron), `github.on()` in [`@chamvi/github`](/reference/github). See [Channels & the Envelope](/guide/channels).
 
@@ -135,21 +135,21 @@ class Engine {
 
 ## Runs
 
-`Budget` and `RunContext`:
+`RunContext`:
 
 <<< ../../../core/src/run/types.ts{ts}
 
-The stored records `Run`, `RunStatusLiteral`, `WaitPoint`, `Usage`, `Step` and `Checkpoint`, from `@chamvi/store`:
+The records `Run`, `RunStatusLiteral`, `WaitPoint`, `Usage`, `Budget`, `Step` and `Checkpoint`, from `@chamvi/core-kit`:
 
-<<< ../../../store/src/run/types.ts{ts}
+<<< ../../../core-kit/src/domains/run/types.ts{ts}
 
-<<< ../../../store/src/step/types.ts{ts}
+<<< ../../../core-kit/src/domains/step/types.ts{ts}
 
-<<< ../../../store/src/checkpoint/types.ts{ts}
+<<< ../../../core-kit/src/domains/checkpoint/types.ts{ts}
 
-The `RunStatus` enum (`@chamvi/store`), whose values `RunStatusLiteral` is built from:
+The `RunStatus` enum (`@chamvi/core-kit`), whose values `RunStatusLiteral` is built from:
 
-<<< ../../../store/src/run/constants.ts{ts}
+<<< ../../../core-kit/src/domains/run/constants.ts{ts}
 
 ## Services and repositories
 
@@ -157,9 +157,9 @@ There is no store aggregate: `RunService`, `StepService`, `CheckpointService`, `
 
 ## Artifacts
 
-`Artifact` (metadata), `ArtifactInput` (a file to store) and `IRunArtifacts` (the tool context's `artifacts`):
+`Artifact` (metadata) and `ArtifactInput` (a file to store), from `@chamvi/core-kit`, and `IRunArtifacts` (the tool context's `artifacts`):
 
-<<< ../../../store/src/artifact/types.ts{ts}
+<<< ../../../core-kit/src/domains/artifact/types.ts{ts}
 
 <<< ../../../core/src/artifact/types.ts{ts}
 
@@ -258,7 +258,7 @@ const APPROVAL_OPTION_DETAIL_MAX_LENGTH: 20_000;
 const APPROVAL_OPTIONS_DETAIL_MAX_LENGTH: 100_000; // all details of one request
 ```
 
-<<< ../../../store/src/approval/types.ts{ts}
+<<< ../../../core-kit/src/domains/approval/types.ts{ts}
 
 <<< ../../../core/src/approval/types.ts{ts}
 

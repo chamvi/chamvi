@@ -13,7 +13,7 @@ import {
     defineTool,
 } from '@chamvi/core';
 import type { ToolTrust } from '@chamvi/core';
-import type { ApprovalWaitPoint, Run } from '@chamvi/store';
+import type { ApprovalWaitPoint, Run } from '@chamvi/core-kit';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import { toolContext } from '../../utils/context.ts';
 import { mockModel } from '../../utils/model.ts';

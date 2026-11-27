@@ -12,7 +12,8 @@ import {
     vi,
 } from 'vitest';
 import { Permission } from '@chamvi/access';
-import type { ConnectionStatus, IConnectionHandle } from '@chamvi/core';
+import type { IConnectionHandle } from '@chamvi/core';
+import type { ConnectionStatus } from '@chamvi/core-kit';
 import { ControllableClock } from '@chamvi/test-kit';
 import { ConnectionHttpService } from '../../../src/connections/service/index.ts';
 import { flush, restricted } from '../../utils/app.ts';

@@ -7,7 +7,8 @@
 
 import { uuidv7 } from 'uuidv7';
 import { EntityConflictError } from '@chamvi/store';
-import type { ILockRepository, Lock } from '@chamvi/store';
+import type { ILockRepository } from '@chamvi/store';
+import type { Lock } from '@chamvi/core-kit';
 import type { IClock } from '../clock/index.ts';
 import { InvalidRunStateError } from '../errors/index.ts';
 import type { ILockService, LockServiceContext } from './types.ts';

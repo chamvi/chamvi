@@ -7,7 +7,7 @@
 
 import type { ApprovalOption } from '../approval/types.ts';
 import type { ConversationBinding } from '../conversation/types.ts';
-import type { TriggerEnvelope } from '../trigger/types.ts';
+import type { Invoker, TriggerEnvelope } from '../trigger/types.ts';
 import type { RunStatus } from './constants.ts';
 
 export type RunStatusLiteral = `${RunStatus}`;
@@ -138,4 +138,39 @@ export type Run = {
     updatedAt: Date;
     startedAt?: Date;
     finishedAt?: Date;
+};
+
+export type Budget = {
+    maxSteps: number;
+    maxTokens?: number;
+    /**
+     * Wall-clock limit per execution (not cumulative across resumes): each
+     * execution of the run gets the full timeout again.
+     */
+    timeoutMs?: number;
+    /**
+     * Total tokens (input + output) of every descendant dispatched below a
+     * run of this agent: at or over it, dispatch() and dispatchTo() refuse
+     * (checked at dispatch time only, running children are not stopped).
+     */
+    maxSubtreeTokens?: number;
+};
+
+/** An invoker or approver as the API serves it: its identity only, never its grants. */
+export type InvokerView = Omit<Invoker, 'bindings' | 'authorization'>;
+
+/**
+ * A run as the API serves it (REST, SSE, MCP): its invoker carries the
+ * identity only, never the grants.
+ */
+export type RunView = Omit<Run, 'claim' | 'trigger' | 'conversation'> & {
+    /** What started the run; `payload` is absent when the run was started without one. */
+    trigger: Omit<TriggerEnvelope, 'invoker' | 'payload'> & { payload?: unknown; invoker?: InvokerView };
+    /**
+     * The run's agent is private (or not held by the app), as the server
+     * checks it: `{ name: agent, private: agentPrivate }` are the attributes
+     * of the agent permissions (`chamvi_agent_approve`, ...). Read when the
+     * run is serialized.
+     */
+    agentPrivate: boolean;
 };

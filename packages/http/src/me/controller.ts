@@ -15,7 +15,7 @@ import {
 import type { IAppEvent } from 'routup';
 import { toInvoker, usePrincipal } from '../auth/helpers/index.ts';
 import { ForceLoggedInMiddleware } from '../middleware/index.ts';
-import type { MeView } from './types.ts';
+import type { MeView } from '@chamvi/core-kit';
 
 @DTags('me')
 @DSecurity([], 'bearer')

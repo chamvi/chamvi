@@ -5,32 +5,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type {
-    EntityFindManyResult,
-    IRunRepository,
-    Run,
+import type { EntityFindManyResult, IRunRepository } from '@chamvi/store';
+import type { 
+    Run, 
     RunStatusLiteral, 
     TriggerEnvelope, 
     WaitPoint, 
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 import type { IClock } from '../clock/index.ts';
 import type { IQuery } from '@rapiq/core';
 
-export type Budget = {
-    maxSteps: number;
-    maxTokens?: number;
-    /**
-     * Wall-clock limit per execution (not cumulative across resumes): each
-     * execution of the run gets the full timeout again.
-     */
-    timeoutMs?: number;
-    /**
-     * Total tokens (input + output) of every descendant dispatched below a
-     * run of this agent: at or over it, dispatch() and dispatchTo() refuse
-     * (checked at dispatch time only, running children are not stopped).
-     */
-    maxSubtreeTokens?: number;
-};
 
 export type RunContext = {
     runId: string;

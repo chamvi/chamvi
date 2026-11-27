@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Artifact } from '@chamvi/store';
+import type { Artifact } from '@chamvi/core-kit';
 import type { APIRequestOptions, Wire } from '../types.ts';
 
 /** `GET /runs/:id/artifacts`: an artifact's metadata, never its bytes. */

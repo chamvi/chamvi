@@ -9,7 +9,7 @@ import { DEFAULT_MAX_STEPS } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { CronExpressionParser } from 'cron-parser';
 import { webhookUrl } from '../../channels/helpers.ts';
-import type { AgentSummary, ScheduleOverlap, ScheduleSummary } from '../types.ts';
+import type { AgentSummary, ScheduleOverlap, ScheduleSummary } from '@chamvi/core-kit';
 
 /**
  * An agent as `GET /agents` lists it; a subscription to one of `hookChannels`

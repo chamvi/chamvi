@@ -12,15 +12,14 @@ import {
     it,
 } from 'vitest';
 import { agentChannel, findApprovalWaitBelow, pendingApprovalOf } from '@chamvi/core';
-import type {
-    ChannelMessage,
-    ChannelSendOptions,
-    IChannel,
-    IEngine,
-    PeerRunView,
+import type { 
+    ChannelMessage, 
+    ChannelSendOptions, 
+    IChannel, 
+    IEngine, 
 } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
-import type { Run } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { PeerRunView, Run } from '@chamvi/core-kit';
 import { peerRunView } from '../../utils/peers.ts';
 import {
     REMOTE_START,

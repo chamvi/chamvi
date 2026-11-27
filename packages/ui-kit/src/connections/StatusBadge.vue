@@ -6,7 +6,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ConnectionState, ConnectionStatus } from '@chamvi/core';
+import type { ConnectionState, ConnectionStatus } from '@chamvi/core-kit';
 import { computed } from 'vue';
 import { connectionBadge } from './helpers.ts';
 

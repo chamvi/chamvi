@@ -15,7 +15,8 @@ import {
 import type { IAppEvent } from 'routup';
 import { usePrincipal } from '../../auth/helpers/index.ts';
 import { ForceLoggedInMiddleware } from '../../middleware/index.ts';
-import type { IAgentService, ScheduleControllerContext, ScheduleSummary } from '../types.ts';
+import type { IAgentService, ScheduleControllerContext } from '../types.ts';
+import type { ScheduleSummary } from '@chamvi/core-kit';
 
 @DTags('schedule')
 @DSecurity([], 'bearer')

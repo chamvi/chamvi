@@ -12,11 +12,9 @@ import {
     lt,
 } from '@rapiq/core';
 import { expect, it } from 'vitest';
-import {
-    CONVERSATION_ITEM_STORED_ORDER,
-    EntityConflictError,
-} from '@chamvi/store';
-import type { CheckpointRecord, ConversationItemRecord } from '@chamvi/store';
+import { EntityConflictError } from '@chamvi/store';
+import { CONVERSATION_ITEM_STORED_ORDER } from '@chamvi/core-kit';
+import type { CheckpointRecord, ConversationItemRecord } from '@chamvi/core-kit';
 import { makeRun, testUuid } from '../fixture/helpers.ts';
 import type { ConversationContractContext } from './context.ts';
 import { KEY } from './constants.ts';

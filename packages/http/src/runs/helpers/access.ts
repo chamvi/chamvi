@@ -7,7 +7,7 @@
 
 import { RunNotFoundError } from '@chamvi/core';
 import type { IClock } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { ForbiddenError } from '@chamvi/errors';
 import { Permission } from '@chamvi/access';
 import {

@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { CheckpointRecord, ICheckpointRepository } from '@chamvi/store';
+import type { ICheckpointRepository } from '@chamvi/store';
+import type { CheckpointRecord } from '@chamvi/core-kit';
 import { MemoryEntityRepository } from '../../entity/module.ts';
 import type { MemoryRepositoryOptions } from '../../entity/types.ts';
 

@@ -6,11 +6,7 @@
  */
 
 import type { Agent, ChannelSubscription } from '@chamvi/core';
-import type {
-    ApprovalOption,
-    Run,
-    RunStatusLiteral,
-} from '@chamvi/store';
+import type { ApprovalOption, Run, RunStatusLiteral } from '@chamvi/core-kit';
 import type { StandardSchemaWithJSON } from '@modelcontextprotocol/server';
 import type { Principal } from '../auth/types.ts';
 import type { IRunHttpService } from '../runs/types.ts';

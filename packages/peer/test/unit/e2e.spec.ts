@@ -28,7 +28,7 @@ import type {
     IChannel,
     IEngine,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { ControllableClock } from '@chamvi/test-kit';
 import {
     AppToken,

@@ -6,7 +6,7 @@
  */
 
 import type { IEngine } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import type { IChatPlatform } from '../channel/types.ts';
 import { CHAT_ANSWER_SCAN_MAX, CHAT_ANSWER_SCAN_PAGES_MAX } from './constants.ts';
 import type {

@@ -11,16 +11,16 @@ import {
     InvalidAgentDefinitionError,
     storedConnectionName,
 } from '@chamvi/core';
-import type {
-    ConnectionField,
-    ConnectionFieldSource,
-    ConnectionTypeDefinition,
-    ConnectionValue,
-    ConnectionValues,
-    DeclaredConnection,
-    ResolveConnectionInput,
-    ResolvedConnection,
+import type { 
+    ConnectionField, 
+    ConnectionTypeDefinition, 
+    ConnectionValue, 
+    ConnectionValues, 
+    DeclaredConnection, 
+    ResolveConnectionInput, 
+    ResolvedConnection, 
 } from '@chamvi/core';
+import type { ConnectionFieldSource } from '@chamvi/core-kit';
 import type { CalendarAccount } from '../client/types.ts';
 import { verifyCalendarLogin } from '../client/login.ts';
 import { normalizeAccounts } from '../options/module.ts';

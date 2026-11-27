@@ -8,12 +8,8 @@
 import { defineQuery } from '@rapiq/core';
 import { uuidv7 } from 'uuidv7';
 import { EntityConflictError } from '@chamvi/store';
-import type { 
-    Connection, 
-    ConnectionInput, 
-    ConnectionRecord, 
-    IConnectionRepository, 
-} from '@chamvi/store';
+import type { IConnectionRepository } from '@chamvi/store';
+import type { Connection, ConnectionInput, ConnectionRecord } from '@chamvi/core-kit';
 import type { IClock } from '../clock/index.ts';
 import { ConnectionChangedError, LeaseLostError, RepositoryNotFoundError } from '../errors/index.ts';
 import {

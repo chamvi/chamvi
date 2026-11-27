@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { RunStatus } from '@chamvi/store';
-import type { RemoteApproval, Run, RunStatusLiteral } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { RemoteApproval, Run, RunStatusLiteral } from '@chamvi/core-kit';
 import type { IRunService } from '../run/types.ts';
 import { DISPATCH_DEPTH_MAX } from './constants.ts';
 

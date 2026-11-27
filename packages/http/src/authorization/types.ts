@@ -6,6 +6,7 @@
  */
 
 import type { IClock } from '@chamvi/core';
+import type { AuthorizationCheckView } from '@chamvi/core-kit';
 import type { Principal } from '../auth/types.ts';
 
 /**
@@ -16,14 +17,6 @@ export type AuthorizationCheckBody = {
     names?: string[];
 };
 
-/**
- * The asked names the caller may attempt (an upper bound: a grant
- * restricted by a resource policy counts, the route decides per resource),
- * deduplicated, in request order. An absent name is denied.
- */
-export type AuthorizationCheckView = {
-    permissions: string[];
-};
 
 /** What `AuthorizationService` needs of the http context. */
 export type AuthorizationServiceContext = {

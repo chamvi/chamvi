@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { AgentRevision, AgentRevisionRecord } from '@chamvi/store';
+import type { AgentRevision, AgentRevisionRecord } from '@chamvi/core-kit';
 
 /** A stored marker as the service returns it: no storage id, `changedAt` a fresh Date. */
 export function readAgentRevision(record: AgentRevisionRecord): AgentRevision {

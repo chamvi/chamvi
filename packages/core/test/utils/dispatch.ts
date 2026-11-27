@@ -8,7 +8,7 @@
 import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
 import { MockLanguageModelV4 } from 'ai/test';
 import type { IEngine } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { mockModel } from './mock-model.ts';
 import type { MockResponse } from './mock-model.ts';
 

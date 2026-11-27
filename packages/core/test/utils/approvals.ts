@@ -7,7 +7,7 @@
 
 import { ToolDeniedError, approve } from '@chamvi/core';
 import type { AgentHooks, IEngine } from '@chamvi/core';
-import type { ApprovalWaitPoint, Run } from '@chamvi/store';
+import type { ApprovalWaitPoint, Run } from '@chamvi/core-kit';
 
 export type IssuedApproval = {
     runId: string;

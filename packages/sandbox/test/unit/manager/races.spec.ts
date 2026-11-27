@@ -8,8 +8,8 @@
 import { describe, expect, it } from 'vitest';
 import { SandboxError } from '@chamvi/core';
 import type { IEngine, RunEvent } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
-import type { Run } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Run } from '@chamvi/core-kit';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import type {
     GarbageCollectOptions,

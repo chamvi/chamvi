@@ -5,12 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type {
-    ApprovalWaitPoint,
-    Invoker,
-    Run,
-    Usage,
-} from '@chamvi/store';
+import type { 
+    ApprovalWaitPoint, 
+    Invoker, 
+    Run, 
+    Usage, 
+} from '@chamvi/core-kit';
 import type { IConversations } from '../../conversation/types.ts';
 import type { EngineContext } from '../context/types.ts';
 import type { DispatchEngineContext, ResumeRecord, ResumeStep } from '../dispatch/types.ts';

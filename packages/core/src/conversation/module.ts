@@ -7,12 +7,13 @@
 
 import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
-import type {
-    ConversationIdentity,
-    ConversationScope,
-    Invoker,
-    Run,
-} from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { 
+    ConversationIdentity, 
+    ConversationScope, 
+    Invoker, 
+    Run, 
+} from '@chamvi/core-kit';
 import type {
     ConversationInspection,
     ConversationOperationLiteral,
@@ -25,7 +26,6 @@ import type { IEffectService } from '../effect/types.ts';
 import type { IRunService } from '../run/types.ts';
 import { InvalidAgentDefinitionError, InvalidRunStateError } from '../errors/index.ts';
 import { ConversationOperation, ConversationTurnKind } from './constants.ts';
-import { RunStatus } from '@chamvi/store';
 import { matchesEmitReceipt, normalizeConversationLimits } from './helpers.ts';
 import { assertPage } from './persistence/module.ts';
 

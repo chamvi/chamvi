@@ -6,7 +6,8 @@
  */
 
 import type { DataSource, EntityManager } from 'typeorm';
-import type { ConversationRecord, IConversationRepository } from '@chamvi/store';
+import type { IConversationRepository } from '@chamvi/store';
+import type { ConversationRecord } from '@chamvi/core-kit';
 import {
     CheckpointEntity,
     ConversationEntity,

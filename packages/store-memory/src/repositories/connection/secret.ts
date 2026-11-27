@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ConnectionSecretRecord, IConnectionSecretRepository } from '@chamvi/store';
+import type { IConnectionSecretRepository } from '@chamvi/store';
+import type { ConnectionSecretRecord } from '@chamvi/core-kit';
 import { MemoryEntityRepository } from '../../entity/module.ts';
 import type { MemoryRepositoryOptions } from '../../entity/types.ts';
 

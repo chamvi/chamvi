@@ -6,7 +6,7 @@
  */
 
 import type { Agent } from '@chamvi/core';
-import type { AgentIssue } from '@chamvi/http';
+import type { AgentIssue } from '@chamvi/core-kit';
 import { messageOf, relativize } from '../../loader/helpers/index.ts';
 import { isDevMarkerOf } from '../../package/helpers/index.ts';
 import { loadAgentPackage } from '../../package/module.ts';

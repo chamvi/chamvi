@@ -23,7 +23,7 @@ import {
     staticTokens,
     webhook,
 } from '@chamvi/http';
-import type { Run, Step } from '@chamvi/store';
+import type { Run, Step } from '@chamvi/core-kit';
 import {
     ADMIN_TOKEN,
     READER_TOKEN,

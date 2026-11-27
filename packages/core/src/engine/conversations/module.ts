@@ -6,7 +6,7 @@
  */
 
 import { ValidationError } from '@chamvi/errors';
-import type { ConversationIdentity, ConversationScope, Run } from '@chamvi/store';
+import type { ConversationIdentity, ConversationScope, Run } from '@chamvi/core-kit';
 import { conversationKey } from '../../agent/asserts.ts';
 import type {
     ChannelContext,

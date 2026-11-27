@@ -7,8 +7,8 @@
 
 import { randomUUID } from 'node:crypto';
 import type { Agent } from '../../agent/types.ts';
-import { RunStatus } from '@chamvi/store';
-import type { Run } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Run } from '@chamvi/core-kit';
 import type { RunQueueOptions } from './types.ts';
 
 function hasCaps(agent: Agent | undefined): boolean {

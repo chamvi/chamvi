@@ -10,7 +10,7 @@ import { isObject } from 'smob';
 import { ChamviError, ValidationError } from '@chamvi/errors';
 import { InvalidAgentDefinitionError, effectMarker } from '@chamvi/core';
 import type { ChannelMessage, ChannelSendOptions } from '@chamvi/core';
-import type { TriggerEnvelope } from '@chamvi/store';
+import type { TriggerEnvelope } from '@chamvi/core-kit';
 import { isSameLogin } from '../app/helpers/index.ts';
 import { isPositiveInteger } from '../subscription/helpers.ts';
 import { GITHUB_REQUEST_ERROR_CODE } from '../tools/constants.ts';

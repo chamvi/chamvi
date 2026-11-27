@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { ChannelSubscription } from '@chamvi/core';
-import type { RunStatusLiteral } from '@chamvi/store';
+import type { RunStatusLiteral } from '@chamvi/core-kit';
 import {
     defineModelAgent,
 } from '@chamvi/core';

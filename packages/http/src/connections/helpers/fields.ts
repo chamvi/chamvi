@@ -6,12 +6,8 @@
  */
 
 import { isStorableConnectionText } from '@chamvi/core';
-import type {
-    ConnectionConfigView,
-    ConnectionField,
-    ConnectionFieldSource,
-    ConnectionValue,
-} from '@chamvi/core';
+import type { ConnectionConfigView, ConnectionField, ConnectionValue } from '@chamvi/core';
+import type { ConnectionFieldSource } from '@chamvi/core-kit';
 import type { ConfigTarget } from '../types.ts';
 
 /** A field env or code sets: never written here. */

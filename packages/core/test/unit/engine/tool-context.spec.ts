@@ -35,7 +35,7 @@ import type {
     IEngine,
     ToolContext,
 } from '@chamvi/core';
-import type { Invoker } from '@chamvi/store';
+import type { Invoker } from '@chamvi/core-kit';
 import { ControllableClock } from '../../utils/clock.ts';
 import { gateTool, recordApprovals } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';

@@ -21,7 +21,7 @@ import {
     defineTool,
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
-import type { ApprovalWaitPoint, Invoker } from '@chamvi/store';
+import type { ApprovalWaitPoint, Invoker } from '@chamvi/core-kit';
 import { CHAT_REQUEST_ERROR_CODE, chatAddress } from '@chamvi/chat';
 import type {
     ChatAudioAttachment,

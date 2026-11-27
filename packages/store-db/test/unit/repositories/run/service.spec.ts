@@ -26,8 +26,8 @@ import {
     RunService,
     StepService,
 } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
-import type { Run } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Run } from '@chamvi/core-kit';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseRunRepository } from '../../../../src/repositories/run/index.ts';
 import { DatabaseStepRepository } from '../../../../src/repositories/step/index.ts';

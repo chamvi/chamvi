@@ -22,7 +22,7 @@ import type {
     ConversationAccess,
     Engine,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { createWhatsAppChat } from '@chamvi/chat-whatsapp';
 import type {
     WhatsAppChatOptions,

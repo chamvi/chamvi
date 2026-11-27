@@ -6,7 +6,7 @@
  */
 
 import type { DeepPartial } from 'typeorm';
-import type { ConnectionEntryRecord, ConnectionRecord, ConnectionSecretRecord } from '@chamvi/store';
+import type { ConnectionEntryRecord, ConnectionRecord, ConnectionSecretRecord } from '@chamvi/core-kit';
 import type { ConnectionEntity, ConnectionEntryEntity, ConnectionSecretEntity } from '../../entities/index.ts';
 
 /** A copy of stored bytes into a plain Uint8Array: a Buffer would leak its toJSON. */

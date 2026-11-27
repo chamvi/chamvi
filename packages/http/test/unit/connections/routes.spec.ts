@@ -13,11 +13,8 @@ import {
 } from 'vitest';
 import { Permission } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import type {
-    ConnectionStatus,
-    ConnectionWidget,
-    IConnectionHandle,
-} from '@chamvi/core';
+import type { IConnectionHandle } from '@chamvi/core';
+import type { ConnectionStatus, ConnectionWidget } from '@chamvi/core-kit';
 import type { IShutdown } from '@chamvi/http';
 import type { IAppEvent } from 'routup';
 import { isStreamRequest } from '../../../src/plugins/helpers.ts';

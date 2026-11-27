@@ -7,7 +7,7 @@
 
 import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
-import type { ApprovalOption, ApprovalWaitPoint, Invoker } from '@chamvi/store';
+import type { ApprovalOption, ApprovalWaitPoint, Invoker } from '@chamvi/core-kit';
 import {
     APPROVAL_ARTIFACTS_MAX,
     APPROVAL_ARTIFACTS_PER_OPTION_MAX,

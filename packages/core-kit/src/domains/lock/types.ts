@@ -16,7 +16,7 @@ export type Lock = {
     /** When the lease ends: from this time on it counts as expired. */
     expiresAt: Date;
     /**
-     * The fencing token of the lease: from `ILockRepository.nextToken()`,
+     * The fencing token of the lease: from the lock repository's `nextToken()`,
      * issued on every insert and takeover, kept by a renewal.
      */
     token: number;

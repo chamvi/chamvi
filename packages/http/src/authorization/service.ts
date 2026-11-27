@@ -13,12 +13,8 @@ import type { Principal } from '../auth/types.ts';
 import { validateBody } from '../request/helpers/index.ts';
 import { isStringArray } from '../request/validators.ts';
 import { AUTHORIZATION_CHECK_MAX_NAMES, AUTHORIZATION_CHECK_NAME_MAX_LENGTH } from './constants.ts';
-import type {
-    AuthorizationCheckBody,
-    AuthorizationCheckView,
-    AuthorizationServiceContext,
-    IAuthorizationService,
-} from './types.ts';
+import type { AuthorizationCheckBody, AuthorizationServiceContext, IAuthorizationService } from './types.ts';
+import type { AuthorizationCheckView } from '@chamvi/core-kit';
 
 /**
  * Which permission names a principal may attempt: the verdict per name is

@@ -11,8 +11,9 @@ import {
     expect,
     it,
 } from 'vitest';
-import { EntityConflictError, RunStatus } from '@chamvi/store';
-import type { Checkpoint } from '@chamvi/store';
+import { EntityConflictError } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Checkpoint } from '@chamvi/core-kit';
 import { MemoryCheckpointRepository, MemoryRegistry, MemoryRunRepository } from '@chamvi/store-memory';
 import { 
     CheckpointService, 

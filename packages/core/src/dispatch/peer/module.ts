@@ -9,7 +9,7 @@ import { ValidationError } from '@chamvi/errors';
 import { randomUUID } from 'node:crypto';
 import { Permission, can } from '@chamvi/access';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { PeerParent } from '@chamvi/store';
+import type { PeerParent } from '@chamvi/core-kit';
 import { AGENT_CHANNEL_NAME } from '../../channel/constants.ts';
 import type { DispatchResult } from '../../channel/types.ts';
 import { stableHash } from '../../effect/helpers.ts';

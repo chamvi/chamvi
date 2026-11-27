@@ -11,7 +11,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import type { IdempotencyKey } from '@chamvi/store';
+import type { IdempotencyKey } from '@chamvi/core-kit';
 import { MemoryIdempotencyRepository, MemoryRegistry } from '@chamvi/store-memory';
 import { type IIdempotencyService, IdempotencyService } from '../../../src/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';

@@ -27,15 +27,14 @@ import {
     dispatchTo,
     waitForDispatch,
 } from '@chamvi/core';
-import type {
-    ChannelMessage,
-    DispatchEnvelope,
-    IChannel,
-    PeerSettings,
-    PeerStartInput,
+import type { 
+    ChannelMessage, 
+    DispatchEnvelope, 
+    IChannel, 
+    PeerSettings, 
 } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
-import type { Invoker, Run } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Invoker, PeerStartInput, Run } from '@chamvi/core-kit';
 import { stableHash } from '../../../src/effect/helpers.ts';
 import { peerNotifyKey } from '../../../src/engine/remote/helpers/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';

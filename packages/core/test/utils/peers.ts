@@ -5,15 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type {
-    IPeerResolver,
-    IPeerTransport,
-    PeerRequestOptions,
-    PeerRunView,
-    PeerSettings,
-    PeerStartInput,
+import type { 
+    IPeerResolver, 
+    IPeerTransport, 
+    PeerRequestOptions, 
+    PeerSettings, 
 } from '@chamvi/core';
-import type { Invoker } from '@chamvi/store';
+import type { Invoker, PeerRunView, PeerStartInput } from '@chamvi/core-kit';
 
 const REJECT = Symbol('reject');
 

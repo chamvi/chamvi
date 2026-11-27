@@ -14,11 +14,8 @@ import {
 } from '@rapiq/core';
 import type { ICondition, IQuery } from '@rapiq/core';
 import { EntityConflictError, EntityRelationError } from '@chamvi/store';
-import type {
-    EntityFindManyResult,
-    IRunRepository,
-    Run,
-} from '@chamvi/store';
+import type { EntityFindManyResult, IRunRepository } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import type { IClock } from '../clock/index.ts';
 import {
     InvalidRunStateError,

@@ -6,7 +6,7 @@
  */
 
 import type { DeclaredConnection, IConnectionTypeProvider } from '@chamvi/core';
-import type { Connection } from '@chamvi/store';
+import type { Connection } from '@chamvi/core-kit';
 import type { ConfigTarget, ConnectionHttpServiceContext } from '../types.ts';
 
 export function accountOf(name: string, type: string): string | undefined {

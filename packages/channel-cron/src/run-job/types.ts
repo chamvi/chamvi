@@ -6,7 +6,7 @@
  */
 
 import type { Agent, IEngine } from '@chamvi/core';
-import type { RunStatusLiteral } from '@chamvi/store';
+import type { RunStatusLiteral } from '@chamvi/core-kit';
 
 export type RunJobOptions = {
     /**

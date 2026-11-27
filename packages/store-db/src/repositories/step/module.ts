@@ -7,7 +7,8 @@
 
 import type { DataSource, DeepPartial, EntityManager } from 'typeorm';
 import { EntityQueryError } from '@chamvi/store';
-import type { IStepRepository, Step } from '@chamvi/store';
+import type { IStepRepository } from '@chamvi/store';
+import type { Step } from '@chamvi/core-kit';
 import { RunEntity, StepEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 

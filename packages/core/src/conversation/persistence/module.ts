@@ -17,14 +17,14 @@ import {
     CONVERSATION_NOTE_TEXT_MAX_BYTES,
 } from '../constants.ts';
 import type { ResolvedConversationLimits } from '../types.ts';
-import type {
-    ConversationIdentity,
-    ConversationItem,
-    ConversationNote,
-    ConversationNoteOperation,
-    ConversationScope,
-    ConversationSnapshot,
-} from '@chamvi/store';
+import type { 
+    ConversationIdentity, 
+    ConversationItem, 
+    ConversationNote, 
+    ConversationNoteOperation, 
+    ConversationScope, 
+    ConversationSnapshot, 
+} from '@chamvi/core-kit';
 
 const IDENTITY_FIELDS = ['agent', 'channel', 'account', 'chat', 'audience'] as const;
 

@@ -167,4 +167,4 @@ type ApproveBody = { // POST /runs/:id/approve; approve_run takes the same field
 
 `GET /agents` answers `{ data: AgentSummary[], issues: AgentIssue[] }`, `GET /schedules` `{ data: ScheduleSummary[] }`:
 
-<<< ../../../http/src/agents/types.ts#summaries{ts}
+<<< ../../../core-kit/src/domains/agent/types.ts{ts}

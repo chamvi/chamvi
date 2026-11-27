@@ -6,7 +6,7 @@
  */
 
 import type { ChannelMessage } from '@chamvi/core';
-import type { TriggerEnvelope } from '@chamvi/store';
+import type { TriggerEnvelope } from '@chamvi/core-kit';
 import { createGithubApp } from '@chamvi/github';
 import type { GithubAppOptions, GithubEvent } from '@chamvi/github';
 import { ControllableClock, createFakeGithub } from '@chamvi/test-kit';

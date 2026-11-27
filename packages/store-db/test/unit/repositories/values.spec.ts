@@ -13,7 +13,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import type { Checkpoint } from '@chamvi/store';
+import type { Checkpoint } from '@chamvi/core-kit';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../utils/database.ts';
 import { seedRun } from '../../utils/conversation.ts';

@@ -10,8 +10,7 @@ import { DEFAULT_MAX_STEPS } from '../agent/constants.ts';
 import type { ModelAgent, SimpleAgent } from '../agent/types.ts';
 import type { IClock } from '../clock/index.ts';
 import { TimeoutError } from '../errors/index.ts';
-import type { Budget } from '../run/types.ts';
-import type { Usage } from '@chamvi/store';
+import type { Budget, Usage } from '@chamvi/core-kit';
 
 export function resolveBudget(agent: ModelAgent | SimpleAgent): Budget {
     const { budget } = agent.definition;

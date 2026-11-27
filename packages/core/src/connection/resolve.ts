@@ -6,15 +6,14 @@
  */
 
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
-import type {
-    ConnectionField,
-    ConnectionFieldSource,
-    ConnectionState,
-    ConnectionValue,
-    ConnectionValues,
-    ResolveConnectionInput,
-    ResolvedConnection,
+import type { 
+    ConnectionField, 
+    ConnectionValue, 
+    ConnectionValues, 
+    ResolveConnectionInput, 
+    ResolvedConnection, 
 } from './types.ts';
+import type { ConnectionFieldSource, ConnectionState } from '@chamvi/core-kit';
 
 type ResolvedField = { value: ConnectionValue; source: ConnectionFieldSource };
 

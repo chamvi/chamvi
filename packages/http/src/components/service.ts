@@ -10,12 +10,8 @@ import type { ChannelStatus, IClock } from '@chamvi/core';
 import { isObject } from 'smob';
 import { assertGranted, isGranted } from '../auth/helpers/index.ts';
 import type { Principal } from '../auth/types.ts';
-import type {
-    ComponentListView,
-    ComponentServiceContext,
-    ComponentView,
-    IComponentService,
-} from './types.ts';
+import type { ComponentListView, ComponentServiceContext, IComponentService } from './types.ts';
+import type { ComponentView } from '@chamvi/core-kit';
 
 const TIMES = ['lastSuccessAt', 'lastErrorAt', 'lastRunAt', 'runningSince'] as const;
 

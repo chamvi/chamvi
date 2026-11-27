@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { isObject } from 'smob';
 import type { DispatchOutcome, DispatchWaitRecord } from '../types.ts';
 import { isRunSettled, toDispatchOutcome } from './outcome.ts';

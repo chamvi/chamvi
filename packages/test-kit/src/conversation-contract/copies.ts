@@ -7,7 +7,7 @@
 
 import { expect, it } from 'vitest';
 import { EntityConflictError } from '@chamvi/store';
-import type { ConversationRecord } from '@chamvi/store';
+import type { ConversationRecord } from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';
 import type { ConversationContractContext } from './context.ts';
 import { KEY } from './constants.ts';

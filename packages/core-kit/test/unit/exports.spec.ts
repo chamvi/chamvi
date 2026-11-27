@@ -40,7 +40,10 @@ describe('public api', () => {
 
         for (const file of files) {
             const content = readFileSync(`${SRC}${file}`, 'utf8');
-            const specifiers = content.matchAll(/from '([^']+)'/g).map((match) => match[1] ?? '').toArray();
+            const specifiers = content
+                .matchAll(/(?:from|import|require)\s*\(?\s*'([^']+)'/g)
+                .map((match) => match[1] ?? '')
+                .toArray();
 
             for (const specifier of specifiers) {
                 expect(specifier.startsWith('node:'), `${file} imports ${specifier}`).toBe(false);

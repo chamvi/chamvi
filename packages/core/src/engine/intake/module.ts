@@ -8,13 +8,14 @@
 import { ValidationError } from '@chamvi/errors';
 import { randomUUID } from 'node:crypto';
 import { uuidv7 } from 'uuidv7';
-import type {
-    ConversationBinding,
-    Run,
-    TriggerEnvelope,
-    TriggerParent,
-} from '@chamvi/store';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { 
+    ConversationBinding, 
+    PeerStartInput, 
+    Run, 
+    TriggerEnvelope, 
+    TriggerParent, 
+} from '@chamvi/core-kit';
 import { assertArtifactInput } from '../../artifact/helpers.ts';
 import { storeArtifact } from '../../artifact/module.ts';
 import type { DispatchResult } from '../../channel/types.ts';
@@ -26,7 +27,6 @@ import {
     AgentReplacedError,
     InvalidRunStateError,
 } from '../../errors/index.ts';
-import type { PeerStartInput } from '../../peer/types.ts';
 import { idempotencyScope, toInvoker } from '../../trigger/helpers.ts';
 import { assertTriggerKey } from '../../trigger/key.ts';
 import { IDEMPOTENCY_TTL_MS } from '../constants.ts';

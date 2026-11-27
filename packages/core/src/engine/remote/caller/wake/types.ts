@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Invoker } from '@chamvi/store';
+import type { Invoker } from '@chamvi/core-kit';
 import type { WakeOutcome } from '../../../types.ts';
 
 export interface IEngineRemoteWakes {

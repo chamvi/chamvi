@@ -7,7 +7,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { ValidationError } from '@chamvi/errors';
-import type { IPeerTransport, PeerStartInput } from '@chamvi/core';
+import type { IPeerTransport } from '@chamvi/core';
+import type { PeerStartInput } from '@chamvi/core-kit';
 import { ControllableClock } from '@chamvi/test-kit';
 import { PEER_REQUEST_ERROR_CODE, PeerRequestError, createPeerResolver } from '@chamvi/peer';
 import type { FakeHandler } from '../utils/fetch.ts';

@@ -7,7 +7,8 @@
 
 import { LessThanOrEqual } from 'typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
-import type { ILimitRepository, LimitUse } from '@chamvi/store';
+import type { ILimitRepository } from '@chamvi/store';
+import type { LimitUse } from '@chamvi/core-kit';
 import { LimitUseEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 

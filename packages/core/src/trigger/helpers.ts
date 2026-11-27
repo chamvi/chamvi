@@ -9,7 +9,7 @@ import { ValidationError } from '@chamvi/errors';
 import { isPermissionAuthorization, isPermissionBinding } from '@chamvi/access';
 import type { PermissionIdentity } from '@chamvi/access';
 import { isObject } from 'smob';
-import type { Invoker, TriggerEnvelope } from '@chamvi/store';
+import type { Invoker, TriggerEnvelope } from '@chamvi/core-kit';
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 

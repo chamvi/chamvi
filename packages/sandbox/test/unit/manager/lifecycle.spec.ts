@@ -16,13 +16,13 @@ import {
     approve,
     defineModelAgent,
 } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Run } from '@chamvi/core-kit';
 import type {
     AgentHooks,
     IEngine,
     RunEvent,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/model.ts';

@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ConnectionTypeView } from '@chamvi/http';
+import type { ConnectionTypeView } from '@chamvi/core-kit';
 import type { APIRequestOptions } from '../types.ts';
 
 /** One entry of `GET /connection-types`. */

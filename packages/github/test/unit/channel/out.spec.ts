@@ -14,7 +14,7 @@ import {
 import { ChamviError, ValidationError } from '@chamvi/errors';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { ChannelMessage } from '@chamvi/core';
-import type { TriggerEnvelope } from '@chamvi/store';
+import type { TriggerEnvelope } from '@chamvi/core-kit';
 import { GITHUB_CHANNEL_TIMEOUT_MS, githubChannel } from '@chamvi/github';
 import { createTestEngine } from '@chamvi/test-kit';
 import type { GithubAppOptions, GithubChannelOptions } from '@chamvi/github';

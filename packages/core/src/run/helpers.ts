@@ -8,8 +8,8 @@
 import { ValidationError } from '@chamvi/errors';
 import { isFilter, isFilters } from '@rapiq/core';
 import type { ICondition, IFilters, ISort } from '@rapiq/core';
-import { normalizeEnvelope, normalizeWaitPoint } from '@chamvi/store';
-import type { Run, WaitPoint } from '@chamvi/store';
+import { normalizeEnvelope, normalizeWaitPoint } from '@chamvi/core-kit';
+import type { Run, WaitPoint } from '@chamvi/core-kit';
 
 /** The run field a listing selects a wait point kind by (`Run.waiting.kind`). */
 const WAITING_FIELD = 'waiting';

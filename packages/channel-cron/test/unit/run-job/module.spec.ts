@@ -18,7 +18,7 @@ import type {
     IChannel,
     ModelAgentDefinition,
 } from '@chamvi/core';
-import type { Run, WaitPoint } from '@chamvi/store';
+import type { Run, WaitPoint } from '@chamvi/core-kit';
 import {
     InvalidAgentDefinitionError,
     agentChannel,

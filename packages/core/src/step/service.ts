@@ -6,8 +6,10 @@
  */
 
 import { defineQuery, eq } from '@rapiq/core';
-import { EntityRelationError, STEP_STORED_ORDER } from '@chamvi/store';
-import type { IStepRepository, Step } from '@chamvi/store';
+import { EntityRelationError } from '@chamvi/store';
+import { STEP_STORED_ORDER } from '@chamvi/core-kit';
+import type { Step } from '@chamvi/core-kit';
+import type { IStepRepository } from '@chamvi/store';
 import { RepositoryNotFoundError, RunNotFoundError } from '../errors/index.ts';
 import type { IStepService, StepServiceContext } from './types.ts';
 

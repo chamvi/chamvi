@@ -6,7 +6,7 @@
  */
 
 import type { IClock, ModelRef } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import type { LanguageModel } from 'ai';
 import type { IChatPlatform } from '../channel/types.ts';
 

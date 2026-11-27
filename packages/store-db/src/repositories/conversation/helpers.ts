@@ -6,12 +6,12 @@
  */
 
 import type { DeepPartial } from 'typeorm';
-import type {
-    ConversationItemRecord,
-    ConversationNoteRecord,
-    ConversationOperationRecord,
-    ConversationRecord,
-} from '@chamvi/store';
+import type { 
+    ConversationItemRecord, 
+    ConversationNoteRecord, 
+    ConversationOperationRecord, 
+    ConversationRecord, 
+} from '@chamvi/core-kit';
 import type {
     ConversationEntity,
     ConversationItemEntity,

@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { InvalidRunStateError } from '../../errors/index.ts';
 import { agentCancelReason } from '../registry/helpers.ts';
 import type { EngineStartGuardContext, IEngineStartGuard } from './types.ts';

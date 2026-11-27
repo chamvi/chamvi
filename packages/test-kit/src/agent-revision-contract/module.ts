@@ -13,7 +13,8 @@ import {
     it,
 } from 'vitest';
 import { EntityConflictError } from '@chamvi/store';
-import type { AgentRevisionRecord, IAgentRevisionRepository } from '@chamvi/store';
+import type { IAgentRevisionRepository } from '@chamvi/store';
+import type { AgentRevisionRecord } from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';
 import type { AgentRevisionRepositoryContractInput } from './types.ts';
 

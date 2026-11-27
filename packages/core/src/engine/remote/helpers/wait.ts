@@ -5,15 +5,15 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { 
+    PeerParent, 
+    RemoteApproval, 
+    RemoteWaitPoint, 
+    Run, 
+    RunStatusLiteral, 
+} from '@chamvi/core-kit';
 import type { IRunService } from '../../../run/types.ts';
-import type {
-    PeerParent,
-    RemoteApproval,
-    RemoteWaitPoint,
-    Run,
-    RunStatusLiteral,
-} from '@chamvi/store';
 
 /** A `waiting` run's remote wait point (undefined for any other run). */
 export function remoteWaitOf(run: Run | undefined): RemoteWaitPoint | undefined {
