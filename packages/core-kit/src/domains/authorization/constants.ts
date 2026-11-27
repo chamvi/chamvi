@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-/** Names one `POST /authorization/check` may ask. */
+/** The most permission names of one check. */
 export const AUTHORIZATION_CHECK_MAX_NAMES = 64;
 
-/** Characters of one asked name. */
+/** The longest permission name a check takes. */
 export const AUTHORIZATION_CHECK_NAME_MAX_LENGTH = 255;

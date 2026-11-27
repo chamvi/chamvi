@@ -24,3 +24,8 @@ export type StateDocument = {
     documentId: string;
     doc: unknown;
 };
+
+/** `PATCH /agents/{name}/state/kv/{key}`: any value but `undefined`. */
+export type KvWriteBody = {
+    value: unknown;
+};

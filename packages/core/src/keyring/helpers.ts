@@ -5,11 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from '@chamvi/core-kit';
+import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN, BASE64_PATTERN } from '@chamvi/core-kit';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { KEYRING_KEY_LENGTH } from './constants.ts';
-
-const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 /** Throws when `id` breaks the agent-name rule; the message names `label`, never the id. */
 export function assertKeyId(id: unknown, label: string): asserts id is string {

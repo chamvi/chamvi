@@ -7,7 +7,7 @@
 
 export * from './access.ts';
 export * from './artifact.ts';
-export * from './containers.ts';
+export * from './attachments.ts';
 export * from './list-query.ts';
 export * from './peer.ts';
 export * from './serialize.ts';

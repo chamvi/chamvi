@@ -14,12 +14,14 @@ import { isObject } from 'smob';
 import type { Container } from 'validup';
 
 /**
- * Validates a JSON object body with a validup container. A missing body
- * reads as `{}`; unknown keys are dropped.
+ * Validates a JSON object body with a validup container (in the given
+ * `group`, e.g. a core-kit ValidatorGroup). A missing body reads as `{}`;
+ * unknown keys are dropped.
  */
 export async function validateBody<T extends Record<string, any>>(
     container: Container<T>,
     body: unknown,
+    options: { group?: string } = {},
 ): Promise<T> {
     if (body === undefined) {
         body = {};
@@ -29,7 +31,7 @@ export async function validateBody<T extends Record<string, any>>(
         throw new BadRequestError({ message: 'The request body must be a JSON object.' });
     }
 
-    return container.run(body as Partial<T>);
+    return container.run(body as Partial<T>, options);
 }
 
 function describeIssues(issues: readonly Issue[]): string {

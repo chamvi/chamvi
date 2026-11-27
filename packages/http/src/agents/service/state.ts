@@ -7,14 +7,14 @@
 
 import { Permission } from '@chamvi/access';
 import type { Agent } from '@chamvi/core';
-import type { Container } from 'validup';
+import { StateValidator } from '@chamvi/core-kit';
+import type { KvWriteBody } from '@chamvi/core-kit';
 import { assertGranted } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
 import { validateBody } from '../../request/helpers/index.ts';
 import {
     assertCanReadState,
     assertCollection,
-    createKvContainer,
     parseCollectionQuery,
     parseKvListQuery,
     requireAgent,
@@ -25,7 +25,6 @@ import type {
     IAgentStateService,
     KvEntry,
     KvView,
-    KvWriteBody,
     StateDocumentView,
 } from '../types.ts';
 
@@ -33,11 +32,11 @@ import type {
 export class AgentStateService implements IAgentStateService {
     protected ctx: AgentStateServiceContext;
 
-    protected kvContainer: Container<KvWriteBody>;
+    protected kvValidator: StateValidator;
 
     constructor(ctx: AgentStateServiceContext) {
         this.ctx = ctx;
-        this.kvContainer = createKvContainer();
+        this.kvValidator = new StateValidator();
     }
 
     async list(name: string, query: URLSearchParams, principal: Principal): Promise<{ data: KvEntry[] }> {
@@ -55,7 +54,7 @@ export class AgentStateService implements IAgentStateService {
 
     async set(name: string, key: string, data: KvWriteBody, principal: Principal): Promise<KvView> {
         const agent = await this.readableAgent(name, principal, Permission.STATE_WRITE);
-        const body = await validateBody(this.kvContainer, data);
+        const body = await validateBody(this.kvValidator, data);
 
         await this.ctx.stateService.set(agent.name, key, body.value);
 

@@ -12,7 +12,14 @@ import type {
     ChannelSubscription,
     DispatchEnvelope,
 } from '@chamvi/core';
-import type { Artifact, Run } from '@chamvi/core-kit';
+import { ApprovalValidator, PeerStartValidator, RunValidator } from '@chamvi/core-kit';
+import type {
+    ApproveBody,
+    Artifact,
+    ArtifactInput,
+    Run,
+    StartRunBody,
+} from '@chamvi/core-kit';
 import { BadRequestError } from '@chamvi/errors';
 import { and, defineQuery, inArray } from '@rapiq/core';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
@@ -30,9 +37,7 @@ import { HTTP_CHANNEL_NAME } from '../channels/constants.ts';
 import { readIdempotencyHeader, validateBody, validatePayload } from '../request/helpers/index.ts';
 import {
     assertCanListRuns,
-    createApproveContainer,
-    createPeerStartContainer,
-    createStartRunContainer,
+    decodeAttachments,
     hasPeerFields,
     loadApprovableRun,
     loadPeerRun,
@@ -46,12 +51,10 @@ import {
     toRunListRequest,
 } from './helpers/index.ts';
 import type {
-    ApproveBody,
     ApproveRunView,
     CancelRunView,
     DispatchRunInput,
     IRunHttpService,
-    PeerStartRunBody,
     RunArtifactView,
     RunFindFilter,
     RunFindView,
@@ -59,7 +62,6 @@ import type {
     RunListRequest,
     RunListView,
     RunReadView,
-    StartRunBody,
     StartRunInput,
     StartRunView,
 } from './types.ts';
@@ -68,17 +70,17 @@ import type {
 export class RunHttpService implements IRunHttpService {
     protected ctx: RunHttpServiceContext;
 
-    protected startContainer: Container<StartRunBody>;
+    protected startValidator: RunValidator;
 
-    protected approveContainer: Container<ApproveBody>;
+    protected approveValidator: ApprovalValidator;
 
-    protected peerStartContainer: Container<PeerStartRunBody>;
+    protected peerStartValidator: PeerStartValidator;
 
     constructor(ctx: RunHttpServiceContext) {
         this.ctx = ctx;
-        this.startContainer = createStartRunContainer();
-        this.approveContainer = createApproveContainer();
-        this.peerStartContainer = createPeerStartContainer();
+        this.startValidator = new RunValidator();
+        this.approveValidator = new ApprovalValidator();
+        this.peerStartValidator = new PeerStartValidator();
     }
 
     async start(input: StartRunInput, principal: Principal): Promise<StartRunView> {
@@ -96,7 +98,7 @@ export class RunHttpService implements IRunHttpService {
         const name = input.agent;
         const { agent, subscription } = await this.resolveStart(name, principal);
 
-        const body = await validateBody(this.startContainer, input.data);
+        const body = await this.validateStart(this.startValidator, input.data);
         const idempotencyKey = body.idempotencyKey ?? readIdempotencyHeader(input.idempotencyHeader ?? null);
 
         let request: DispatchRunInput = {
@@ -239,7 +241,7 @@ export class RunHttpService implements IRunHttpService {
 
         // authorize against the run's agent before validating the body
         const run = await loadApprovableRun(this.ctx, principal, id);
-        const body = await validateBody(this.approveContainer, data);
+        const body = await validateBody(this.approveValidator, data);
 
         return this.applyAnswer(run.id, body, principal);
     }
@@ -276,6 +278,20 @@ export class RunHttpService implements IRunHttpService {
         }
     }
 
+    /** A start body validated by core-kit, then its attachments decoded to bytes (400 on either). */
+    protected async validateStart<T extends StartRunBody>(
+        validator: Container<T>,
+        data: unknown,
+    ): Promise<Omit<T, 'attachments'> & { attachments?: ArtifactInput[] }> {
+        const body = await validateBody(validator, data);
+
+        if (body.attachments === undefined) {
+            return body as Omit<T, 'attachments'>;
+        }
+
+        return { ...body, attachments: decodeAttachments(body.attachments) };
+    }
+
     /** The peer `principal` authenticates as (`engine.peers.recognize()`), if any. */
     protected recognize(principal: Principal): string | undefined {
         return this.ctx.engine.peers?.recognize(toInvoker(principal));
@@ -297,7 +313,7 @@ export class RunHttpService implements IRunHttpService {
             throw agentNotFound(name);
         }
 
-        const body = await validateBody(this.peerStartContainer, input.data);
+        const body = await this.validateStart(this.peerStartValidator, input.data);
         const idempotencyKey = body.idempotencyKey ?? readIdempotencyHeader(input.idempotencyHeader ?? null);
         const envelope: DispatchEnvelope = {
             agent: name,

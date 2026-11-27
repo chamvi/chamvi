@@ -9,6 +9,7 @@ import type { ArtifactInput } from '../artifact/types.ts';
 import type {
     RemoteApproval,
     RunStatusLiteral,
+    StartRunBody,
     Usage,
     WaitPoint,
 } from '../run/types.ts';
@@ -52,4 +53,13 @@ export type PeerRunView = {
     error?: { code: string; message: string };
     tainted: boolean;
     usage: Usage;
+};
+
+/** The caller's lineage on a peer start (`peer` of `POST /agents/{name}/runs`). */
+export type PeerStartBody = PeerStartInput['peer'];
+
+/** A peer's start: the start body with the receiving `agent.on()` role and the caller's lineage. */
+export type PeerStartRunBody = StartRunBody & {
+    role: string;
+    peer: PeerStartBody;
 };

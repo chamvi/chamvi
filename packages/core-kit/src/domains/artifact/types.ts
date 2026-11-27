@@ -42,3 +42,12 @@ export type ArtifactInput = {
     filename?: string;
     data: Uint8Array;
 };
+
+/** One attachment of `POST /agents/{name}/runs` as sent. */
+export type AttachmentRequestBody = {
+    /** `type/subtype`, e.g. `image/png`. */
+    mediaType: string;
+    filename?: string;
+    /** The bytes in base64. */
+    data: string;
+};

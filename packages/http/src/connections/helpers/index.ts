@@ -10,5 +10,4 @@ export * from './fields.ts';
 export * from './target.ts';
 export * from './test.ts';
 export * from './update.ts';
-export * from './validators.ts';
 export * from './view.ts';

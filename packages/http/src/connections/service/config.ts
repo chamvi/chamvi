@@ -9,10 +9,10 @@ import { Permission } from '@chamvi/access';
 import { ConnectionChangedError, assertConnectionName, storedConnectionName } from '@chamvi/core';
 import type { ConnectionConfigUpdate, ConnectionValues, IConnectionConfigStore } from '@chamvi/core';
 import { ConflictError, NotFoundError } from '@chamvi/errors';
-import { Container } from 'validup';
 import { forbidden, isGranted } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
 import { validateBody } from '../../request/helpers/index.ts';
+import { ConnectionValidator, ValidatorGroup } from '@chamvi/core-kit';
 import type {
     ConnectionCreateBody,
     ConnectionSaveBody,
@@ -31,14 +31,9 @@ import {
     findDeclared,
     findTarget,
     identityValues,
-    isAccountId,
     isDeletable,
     isEditable,
-    isGeneration,
     isLoaded,
-    isRecord,
-    isRevision,
-    isSecretsWrite,
     isUnchanged,
     lockedValues,
     refuseWithoutKeyring,
@@ -53,8 +48,11 @@ import type { ConfigTarget, ConnectionConfigServiceContext, IConnectionConfigSer
 export class ConnectionConfigService implements IConnectionConfigService {
     protected ctx: ConnectionConfigServiceContext;
 
+    protected validator: ConnectionValidator;
+
     constructor(ctx: ConnectionConfigServiceContext) {
         this.ctx = ctx;
+        this.validator = new ConnectionValidator();
     }
 
     async types(): Promise<{ data: ConnectionTypeView[] }> {
@@ -100,13 +98,7 @@ export class ConnectionConfigService implements IConnectionConfigService {
             throw new ConflictError({ message: `Accounts of the type "${type}" cannot be added here.` });
         }
 
-        const container = new Container<ConnectionCreateBody>();
-
-        container.mount('account', isAccountId());
-        container.mount('settings', isRecord());
-        container.mount('secrets', { optional: true }, isRecord());
-
-        const body = await validateBody(container, data);
+        const body = await validateBody(this.validator, data, { group: ValidatorGroup.CREATE }) as ConnectionCreateBody;
         const name = storedConnectionName(type, body.account);
 
         assertConnectionName(name);
@@ -141,14 +133,7 @@ export class ConnectionConfigService implements IConnectionConfigService {
             throw new ConflictError({ message: `The connection "${target.name}" is set in code and cannot be edited here.` });
         }
 
-        const container = new Container<ConnectionSaveBody>();
-
-        container.mount('settings', { optional: true }, isRecord());
-        container.mount('secrets', { optional: true }, isSecretsWrite());
-        container.mount('revision', isRevision());
-        container.mount('generation', { optional: true }, isGeneration());
-
-        const body = await validateBody(container, data);
+        const body = await validateBody(this.validator, data, { group: ValidatorGroup.UPDATE }) as ConnectionSaveBody;
         const stored = await configs.describe(target.name);
 
         // the form was made from another state: another save, a reset or a delete and create landed since

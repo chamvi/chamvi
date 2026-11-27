@@ -5,7 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { AgentIssue, AgentSummary, ScheduleSummary } from '@chamvi/core-kit';
+import type {
+    AgentIssue,
+    AgentSummary,
+    KvWriteBody,
+    ScheduleSummary,
+} from '@chamvi/core-kit';
 import type { HttpContext } from '../app/types.ts';
 import type { Principal } from '../auth/types.ts';
 
@@ -29,11 +34,6 @@ export type KvEntry = {
 /** `GET/PATCH /agents/{name}/state/kv/{key}`: the key and its value (`null` when unset). */
 export type KvView = {
     key: string;
-    value: unknown;
-};
-
-/** Body of `PATCH /agents/{name}/state/kv/{key}`. */
-export type KvWriteBody = {
     value: unknown;
 };
 
