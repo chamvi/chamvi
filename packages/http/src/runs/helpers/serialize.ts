@@ -5,11 +5,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Invoker, Run, Step } from '@chamvi/store';
+import type {
+    Invoker,
+    InvokerView,
+    Run,
+    RunView,
+    Step,
+} from '@chamvi/core-kit';
 import { isObject } from 'smob';
 import { agentResource } from '../../auth/helpers/index.ts';
 import type { HttpAgents } from '../../app/types.ts';
-import type { InvokerView, RunView } from '../types.ts';
 
 /** An invoker without its `bindings` and `authorization`: a reader must not learn another principal's grants. */
 function viewInvoker(invoker: Invoker): InvokerView {

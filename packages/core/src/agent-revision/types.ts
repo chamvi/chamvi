@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { AgentRevision, IAgentRevisionRepository  } from '@chamvi/store';
+import type { IAgentRevisionRepository } from '@chamvi/store';
+import type { AgentRevision } from '@chamvi/core-kit';
 
 export type AgentRevisionServiceContext = {
     repository: IAgentRevisionRepository;

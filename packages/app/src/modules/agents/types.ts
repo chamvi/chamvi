@@ -6,7 +6,7 @@
  */
 
 import type { Agent, IClock, IEngine } from '@chamvi/core';
-import type { AgentIssue } from '@chamvi/http';
+import type { AgentIssue } from '@chamvi/core-kit';
 import type { IScheduledComponent } from 'hubwire';
 import type { ILogger } from '../../logger/types.ts';
 import type { AgentCheck } from '../../module/types.ts';

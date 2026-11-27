@@ -12,8 +12,8 @@ import {
     eq,
 } from '@rapiq/core';
 import { isObject } from 'smob';
-import { CONVERSATION_ITEM_STORED_ORDER } from '@chamvi/store';
-import type { ConversationItem, ConversationItemRecord, ConversationScope } from '@chamvi/store';
+import { CONVERSATION_ITEM_STORED_ORDER } from '@chamvi/core-kit';
+import type { ConversationItem, ConversationItemRecord, ConversationScope } from '@chamvi/core-kit';
 import { readItem } from '../helpers.ts';
 import {
     assertConversationScope,

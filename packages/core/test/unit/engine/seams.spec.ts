@@ -14,7 +14,7 @@ import {
 } from 'vitest';
 import { Engine, defineModelAgent } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { createTestServices, servicesOf } from '../../utils/engine.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 

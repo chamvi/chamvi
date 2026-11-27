@@ -5,44 +5,23 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type {
-    Agent,
-    ArtifactInput,
-    ChannelSubscription,
-    PeerRunView,
-} from '@chamvi/core';
+import type { Agent, ChannelSubscription } from '@chamvi/core';
 import type {
     Artifact,
-    Invoker,
+    ArtifactInput,
+    PeerRunView,
     Run,
     RunStatusLiteral,
+    RunView,
     Step,
-    TriggerEnvelope,
     WaitPoint,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 import type { IFilter } from '@rapiq/core';
 import type { HttpContext } from '../app/types.ts';
 import type { Principal } from '../auth/types.ts';
 import type { HTTP_CHANNEL_NAME, MCP_CHANNEL_NAME } from '../channels/constants.ts';
 
-/** An invoker or approver as the API serves it: its identity only, never its grants. */
-export type InvokerView = Omit<Invoker, 'bindings' | 'authorization'>;
 
-/**
- * A run as the API serves it (REST, SSE, MCP): its invoker carries the
- * identity only, never the grants.
- */
-export type RunView = Omit<Run, 'claim' | 'trigger' | 'conversation'> & {
-    /** What started the run; `payload` is absent when the run was started without one. */
-    trigger: Omit<TriggerEnvelope, 'invoker' | 'payload'> & { payload?: unknown; invoker?: InvokerView };
-    /**
-     * The run's agent is private (or not held by the app), as the server
-     * checks it: `{ name: agent, private: agentPrivate }` are the attributes
-     * of the agent permissions (`chamvi_agent_approve`, ...). Read when the
-     * run is serialized.
-     */
-    agentPrivate: boolean;
-};
 
 /** The filter, page and order a run listing takes (`GET /runs`, MCP `list_runs`). */
 export type RunListQuery = {

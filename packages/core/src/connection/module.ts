@@ -20,7 +20,7 @@ import type {
     IConnectionSession,
     IConnectionVault,
 } from './types.ts';
-import type { Connection, ConnectionInput } from '@chamvi/store';
+import type { Connection, ConnectionInput } from '@chamvi/core-kit';
 import { assertConnection, assertConnectionName } from './validate.ts';
 
 /**

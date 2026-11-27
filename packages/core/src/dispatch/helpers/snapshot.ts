@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Invoker, TriggerParent } from '@chamvi/store';
+import type { Invoker, TriggerParent } from '@chamvi/core-kit';
 import type { RunContext } from '../../run/types.ts';
 import type { DispatchRunSnapshot } from '../types.ts';
 

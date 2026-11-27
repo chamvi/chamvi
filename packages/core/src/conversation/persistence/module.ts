@@ -24,7 +24,7 @@ import type {
     ConversationNoteOperation,
     ConversationScope,
     ConversationSnapshot,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 
 const IDENTITY_FIELDS = ['agent', 'channel', 'account', 'chat', 'audience'] as const;
 

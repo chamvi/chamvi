@@ -5,14 +5,24 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ErrorCode, httpStatusOf, isChamviError } from '@chamvi/errors';
+import {
+    ErrorCode,
+    httpStatusFromCode,
+    httpStatusOf,
+    isChamviError,
+} from '@chamvi/errors';
 import type { Issue } from '@ebec/core';
 import { isHTTPError } from '@ebec/http';
 import type { IHTTPError } from '@ebec/http';
 import { AppError, defineErrorHandler } from 'routup';
 import type { Handler, IAppEvent } from 'routup';
 import { isValidupError } from 'validup';
-import { RETRY_AFTER_SECONDS, STORAGE_ERRORS } from '../constants.ts';
+import {
+    DATABASE_UNAVAILABLE_CODE,
+    DATABASE_UNAVAILABLE_STATUS,
+    RETRY_AFTER_SECONDS,
+    STORAGE_ERRORS,
+} from '../constants.ts';
 import { boundIssues } from '../../request/helpers/index.ts';
 import type { HttpContext } from '../types.ts';
 
@@ -87,27 +97,39 @@ function isBareAppError(error: IHTTPError): boolean {
 }
 
 /**
+ * A storage error (an `Entity*Error`, the database's unavailability), by
+ * its code: internal, so its own message (an entity label, an operation,
+ * a driver code) never reaches a caller.
+ */
+export function isStorageError(error: unknown): boolean {
+    if (!Error.isError(error)) {
+        return false;
+    }
+
+    const { code } = error as { code?: unknown };
+
+    return typeof code === 'string' && Object.hasOwn(STORAGE_ERRORS, code);
+}
+
+/**
  * A storage error by its code, with its fixed message: never the error's
  * own message or fields (an entity label, an operation, a driver code),
  * and never its issues.
  */
 function toStorageErrorBody(cause: unknown): ErrorBody | undefined {
-    if (!Error.isError(cause)) {
+    if (!isStorageError(cause)) {
         return undefined;
     }
 
-    const { code } = cause as { code?: unknown };
+    const { code } = cause as { code: string };
 
-    if (typeof code !== 'string' || !Object.hasOwn(STORAGE_ERRORS, code)) {
-        return undefined;
-    }
-
-    const { status, message } = STORAGE_ERRORS[code]!;
+    // by code, not class: a foreign copy or a rehydrated storage error answers alike
+    const status = code === DATABASE_UNAVAILABLE_CODE ? DATABASE_UNAVAILABLE_STATUS : httpStatusFromCode(code);
 
     return {
         status,
         code,
-        message,
+        message: STORAGE_ERRORS[code]!,
         fixed: true,
     };
 }

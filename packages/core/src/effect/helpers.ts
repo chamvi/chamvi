@@ -12,7 +12,7 @@ import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
 import { TypeValidationError, asSchema } from 'ai';
 import type { FlexibleSchema } from 'ai';
 import { isObject } from 'smob';
-import type { EffectRecord } from '@chamvi/store';
+import type { EffectRecord } from '@chamvi/core-kit';
 import { describeIssues } from '../state/helpers.ts';
 import type { EffectResult } from './types.ts';
 

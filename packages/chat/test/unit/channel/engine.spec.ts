@@ -19,7 +19,7 @@ import type {
     IEffectService,
     IEngine,
 } from '@chamvi/core';
-import type { ApprovalWaitPoint, Run } from '@chamvi/store';
+import type { ApprovalWaitPoint, Run } from '@chamvi/core-kit';
 import { CHAT_REQUEST_ERROR_CODE, chatAddress } from '@chamvi/chat';
 import type { ChatApprovalRef, ChatChannel } from '@chamvi/chat';
 import { mockModel } from '@chamvi/test-kit';

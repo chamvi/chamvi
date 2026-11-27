@@ -5,14 +5,15 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError } from '@chamvi/errors';
 import {
     beforeEach,
     describe,
     expect,
     it,
 } from 'vitest';
-import { EntityConflictError } from '@chamvi/store';
-import type { IIdempotencyRepository, IdempotencyKey } from '@chamvi/store';
+import type { IIdempotencyRepository } from '@chamvi/store';
+import type { IdempotencyKey } from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';
 import type { IdempotencyRepositoryContractInput } from './types.ts';
 

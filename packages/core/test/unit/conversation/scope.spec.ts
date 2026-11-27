@@ -25,7 +25,7 @@ import type {
     ConversationBinding,
     ConversationIdentity,
     Run,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 import {
     conversationConcurrencyKey,
     normalizeConversationLimits,

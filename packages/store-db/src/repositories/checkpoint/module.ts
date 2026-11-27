@@ -6,7 +6,8 @@
  */
 
 import type { DataSource, DeepPartial, EntityManager } from 'typeorm';
-import type { CheckpointRecord, ICheckpointRepository } from '@chamvi/store';
+import type { ICheckpointRepository } from '@chamvi/store';
+import type { CheckpointRecord } from '@chamvi/core-kit';
 import { CheckpointEntity, ConversationEntity, RunEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 

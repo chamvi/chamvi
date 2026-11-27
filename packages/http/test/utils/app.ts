@@ -17,7 +17,7 @@ import type {
     IChannel,
     IRunService,
 } from '@chamvi/core';
-import type { ApprovalWaitPoint, Run } from '@chamvi/store';
+import type { ApprovalWaitPoint, Run } from '@chamvi/core-kit';
 import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import {
     createHttpApp,

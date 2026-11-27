@@ -5,12 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError, EntityDeadlockError, EntityRelationError } from '@chamvi/errors';
 import { describe, expect, it } from 'vitest';
-import {
-    EntityConflictError,
-    EntityDeadlockError,
-    EntityRelationError,
-} from '@chamvi/store';
 import type { EntityRecord } from '@chamvi/store';
 import { MemoryEntityRepository } from '@chamvi/store-memory';
 import { ProbedRegistry } from '../utils/probed-registry.ts';

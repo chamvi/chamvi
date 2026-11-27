@@ -5,7 +5,15 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from '@chamvi/errors';
+import {
+    ChamviError,
+    EntityConflictError,
+    EntityDeadlockError,
+    EntityInvalidError,
+    EntityNotFoundError,
+    EntityQueryError,
+    EntityRelationError,
+} from '@chamvi/errors';
 import { describe, expect, it } from 'vitest';
 import { testFailureMessage } from '../../../src/connections/helpers/test.ts';
 
@@ -31,5 +39,20 @@ describe('testFailureMessage', () => {
 
     it('answers a generic message for a foreign error', () => {
         expect(testFailureMessage(new Error('sk-live-123'), ['sk-live-123'])).toBe('The connection test failed.');
+    });
+
+    it.each([
+        ['EntityNotFoundError', () => new EntityNotFoundError({ entity: 'connection' })],
+        ['EntityConflictError', () => new EntityConflictError({ entity: 'connection' })],
+        ['EntityRelationError', () => new EntityRelationError({ entity: 'connection_entry', relation: 'connection' })],
+        ['EntityInvalidError', () => new EntityInvalidError({
+            entity: 'connection',
+            operation: 'save',
+            field: 'name',
+        })],
+        ['EntityQueryError', () => new EntityQueryError({ entity: 'connection' })],
+        ['EntityDeadlockError', () => new EntityDeadlockError({ entity: 'connection' })],
+    ])('answers a generic message for a storage error (%s)', (_name, create) => {
+        expect(testFailureMessage(create(), [])).toBe('The connection test failed.');
     });
 });

@@ -19,15 +19,15 @@ import {
     RunNotFoundError,
 } from '@chamvi/core';
 import type { IConversationService, ResolvedConversationLimits } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
 import type {
     ConversationIdentity,
     ConversationItem,
     ConversationNoteOperation,
     ConversationScope,
-    IConversationRepository,
     Run,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
+import type { IConversationRepository } from '@chamvi/store';
 import { ControllableClock } from '../utils/clock.ts';
 
 export const LIMITS: ResolvedConversationLimits = { ...DEFAULT_CONVERSATION_LIMITS };

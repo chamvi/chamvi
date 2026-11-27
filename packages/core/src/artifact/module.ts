@@ -6,17 +6,12 @@
  */
 
 import { uuidv7 } from 'uuidv7';
-import type { Artifact } from '@chamvi/store';
+import type { Artifact, ArtifactInput } from '@chamvi/core-kit';
 import type { IClock } from '../clock/index.ts';
 import { InvalidRunStateError } from '../errors/index.ts';
 import { ARTIFACT_URI_PREFIX } from './constants.ts';
 import { assertArtifactInput } from './helpers.ts';
-import type { 
-    ArtifactFilePart, 
-    ArtifactInput, 
-    IArtifactService, 
-    IRunArtifacts, 
-} from './types.ts';
+import type { ArtifactFilePart, IArtifactService, IRunArtifacts } from './types.ts';
 
 /** What the artifacts of a run (`createRunArtifacts()`) need of the artifact service. */
 type RunArtifactsService = Pick<IArtifactService, 'create' | 'save' | 'findOne' | 'findOneByKey' | 'read' | 'find'>;

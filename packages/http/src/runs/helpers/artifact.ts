@@ -6,7 +6,7 @@
  */
 
 import { ArtifactNotFoundError } from '@chamvi/core';
-import type { Artifact, Run } from '@chamvi/store';
+import type { Artifact, Run } from '@chamvi/core-kit';
 import type { HttpContext } from '../../app/types.ts';
 
 /** An artifact of `run` with its bytes; ArtifactNotFoundError (404) for an unknown id or another run's artifact. */

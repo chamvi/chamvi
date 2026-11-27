@@ -6,7 +6,8 @@
  */
 
 import type { DataSource, EntityManager } from 'typeorm';
-import type { IStateRepository, StateEntry } from '@chamvi/store';
+import type { IStateRepository } from '@chamvi/store';
+import type { StateEntry } from '@chamvi/core-kit';
 import { KvEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 

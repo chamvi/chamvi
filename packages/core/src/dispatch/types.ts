@@ -14,13 +14,14 @@ import type { DispatchEnvelope } from '../engine/types.ts';
 import type { IEffectService } from '../effect/types.ts';
 import type { ILockService } from '../lock/types.ts';
 import type { IRunService } from '../run/types.ts';
-import type { IPeerResolver, PeerStartInput } from '../peer/types.ts';
+import type { IPeerResolver } from '../peer/types.ts';
 import type {
     Invoker,
     PeerParent,
+    PeerStartInput,
     TriggerParent,
     TriggerSource,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 
 export type AgentSubscriptionOptions<P = unknown> = {
     /** The role (the subscription id), following the channel-name rule; default `default`. */

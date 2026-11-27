@@ -12,7 +12,6 @@ export type BuildFile = {
     /** Under `assets/`: content-hashed, cached for a year. */
     immutable: boolean;
 };
-
 /** What `buildCsp()` reads of a page's config: the authup origin joins `connect-src` and `form-action`. */
 export type StaticCspConfig = {
     [key: string]: unknown;
@@ -31,17 +30,4 @@ export type StaticRoutesOptions = {
     config: (apiBase: string) => unknown;
     /** The Content-Security-Policy of that config. */
     csp: (config: unknown) => string;
-};
-
-/**
- * A separately built page registered with the dashboard's shell. `path` is
- * relative to the app's `basePath`; `GET /ui-pages` answers it prefixed, so a
- * plain link works.
- */
-export type UiPage = {
-    slug: string;
-    label: string;
-    /** The connection types the page configures. */
-    types: readonly string[];
-    path: string;
 };

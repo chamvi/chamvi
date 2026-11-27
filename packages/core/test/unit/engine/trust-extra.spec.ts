@@ -23,7 +23,7 @@ import {
     dispatch,
 } from '@chamvi/core';
 import type { Engine, ModelAgentDefinition, ToolContext } from '@chamvi/core';
-import type { RunTaint } from '@chamvi/store';
+import type { RunTaint } from '@chamvi/core-kit';
 import { createRunArtifacts } from '../../../src/artifact/module.ts';
 import { systemClock } from '../../../src/clock/index.ts';
 import { wrapToolsForRun } from '../../../src/effect/wrap.ts';

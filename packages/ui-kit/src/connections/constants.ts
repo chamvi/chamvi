@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ConnectionStatus } from '@chamvi/core';
+import type { ConnectionStatus } from '@chamvi/core-kit';
 import type { ConnectionBadge } from './types.ts';
 
 /** How often the list (and a reader's detail, which has no stream) refreshes. */

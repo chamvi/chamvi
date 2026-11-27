@@ -5,20 +5,21 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError } from '@chamvi/errors';
 import {
     beforeEach,
     describe,
     expect,
     it,
 } from 'vitest';
-import { EntityConflictError, RunStatus } from '@chamvi/store';
-import type { Checkpoint } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Checkpoint } from '@chamvi/core-kit';
 import { MemoryCheckpointRepository, MemoryRegistry, MemoryRunRepository } from '@chamvi/store-memory';
-import { 
-    CheckpointService, 
-    type ICheckpointService, 
-    RepositoryNotFoundError, 
-    RunNotFoundError, 
+import {
+    CheckpointService,
+    type ICheckpointService,
+    RepositoryNotFoundError,
+    RunNotFoundError,
 } from '../../../src/index.ts';
 
 function uuid(label: string): string {

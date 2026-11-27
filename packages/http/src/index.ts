@@ -7,15 +7,12 @@
 
 // The package entry: one barrel per folder.
 
-export * from './agents/index.ts';
 export * from './app/index.ts';
 export * from './auth/index.ts';
 export * from './authorization/index.ts';
 export * from './channels/index.ts';
 export * from './components/index.ts';
-export * from './connections/index.ts';
 export * from './mcp/index.ts';
-export * from './me/index.ts';
 export * from './middleware/index.ts';
 export * from './openapi/index.ts';
 export * from './query/index.ts';

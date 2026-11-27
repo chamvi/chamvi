@@ -5,13 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type {
-    ConversationItemRecord,
-    ConversationRecord,
-    ICheckpointRepository,
-    IConversationRepository,
-    IRunRepository,
-} from '@chamvi/store';
+import type { ICheckpointRepository, IConversationRepository, IRunRepository } from '@chamvi/store';
+import type { ConversationItemRecord, ConversationRecord } from '@chamvi/core-kit';
 import { makeRun, testUuid } from '../fixture/helpers.ts';
 
 /** The repositories of one conversation contract test (set before each) and the inserts over them. */

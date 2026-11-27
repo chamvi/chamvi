@@ -4,13 +4,13 @@
  * For the full copyright and license information,
  * view the LICENSE file that was distributed with this source code.
  */
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
 import type {
     ApprovalWaitPoint,
     DispatchWaitPoint,
     PeerParent,
     RemoteWaitPoint,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';
 
 export const APPROVAL: ApprovalWaitPoint = {

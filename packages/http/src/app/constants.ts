@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { StoreErrorCode } from '@chamvi/store';
 import { ErrorCode } from '@chamvi/errors';
 import { PEER_START_RETRY_AFTER_SECONDS } from '../runs/constants.ts';
 
@@ -73,19 +72,23 @@ export const RESERVED_ROUTE_SEGMENTS: readonly string[] = [
 /** `@chamvi/store-db`'s DatabaseUnavailableError, mapped by its code: http does not depend on the database package. */
 export const DATABASE_UNAVAILABLE_CODE = 'database_unavailable';
 
+/** The status of a DatabaseUnavailableError: its code is not an `ErrorCode`, so `ERROR_CODE_TO_STATUS` does not hold it. */
+export const DATABASE_UNAVAILABLE_STATUS = 503;
+
 /**
- * The storage errors (`@chamvi/store`, and the database's unavailability)
- * by code: each answers with its status and this fixed message, never the
- * error's own, which names the entity, an operation or a driver code.
+ * The storage errors (`@chamvi/errors`' `Entity*Error`s, and the
+ * database's unavailability) by code: each answers with this fixed
+ * message, never the error's own, which names the entity, an operation
+ * or a driver code. The status is the code's (`httpStatusFromCode`).
  */
-export const STORAGE_ERRORS: Readonly<Record<string, { status: number; message: string }>> = {
-    [StoreErrorCode.ENTITY_NOT_FOUND]: { status: 404, message: 'The requested record was not found.' },
-    [StoreErrorCode.ENTITY_CONFLICT]: { status: 409, message: 'The record conflicts with a stored record.' },
-    [StoreErrorCode.ENTITY_RELATION_INVALID]: { status: 400, message: 'The record references a record that does not exist.' },
-    [StoreErrorCode.ENTITY_INVALID]: { status: 400, message: 'The record holds a value that is not valid.' },
-    [StoreErrorCode.ENTITY_QUERY_INVALID]: { status: 400, message: 'The request is not a valid query.' },
-    [StoreErrorCode.ENTITY_DEADLOCK]: { status: 409, message: 'The write conflicted with a concurrent write; retry the request.' },
-    [DATABASE_UNAVAILABLE_CODE]: { status: 503, message: 'The database is unavailable; retry the request.' },
+export const STORAGE_ERRORS: Readonly<Record<string, string>> = {
+    [ErrorCode.ENTITY_NOT_FOUND]: 'The requested record was not found.',
+    [ErrorCode.ENTITY_CONFLICT]: 'The record conflicts with a stored record.',
+    [ErrorCode.ENTITY_RELATION_INVALID]: 'The record references a record that does not exist.',
+    [ErrorCode.ENTITY_INVALID]: 'The record holds a value that is not valid.',
+    [ErrorCode.ENTITY_QUERY_INVALID]: 'The request is not a valid query.',
+    [ErrorCode.ENTITY_DEADLOCK]: 'The write conflicted with a concurrent write; retry the request.',
+    [DATABASE_UNAVAILABLE_CODE]: 'The database is unavailable; retry the request.',
 };
 
 /**

@@ -7,7 +7,7 @@
 
 import { ToolLoopAgent, isStepCount } from 'ai';
 import type { StopCondition, ToolSet } from 'ai';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
 import { hydrateMessages } from '../../../artifact/helpers.ts';
 import { untilAborted } from '../../../run/helpers.ts';
 import { assertTrust } from '../../../trust/module.ts';

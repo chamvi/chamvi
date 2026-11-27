@@ -7,7 +7,7 @@
 
 import { createHash } from 'node:crypto';
 import type { ChannelMessage } from '@chamvi/core';
-import type { ApprovalOption } from '@chamvi/store';
+import type { ApprovalOption } from '@chamvi/core-kit';
 import {
     BACKTICK_RUN_MAX_LENGTH,
     COMMENT_BODY_MAX_LENGTH,

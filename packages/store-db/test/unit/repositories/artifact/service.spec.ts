@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError, EntityRelationError } from '@chamvi/errors';
 import type { DataSource, EntityManager } from 'typeorm';
 import {
     afterAll,
@@ -14,8 +15,7 @@ import {
     it,
 } from 'vitest';
 import { ArtifactService, type IArtifactService, RunNotFoundError } from '@chamvi/core';
-import { EntityConflictError, EntityRelationError } from '@chamvi/store';
-import type { Artifact, ArtifactRecord } from '@chamvi/store';
+import type { Artifact, ArtifactRecord } from '@chamvi/core-kit';
 import { testUuid } from '@chamvi/test-kit';
 import { DatabaseArtifactRepository } from '../../../../src/repositories/artifact/index.ts';
 import { ArtifactEntity } from '../../../../src/entities/index.ts';

@@ -5,6 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import {
+    EntityConflictError,
+    EntityDeadlockError,
+    EntityInvalidError,
+    EntityNotFoundError,
+    EntityRelationError,
+} from '@chamvi/errors';
 import type {
     DataSource,
     EntityManager,
@@ -19,13 +26,6 @@ import {
     isRowLockSupported,
     readDatabaseErrorCode,
 } from 'typeorm-extension';
-import {
-    EntityConflictError,
-    EntityDeadlockError,
-    EntityInvalidError,
-    EntityNotFoundError,
-    EntityRelationError,
-} from '@chamvi/store';
 import type { EntityRecord } from '@chamvi/store';
 import { DatabaseUnavailableError } from '../../error/unavailable.ts';
 import { errorConstraint, errorField } from '../../error/helpers.ts';
@@ -320,10 +320,10 @@ export abstract class EntityStorageAdapter<T extends EntityRecord, E extends Obj
 
     /** A foreign key failure: the referencing entity's label, then the referenced one's. */
     protected relationError(foreignKey: EntityForeignKey): EntityRelationError {
-        return new EntityRelationError(
-            this.labelOf(foreignKey.entityMetadata),
-            this.labelOf(foreignKey.referencedEntityMetadata),
-        );
+        return new EntityRelationError({
+            entity: this.labelOf(foreignKey.entityMetadata),
+            relation: this.labelOf(foreignKey.referencedEntityMetadata),
+        });
     }
 
     protected labelOf(metadata: EntityMetadata): string {
@@ -356,7 +356,7 @@ export abstract class EntityStorageAdapter<T extends EntityRecord, E extends Obj
         const code = readDatabaseErrorCode(error);
 
         if (isDatabaseUniqueViolationError(error)) {
-            return new EntityConflictError(this.options.entity);
+            return new EntityConflictError({ entity: this.options.entity });
         }
 
         if (isDatabaseForeignKeyViolationError(error) || (code && RESTRICT_CODES.includes(code))) {
@@ -369,15 +369,19 @@ export abstract class EntityStorageAdapter<T extends EntityRecord, E extends Obj
 
             return foreignKey ?
                 this.relationError(foreignKey) :
-                new EntityRelationError(this.options.entity, UNKNOWN_RELATION);
+                new EntityRelationError({ entity: this.options.entity, relation: UNKNOWN_RELATION });
         }
 
         if (code && DEADLOCK_CODES.includes(code)) {
-            return new EntityDeadlockError(this.options.entity);
+            return new EntityDeadlockError({ entity: this.options.entity });
         }
 
         if (code && (INVALID_CODES.includes(code) || INVALID_CODE_CLASSES.includes(code.slice(0, 2)))) {
-            return new EntityInvalidError(this.options.entity, operation, errorField(error));
+            return new EntityInvalidError({
+                entity: this.options.entity,
+                operation,
+                field: errorField(error),
+            });
         }
 
         return new DatabaseUnavailableError(operation, code);

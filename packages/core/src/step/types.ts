@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IStepRepository, Step  } from '@chamvi/store';
+import type { IStepRepository } from '@chamvi/store';
+import type { Step } from '@chamvi/core-kit';
 
 export type StepServiceContext = {
     repository: IStepRepository;

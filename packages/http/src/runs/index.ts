@@ -7,7 +7,5 @@
 
 export type {
     ApproveBody,
-    InvokerView,
     RunListQuery,
-    RunView,
 } from './types.ts';

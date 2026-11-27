@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IIdempotencyRepository, IdempotencyKey } from '@chamvi/store';
+import type { IIdempotencyRepository } from '@chamvi/store';
+import type { IdempotencyKey } from '@chamvi/core-kit';
 import { removeRowsExpiredBy } from '../../entity/helpers.ts';
 import { MemoryEntityRepository } from '../../entity/module.ts';
 import type { MemoryRepositoryOptions } from '../../entity/types.ts';

@@ -16,9 +16,9 @@ import {
     agentChannel,
     defineModelAgent,
 } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Run } from '@chamvi/core-kit';
 import type { IEngine } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
 import { recomputeSubtreeUsage } from '../../../src/engine/dispatch/module.ts';
 import type { DispatchEngineContext } from '../../../src/engine/dispatch/types.ts';
 import type { RunFindOptions } from '../../../src/run/types.ts';

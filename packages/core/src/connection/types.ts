@@ -5,7 +5,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Connection, ConnectionInput, IConnectionRepository  } from '@chamvi/store';
+import type { IConnectionRepository } from '@chamvi/store';
+import type {
+    Connection,
+    ConnectionFieldKind,
+    ConnectionFieldSource,
+    ConnectionInput,
+    ConnectionState,
+    ConnectionStatus,
+    ConnectionWidget,
+} from '@chamvi/core-kit';
 import type { IClock } from '../clock/types.ts';
 import type { LeaseLostError } from '../errors/index.ts';
 import type { IKeyring } from '../keyring/types.ts';
@@ -221,9 +230,9 @@ export interface IConnectionConfigStore {
     describe(name: string): Promise<ConnectionConfigView | undefined>;
     /** The settings and decrypted secrets; resolves the keyring only when secrets exist. */
     read(name: string): Promise<{
-        values: ConnectionValues; 
-        revision: number; 
-        generation: string 
+        values: ConnectionValues;
+        revision: number;
+        generation: string
     } | undefined>;
     /**
      * Saves `update` and returns the new revision; resolves the keyring only
@@ -237,27 +246,7 @@ export interface IConnectionConfigStore {
     delete(name: string, owner: string): Promise<void>;
 }
 
-/**
- * The live state of a connection as its provider sees it in this process
- * (not stored): `held_elsewhere` while another process holds its lease.
- */
-export type ConnectionStatus = 'disconnected' |
-    'pairing' |
-    'connecting' |
-    'connected' |
-    'logged_out' |
-    'held_elsewhere' |
-    'failed';
 
-/**
- * What a connection asks an operator to see, rendered by kind. `qr` is
- * pairing material: secret, shown only to a holder of
- * `chamvi_connection_write` for the connection, never logged.
- */
-export type ConnectionWidget = {
-    kind: 'qr';
-    value: string;
-};
 
 /** The actions a connection offers; each optional. */
 export type ConnectionActions = {
@@ -283,7 +272,6 @@ export interface IConnectionHandle {
     readonly actions: ConnectionActions;
 }
 
-export type ConnectionFieldKind = 'string' | 'number' | 'boolean' | 'select' | 'list' | 'secret';
 
 export type ConnectionValue = string | number | boolean | readonly string[];
 
@@ -319,18 +307,7 @@ export type ConnectionTypeDefinition = {
     test?: (values: ConnectionValues, signal: AbortSignal) => Promise<void>;
 };
 
-/** Where a field's value came from. */
-export type ConnectionFieldSource = { kind: 'env'; variable: string } |
-    { kind: 'store' } |
-    { kind: 'code' } |
-    { kind: 'unset' };
 
-/**
- * `incomplete`: some field is set but a required one is not, only reachable
- * without an env field. `failed`: a stored value it needs cannot be read (an
- * undecryptable row, stored secrets without a keyring); `reason` says why.
- */
-export type ConnectionState = 'configured' | 'not_configured' | 'incomplete' | 'failed';
 
 export type ResolvedConnection = {
     name: string;

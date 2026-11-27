@@ -1,6 +1,6 @@
 import { ErrorCode } from '@chamvi/errors';
 import { LeaseLostError } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
 import type { Agent, EngineOptions, IEngine } from '@chamvi/core';
 
 /** Builds the app's engine on the repositories every replica shares (see Database store). */

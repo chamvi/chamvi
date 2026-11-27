@@ -11,12 +11,8 @@ import {
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
-import type {
-    ConnectionStatus,
-    ConnectionWidget,
-    IChannel,
-    IConnectionHandle,
-} from '@chamvi/core';
+import type { IChannel, IConnectionHandle } from '@chamvi/core';
+import type { ConnectionStatus, ConnectionWidget } from '@chamvi/core-kit';
 import { cron, cronChannel } from '@chamvi/channel-cron';
 import {
     buildCsp,

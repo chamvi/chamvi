@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Connection, ConnectionRecord, ConnectionSecretRecord } from '@chamvi/store';
+import type { Connection, ConnectionRecord, ConnectionSecretRecord } from '@chamvi/core-kit';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { CONNECTION_TYPE_MAX_LENGTH, DEFAULT_CONNECTION_LEASE_TTL_MS } from './constants.ts';
 import type { ConnectionConfig, ConnectionOpenOptions, ConnectionOpenOptionsInput } from './types.ts';

@@ -10,7 +10,7 @@ import { Permission } from '@chamvi/access';
 import type { PermissionBinding } from '@chamvi/access';
 import { requireToolPermission } from '@chamvi/core';
 import type { RunContext } from '@chamvi/core';
-import type { Invoker } from '@chamvi/store';
+import type { Invoker } from '@chamvi/core-kit';
 
 const NOW = new Date(2026, 10, 11, 10, 0);
 
@@ -75,9 +75,9 @@ describe('requireToolPermission', () => {
         const office: PermissionBinding = {
             permission: { name: Permission.TOOL_USE },
             policies: [{
-                type: 'time', 
-                start: '09:00', 
-                end: '11:00', 
+                type: 'time',
+                start: '09:00',
+                end: '11:00',
             } as never],
         };
         const policy = requireToolPermission();
@@ -88,9 +88,9 @@ describe('requireToolPermission', () => {
 
     it('denies a stored invoker holding old string permissions without throwing', async () => {
         const stored = {
-            id: 'u1', 
-            kind: 'user', 
-            bindings: ['tool:release:deploy', '*'], 
+            id: 'u1',
+            kind: 'user',
+            bindings: ['tool:release:deploy', '*'],
         } as unknown as Invoker;
 
         await expect(requireToolPermission()('deploy', context(stored))).resolves.toBe(false);

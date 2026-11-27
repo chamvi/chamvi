@@ -17,12 +17,8 @@ import {
     requireHandle,
     serializeConnection,
 } from '../helpers/index.ts';
-import type {
-    ConnectionDetailView,
-    ConnectionHttpServiceContext,
-    ConnectionView,
-    IConnectionHttpService,
-} from '../types.ts';
+import type { ConnectionHttpServiceContext, IConnectionHttpService } from '../types.ts';
+import type { ConnectionDetailView, ConnectionView } from '@chamvi/core-kit';
 
 /** The connection handles joined with the declared and stored connections. */
 export class ConnectionHttpService implements IConnectionHttpService {

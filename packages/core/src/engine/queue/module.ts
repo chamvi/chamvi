@@ -6,8 +6,8 @@
  */
 
 import type { ClockTimer } from '../../clock/types.ts';
-import { RunStatus } from '@chamvi/store';
-import type { Run } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Run } from '@chamvi/core-kit';
 import { admitRun } from './admission.ts';
 import { groupKey } from './helpers.ts';
 import type { RunQueueOptions } from './types.ts';

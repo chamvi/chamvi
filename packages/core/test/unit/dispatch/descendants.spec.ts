@@ -7,8 +7,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { findApprovalWaitBelow } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
-import type { Run, WaitPoint } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Run, WaitPoint } from '@chamvi/core-kit';
 import type { RunFindOptions } from '../../../src/run/types.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createTestServices } from '../../utils/engine.ts';

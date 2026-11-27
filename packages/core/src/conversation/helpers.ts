@@ -18,7 +18,7 @@ import type {
     ConversationOperationRecord,
     ConversationRecord,
     ConversationScope,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 
 const LIMIT_KEYS = Object.keys(DEFAULT_CONVERSATION_LIMITS) as (keyof ResolvedConversationLimits)[];
 

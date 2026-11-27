@@ -14,7 +14,7 @@ import type {
     IModelResolver,
     IRunService,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { chatChannel, createChatIngressAdapter } from '@chamvi/chat';
 import type { ChatChannel, ChatChannelOptions, ChatIngress } from '@chamvi/chat';
 import { ControllableClock, createTestEngine } from '@chamvi/test-kit';

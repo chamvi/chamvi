@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ApprovalWaitPoint } from '@chamvi/store';
+import type { ApprovalWaitPoint } from '@chamvi/core-kit';
 import type { ChannelMessage } from '../../channel/types.ts';
 import type { IClock } from '../../clock/index.ts';
 import type { ApprovalRequest } from '../execute/types.ts';

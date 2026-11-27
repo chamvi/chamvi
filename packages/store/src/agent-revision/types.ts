@@ -5,23 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { AgentRevisionRecord } from '@chamvi/core-kit';
 import type { IEntityRepository } from '../entity/types.ts';
-
-/**
- * The revision marker of a folder agent: the content hash of its folder
- * (never its code) and when that hash was recorded.
- */
-export type AgentRevision = {
-    agent: string;
-    hash: string;
-    changedAt: Date;
-};
-
-/** A stored revision marker: the marker and the row's storage id. */
-export type AgentRevisionRecord = AgentRevision & {
-    /** The row's storage id (a uuid), kept by every later `upsert` of the same `agent`. */
-    id: string;
-};
 
 /**
  * The agent revision port: the generic entity port on

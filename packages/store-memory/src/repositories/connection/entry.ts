@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ConnectionEntryRecord, IConnectionEntryRepository } from '@chamvi/store';
+import type { IConnectionEntryRepository } from '@chamvi/store';
+import type { ConnectionEntryRecord } from '@chamvi/core-kit';
 import { MemoryEntityRepository } from '../../entity/module.ts';
 import type { MemoryRepositoryOptions } from '../../entity/types.ts';
 

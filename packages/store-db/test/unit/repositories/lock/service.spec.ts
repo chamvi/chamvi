@@ -14,7 +14,7 @@ import {
     it,
 } from 'vitest';
 import { type ILockService, LockService } from '@chamvi/core';
-import type { Lock } from '@chamvi/store';
+import type { Lock } from '@chamvi/core-kit';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { LockEntity, LockTokenEntity } from '../../../../src/entities/index.ts';
 import { DatabaseLockRepository } from '../../../../src/repositories/lock/index.ts';

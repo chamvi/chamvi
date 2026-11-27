@@ -27,7 +27,7 @@ import type {
     IEngine,
     ToolContext,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { ControllableClock } from '../../utils/clock.ts';
 import { treeModel } from '../../utils/dispatch.ts';
 import type { ChildTurn, ParentTurn } from '../../utils/dispatch.ts';

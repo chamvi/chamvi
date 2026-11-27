@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Checkpoint, CheckpointRecord } from '@chamvi/store';
+import type { Checkpoint, CheckpointRecord } from '@chamvi/core-kit';
 
 /** A stored checkpoint as the service returns it: no storage id, a property set to `undefined` left out. */
 export function readCheckpoint(record: CheckpointRecord): Checkpoint {

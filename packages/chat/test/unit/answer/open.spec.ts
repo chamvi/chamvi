@@ -15,7 +15,7 @@ import {
 import { z } from 'zod';
 import { defineEffectTool, defineModelAgent, defineTool } from '@chamvi/core';
 import type { Engine, IChannel } from '@chamvi/core';
-import type { ApprovalWaitPoint, Run } from '@chamvi/store';
+import type { ApprovalWaitPoint, Run } from '@chamvi/core-kit';
 import { ControllableClock, approvalModel, createTestEngine } from '@chamvi/test-kit';
 import { CHAT_ANSWER_SCAN_MAX } from '../../../src/answer/constants.ts';
 import { findOpenChatApprovals, pickChatApproval } from '../../../src/answer/open.ts';

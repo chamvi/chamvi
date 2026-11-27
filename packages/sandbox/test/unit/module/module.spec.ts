@@ -18,7 +18,7 @@ import type {
     IEngine,
     ModelAgentDefinition,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { createWorkspaceManager, injectSandboxContext, provideSandboxContext } from '@chamvi/sandbox';
 import type { ISandboxProvider, IWorkspaceManager } from '@chamvi/sandbox';
 import { createLocalSandbox } from '@chamvi/sandbox-local';
@@ -829,9 +829,9 @@ describe('sandboxModule: suspension', () => {
         const getRun = vi.spyOn(engine, 'getRun');
         const updatedAt = new Date(clock.now());
         const run = (status: Run['status']) => ({
-            id: 'r1', 
-            status, 
-            updatedAt, 
+            id: 'r1',
+            status,
+            updatedAt,
         }) as Run;
 
         expect(SUSPEND_AFTER_MS).toBe(30 * 60_000);
@@ -864,9 +864,9 @@ describe('sandboxModule: suspension', () => {
 
         clock.advance(1_000);
         getRun.mockResolvedValueOnce({
-            id: 'r1', 
-            status: 'waiting', 
-            updatedAt, 
+            id: 'r1',
+            status: 'waiting',
+            updatedAt,
         } as Run);
         expect(await isSuspendable!('r1')).toBe(true);
     });
@@ -913,17 +913,17 @@ describe('sandboxModule: suspension', () => {
 
         clock.advance(1_000);
         getRun.mockResolvedValueOnce({
-            id: 'r1', 
-            status: 'waiting', 
-            updatedAt, 
+            id: 'r1',
+            status: 'waiting',
+            updatedAt,
         } as Run);
         expect(await isSuspendable!('r1')).toBe(false);
 
         clock.advance(4_000);
         getRun.mockResolvedValueOnce({
-            id: 'r1', 
-            status: 'waiting', 
-            updatedAt, 
+            id: 'r1',
+            status: 'waiting',
+            updatedAt,
         } as Run);
         expect(await isSuspendable!('r1')).toBe(true);
 

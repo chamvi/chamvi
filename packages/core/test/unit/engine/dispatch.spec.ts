@@ -26,7 +26,7 @@ import type {
     IEngine,
     RunEvent,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createTestEngine, createTestServices, servicesOf } from '../../utils/engine.ts';
 import type { TestEngineOptions, TestServiceSet } from '../../utils/engine.ts';

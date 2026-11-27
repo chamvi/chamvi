@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { MeView } from '@chamvi/http';
+import type { MeView } from '@chamvi/core-kit';
 import type { APIRequestOptions } from '../types.ts';
 
 export type MeWire = MeView;

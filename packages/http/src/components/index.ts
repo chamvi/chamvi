@@ -5,4 +5,4 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export type { ComponentListView, ComponentView, HttpComponent } from './types.ts';
+export type { ComponentListView, HttpComponent } from './types.ts';

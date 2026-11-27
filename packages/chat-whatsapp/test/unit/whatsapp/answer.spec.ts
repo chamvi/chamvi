@@ -15,7 +15,7 @@ import {
 import { z } from 'zod';
 import { defineModelAgent, defineTool } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
-import type { ApprovalWaitPoint, Invoker } from '@chamvi/store';
+import type { ApprovalWaitPoint, Invoker } from '@chamvi/core-kit';
 import { approvalModel, mockModel, textModel } from '@chamvi/test-kit';
 import {
     ALICE,

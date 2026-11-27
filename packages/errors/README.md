@@ -50,10 +50,24 @@ isNotFoundError(rehydrated); // true
 | `ChamviError` | class | The base error; takes a message or `ChamviErrorOptions` (`code`, `message`, `issues`, `cause`, `data`); `toJSON()` spreads `data` under the base fields |
 | `BadRequestError`, `UnauthorizedError`, `ForbiddenError`, `NotFoundError`, `ConflictError`, `RequestEntityTooLargeError`, `UnsupportedMediaTypeError`, `TooManyRequestsError`, `ServiceUnavailableError`, `InternalError` | classes | Built-ins with their code and the HTTP status text as default message |
 | `ValidationError` | class | `new ValidationError(message, issues?)`, code `validation_error` |
-| `isChamviError`, `isBadRequestError`, ..., `isValidationError`, `isError` | functions | Guards that match by instance chain, also after JSON |
+| `EntityNotFoundError`, `EntityConflictError`, `EntityRelationError`, `EntityDeadlockError`, `EntityQueryError`, `EntityInvalidError` | classes | The storage errors a repository reports (see below) |
+| `isChamviError`, `isBadRequestError`, ..., `isValidationError`, `isEntityNotFoundError`, ..., `isError` | functions | Guards that match by instance chain, also after JSON |
 | `ErrorCode` | constant | Every error code chamvi uses |
 | `ERROR_CODE_TO_STATUS`, `httpStatusFromCode(code, fallback = 400)` | constant, function | The default HTTP status per code |
 | `normalizeError`, `serializeError` | functions | Turn a thrown value into an `Error`, an `Error` into a plain object |
+
+## Storage errors
+
+| Class | `code` | Extra field |
+|-------|--------|-------------|
+| `EntityNotFoundError` | `entity_not_found` | |
+| `EntityConflictError` | `entity_conflict` | |
+| `EntityRelationError` | `entity_relation_invalid` | `relation`: the referenced entity |
+| `EntityDeadlockError` | `entity_deadlock` | |
+| `EntityQueryError` | `entity_query_invalid` | |
+| `EntityInvalidError` | `entity_invalid` | `operation`, and `field`: the column or constraint the storage named, if any |
+
+Each takes a message or options with the entity's label (`new EntityNotFoundError({ entity: 'run' })`, message `The run was not found.`) and keeps it as `entity`. The message and the fields hold only the labels passed (`entity`, `relation`, `operation`, `field`); an option `ChamviErrorOptions` does not name is dropped, so a stored value given as an extra option (an id, a key) is neither in the message nor serialized (`data` is serialized by design). The repositories pass entity labels, the operation and a column or constraint name, never a stored value. An HTTP response never carries the message: `@chamvi/http` answers a storage error with a fixed text per code.
 
 ## License
 

@@ -12,9 +12,11 @@ export * from '@chamvi/access';
 // The public facade intentionally aggregates published package APIs for agent repositories.
 // eslint-disable-next-line @tada5hi/no-reexport-shims
 export * from '@chamvi/core';
+// eslint-disable-next-line @tada5hi/no-reexport-shims -- The domain records belong in the public facade beside core.
+export * from '@chamvi/core-kit';
 // eslint-disable-next-line @tada5hi/no-reexport-shims -- The error classes belong in the public facade beside core.
 export * from '@chamvi/errors';
-// eslint-disable-next-line @tada5hi/no-reexport-shims -- The stored record types belong in the public facade beside core.
+// eslint-disable-next-line @tada5hi/no-reexport-shims -- The repository ports belong in the public facade beside core.
 export * from '@chamvi/store';
 // eslint-disable-next-line @tada5hi/no-reexport-shims -- Published cron API belongs in the public facade.
 export { cron } from '@chamvi/channel-cron';
@@ -52,7 +54,6 @@ export type {
     ListSortDirection,
     Principal,
     StaticToken,
-    UiPage,
     WebhookSubscriptionOptions,
 // eslint-disable-next-line @tada5hi/no-reexport-shims -- Preserve the published HTTP types in the public facade.
 } from '@chamvi/http';

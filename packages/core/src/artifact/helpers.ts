@@ -8,9 +8,9 @@
 import { ValidationError } from '@chamvi/errors';
 import type { FilePart, ModelMessage } from 'ai';
 import { isObject } from 'smob';
-import type { Artifact, ArtifactRecord } from '@chamvi/store';
+import type { Artifact, ArtifactInput, ArtifactRecord } from '@chamvi/core-kit';
 import { ArtifactNotFoundError } from '../errors/index.ts';
-import type { ArtifactInput, IArtifactService  } from './types.ts';
+import type { IArtifactService } from './types.ts';
 import { ARTIFACT_KEY_MAX_LENGTH, ARTIFACT_URI_PREFIX } from './constants.ts';
 import { isArtifactMediaType } from './media-type.ts';
 

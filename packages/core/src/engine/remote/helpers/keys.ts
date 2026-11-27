@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RemoteApproval } from '@chamvi/store';
+import type { RemoteApproval } from '@chamvi/core-kit';
 import { stableHash } from '../../../effect/helpers.ts';
 
 /** The effect key of a stand-in's start: its record holds the remote run id. */

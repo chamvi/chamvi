@@ -19,7 +19,7 @@ import {
     defineTool,
     systemClock,
 } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
 import {
     MemoryAgentRevisionRepository,
     MemoryArtifactRepository,

@@ -22,9 +22,9 @@ import type {
     AppStartOptions,
     IApp,
 } from '@chamvi/app';
-import type { AgentIssue } from '@chamvi/http';
+import type { AgentIssue } from '@chamvi/core-kit';
 import type { PermissionBinding } from '@chamvi/access';
-import * as store from '@chamvi/store';
+import * as kit from '@chamvi/core-kit';
 
 describe('public api', () => {
     it.each([
@@ -118,13 +118,13 @@ describe('public api', () => {
         expect(app.AGENT_CHANNEL_NAME).toBe('agent');
     });
 
-    it('exports the stored record types and the read normalizers of @chamvi/store', () => {
-        expect(app.RunStatus).toBe(store.RunStatus);
-        expect(app.normalizeEnvelope).toBe(store.normalizeEnvelope);
-        expect(app.normalizeWaitPoint).toBe(store.normalizeWaitPoint);
-        expectTypeOf<app.Run>().toEqualTypeOf<store.Run>();
-        expectTypeOf<app.TriggerEnvelope>().toEqualTypeOf<store.TriggerEnvelope>();
-        expectTypeOf<app.Invoker>().toEqualTypeOf<store.Invoker>();
+    it('exports the stored record types and the read normalizers of @chamvi/core-kit', () => {
+        expect(app.RunStatus).toBe(kit.RunStatus);
+        expect(app.normalizeEnvelope).toBe(kit.normalizeEnvelope);
+        expect(app.normalizeWaitPoint).toBe(kit.normalizeWaitPoint);
+        expectTypeOf<app.Run>().toEqualTypeOf<kit.Run>();
+        expectTypeOf<app.TriggerEnvelope>().toEqualTypeOf<kit.TriggerEnvelope>();
+        expectTypeOf<app.Invoker>().toEqualTypeOf<kit.Invoker>();
     });
 
     it.each(['createModelRegistry', 'installDefaultProvider', 'resolveModels'])('does not export %s', (name) => {

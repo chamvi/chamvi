@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { InvalidAgentDefinitionError, consoleChannel } from '@chamvi/core';
 import type { ChannelMessage, ChannelSendOptions } from '@chamvi/core';
-import type { TriggerEnvelope } from '@chamvi/store';
+import type { TriggerEnvelope } from '@chamvi/core-kit';
 
 const trigger: TriggerEnvelope = {
     id: 'e1',

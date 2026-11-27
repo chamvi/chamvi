@@ -10,7 +10,7 @@ import type {
     Invoker,
     Run,
     Usage,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 import type { IConversations } from '../../conversation/types.ts';
 import type { EngineContext } from '../context/types.ts';
 import type { DispatchEngineContext, ResumeRecord, ResumeStep } from '../dispatch/types.ts';

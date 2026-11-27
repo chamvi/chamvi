@@ -7,7 +7,7 @@
 
 import type { Agent } from '../../agent/types.ts';
 import type { IClock } from '../../clock/index.ts';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import type { ILockService } from '../../lock/types.ts';
 import type { IRunService } from '../../run/types.ts';
 

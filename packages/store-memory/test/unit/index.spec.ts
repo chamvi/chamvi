@@ -5,9 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError } from '@chamvi/errors';
 import { defineQuery } from '@rapiq/core';
 import { describe, expect, it } from 'vitest';
-import { EntityConflictError } from '@chamvi/store';
 import { MemoryEntityRepository, MemoryRegistry } from '@chamvi/store-memory';
 
 type Item = {
@@ -152,9 +152,9 @@ describe('memory unique-value index', () => {
     it('finds a row by its key without scanning the transaction\'s writes', async () => {
         const registry = new MemoryRegistry();
         const items = new MemoryEntityRepository<Item>({
-            entity: 'item', 
-            registry, 
-            key: ['id'], 
+            entity: 'item',
+            registry,
+            key: ['id'],
         });
 
         await insert(items, { id: '1', code: 'a' });

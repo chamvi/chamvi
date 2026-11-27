@@ -6,11 +6,8 @@
  */
 
 import { ChamviError } from '@chamvi/errors';
-import type {
-    ConnectionStatus,
-    ConnectionWidget,
-    IConnectionHandle,
-} from '@chamvi/core';
+import type { IConnectionHandle } from '@chamvi/core';
+import type { ConnectionStatus, ConnectionWidget } from '@chamvi/core-kit';
 import { WHATSAPP_CONNECTION_TYPE } from '../auth/constants.ts';
 import { WHATSAPP_CONNECTION_ERROR_CODE } from '../whatsapp/constants.ts';
 import type { WhatsAppConnectionStatus } from '../whatsapp/types.ts';

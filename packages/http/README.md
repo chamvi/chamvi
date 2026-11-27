@@ -369,7 +369,7 @@ process.once('SIGTERM', () => {
 | `HTTP_CHANNEL_NAME`, `MCP_CHANNEL_NAME`, `WEBHOOK_CHANNEL_NAME` | constant | `http`, `mcp`, `webhook` |
 | `DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS`, `DEFAULT_SHUTDOWN_CLOSE_TIMEOUT_MS` | constant | `30_000`, `5_000` |
 
-Types: `ListSchema`, `ListSchemaOptions`, `ListSchemaEntity`, `ListSchemaKey`, `ListFilterOperator`, `ListSortDirection`, `HttpAppOptions`, `McpOptions`, `CorsOptions`, `RateLimitOptions`, `PrometheusOptions`, `TrustProxyInput`, `Principal`, `Authenticator`, `StaticToken`, `StaticTokensOptions`, `AuthupOptions`, `OidcOptions`, `IShutdown`, `ShutdownOptions`, `RunView`, `InvokerView`, `RunListQuery`, `RunSummary`, `RunToolResult`, `AgentSummary`, `ScheduleSummary`, `ScheduleOverlap`, `WebhookChannel`, `WebhookChannelOptions`, `HttpSubscriber`, `HttpSubscriptionOptions`, `WebhookSubscriber`, `WebhookSubscriptionOptions`.
+Types: `ListSchema`, `ListSchemaOptions`, `ListSchemaEntity`, `ListSchemaKey`, `ListFilterOperator`, `ListSortDirection`, `HttpAppOptions`, `McpOptions`, `CorsOptions`, `RateLimitOptions`, `PrometheusOptions`, `TrustProxyInput`, `Principal`, `Authenticator`, `StaticToken`, `StaticTokensOptions`, `AuthupOptions`, `OidcOptions`, `IShutdown`, `ShutdownOptions`, `RunListQuery`, `RunSummary`, `RunToolResult`, `WebhookChannel`, `WebhookChannelOptions`, `HttpSubscriber`, `HttpSubscriptionOptions`, `WebhookSubscriber`, `WebhookSubscriptionOptions`.
 
 ## License
 

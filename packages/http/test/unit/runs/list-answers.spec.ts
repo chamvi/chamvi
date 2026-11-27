@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { Permission } from '@chamvi/access';
 import { defineModelAgent } from '@chamvi/core';
 import type { Agent, IRunService } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { http } from '@chamvi/http';
 import {
     ADMIN_TOKEN,

@@ -6,7 +6,8 @@
  */
 
 import type { DataSource, EntityManager } from 'typeorm';
-import type { AgentRevisionRecord, IAgentRevisionRepository } from '@chamvi/store';
+import type { IAgentRevisionRepository } from '@chamvi/store';
+import type { AgentRevisionRecord } from '@chamvi/core-kit';
 import { AgentRevisionEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 

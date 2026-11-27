@@ -11,13 +11,13 @@ import {
     expect,
     it,
 } from 'vitest';
-import { RunStatus } from '@chamvi/store';
-import type { Step } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Step } from '@chamvi/core-kit';
 import { MemoryRegistry, MemoryRunRepository, MemoryStepRepository } from '@chamvi/store-memory';
 import {
     type IStepService,
     RepositoryNotFoundError,
-    RunNotFoundError, 
+    RunNotFoundError,
     StepService,
 } from '../../../src/index.ts';
 

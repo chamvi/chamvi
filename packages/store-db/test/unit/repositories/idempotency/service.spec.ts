@@ -14,7 +14,7 @@ import {
     it,
 } from 'vitest';
 import { type IIdempotencyService, IdempotencyService } from '@chamvi/core';
-import type { IdempotencyKey } from '@chamvi/store';
+import type { IdempotencyKey } from '@chamvi/core-kit';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseIdempotencyRepository } from '../../../../src/repositories/idempotency/index.ts';
 import { createBarrier } from '../../../utils/barrier.ts';

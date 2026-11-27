@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Invoker, RemoteWaitPoint, Run } from '@chamvi/store';
+import type { Invoker, RemoteWaitPoint, Run } from '@chamvi/core-kit';
 import type { WakeOutcome } from '../../types.ts';
 
 export interface IEngineRemote {

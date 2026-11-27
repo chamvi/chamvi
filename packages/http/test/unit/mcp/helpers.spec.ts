@@ -12,8 +12,17 @@ import {
     DISPATCH_DEPTH_MAX,
     PeerStartBusyError,
 } from '@chamvi/core';
-import { ServiceUnavailableError } from '@chamvi/errors';
-import type { Run, WaitPoint } from '@chamvi/store';
+import {
+    EntityConflictError,
+    EntityDeadlockError,
+    EntityInvalidError,
+    EntityNotFoundError,
+    EntityQueryError,
+    EntityRelationError,
+    ServiceUnavailableError,
+} from '@chamvi/errors';
+import { BaseError } from '@ebec/core';
+import type { Run, WaitPoint } from '@chamvi/core-kit';
 import {
     findWaitingApproval,
     isWaitOver,
@@ -385,5 +394,28 @@ describe('runTool', () => {
 
         expect(result).toEqual({ isError: true, content: [{ type: 'text', text: error.message }] });
         expect(reported).toEqual([]);
+    });
+
+    it.each([
+        ['EntityNotFoundError', () => new EntityNotFoundError({ entity: 'run' })],
+        ['EntityConflictError', () => new EntityConflictError({ entity: 'run' })],
+        ['EntityRelationError', () => new EntityRelationError({ entity: 'step', relation: 'run' })],
+        ['EntityInvalidError', () => new EntityInvalidError({
+            entity: 'run',
+            operation: 'save',
+            field: 'status',
+        })],
+        ['EntityQueryError', () => new EntityQueryError({ entity: 'run' })],
+        ['EntityDeadlockError', () => new EntityDeadlockError({ entity: 'lock' })],
+        ['database_unavailable', () => new BaseError({ code: 'database_unavailable', message: 'The database could not complete the connect.' })],
+    ])('reports a storage error and answers Internal Server Error (%s)', async (_name, create) => {
+        const reported: unknown[] = [];
+        const error = create();
+        const result = await runTool(contextOf(reported), async () => {
+            throw error;
+        });
+
+        expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'Internal Server Error' }] });
+        expect(reported).toEqual([error]);
     });
 });

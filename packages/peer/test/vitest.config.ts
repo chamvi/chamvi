@@ -15,6 +15,7 @@ export default defineConfig({
             { find: /^@chamvi\/channel-cron$/, replacement: source('channel-cron') },
             { find: /^@chamvi\/errors$/, replacement: source('errors') },
             { find: /^@chamvi\/core$/, replacement: source('core') },
+            { find: /^@chamvi\/core-kit$/, replacement: source('core-kit') },
             { find: /^@chamvi\/http$/, replacement: source('http') },
             { find: /^@chamvi\/http-kit$/, replacement: source('http-kit') },
             { find: /^@chamvi\/store$/, replacement: source('store') },

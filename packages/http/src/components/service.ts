@@ -10,12 +10,8 @@ import type { ChannelStatus, IClock } from '@chamvi/core';
 import { isObject } from 'smob';
 import { assertGranted, isGranted } from '../auth/helpers/index.ts';
 import type { Principal } from '../auth/types.ts';
-import type {
-    ComponentListView,
-    ComponentServiceContext,
-    ComponentView,
-    IComponentService,
-} from './types.ts';
+import type { ComponentListView, ComponentServiceContext, IComponentService } from './types.ts';
+import type { ComponentView } from '@chamvi/core-kit';
 
 const TIMES = ['lastSuccessAt', 'lastErrorAt', 'lastRunAt', 'runningSince'] as const;
 
@@ -39,16 +35,16 @@ export class ComponentService implements IComponentService {
         await assertGranted(principal, this.clock, Permission.COMPONENT_READ);
 
         const entries: {
-            name: string; 
-            kind: ComponentView['kind']; 
-            read: () => ChannelStatus 
+            name: string;
+            kind: ComponentView['kind'];
+            read: () => ChannelStatus
         }[] = [];
 
         for (const component of this.ctx.components()) {
             entries.push({
-                name: component.name, 
-                kind: 'job', 
-                read: () => component.status(), 
+                name: component.name,
+                kind: 'job',
+                read: () => component.status(),
             });
         }
 
@@ -57,9 +53,9 @@ export class ComponentService implements IComponentService {
 
             if (typeof status === 'function') {
                 entries.push({
-                    name: channel.name, 
-                    kind: 'channel', 
-                    read: () => status.call(channel), 
+                    name: channel.name,
+                    kind: 'channel',
+                    read: () => status.call(channel),
                 });
             }
         }

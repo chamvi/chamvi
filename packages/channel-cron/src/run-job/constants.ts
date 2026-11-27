@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RunStatusLiteral } from '@chamvi/store';
+import type { RunStatusLiteral } from '@chamvi/core-kit';
 
 /** Statuses a job always returns on: the run finished. */
 export const TERMINAL: RunStatusLiteral[] = ['completed', 'failed', 'cancelled'];

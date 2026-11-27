@@ -24,7 +24,7 @@ import type {
     Engine,
     IChannel,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import type { ChatApprovalRef, ChatChannel } from '@chamvi/chat';
 import { createDiscordChat } from '@chamvi/chat-discord';
 import type { DiscordChatOptions, DiscordChatSetup } from '@chamvi/chat-discord';

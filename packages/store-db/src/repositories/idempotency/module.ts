@@ -6,7 +6,8 @@
  */
 
 import type { DataSource, EntityManager } from 'typeorm';
-import type { IIdempotencyRepository, IdempotencyKey } from '@chamvi/store';
+import type { IIdempotencyRepository } from '@chamvi/store';
+import type { IdempotencyKey } from '@chamvi/core-kit';
 import { IdempotencyKeyEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 import { removeExpiredBy } from '../../entity/helpers/index.ts';

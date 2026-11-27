@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RunStatusLiteral } from '@chamvi/store';
+import type { RunStatusLiteral } from '@chamvi/core-kit';
 import type { RunWire, ScheduleWire } from '@chamvi/http-kit';
 
 /** One subscription of an agent, as its chip shows it. */

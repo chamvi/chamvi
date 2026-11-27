@@ -10,13 +10,13 @@ import type { Env, ILogger, StoredConnection } from '@chamvi/app';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type {
     ConnectionField,
-    ConnectionFieldSource,
     ConnectionTypeDefinition,
     ConnectionValue,
     ConnectionValues,
     DeclaredConnection,
     ResolvedConnection,
 } from '@chamvi/core';
+import type { ConnectionFieldSource } from '@chamvi/core-kit';
 import { createGithubApp } from '../app/module.ts';
 import type { GithubAppOptions, IGithubApp } from '../app/types.ts';
 import { verifyGithubApp } from '../app/verify.ts';

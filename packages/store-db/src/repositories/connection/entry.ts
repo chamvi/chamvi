@@ -6,7 +6,8 @@
  */
 
 import type { DataSource, EntityManager } from 'typeorm';
-import type { ConnectionEntryRecord, IConnectionEntryRepository } from '@chamvi/store';
+import type { IConnectionEntryRepository } from '@chamvi/store';
+import type { ConnectionEntryRecord } from '@chamvi/core-kit';
 import { ConnectionEntity, ConnectionEntryEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 import { fromConnectionEntryEntity, toConnectionEntryEntity } from './helpers.ts';

@@ -6,7 +6,7 @@
  */
 
 import type { RunWire, StepWire } from '@chamvi/http-kit';
-import type { RunStatusLiteral } from '@chamvi/store';
+import type { RunStatusLiteral } from '@chamvi/core-kit';
 
 /** The run list a view shows: what it filters by and which page; `toRunQuery` makes the API query of it. */
 export type RunListFilter = {

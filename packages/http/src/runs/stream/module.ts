@@ -6,7 +6,7 @@
  */
 
 import type { ClockTimer, RunDelta, RunEvent } from '@chamvi/core';
-import type { Run, Step } from '@chamvi/store';
+import type { Run, Step } from '@chamvi/core-kit';
 import { createEventStream } from 'routup';
 import type { IAppEvent } from 'routup';
 import { acquireStreamSlot, refuseStreamOverCap, refuseWhenClosed } from '../../app/helpers/index.ts';

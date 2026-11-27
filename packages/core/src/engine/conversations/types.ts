@@ -11,7 +11,7 @@ import type {
     ConversationScope,
     Run,
     TriggerParent,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 import type {
     ChannelContext,
     ChannelDispatchEnvelope,

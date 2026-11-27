@@ -24,7 +24,7 @@ An old approval poller can publish the private argument-bearing `waiting.body` f
 
 ## Run references
 
-A repository reports a row that references a missing one as `EntityRelationError` (`@chamvi/store`) naming both labels, and writes nothing: a checkpoint, a conversation item, note or note operation of a missing run names `run`, a run or a checkpoint of a missing conversation names `conversation`. The services turn the run cases into `RunNotFoundError` (`CheckpointService.save`, `ConversationService.beginTurn`); a run or checkpoint bound to a missing conversation stays `EntityRelationError`. The port suites check each reference on your backend.
+A repository reports a row that references a missing one as `EntityRelationError` (`@chamvi/errors`, `{ entity, relation }`) naming both labels, and writes nothing: a checkpoint, a conversation item, note or note operation of a missing run names `run`, a run or a checkpoint of a missing conversation names `conversation`. The services turn the run cases into `RunNotFoundError` (`CheckpointService.save`, `ConversationService.beginTurn`); a run or checkpoint bound to a missing conversation stays `EntityRelationError`. The port suites check each reference on your backend.
 
 Match a foreign key violation on structured fields (an error code and the constraint name), never on the message text: PostgreSQL translates it by `lc_messages`.
 

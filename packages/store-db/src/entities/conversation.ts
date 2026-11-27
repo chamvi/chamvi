@@ -14,7 +14,7 @@ import {
     PrimaryColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
-import type { ConversationSnapshot } from '@chamvi/store';
+import type { ConversationSnapshot } from '@chamvi/core-kit';
 import { OPTIONAL_JSON_TRANSFORMER, TableName } from './constants.ts';
 import { RunEntity } from './run.ts';
 

@@ -16,12 +16,8 @@ import {
 import type { IAppEvent } from 'routup';
 import { usePrincipal } from '../auth/helpers/index.ts';
 import { ForceLoggedInMiddleware, JsonBodyMiddleware } from '../middleware/index.ts';
-import type {
-    AuthorizationCheckBody,
-    AuthorizationCheckView,
-    AuthorizationControllerContext,
-    IAuthorizationService,
-} from './types.ts';
+import type { AuthorizationCheckBody, AuthorizationControllerContext, IAuthorizationService } from './types.ts';
+import type { AuthorizationCheckView } from '@chamvi/core-kit';
 
 @DTags('authorization')
 @DSecurity([], 'bearer')

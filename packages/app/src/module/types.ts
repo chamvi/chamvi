@@ -47,13 +47,8 @@ import type {
     IStateRepository,
     IStepRepository,
 } from '@chamvi/store';
-import type {
-    AgentIssue,
-    Authenticator,
-    HttpRoute,
-    IShutdown,
-    UiPage,
-} from '@chamvi/http';
+import type { Authenticator, HttpRoute, IShutdown } from '@chamvi/http';
+import type { AgentIssue, UiPage } from '@chamvi/core-kit';
 import type { IComponent } from 'hubwire';
 import type { DataSource } from 'typeorm';
 import type { AppOptions } from '../app/types.ts';

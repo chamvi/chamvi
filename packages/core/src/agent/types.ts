@@ -17,7 +17,8 @@ import type {
 import type { ChannelSubscription } from '../channel/types.ts';
 import type { AgentLimits } from '../limit/types.ts';
 import type { ModelRef } from '../model/types.ts';
-import type { Budget, RunContext } from '../run/types.ts';
+import type { RunContext } from '../run/types.ts';
+import type { Budget } from '@chamvi/core-kit';
 import type { StateSchema } from '../state/types.ts';
 import type { SkillInput } from '../skill/types.ts';
 import type { AgentTrust, ToolContext } from '../tool/types.ts';

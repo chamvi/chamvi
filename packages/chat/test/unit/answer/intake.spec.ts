@@ -21,7 +21,7 @@ import {
 } from '@chamvi/core';
 import type { Agent, IEngine } from '@chamvi/core';
 import type { LanguageModel } from 'ai';
-import type { ApprovalWaitPoint, Invoker, Run } from '@chamvi/store';
+import type { ApprovalWaitPoint, Invoker, Run } from '@chamvi/core-kit';
 import {
     CHAT_ANSWER_NOTICE_CLOSED,
     CHAT_ANSWER_NOTICE_SEVERAL,
@@ -739,9 +739,9 @@ describe('answering approvals in chat intake', () => {
     it('points to the dashboard when several are open on a platform that cannot match quotes', async () => {
         const model = classifier('approve');
         const ctx = await setup({
-            model, 
-            askers: [asker('asker-a'), asker('asker-b')], 
-            patch: { platform: {} }, 
+            model,
+            askers: [asker('asker-a'), asker('asker-b')],
+            patch: { platform: {} },
         });
 
         await ctx.fixture.adapter.deliver(ctx.reply({ id: 'r-1', text: 'yes' }));

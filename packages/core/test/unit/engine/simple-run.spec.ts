@@ -9,7 +9,7 @@ import { ValidationError } from '@chamvi/errors';
 import { describe, expect, it } from 'vitest';
 import { approve, defineSimpleAgent } from '@chamvi/core';
 import type { Engine, IChannel, SimpleAgentDefinition } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 import type { TestServiceSet } from '../../utils/engine.ts';

@@ -17,7 +17,8 @@ import {
     defineModelAgent,
     toolContextSchema,
 } from '@chamvi/core';
-import type { ConversationOperationRecord, IConversationRepository } from '@chamvi/store';
+import type { IConversationRepository } from '@chamvi/store';
+import type { ConversationOperationRecord } from '@chamvi/core-kit';
 import type {
     AgentHooks,
     ConversationAccess,

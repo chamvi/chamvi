@@ -9,6 +9,12 @@ import {
     BadRequestError,
     ChamviError,
     ConflictError,
+    EntityConflictError,
+    EntityDeadlockError,
+    EntityInvalidError,
+    EntityNotFoundError,
+    EntityQueryError,
+    EntityRelationError,
     ForbiddenError,
     NotFoundError,
     RequestEntityTooLargeError,
@@ -23,6 +29,7 @@ import { App, defineCoreHandler } from 'routup';
 import type { IAppEvent } from 'routup';
 import { describe, expect, it } from 'vitest';
 import { PeerStartBusyError, RunNotFoundError } from '@chamvi/core';
+import { BaseError } from '@ebec/core';
 import { ADMIN_TOKEN, call, createTestApp } from '../../utils/app.ts';
 
 type WireCase = {
@@ -218,6 +225,87 @@ const CASES: WireCase[] = [
         },
         retryAfter: '1',
         reported: false,
+    },
+    {
+        title: 'EntityNotFoundError',
+        error: () => new EntityNotFoundError({ entity: 'run' }),
+        status: 404,
+        body: {
+            status: 404,
+            code: 'entity_not_found',
+            message: 'The requested record was not found.',
+        },
+        reported: false,
+    },
+    {
+        title: 'EntityConflictError',
+        error: () => new EntityConflictError({ entity: 'run' }),
+        status: 409,
+        body: {
+            status: 409,
+            code: 'entity_conflict',
+            message: 'The record conflicts with a stored record.',
+        },
+        reported: false,
+    },
+    {
+        title: 'EntityRelationError',
+        error: () => new EntityRelationError({ entity: 'step', relation: 'run' }),
+        status: 400,
+        body: {
+            status: 400,
+            code: 'entity_relation_invalid',
+            message: 'The record references a record that does not exist.',
+        },
+        reported: false,
+    },
+    {
+        title: 'EntityInvalidError',
+        error: () => new EntityInvalidError({
+            entity: 'run',
+            operation: 'save',
+            field: 'status',
+        }),
+        status: 400,
+        body: {
+            status: 400,
+            code: 'entity_invalid',
+            message: 'The record holds a value that is not valid.',
+        },
+        reported: false,
+    },
+    {
+        title: 'EntityQueryError',
+        error: () => new EntityQueryError({ entity: 'run' }),
+        status: 400,
+        body: {
+            status: 400,
+            code: 'entity_query_invalid',
+            message: 'The request is not a valid query.',
+        },
+        reported: false,
+    },
+    {
+        title: 'EntityDeadlockError',
+        error: () => new EntityDeadlockError({ entity: 'lock' }),
+        status: 409,
+        body: {
+            status: 409,
+            code: 'entity_deadlock',
+            message: 'The write conflicted with a concurrent write; retry the request.',
+        },
+        reported: false,
+    },
+    {
+        title: 'a database unavailable error (by code, not class)',
+        error: () => new BaseError({ code: 'database_unavailable', message: 'The database could not complete the connect.' }),
+        status: 503,
+        body: {
+            status: 503,
+            code: 'database_unavailable',
+            message: 'The database is unavailable; retry the request.',
+        },
+        reported: true,
     },
     {
         title: 'a ChamviError with an unmapped code',

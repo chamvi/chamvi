@@ -17,7 +17,7 @@ import {
     defineTool,
 } from '@chamvi/core';
 import type { Engine, IChannel } from '@chamvi/core';
-import type { RunTaint } from '@chamvi/store';
+import type { RunTaint } from '@chamvi/core-kit';
 import { memoryTools } from '../../../src/conversation/tools.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';

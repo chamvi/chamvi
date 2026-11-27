@@ -6,7 +6,8 @@
  */
 
 import { expect, it } from 'vitest';
-import type { ConversationItemRecord, IConversationRepository } from '@chamvi/store';
+import type { IConversationRepository } from '@chamvi/store';
+import type { ConversationItemRecord } from '@chamvi/core-kit';
 import { makeRun, testUuid } from '../fixture/helpers.ts';
 import type { ConversationRepositoryContractInput } from './types.ts';
 import type { ConversationContractContext } from './context.ts';

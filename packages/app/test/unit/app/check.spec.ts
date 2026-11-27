@@ -7,7 +7,7 @@
 
 import { defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { http } from '@chamvi/http';
 import { ControllableClock, textModel } from '@chamvi/test-kit';
 import {

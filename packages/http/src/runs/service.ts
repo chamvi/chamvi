@@ -12,7 +12,7 @@ import type {
     ChannelSubscription,
     DispatchEnvelope,
 } from '@chamvi/core';
-import type { Artifact, Run } from '@chamvi/store';
+import type { Artifact, Run } from '@chamvi/core-kit';
 import { BadRequestError } from '@chamvi/errors';
 import { and, defineQuery, inArray } from '@rapiq/core';
 import type { StandardSchemaV1 } from '@standard-schema/spec';

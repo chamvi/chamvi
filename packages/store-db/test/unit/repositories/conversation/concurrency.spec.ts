@@ -18,7 +18,7 @@ import {
     systemClock,
 } from '@chamvi/core';
 import type { IConversationService } from '@chamvi/core';
-import type { ConversationIdentity } from '@chamvi/store';
+import type { ConversationIdentity } from '@chamvi/core-kit';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseRunRepository } from '@chamvi/store-db';
 import { turnsOf } from '../../../../../core/test/fixtures/conversation-service.ts';

@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { Permission, allPermissions } from '@chamvi/access';
-import type { Run, Step } from '@chamvi/store';
+import type { Run, Step } from '@chamvi/core-kit';
 import { serializeRun, serializeStep } from '../../../src/runs/helpers/index.ts';
 import type { HttpAgents } from '../../../src/app/types.ts';
 
@@ -79,9 +79,9 @@ describe('serializeRun', () => {
         expect(view).not.toHaveProperty('claim');
         // an agent the app does not hold counts as private
         expect(view).toEqual({
-            ...run, 
-            claim: undefined, 
-            agentPrivate: true, 
+            ...run,
+            claim: undefined,
+            agentPrivate: true,
         });
         expect(Object.keys(view)).toEqual([...Object.keys(run).filter((key) => key !== 'claim'), 'agentPrivate']);
         expect(view.waiting?.id).toBe('a1');

@@ -12,7 +12,7 @@ import {
     it,
 } from 'vitest';
 import { MemoryAgentRevisionRepository, MemoryRegistry } from '@chamvi/store-memory';
-import type { AgentRevision } from '@chamvi/store';
+import type { AgentRevision } from '@chamvi/core-kit';
 import { AgentRevisionService, type IAgentRevisionService, RepositoryNotFoundError } from '../../../src/index.ts';
 
 function marker(agent: string, overrides: Partial<AgentRevision> = {}): AgentRevision {

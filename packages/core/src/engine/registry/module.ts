@@ -5,9 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { AgentRevision } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { AgentRevision } from '@chamvi/core-kit';
 import { InvalidRunStateError, RunNotFoundError } from '../../errors/index.ts';
-import { RunStatus } from '@chamvi/store';
 import { agentCancelReason, formatRevision, withAgentLock } from './helpers.ts';
 import type { CancelReason, DropRevisionOptions, RegistryContext } from './types.ts';
 

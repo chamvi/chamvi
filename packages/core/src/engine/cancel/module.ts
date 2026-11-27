@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Run } from '@chamvi/store';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Run } from '@chamvi/core-kit';
 import { InvalidRunStateError } from '../../errors/index.ts';
 import { onRunSettled } from '../dispatch/module.ts';
 import { agentCancelReason } from '../registry/helpers.ts';

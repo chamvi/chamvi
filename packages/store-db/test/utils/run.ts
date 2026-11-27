@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 
 /** A queued run of agent `a`, created at 1 s. */
 export function makeRun(id: string, overrides: Partial<Run> = {}): Run {

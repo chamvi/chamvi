@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { UiPage } from '@chamvi/http';
+import type { UiPage } from '@chamvi/core-kit';
 import type { APIRequestOptions } from '../types.ts';
 
 /** One entry of `GET /ui-pages`; `path` carries the app's `basePath`, so a plain link works. */

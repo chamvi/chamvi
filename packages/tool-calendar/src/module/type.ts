@@ -13,7 +13,6 @@ import {
 } from '@chamvi/core';
 import type {
     ConnectionField,
-    ConnectionFieldSource,
     ConnectionTypeDefinition,
     ConnectionValue,
     ConnectionValues,
@@ -21,6 +20,7 @@ import type {
     ResolveConnectionInput,
     ResolvedConnection,
 } from '@chamvi/core';
+import type { ConnectionFieldSource } from '@chamvi/core-kit';
 import type { CalendarAccount } from '../client/types.ts';
 import { verifyCalendarLogin } from '../client/login.ts';
 import { normalizeAccounts } from '../options/module.ts';

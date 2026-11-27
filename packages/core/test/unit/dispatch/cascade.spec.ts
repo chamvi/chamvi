@@ -23,7 +23,7 @@ import {
     waitForDispatch,
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { ControllableClock } from '../../utils/clock.ts';
 import { gate, nextRun, treeModel } from '../../utils/dispatch.ts';
 import type { ChildTurn, ParentTurn } from '../../utils/dispatch.ts';

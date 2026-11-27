@@ -13,11 +13,8 @@ import {
 } from 'vitest';
 import { Permission } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import type {
-    ConnectionStatus,
-    ConnectionWidget,
-    IConnectionHandle,
-} from '@chamvi/core';
+import type { IConnectionHandle } from '@chamvi/core';
+import type { ConnectionStatus, ConnectionWidget } from '@chamvi/core-kit';
 import type { IShutdown } from '@chamvi/http';
 import type { IAppEvent } from 'routup';
 import { isStreamRequest } from '../../../src/plugins/helpers.ts';
@@ -99,14 +96,14 @@ describe('connection routes', () => {
         expect(JSON.parse(text)).toEqual({
             data: [
                 {
-                    name: 'alpha', 
-                    type: 'whatsapp', 
-                    status: 'pairing', 
+                    name: 'alpha',
+                    type: 'whatsapp',
+                    status: 'pairing',
                 },
                 {
-                    name: 'beta', 
-                    type: 'whatsapp', 
-                    status: 'pairing', 
+                    name: 'beta',
+                    type: 'whatsapp',
+                    status: 'pairing',
                 },
             ],
         });
@@ -151,9 +148,9 @@ describe('connection routes', () => {
 
         expect(read.status).toBe(200);
         expect(JSON.parse(readText)).toEqual({
-            name: 'alpha', 
-            type: 'whatsapp', 
-            status: 'pairing', 
+            name: 'alpha',
+            type: 'whatsapp',
+            status: 'pairing',
         });
         expect(readText).not.toContain('SECRET-QR-REFERENCE');
 
@@ -236,9 +233,9 @@ describe('connection routes', () => {
             },
             creatable: () => false,
             connections: () => [{
-                name: 'mail-work', 
-                account: 'work', 
-                resolved: { state: 'configured' }, 
+                name: 'mail-work',
+                account: 'work',
+                resolved: { state: 'configured' },
             }],
         };
         const { app } = world([], { connectionTypes: () => [provider as never] });
@@ -447,9 +444,9 @@ describe('connection routes', () => {
 
         expect(response.status).toBe(202);
         expect(await response.json()).toEqual({
-            name: 'alpha', 
-            type: 'whatsapp', 
-            status: 'pairing', 
+            name: 'alpha',
+            type: 'whatsapp',
+            status: 'pairing',
         });
         expect(fake.reset).toHaveBeenCalledTimes(1);
 

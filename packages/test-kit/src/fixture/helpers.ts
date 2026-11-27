@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { RunStatus } from '@chamvi/store';
-import type { Artifact, Run } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Artifact, Run } from '@chamvi/core-kit';
 
 const UUID_LABEL_BYTES = 16;
 

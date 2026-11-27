@@ -11,7 +11,7 @@ import type {
     ConversationNoteRecord,
     ConversationOperationRecord,
     ConversationRecord,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 import type {
     ConversationEntity,
     ConversationItemEntity,

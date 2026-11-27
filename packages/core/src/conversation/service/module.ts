@@ -11,7 +11,7 @@ import type {
     ConversationNote,
     ConversationNoteOperation,
     ConversationScope,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 import { RepositoryNotFoundError } from '../../errors/index.ts';
 import type {
     BeginTurnResult,

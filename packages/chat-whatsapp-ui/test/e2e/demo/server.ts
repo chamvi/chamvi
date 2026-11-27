@@ -14,11 +14,8 @@ import {
 } from '@chamvi/app';
 import type { IContainer, IModule } from '@chamvi/app';
 import { chatWhatsappUiModule } from '@chamvi/chat-whatsapp-ui/module';
-import type {
-    ConnectionStatus,
-    ConnectionWidget,
-    IConnectionHandle,
-} from '@chamvi/core';
+import type { IConnectionHandle } from '@chamvi/core';
+import type { ConnectionStatus, ConnectionWidget } from '@chamvi/core-kit';
 import { uiModule } from '@chamvi/ui/module';
 import {
     E2E_PORT,

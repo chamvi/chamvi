@@ -10,7 +10,7 @@ import type {
     ConversationNoteRecord,
     ConversationOperationRecord,
     ConversationRecord,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';
 import { KEY } from './constants.ts';
 

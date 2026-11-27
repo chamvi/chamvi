@@ -5,12 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError, EntityNotFoundError, EntityRelationError } from '@chamvi/errors';
 import { expect, it } from 'vitest';
-import {
-    EntityConflictError,
-    EntityNotFoundError,
-    EntityRelationError,
-} from '@chamvi/store';
 import type { EntityContractParent, EntityContractRepositories } from './types.ts';
 import {
     childOf,

@@ -19,13 +19,8 @@ import {
 import type { IAppEvent } from 'routup';
 import { usePrincipal } from '../../auth/helpers/index.ts';
 import { ForceLoggedInMiddleware, RequiredJsonBodyMiddleware } from '../../middleware/index.ts';
-import type {
-    ConnectionConfigControllerContext,
-    ConnectionCreateBody,
-    ConnectionSettingsView,
-    ConnectionTypeView,
-    IConnectionConfigService,
-} from '../types.ts';
+import type { ConnectionConfigControllerContext, IConnectionConfigService } from '../types.ts';
+import type { ConnectionCreateBody, ConnectionSettingsView, ConnectionTypeView } from '@chamvi/core-kit';
 
 @DTags('connection-type')
 @DSecurity([], 'bearer')

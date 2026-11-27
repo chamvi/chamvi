@@ -6,7 +6,7 @@
  */
 
 import type { DataSource, EntityManager } from 'typeorm';
-import type { Lock } from '@chamvi/store';
+import type { Lock } from '@chamvi/core-kit';
 import { LockEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 

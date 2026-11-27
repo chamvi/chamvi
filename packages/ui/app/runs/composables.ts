@@ -12,7 +12,7 @@ import {
     watch,
 } from 'vue';
 import type { Ref } from 'vue';
-import type { RunStatusLiteral } from '@chamvi/store';
+import type { RunStatusLiteral } from '@chamvi/core-kit';
 import type {
     ApiError,
     IClient,

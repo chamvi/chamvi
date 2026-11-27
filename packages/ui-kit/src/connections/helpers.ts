@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ConnectionStatus } from '@chamvi/core';
+import type { ConnectionStatus } from '@chamvi/core-kit';
 import { STATUS_BADGES } from './constants.ts';
 import type { ConnectionWire } from '@chamvi/http-kit';
 import type { ConnectionBadge } from './types.ts';

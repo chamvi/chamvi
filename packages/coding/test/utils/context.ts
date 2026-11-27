@@ -9,7 +9,7 @@ import type { ToolSet } from 'ai';
 import { createAgentState } from '@chamvi/core';
 import type { IRunArtifacts, ToolContext } from '@chamvi/core';
 import { createTestEngine } from '@chamvi/test-kit';
-import type { Artifact } from '@chamvi/store';
+import type { Artifact } from '@chamvi/core-kit';
 
 /** In-memory run artifacts (`read_file` stores the images it shows), ids `artifact-<n>`. */
 export function createArtifacts(runId = 'r1'): IRunArtifacts {

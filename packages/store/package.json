@@ -2,7 +2,7 @@
     "name": "@chamvi/store",
     "version": "0.12.0",
     "type": "module",
-    "description": "The storage contract of chamvi: the stored record types, the generic entity repository port and the storage errors its drivers report.",
+    "description": "The storage contract of chamvi: the generic entity repository port, a port per aggregate.",
     "author": {
         "name": "Peter Placzek",
         "email": "contact@tada5hi.net",
@@ -48,19 +48,7 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
-        "@chamvi/access": "^0.12.0",
-        "@ebec/core": "^1.3.2",
+        "@chamvi/core-kit": "^0.12.0",
         "@rapiq/core": "^2.5.1"
-    },
-    "devDependencies": {
-        "ai": "^7.0.181"
-    },
-    "peerDependencies": {
-        "ai": "^7"
-    },
-    "peerDependenciesMeta": {
-        "ai": {
-            "optional": true
-        }
     }
 }

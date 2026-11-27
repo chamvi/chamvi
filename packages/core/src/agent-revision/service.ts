@@ -7,7 +7,8 @@
 
 import { defineQuery } from '@rapiq/core';
 import { uuidv7 } from 'uuidv7';
-import type { AgentRevision, IAgentRevisionRepository } from '@chamvi/store';
+import type { IAgentRevisionRepository } from '@chamvi/store';
+import type { AgentRevision } from '@chamvi/core-kit';
 import { RepositoryNotFoundError } from '../errors/index.ts';
 import { readAgentRevision } from './helpers.ts';
 import type { AgentRevisionServiceContext, IAgentRevisionService } from './types.ts';

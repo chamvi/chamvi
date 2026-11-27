@@ -15,7 +15,7 @@ import { inject } from '../context/module.ts';
 import { assertFrameActive, currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
 import { BudgetExceededError, InvalidRunStateError } from '../errors/index.ts';
-import type { Run, Usage } from '@chamvi/store';
+import type { Run, Usage } from '@chamvi/core-kit';
 import type { StateSchema } from '../state/types.ts';
 import type { ToolContext } from '../tool/types.ts';
 import { DEFAULT_DISPATCH_ROLE, DISPATCH_CONTEXT } from './constants.ts';

@@ -9,11 +9,9 @@ import type {
     IPeerResolver,
     IPeerTransport,
     PeerRequestOptions,
-    PeerRunView,
     PeerSettings,
-    PeerStartInput,
 } from '@chamvi/core';
-import type { Invoker } from '@chamvi/store';
+import type { Invoker, PeerRunView, PeerStartInput } from '@chamvi/core-kit';
 
 const REJECT = Symbol('reject');
 

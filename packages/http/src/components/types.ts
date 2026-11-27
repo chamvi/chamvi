@@ -6,6 +6,7 @@
  */
 
 import type { ChannelStatus, IEngine } from '@chamvi/core';
+import type { ComponentView } from '@chamvi/core-kit';
 import type { Principal } from '../auth/types.ts';
 import type { HttpContext } from '../app/types.ts';
 
@@ -19,20 +20,6 @@ export type HttpComponent = {
     status(): ChannelStatus;
 };
 
-/** One entry of `GET /components`; each time an ISO 8601 string, absent until it happened or when `status()` threw. */
-export type ComponentView = {
-    name: string;
-    /** `job`: a background job of the app; `channel`: an engine channel with a `status()`. */
-    kind: 'job' | 'channel';
-    /** The last pass that completed without error ended. */
-    lastSuccessAt?: string;
-    /** The last pass that failed ended. */
-    lastErrorAt?: string;
-    /** The last pass ended, however it ended. */
-    lastRunAt?: string;
-    /** The pass in flight started. */
-    runningSince?: string;
-};
 
 /** `GET /components`: the jobs in the given order, then the engine's channels with a `status()` in registration order. */
 export type ComponentListView = {

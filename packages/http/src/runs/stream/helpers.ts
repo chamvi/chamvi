@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { RunStatus } from '@chamvi/store';
-import type { Run } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Run } from '@chamvi/core-kit';
 import { BadRequestError } from '@chamvi/errors';
 
 /** The step index a `Last-Event-ID` header names; -1 for none or garbage. */

@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError } from '@chamvi/errors';
 import {
     and,
     defineQuery,
@@ -17,8 +18,8 @@ import {
     expect,
     it,
 } from 'vitest';
-import { EntityConflictError } from '@chamvi/store';
-import type { ILimitRepository, LimitUse } from '@chamvi/store';
+import type { ILimitRepository } from '@chamvi/store';
+import type { LimitUse } from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';
 import type { LimitRepositoryContractInput } from './types.ts';
 

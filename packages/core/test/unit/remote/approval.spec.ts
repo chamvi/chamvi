@@ -17,10 +17,9 @@ import type {
     ChannelSendOptions,
     IChannel,
     IEngine,
-    PeerRunView,
 } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
-import type { Run } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { PeerRunView, Run } from '@chamvi/core-kit';
 import { peerRunView } from '../../utils/peers.ts';
 import {
     REMOTE_START,
@@ -53,8 +52,8 @@ type Sent = {
 function chatChannel() {
     const sent: Sent[] = [];
     const state: {
-        fail: number; 
-        started: number; 
+        fail: number;
+        started: number;
         gate?: Promise<void>;
         /** Called when a send starts, before the gate. */
         entered?: () => void;
@@ -139,9 +138,9 @@ describe('the stand-in run: remote approvals', () => {
             waitingView('r1', PUSH),
             waitingView('r1', PUSH),
             waitingView('r1', {
-                ...PUSH, 
-                approvalId: '1:c2:0', 
-                title: 'Deploy?', 
+                ...PUSH,
+                approvalId: '1:c2:0',
+                title: 'Deploy?',
             }),
         );
 
@@ -353,9 +352,9 @@ describe('the stand-in run: remote approvals', () => {
 
         peers.script('read', async () => {
             await engine.wake(runId, {
-                kind: 'token', 
-                id: 'dev-token', 
-                bindings: [], 
+                kind: 'token',
+                id: 'dev-token',
+                bindings: [],
             });
 
             return waitingView('r1', PUSH);
@@ -421,9 +420,9 @@ describe('the stand-in run: remote approvals', () => {
         } as unknown as Run;
 
         expect(pendingApprovalOf(run)).toEqual({
-            runId: 'a1', 
-            approvalId: '0:c1:0', 
-            title: 'Push?', 
+            runId: 'a1',
+            approvalId: '0:c1:0',
+            title: 'Push?',
         });
         expect(pendingApprovalOf({ ...run, status: RunStatus.QUEUED })).toBeUndefined();
     });

@@ -6,9 +6,9 @@
  */
 
 import { RunNotFoundError, findApprovalWaitBelow, pendingApprovalOf } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Run } from '@chamvi/core-kit';
 import type { ClockTimer, IEngine } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
 import type { HttpContext } from '../../app/types.ts';
 import type { WaitForRunOptions, WaitForRunResult } from '../types.ts';
 

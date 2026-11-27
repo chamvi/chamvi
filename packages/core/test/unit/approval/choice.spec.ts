@@ -27,7 +27,7 @@ import type {
     IChannel,
     IEngine,
 } from '@chamvi/core';
-import type { ApprovalOption } from '@chamvi/store';
+import type { ApprovalOption } from '@chamvi/core-kit';
 import { toApprovalDecision } from '../../../src/approval/helpers.ts';
 import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';

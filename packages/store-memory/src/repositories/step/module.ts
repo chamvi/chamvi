@@ -5,8 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { EntityQueryError, STEP_STORED_ORDER } from '@chamvi/store';
-import type { EntityRecord, IStepRepository, Step } from '@chamvi/store';
+import { EntityQueryError } from '@chamvi/errors';
+import { STEP_STORED_ORDER } from '@chamvi/core-kit';
+import type { Step } from '@chamvi/core-kit';
+import type { EntityRecord, IStepRepository } from '@chamvi/store';
 import type { MemoryRegistry } from '../../registry/module.ts';
 import { MemoryEntityRepository } from '../../entity/module.ts';
 import type { MemoryRepositoryOptions } from '../../entity/types.ts';
@@ -44,12 +46,12 @@ export class MemoryStepRepository extends MemoryEntityRepository<Step> implement
 
     /** Steps are append-only: refused with EntityQueryError. */
     override async upsert(): Promise<Step> {
-        throw new EntityQueryError(this.entity);
+        throw new EntityQueryError({ entity: this.entity });
     }
 
     /** Steps are append-only: refused with EntityQueryError. */
     override async upsertMany(): Promise<Step[]> {
-        throw new EntityQueryError(this.entity);
+        throw new EntityQueryError({ entity: this.entity });
     }
 
     protected override toEntity(row: EntityRecord): Step {

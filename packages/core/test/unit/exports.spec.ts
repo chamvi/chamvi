@@ -14,10 +14,9 @@ import {
 } from 'vitest';
 import { ErrorCode } from '@chamvi/errors';
 import * as core from '@chamvi/core';
-import type * as store from '@chamvi/store';
+import type * as kit from '@chamvi/core-kit';
 import type * as sdk from 'ai';
 import type {
-    AgentRevision,
     IAgentRevisionRepository,
     IArtifactRepository,
     ICheckpointRepository,
@@ -196,10 +195,10 @@ describe('public api', () => {
         expectTypeOf<core.EngineOptions['agentRevisionService']>().toEqualTypeOf<core.IAgentRevisionService>();
         expectTypeOf<core.IEngine['agentRevisionService']>().toEqualTypeOf<core.IAgentRevisionService>();
         expectTypeOf<core.AgentRevisionServiceContext['repository']>().toEqualTypeOf<IAgentRevisionRepository>();
-        expectTypeOf<core.AgentRevisionService['findOne']>().toEqualTypeOf<(agent: string) => Promise<AgentRevision | undefined>>();
-        expectTypeOf<core.AgentRevisionService['save']>().toEqualTypeOf<(revision: AgentRevision) => Promise<AgentRevision>>();
+        expectTypeOf<core.AgentRevisionService['findOne']>().toEqualTypeOf<(agent: string) => Promise<kit.AgentRevision | undefined>>();
+        expectTypeOf<core.AgentRevisionService['save']>().toEqualTypeOf<(revision: kit.AgentRevision) => Promise<kit.AgentRevision>>();
         expectTypeOf<core.AgentRevisionService['delete']>().toEqualTypeOf<(agent: string) => Promise<void>>();
-        expectTypeOf<core.AgentRevisionService['find']>().toEqualTypeOf<() => Promise<AgentRevision[]>>();
+        expectTypeOf<core.AgentRevisionService['find']>().toEqualTypeOf<() => Promise<kit.AgentRevision[]>>();
 
         // the port moved to @chamvi/store, the memory repository to @chamvi/store-memory
         for (const name of ['MemoryAgentRevisionRepository', 'IAgentRevisionRepository']) {
@@ -327,17 +326,17 @@ describe('public api', () => {
         expect(core.isAgentName('dev-ops')).toBe(true);
         expect(core.isAgentName('Dev')).toBe(false);
         expect(core.isAgentName('a'.repeat(65))).toBe(false);
-        expectTypeOf<core.IEngine['wake']>().toEqualTypeOf<(runId: string, invoker: store.Invoker | undefined) => Promise<core.WakeOutcome | undefined>>();
+        expectTypeOf<core.IEngine['wake']>().toEqualTypeOf<(runId: string, invoker: kit.Invoker | undefined) => Promise<core.WakeOutcome | undefined>>();
         expectTypeOf<core.Agent>().toEqualTypeOf<core.ModelAgent | core.SimpleAgent | core.RemoteAgent>();
         expectTypeOf(core.defineRemoteAgent).returns.toEqualTypeOf<core.RemoteAgent>();
         expectTypeOf(core.defineRemoteAgent).parameter(0).toEqualTypeOf<core.RemoteAgentDefinition>();
         expectTypeOf<core.EngineOptions['peers']>().toEqualTypeOf<core.IPeerResolver | undefined>();
         expectTypeOf<core.IEngine['peers']>().toEqualTypeOf<core.IPeerResolver | undefined>();
-        expectTypeOf<core.PeerStartInput>().toEqualTypeOf<{
+        expectTypeOf<kit.PeerStartInput>().toEqualTypeOf<{
             agent: string;
             role: string;
             payload: unknown;
-            attachments?: core.ArtifactInput[];
+            attachments?: kit.ArtifactInput[];
             idempotencyKey: string;
             peer: {
                 standIn: string;
@@ -350,15 +349,15 @@ describe('public api', () => {
                 origin?: string;
             };
         }>();
-        expectTypeOf<core.PeerRunView>().toEqualTypeOf<{
+        expectTypeOf<kit.PeerRunView>().toEqualTypeOf<{
             id: string;
-            status: store.RunStatusLiteral;
-            waiting?: store.WaitPoint['kind'];
-            approval?: Omit<store.RemoteApproval, 'notifiedAt'>;
+            status: kit.RunStatusLiteral;
+            waiting?: kit.WaitPoint['kind'];
+            approval?: Omit<kit.RemoteApproval, 'notifiedAt'>;
             output?: unknown;
             error?: { code: string; message: string };
             tainted: boolean;
-            usage: store.Usage;
+            usage: kit.Usage;
         }>();
         expectTypeOf<core.PeerSettings>().toEqualTypeOf<{
             pollMs: number;
@@ -368,14 +367,14 @@ describe('public api', () => {
         }>();
         expectTypeOf<core.PeerRequestOptions>().toEqualTypeOf<{ signal: AbortSignal }>();
         expectTypeOf<core.IPeerTransport['start']>()
-            .toEqualTypeOf<(input: core.PeerStartInput, opts: core.PeerRequestOptions) => Promise<{ runId: string }>>();
+            .toEqualTypeOf<(input: kit.PeerStartInput, opts: core.PeerRequestOptions) => Promise<{ runId: string }>>();
         expectTypeOf<core.IPeerTransport['read']>()
-            .toEqualTypeOf<(runId: string, opts: core.PeerRequestOptions) => Promise<core.PeerRunView>>();
+            .toEqualTypeOf<(runId: string, opts: core.PeerRequestOptions) => Promise<kit.PeerRunView>>();
         expectTypeOf<core.IPeerTransport['cancel']>()
             .toEqualTypeOf<(runId: string, opts: core.PeerRequestOptions) => Promise<void>>();
         expectTypeOf<core.IPeerTransport['wake']>()
             .toEqualTypeOf<(standInRunId: string, opts: core.PeerRequestOptions) => Promise<void>>();
-        expectTypeOf<core.IPeerResolver['recognize']>().toEqualTypeOf<(invoker: store.Invoker | undefined) => string | undefined>();
+        expectTypeOf<core.IPeerResolver['recognize']>().toEqualTypeOf<(invoker: kit.Invoker | undefined) => string | undefined>();
         expectTypeOf<core.IPeerResolver['settings']>().toEqualTypeOf<(name: string) => core.PeerSettings>();
         expectTypeOf<core.IPeerResolver['transport']>().toEqualTypeOf<(name: string) => core.IPeerTransport>();
         expectTypeOf<core.IPeerResolver['approvalUrl']>()
@@ -404,7 +403,7 @@ describe('public api', () => {
             agents?: { agent: string; roles: string[] }[];
             wait?: boolean | core.DispatchWaitOptions;
         }>();
-        expectTypeOf<store.TriggerEnvelope>().toHaveProperty('parent').toEqualTypeOf<store.TriggerParent | undefined>();
+        expectTypeOf<kit.TriggerEnvelope>().toHaveProperty('parent').toEqualTypeOf<kit.TriggerParent | undefined>();
         expectTypeOf<ReturnType<typeof core.dispatch>>().toEqualTypeOf<Promise<core.DispatchResult>>();
         expectTypeOf<core.DispatchInput>().toEqualTypeOf<{
             role?: string;
@@ -412,19 +411,19 @@ describe('public api', () => {
             idempotencyKey?: string;
             concurrencyKey?: string;
             address?: string;
-            source?: store.TriggerSource;
+            source?: kit.TriggerSource;
         }>();
-        expectTypeOf<store.TriggerSource>().toEqualTypeOf<{ channel: string; address: string }>();
-        expectTypeOf<store.DispatchParent['source']>().toEqualTypeOf<store.TriggerSource | undefined>();
+        expectTypeOf<kit.TriggerSource>().toEqualTypeOf<{ channel: string; address: string }>();
+        expectTypeOf<kit.DispatchParent['source']>().toEqualTypeOf<kit.TriggerSource | undefined>();
         expectTypeOf<core.AgentSubscriber['on']>().returns.toEqualTypeOf<core.ChannelSubscription<unknown>>();
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('maxDepth').toEqualTypeOf<number | undefined>();
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('from').toEqualTypeOf<string[] | undefined>();
         expectTypeOf<ReturnType<typeof core.dispatchTo>>().toEqualTypeOf<Promise<core.DispatchResult>>();
-        expectTypeOf<ReturnType<typeof core.findApprovalWaitBelow>>().toEqualTypeOf<Promise<store.Run | undefined>>();
-        expectTypeOf<ReturnType<typeof core.pendingApprovalOf>>().toEqualTypeOf<Omit<store.RemoteApproval, 'notifiedAt'> | undefined>();
-        expectTypeOf<core.IRunService['updateWith']>().parameter(1).toEqualTypeOf<(run: store.Run) => Partial<store.Run>>();
+        expectTypeOf<ReturnType<typeof core.findApprovalWaitBelow>>().toEqualTypeOf<Promise<kit.Run | undefined>>();
+        expectTypeOf<ReturnType<typeof core.pendingApprovalOf>>().toEqualTypeOf<Omit<kit.RemoteApproval, 'notifiedAt'> | undefined>();
+        expectTypeOf<core.IRunService['updateWith']>().parameter(1).toEqualTypeOf<(run: kit.Run) => Partial<kit.Run>>();
         expectTypeOf<core.DispatchToInput>().toEqualTypeOf<core.DispatchInput & { agent: string }>();
-        expectTypeOf<core.Budget>().toHaveProperty('maxSubtreeTokens').toEqualTypeOf<number | undefined>();
+        expectTypeOf<kit.Budget>().toHaveProperty('maxSubtreeTokens').toEqualTypeOf<number | undefined>();
         expectTypeOf<core.DispatchOutcome>().toEqualTypeOf<{
             runId: string;
             agent: string;
@@ -488,17 +487,17 @@ describe('public api', () => {
             expect(core).not.toHaveProperty(name);
         }
 
-        expectTypeOf<store.ConversationIdentity>().toEqualTypeOf<{
+        expectTypeOf<kit.ConversationIdentity>().toEqualTypeOf<{
             agent: string;
             channel: string;
             account: string;
             chat: string;
             audience: string;
         }>();
-        expectTypeOf<store.ConversationScope>().toEqualTypeOf<{
+        expectTypeOf<kit.ConversationScope>().toEqualTypeOf<{
             id: string;
             generation: number;
-            identity: store.ConversationIdentity;
+            identity: kit.ConversationIdentity;
         }>();
         expectTypeOf<core.ConversationTarget>().toEqualTypeOf<{
             account: string;
@@ -513,12 +512,12 @@ describe('public api', () => {
             audience: string;
             address?: string;
         }>();
-        expectTypeOf<store.ConversationBinding>().toEqualTypeOf<{ scope: store.ConversationScope; text: string }>();
+        expectTypeOf<kit.ConversationBinding>().toEqualTypeOf<{ scope: kit.ConversationScope; text: string }>();
         expectTypeOf<core.ConversationAccess>().toEqualTypeOf<{
             agent: string;
             operation: 'dispatch' | 'recall' | 'notes';
-            identity: store.ConversationIdentity;
-            invoker?: store.Invoker;
+            identity: kit.ConversationIdentity;
+            invoker?: kit.Invoker;
         }>();
         expectTypeOf<core.ConversationOptions>().toEqualTypeOf<{
             authorize: (access: core.ConversationAccess) => boolean | Promise<boolean>;
@@ -544,9 +543,9 @@ describe('public api', () => {
                 removed: boolean
             }
         >();
-        expectTypeOf<store.ConversationNoteOperation>().toHaveProperty('kind').toEqualTypeOf<'set' | 'remove'>();
+        expectTypeOf<kit.ConversationNoteOperation>().toHaveProperty('kind').toEqualTypeOf<'set' | 'remove'>();
         expectTypeOf<core.ConversationService['findOne']>()
-            .toEqualTypeOf<(identity: store.ConversationIdentity) => Promise<store.ConversationScope | undefined>>();
+            .toEqualTypeOf<(identity: kit.ConversationIdentity) => Promise<kit.ConversationScope | undefined>>();
     });
 
     it('exports the trigger key bound', () => {
@@ -590,15 +589,15 @@ describe('public api', () => {
     });
 
     it('exports the approval option types', () => {
-        expectTypeOf<store.ApprovalOption>().toEqualTypeOf<{
+        expectTypeOf<kit.ApprovalOption>().toEqualTypeOf<{
             id: string;
             label: string;
             detail?: string;
             artifacts?: string[]
         }>();
         expectTypeOf<core.ApprovalRequestInput['artifacts']>().toEqualTypeOf<string[] | undefined>();
-        expectTypeOf<store.ApprovalWaitPoint['artifacts']>().toEqualTypeOf<string[] | undefined>();
-        expectTypeOf<core.ApprovalRequestInput['options']>().toEqualTypeOf<store.ApprovalOption[] | undefined>();
+        expectTypeOf<kit.ApprovalWaitPoint['artifacts']>().toEqualTypeOf<string[] | undefined>();
+        expectTypeOf<core.ApprovalRequestInput['options']>().toEqualTypeOf<kit.ApprovalOption[] | undefined>();
         expectTypeOf<core.ApprovalRequestInput['multiple']>().toEqualTypeOf<boolean | undefined>();
     });
 
@@ -623,7 +622,7 @@ describe('public api', () => {
         expectTypeOf<core.ChannelRequest>().toEqualTypeOf<{ request: Request; subpath: string }>();
         expectTypeOf<core.ChannelDispatchEnvelope>().toEqualTypeOf<Omit<core.DispatchEnvelope, 'channel'>>();
         expectTypeOf<core.ChannelContext['dispatch']>().returns.toEqualTypeOf<Promise<core.DispatchResult>>();
-        expectTypeOf<core.ChannelSendOptions>().toEqualTypeOf<{ signal: AbortSignal; trigger: store.TriggerEnvelope }>();
+        expectTypeOf<core.ChannelSendOptions>().toEqualTypeOf<{ signal: AbortSignal; trigger: kit.TriggerEnvelope }>();
         expectTypeOf<core.ChannelMessage['kind']>().toEqualTypeOf<'message' | 'approval'>();
         expectTypeOf<core.ChannelSubscription>().toHaveProperty('channel').toEqualTypeOf<string>();
         expectTypeOf<core.IChannel>().toHaveProperty('name').toEqualTypeOf<string>();
@@ -634,8 +633,8 @@ describe('public api', () => {
             runningSince?: number;
         }>();
         expectTypeOf<NonNullable<core.IChannel['status']>>().returns.toEqualTypeOf<core.ChannelStatus>();
-        expectTypeOf<store.TriggerEnvelope>().toHaveProperty('channel').toEqualTypeOf<string>();
-        expectTypeOf<store.Run>().toHaveProperty('address').toEqualTypeOf<string | undefined>();
+        expectTypeOf<kit.TriggerEnvelope>().toHaveProperty('channel').toEqualTypeOf<string>();
+        expectTypeOf<kit.Run>().toHaveProperty('address').toEqualTypeOf<string | undefined>();
         expectTypeOf<core.EngineStartOptions>().toEqualTypeOf<{ channels?: boolean; signal?: AbortSignal }>();
         expectTypeOf<core.EmitMessage>().toEqualTypeOf<{
             title?: string;
@@ -647,12 +646,12 @@ describe('public api', () => {
         expectTypeOf<core.ChannelHandle['approve']>().returns.toEqualTypeOf<Promise<core.ApprovalDecision>>();
         expectTypeOf<Parameters<core.ChannelHandle['approve']>[0]>().toEqualTypeOf<core.ApprovalRequestInput & { address?: string; slot?: string }>();
         expectTypeOf<core.ChannelMessage['slot']>().toEqualTypeOf<string | undefined>();
-        expectTypeOf<store.ApprovalWaitPoint['slot']>().toEqualTypeOf<string | undefined>();
-        expectTypeOf<store.WaitPoint>().toEqualTypeOf<store.ApprovalWaitPoint | store.DispatchWaitPoint | store.RemoteWaitPoint>();
-        expectTypeOf<store.DispatchWaitPoint['runIds']>().toEqualTypeOf<string[]>();
-        expectTypeOf<store.Run['parentRunId']>().toEqualTypeOf<string | undefined>();
-        expectTypeOf<store.Run['subtreeUsage']>().toEqualTypeOf<store.Usage | undefined>();
-        expectTypeOf<store.TriggerParent['kind']>().toEqualTypeOf<'dispatch' | 'peer'>();
+        expectTypeOf<kit.ApprovalWaitPoint['slot']>().toEqualTypeOf<string | undefined>();
+        expectTypeOf<kit.WaitPoint>().toEqualTypeOf<kit.ApprovalWaitPoint | kit.DispatchWaitPoint | kit.RemoteWaitPoint>();
+        expectTypeOf<kit.DispatchWaitPoint['runIds']>().toEqualTypeOf<string[]>();
+        expectTypeOf<kit.Run['parentRunId']>().toEqualTypeOf<string | undefined>();
+        expectTypeOf<kit.Run['subtreeUsage']>().toEqualTypeOf<kit.Usage | undefined>();
+        expectTypeOf<kit.TriggerParent['kind']>().toEqualTypeOf<'dispatch' | 'peer'>();
         expectTypeOf<core.RunFindOptions['parentRunId']>().toEqualTypeOf<string | undefined>();
         expectTypeOf<core.RunUpdateOptions['expectWaitId']>().toEqualTypeOf<string | undefined>();
         expectTypeOf<core.ConsoleChannelOptions>().toHaveProperty('name').toEqualTypeOf<string | undefined>();
@@ -689,12 +688,12 @@ describe('public api', () => {
         expectTypeOf<core.EngineOptions['connectionService']>().toEqualTypeOf<core.IConnectionService | undefined>();
         expectTypeOf<core.IEngine['connectionService']>().toEqualTypeOf<core.IConnectionService | undefined>();
         expectTypeOf<core.ConnectionServiceContext>().toEqualTypeOf<{ repository: IConnectionRepository; clock: core.IClock }>();
-        expectTypeOf<core.ConnectionService['create']>().toEqualTypeOf<(connection: store.ConnectionInput) => Promise<boolean>>();
-        expectTypeOf<core.ConnectionService['findOne']>().toEqualTypeOf<(name: string) => Promise<store.Connection | undefined>>();
-        expectTypeOf<core.ConnectionService['findOneOrFail']>().toEqualTypeOf<(name: string) => Promise<store.Connection>>();
-        expectTypeOf<core.ConnectionService['find']>().toEqualTypeOf<() => Promise<store.Connection[]>>();
+        expectTypeOf<core.ConnectionService['create']>().toEqualTypeOf<(connection: kit.ConnectionInput) => Promise<boolean>>();
+        expectTypeOf<core.ConnectionService['findOne']>().toEqualTypeOf<(name: string) => Promise<kit.Connection | undefined>>();
+        expectTypeOf<core.ConnectionService['findOneOrFail']>().toEqualTypeOf<(name: string) => Promise<kit.Connection>>();
+        expectTypeOf<core.ConnectionService['find']>().toEqualTypeOf<() => Promise<kit.Connection[]>>();
         expectTypeOf<core.ConnectionService['delete']>().toEqualTypeOf<(name: string, fence?: core.ConnectionFence) => Promise<void>>();
-        expectTypeOf<core.ConnectionService['replace']>().toEqualTypeOf<(connection: store.ConnectionInput, fence: core.ConnectionFence) => Promise<void>>();
+        expectTypeOf<core.ConnectionService['replace']>().toEqualTypeOf<(connection: kit.ConnectionInput, fence: core.ConnectionFence) => Promise<void>>();
         expectTypeOf<core.ConnectionService['findEntry']>().toEqualTypeOf<(name: string, key: string) => Promise<Uint8Array | undefined>>();
         expectTypeOf<core.ConnectionService['findEntries']>()
             .toEqualTypeOf<(name: string, keys: readonly string[]) => Promise<Map<string, Uint8Array>>>();
@@ -717,7 +716,7 @@ describe('public api', () => {
             expect(core).not.toHaveProperty(name);
         }
 
-        expectTypeOf<store.Connection>().toEqualTypeOf<{
+        expectTypeOf<kit.Connection>().toEqualTypeOf<{
             id: string;
             name: string;
             type: string;
@@ -754,13 +753,13 @@ describe('public api', () => {
         expect(ErrorCode.CONNECTION_CHANGED).toBe('connection_changed');
         expectTypeOf<ReturnType<typeof core.resolveConnection>>().toEqualTypeOf<core.ResolvedConnection>();
         expectTypeOf<Parameters<typeof core.resolveConnection>[0]>().toEqualTypeOf<core.ResolveConnectionInput>();
-        expectTypeOf<core.ConnectionFieldKind>().toEqualTypeOf<'string' | 'number' | 'boolean' | 'select' | 'list' | 'secret'>();
+        expectTypeOf<kit.ConnectionFieldKind>().toEqualTypeOf<'string' | 'number' | 'boolean' | 'select' | 'list' | 'secret'>();
         expectTypeOf<core.ConnectionValue>().toEqualTypeOf<string | number | boolean | readonly string[]>();
         expectTypeOf<core.ConnectionValues>().toEqualTypeOf<Record<string, core.ConnectionValue>>();
-        expectTypeOf<core.ConnectionState>().toEqualTypeOf<'configured' | 'not_configured' | 'incomplete' | 'failed'>();
+        expectTypeOf<kit.ConnectionState>().toEqualTypeOf<'configured' | 'not_configured' | 'incomplete' | 'failed'>();
         expectTypeOf<core.ConnectionField['env']>().toEqualTypeOf<((connection: string) => string | undefined) | undefined>();
         expectTypeOf<core.ConnectionTypeDefinition['fields']>().toEqualTypeOf<readonly core.ConnectionField[]>();
-        expectTypeOf<core.ConnectionFieldSource>().toEqualTypeOf<
+        expectTypeOf<kit.ConnectionFieldSource>().toEqualTypeOf<
         { kind: 'env'; variable: string } | { kind: 'store' } | { kind: 'code' } | { kind: 'unset' }
         >();
         expectTypeOf<core.DeclaredConnection['resolved']>().toEqualTypeOf<core.ResolvedConnection>();
@@ -848,7 +847,7 @@ describe('public api', () => {
     });
 
     it('exports the agent folder types', () => {
-        expectTypeOf<store.AgentRevision>().toHaveProperty('hash').toEqualTypeOf<string>();
+        expectTypeOf<kit.AgentRevision>().toHaveProperty('hash').toEqualTypeOf<string>();
     });
 
     it('keeps the context binding internal', () => {
@@ -884,7 +883,7 @@ describe('public api', () => {
             approvalId: string;
             approved: boolean;
             reason?: string;
-            approver?: store.Invoker;
+            approver?: kit.Invoker;
             selected?: string[];
         }>();
     });
@@ -893,7 +892,7 @@ describe('public api', () => {
         expectTypeOf<core.ApprovalDecision>().toEqualTypeOf<{
             approved: boolean;
             reason?: string;
-            approver?: store.Invoker;
+            approver?: kit.Invoker;
             selected?: string[];
         }>();
     });

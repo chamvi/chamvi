@@ -10,7 +10,7 @@ import type { StepResult, ToolSet } from 'ai';
 import { TypeValidationError } from 'ai';
 import { isObject } from 'smob';
 import { BudgetExceededError, IncompleteResponseError } from '../../../errors/index.ts';
-import type { Budget } from '../../../run/types.ts';
+import type { Budget } from '@chamvi/core-kit';
 import { TOOL_CONTEXT_MISSING } from '../../../tool/constants.ts';
 import { MAX_ERROR_CAUSE_LENGTH } from '../constants.ts';
 

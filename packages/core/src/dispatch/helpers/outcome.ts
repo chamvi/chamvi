@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { RunStatus } from '@chamvi/store';
-import type { Run, Usage } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Run, Usage } from '@chamvi/core-kit';
 import type { DispatchOutcome } from '../types.ts';
 
 /** Whether a waited-on run has settled (`completed`, `failed` or `cancelled`). */

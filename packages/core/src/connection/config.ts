@@ -22,7 +22,7 @@ import type {
     ConnectionValues,
     IConnectionConfigStore,
 } from './types.ts';
-import type { Connection } from '@chamvi/store';
+import type { Connection } from '@chamvi/core-kit';
 import { assertConnectionConfigWrite, assertConnectionName } from './validate.ts';
 
 /** The secrets `update` sets; a ValidationError for a value that is not a plain object (a string would map to fields `0`, `1`, ...). */

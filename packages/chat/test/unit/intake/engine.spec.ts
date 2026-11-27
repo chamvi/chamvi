@@ -19,7 +19,7 @@ import type {
     Agent,
     IEngine,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { CHAT_INTAKE_FAILED_ERROR_CODE, chatAddress } from '@chamvi/chat';
 import type { ChatChannel } from '@chamvi/chat';
 import { mockModel, textModel } from '@chamvi/test-kit';

@@ -5,15 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { EffectRecord } from '@chamvi/core-kit';
 import type { IEntityRepository } from '../entity/types.ts';
-
-/** A recorded effect result: the row an effect key stores. */
-export type EffectRecord = {
-    /** The row's storage id (a uuid), kept by every later `upsert` of the same `key`. */
-    id: string;
-    key: string;
-    result: unknown;
-};
 
 /**
  * The effect port: the generic entity port on `EffectRecord` (key `id`,

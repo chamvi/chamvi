@@ -11,12 +11,8 @@ import { assertGranted, isGranted } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
 import { isWebhookChannel } from '../../channels/helpers.ts';
 import { listSchedules, summarizeAgent } from '../helpers/index.ts';
-import type {
-    AgentListView,
-    AgentServiceContext,
-    IAgentService,
-    ScheduleSummary,
-} from '../types.ts';
+import type { AgentListView, AgentServiceContext, IAgentService } from '../types.ts';
+import type { ScheduleSummary } from '@chamvi/core-kit';
 
 /** The agent inventory and the schedules, each row filtered by `chamvi_run_read` for `{ agent }`. */
 export class AgentService implements IAgentService {

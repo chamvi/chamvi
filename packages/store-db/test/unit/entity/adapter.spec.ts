@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError, EntityInvalidError, EntityRelationError } from '@chamvi/errors';
 import {
     defineQuery,
     eq,
@@ -19,7 +20,6 @@ import {
     expect,
     it,
 } from 'vitest';
-import { EntityConflictError, EntityInvalidError, EntityRelationError } from '@chamvi/store';
 import type { EntityContractParent } from '@chamvi/test-kit';
 import { DatabaseUnavailableError } from '../../../src/error/index.ts';
 import { postgres } from '../../utils/database.ts';

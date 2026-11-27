@@ -11,7 +11,7 @@ import type {
     IEngine,
     IRunService,
 } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { InvalidAgentDefinitionError, findApprovalWaitBelow, pendingApprovalOf } from '@chamvi/core';
 import { isCronChannel } from '../channel/helpers.ts';
 import { readCronOptions } from '../tick/index.ts';

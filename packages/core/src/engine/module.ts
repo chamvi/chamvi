@@ -16,9 +16,10 @@ import type {
     ConversationIdentity,
     ConversationScope,
     Invoker,
+    PeerStartInput,
     Run,
     TriggerParent,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 import { CLOCK_KEY } from '../clock/context.ts';
 import { systemClock } from '../clock/index.ts';
 import type { IClock } from '../clock/index.ts';
@@ -28,7 +29,7 @@ import type { DispatchHost } from '../dispatch/types.ts';
 import { MODEL_CONTEXT } from '../model/constants.ts';
 import { checkDefaultModel, resolveModelRef, resolveTranscriptionModelRef } from '../model/module.ts';
 import type { IModelResolver, ModelRef, TranscriptionModelRef } from '../model/types.ts';
-import type { IPeerResolver, PeerStartInput } from '../peer/types.ts';
+import type { IPeerResolver } from '../peer/types.ts';
 import { EngineSkills } from './skills/module.ts';
 import type { IEngineSkills } from './skills/types.ts';
 import type { IArtifactService } from '../artifact/types.ts';

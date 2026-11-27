@@ -9,7 +9,7 @@ npm install @chamvi/app @chamvi/store-db @ebec/http @rapiq/core typeorm pg
 npm install --save-dev better-sqlite3   # SQLite without DATABASE_URL: development and tests
 ```
 
-`@chamvi/app` re-exports the port and the storage errors of `@chamvi/store`; `@chamvi/store-db` (a dependency of `@chamvi/app`, listed for its imports) holds the adapter base and the column transformer, `@ebec/http` the HTTP errors a service throws. Entities use decorators: set `"experimentalDecorators": true` in the app's `tsconfig.json`. An entity that leaves a column's type to TypeScript (a property typed `Date` with no `type`) also needs `"emitDecoratorMetadata": true` and `import 'reflect-metadata';` as the first import of the entry (install `reflect-metadata`); the entities below give every type and need neither.
+`@chamvi/app` re-exports the port of `@chamvi/store` and the storage errors of `@chamvi/errors`; `@chamvi/store-db` (a dependency of `@chamvi/app`, listed for its imports) holds the adapter base and the column transformer, `@ebec/http` the HTTP errors a service throws. Entities use decorators: set `"experimentalDecorators": true` in the app's `tsconfig.json`. An entity that leaves a column's type to TypeScript (a property typed `Date` with no `type`) also needs `"emitDecoratorMetadata": true` and `import 'reflect-metadata';` as the first import of the entry (install `reflect-metadata`); the entities below give every type and need neither.
 
 ## Declare a database
 

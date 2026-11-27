@@ -14,7 +14,7 @@ import {
     PrimaryGeneratedColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
-import type { Step } from '@chamvi/store';
+import type { Step } from '@chamvi/core-kit';
 import { OPTIONAL_JSON_TRANSFORMER, TableName } from './constants.ts';
 import { RunEntity } from './run.ts';
 

@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError, EntityRelationError } from '@chamvi/errors';
 import { defineQuery } from '@rapiq/core';
 import {
     beforeEach,
@@ -12,15 +13,13 @@ import {
     expect,
     it,
 } from 'vitest';
-import { EntityConflictError, EntityRelationError } from '@chamvi/store';
+import type { IConnectionRepository, ILockRepository } from '@chamvi/store';
 import type {
     ConnectionEntryRecord,
     ConnectionRecord,
     ConnectionSecretRecord,
-    IConnectionRepository,
-    ILockRepository,
     Lock,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';
 import type { ConnectionRepositoryContractInput } from './types.ts';
 

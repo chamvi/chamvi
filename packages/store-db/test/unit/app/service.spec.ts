@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError, EntityQueryError } from '@chamvi/errors';
 import { randomUUID } from 'node:crypto';
 import {
     defineQuery,
@@ -22,7 +23,6 @@ import {
     expect,
     it,
 } from 'vitest';
-import { EntityConflictError, EntityQueryError } from '@chamvi/store';
 import { MemoryRegistry } from '@chamvi/store-memory';
 import { createTestDataSource } from '@chamvi/test-kit';
 import { postgres } from '../../utils/database.ts';

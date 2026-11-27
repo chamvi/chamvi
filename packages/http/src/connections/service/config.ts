@@ -13,7 +13,14 @@ import { Container } from 'validup';
 import { forbidden, isGranted } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
 import { validateBody } from '../../request/helpers/index.ts';
-import type { UiPage } from '../../static/types.ts';
+import type {
+    ConnectionCreateBody,
+    ConnectionSaveBody,
+    ConnectionSettingsView,
+    ConnectionTestView,
+    ConnectionTypeView,
+    UiPage,
+} from '@chamvi/core-kit';
 import { NO_STORE_MESSAGE } from '../constants.ts';
 import {
     assertConnectionAccess,
@@ -40,16 +47,7 @@ import {
     testFailureMessage,
     toConfigUpdate,
 } from '../helpers/index.ts';
-import type {
-    ConfigTarget,
-    ConnectionConfigServiceContext,
-    ConnectionCreateBody,
-    ConnectionSaveBody,
-    ConnectionSettingsView,
-    ConnectionTestView,
-    ConnectionTypeView,
-    IConnectionConfigService,
-} from '../types.ts';
+import type { ConfigTarget, ConnectionConfigServiceContext, IConnectionConfigService } from '../types.ts';
 
 /** The configuration API over the connection types, the config store and the stored rows. */
 export class ConnectionConfigService implements IConnectionConfigService {

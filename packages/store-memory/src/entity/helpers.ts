@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityQueryError } from '@chamvi/errors';
 import {
     Filter,
     Filters,
@@ -13,7 +14,6 @@ import {
 } from '@rapiq/core';
 import type { ICondition, IFilter, IFilters } from '@rapiq/core';
 import { isEqual } from 'smob';
-import { EntityQueryError } from '@chamvi/store';
 import type { EntityRecord, IEntityRepository } from '@chamvi/store';
 
 function isPlain(value: unknown): value is string | number | boolean | bigint {
@@ -236,7 +236,7 @@ export function assertWhere(entity: string, where: EntityRecord, remove = false)
     const values = Object.values(where);
 
     if (values.includes(undefined) || (remove && values.length === 0)) {
-        throw new EntityQueryError(entity);
+        throw new EntityQueryError({ entity });
     }
 }
 
@@ -259,7 +259,7 @@ function toInstantFilter(filter: IFilter, entity: string): ICondition {
         const date = item instanceof Date || typeof item === 'string' || typeof item === 'number' ? new Date(item) : undefined;
 
         if (!date || Number.isNaN(date.getTime())) {
-            throw new EntityQueryError(entity);
+            throw new EntityQueryError({ entity });
         }
 
         return date;

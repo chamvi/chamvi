@@ -11,6 +11,7 @@ export default defineConfig({
             { find: /^@chamvi\/access$/, replacement: source('access') },
             { find: /^@chamvi\/errors$/, replacement: source('errors') },
             { find: /^@chamvi\/core$/, replacement: source('core') },
+            { find: /^@chamvi\/core-kit$/, replacement: source('core-kit') },
             { find: /^@chamvi\/http$/, replacement: source('http') },
             { find: /^@chamvi\/store$/, replacement: source('store') },
             { find: /^@chamvi\/store-memory$/, replacement: source('store-memory') },

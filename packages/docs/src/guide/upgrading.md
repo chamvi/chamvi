@@ -4,15 +4,31 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 
 ## Upgrading to 0.13
 
+### Records move to `@chamvi/core-kit`
+
+The domain records, enums, constants, helpers and wire views are in the new browser-safe `@chamvi/core-kit`; `@chamvi/app` re-exports it. `@chamvi/store` keeps only the repository ports, so every record, enum, constant and helper it exported (`Run`, `Step`, `RunStatus`, `STEP_STORED_ORDER`, `normalizeEnvelope`, ...) is imported from `@chamvi/core-kit` (or `@chamvi/app`). Install core-kit next to core when you do not use `@chamvi/app`. These exports are also removed from their old package:
+
+- `@chamvi/core`: `Budget`, `ArtifactInput`, `ConnectionStatus`, `ConnectionWidget`, `ConnectionFieldKind`, `ConnectionFieldSource`, `ConnectionState`, `PeerStartInput`, `PeerRunView`.
+- `@chamvi/http`: `AgentSummary`, `AgentIssue`, `ScheduleSummary`, `ScheduleOverlap`, `MeView`, `ComponentView`, `AuthorizationCheckView`, `RunView`, `InvokerView`, `UiPage`, `ConnectionView`, `ConnectionDetailView`, `ConnectionTypeFieldView`, `ConnectionTypeView`, `ConnectionSettingsFieldView`, `ConnectionSettingsView`, `ConnectionTestView`, `ConnectionSecretValues`, `ConnectionSaveBody`, `ConnectionCreateBody`.
+
+| Before | After |
+|---|---|
+| `import type { Run, RunStatus } from '@chamvi/store'` | `import type { Run, RunStatus } from '@chamvi/core-kit'` (or `@chamvi/app`) |
+| `import type { RunView, Budget } from '@chamvi/http'` / `'@chamvi/core'` | `import type { RunView, Budget } from '@chamvi/core-kit'` (or `@chamvi/app`) |
+
 ### Errors move to `@chamvi/errors`
 
 `ChamviError`, `ErrorCode` and `ValidationError` are no longer exported by `@chamvi/core`. Import them from `@chamvi/errors`, or from `@chamvi/app`, which re-exports it. Core's engine errors (`AgentNotFoundError`, `BudgetExceededError`, ...) stay in `@chamvi/core` and now extend the new `ChamviError`. Error codes, response bodies and statuses are unchanged.
 
 `@chamvi/errors` is a new package: the packages that use it peer on it, so install it next to core when you do not use `@chamvi/app`. `@chamvi/http` and `@chamvi/github` throw its generic built-ins (`BadRequestError`, `ForbiddenError`, ...) instead of `@ebec/http` errors; the HTTP error handler still renders `@ebec/http` errors thrown by your own controllers. Errors thrown by `authorizeRequest`, `assertGranted`, `usePrincipal` and `decodeQuery` (re-exported by `@chamvi/app`) are `@chamvi/errors` built-ins: they no longer carry `status`/`statusCode` and fail `isHTTPError()`; use `httpStatusOf()` or the `is<Name>Error` guards.
 
+The six storage errors (`EntityNotFoundError`, ...) move from `@chamvi/store` to `@chamvi/errors` and extend `ChamviError`; `StoreErrorCode` is gone, its codes are in `ErrorCode` with unchanged values. Each takes a message or options naming the entity, no longer positional labels. Response bodies and statuses are unchanged.
+
 | Before | After |
 |---|---|
 | `import { ChamviError, ErrorCode, ValidationError } from '@chamvi/core'` | `import { ChamviError, ErrorCode, ValidationError } from '@chamvi/errors'` (or `@chamvi/app`) |
+| `import { EntityNotFoundError, StoreErrorCode } from '@chamvi/store'` | `import { EntityNotFoundError, ErrorCode } from '@chamvi/errors'` (or `@chamvi/app`) |
+| `new EntityNotFoundError('run')`, `new EntityRelationError('step', 'run')`, `new EntityInvalidError('run', 'save', 'status')` | `new EntityNotFoundError({ entity: 'run' })`, `new EntityRelationError({ entity: 'step', relation: 'run' })`, `new EntityInvalidError({ entity: 'run', operation: 'save', field: 'status' })` |
 
 ## Upgrading to 0.12
 

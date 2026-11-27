@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityQueryError, EntityRelationError } from '@chamvi/errors';
 import { defineQuery, eq } from '@rapiq/core';
 import {
     beforeEach,
@@ -12,12 +13,9 @@ import {
     expect,
     it,
 } from 'vitest';
-import { EntityQueryError, EntityRelationError, STEP_STORED_ORDER } from '@chamvi/store';
-import type {
-    IRunRepository,
-    IStepRepository,
-    Step,
-} from '@chamvi/store';
+import { STEP_STORED_ORDER } from '@chamvi/core-kit';
+import type { Step } from '@chamvi/core-kit';
+import type { IRunRepository, IStepRepository } from '@chamvi/store';
 import { makeRun, testUuid } from '../fixture/helpers.ts';
 import type { StepRepositoryContractInput } from './types.ts';
 

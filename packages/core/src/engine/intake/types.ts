@@ -5,11 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ConversationBinding, TriggerParent } from '@chamvi/store';
+import type { ConversationBinding, PeerStartInput, TriggerParent } from '@chamvi/core-kit';
 import type { Agent } from '../../agent/types.ts';
 import type { DispatchResult } from '../../channel/types.ts';
 import type { DispatchHost, PeerDispatchHost } from '../../dispatch/types.ts';
-import type { PeerStartInput } from '../../peer/types.ts';
 import type { EngineContext } from '../context/types.ts';
 import type { DispatchEngineContext } from '../dispatch/types.ts';
 import type { DispatchEnvelope } from '../types.ts';

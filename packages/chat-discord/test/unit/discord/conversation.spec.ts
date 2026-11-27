@@ -14,7 +14,7 @@ import {
 } from 'vitest';
 import { InvalidAgentDefinitionError, defineModelAgent, defineTool } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
-import type { Run } from '@chamvi/store';
+import type { Run } from '@chamvi/core-kit';
 import { cron, cronChannel, fireCronSubscription } from '@chamvi/channel-cron';
 import { DISCORD_API_URL } from '@chamvi/chat-discord';
 import { mockModel } from '@chamvi/test-kit';

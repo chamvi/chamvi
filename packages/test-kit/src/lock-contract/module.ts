@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError } from '@chamvi/errors';
 import {
     beforeEach,
     describe,
@@ -12,8 +13,8 @@ import {
     it,
 } from 'vitest';
 import { LockService } from '@chamvi/core';
-import { EntityConflictError } from '@chamvi/store';
-import type { ILockRepository, Lock } from '@chamvi/store';
+import type { ILockRepository } from '@chamvi/store';
+import type { Lock } from '@chamvi/core-kit';
 import { ControllableClock } from '../clock/index.ts';
 import { testUuid } from '../fixture/helpers.ts';
 import type { LockRepositoryContractInput } from './types.ts';
@@ -228,9 +229,9 @@ export function describeLockRepositoryContract(input: LockRepositoryContractInpu
 
                 expect(second).toBeGreaterThan(first);
                 expect(await locks.findOneBy({ key: 'k' })).toMatchObject({
-                    id, 
-                    owner: 'b', 
-                    token: second, 
+                    id,
+                    owner: 'b',
+                    token: second,
                 });
             });
 

@@ -5,10 +5,18 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from '@chamvi/errors';
+import {
+    ChamviError,
+    isEntityConflictError,
+    isEntityDeadlockError,
+    isEntityInvalidError,
+    isEntityNotFoundError,
+    isEntityQueryError,
+    isEntityRelationError,
+} from '@chamvi/errors';
 import { DecryptionFailedError, InvalidAgentDefinitionError, resolveConnection } from '@chamvi/core';
 import type { ConnectionValues, ResolveConnectionInput, ResolvedConnection } from '@chamvi/core';
-import type { AgentIssue } from '@chamvi/http';
+import type { AgentIssue } from '@chamvi/core-kit';
 import type { IContainer } from 'eldin';
 import { isKeyringUnsetError } from '../../keyring/helpers.ts';
 import { AppToken } from '../constants.ts';
@@ -18,6 +26,16 @@ import type {
     StoredConnectionFailure,
 } from '../types.ts';
 import { isSchemaBehindError } from './schema.ts';
+
+/** A storage error names an entity, an operation or a column: read as a driver failure. */
+function isStorageError(error: unknown): boolean {
+    return isEntityNotFoundError(error) ||
+        isEntityConflictError(error) ||
+        isEntityRelationError(error) ||
+        isEntityInvalidError(error) ||
+        isEntityQueryError(error) ||
+        isEntityDeadlockError(error);
+}
 
 /** The `start --check` issues of the connections a module lists as incomplete or failed; field names and reasons only, never a value. */
 export function connectionIssuesOf(container: IContainer): AgentIssue[] {
@@ -79,7 +97,7 @@ async function readStoredConnection(
 
             if (!isUnreadableConnectionError(error)) {
                 // our messages name variables, key ids and connections; a driver's may quote anything
-                const reason = error instanceof ChamviError ? error.message : 'the read failed';
+                const reason = error instanceof ChamviError && !isStorageError(error) ? error.message : 'the read failed';
 
                 throw new InvalidAgentDefinitionError(`The connection "${name}" cannot be read: ${reason}`);
             }

@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Run, Usage } from '@chamvi/store';
+import type { Run, Usage } from '@chamvi/core-kit';
 import type { Agent } from '../../agent/types.ts';
 import type { IArtifactService } from '../../artifact/types.ts';
 import type { IChannel } from '../../channel/types.ts';

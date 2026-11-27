@@ -5,15 +5,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ConnectionStatus, ConnectionWidget } from '@chamvi/core';
 import type {
     ConnectionCreateBody,
     ConnectionDetailView,
     ConnectionSaveBody,
     ConnectionSettingsView,
+    ConnectionStatus,
     ConnectionTestView,
     ConnectionView,
-} from '@chamvi/http';
+    ConnectionWidget,
+} from '@chamvi/core-kit';
 import type { ApiError } from '../../error/module.ts';
 import type { APIRequestOptions } from '../types.ts';
 

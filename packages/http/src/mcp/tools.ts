@@ -6,9 +6,9 @@
  */
 
 import { APPROVAL_OPTIONS_MAX, InvalidAgentDefinitionError } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { RunStatusLiteral } from '@chamvi/core-kit';
 import type { Agent } from '@chamvi/core';
-import type { RunStatusLiteral } from '@chamvi/store';
 import { fromJsonSchema } from '@modelcontextprotocol/server';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { StandardSchemaV1 } from '@standard-schema/spec';

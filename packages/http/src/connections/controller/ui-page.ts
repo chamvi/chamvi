@@ -15,7 +15,7 @@ import {
 import type { IAppEvent } from 'routup';
 import { usePrincipal } from '../../auth/helpers/index.ts';
 import { ForceLoggedInMiddleware } from '../../middleware/index.ts';
-import type { UiPage } from '../../static/types.ts';
+import type { UiPage } from '@chamvi/core-kit';
 import type { ConnectionConfigControllerContext, IConnectionConfigService } from '../types.ts';
 
 @DTags('ui-page')

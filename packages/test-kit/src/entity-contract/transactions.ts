@@ -5,9 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityDeadlockError } from '@chamvi/errors';
 import { defineQuery } from '@rapiq/core';
 import { expect, it } from 'vitest';
-import { EntityDeadlockError } from '@chamvi/store';
 import type { EntityContractRepositories, EntityRepositoryContractInput } from './types.ts';
 import {
     insertParent,

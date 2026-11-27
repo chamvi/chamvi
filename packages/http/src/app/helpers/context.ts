@@ -22,7 +22,7 @@ import { mergeOpenApiDocuments } from '../../openapi/merge.ts';
 import { validateChannelRateLimits } from '../../plugins/channels.ts';
 import { readMetricsPath } from '../../plugins/helpers.ts';
 import { isAtOrUnder } from '../../routes/helpers.ts';
-import type { AgentIssue } from '../../agents/types.ts';
+import type { AgentIssue } from '@chamvi/core-kit';
 import type { HttpAppOptions, HttpContext, HttpRoute } from '../types.ts';
 import { createLiveAgents, selectAgents } from './agents.ts';
 

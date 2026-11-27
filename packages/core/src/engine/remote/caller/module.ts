@@ -7,9 +7,13 @@
 
 import { ValidationError } from '@chamvi/errors';
 import { randomUUID } from 'node:crypto';
-import { RunStatus } from '@chamvi/store';
-import type { Invoker, RemoteWaitPoint, Run } from '@chamvi/store';
-import type { PeerRunView } from '../../../peer/types.ts';
+import { RunStatus } from '@chamvi/core-kit';
+import type {
+    Invoker,
+    PeerRunView,
+    RemoteWaitPoint,
+    Run,
+} from '@chamvi/core-kit';
 import { toRunError } from '../../execute/helpers/index.ts';
 import type { WakeOutcome } from '../../types.ts';
 import { REMOTE_NO_USAGE } from '../constants.ts';

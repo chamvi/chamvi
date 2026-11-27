@@ -11,7 +11,7 @@ import type {
     Run,
     TriggerEnvelope,
     WaitPoint,
-} from '@chamvi/store';
+} from '@chamvi/core-kit';
 import type { RunEntity } from '../../entities/index.ts';
 
 /**

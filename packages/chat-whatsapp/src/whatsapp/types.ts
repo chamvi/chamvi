@@ -14,7 +14,7 @@ import type {
     WAMessage,
 } from 'baileys';
 import type { ClockTimer, ConversationRef, IClock } from '@chamvi/core';
-import type { Invoker } from '@chamvi/store';
+import type { Invoker } from '@chamvi/core-kit';
 import type {
     Adapter,
     Chat,

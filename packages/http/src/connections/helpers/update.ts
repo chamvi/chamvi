@@ -10,11 +10,11 @@ import type {
     ConnectionConfigUpdate,
     ConnectionConfigView,
     ConnectionField,
-    ConnectionFieldSource,
     ConnectionTypeDefinition,
     ConnectionValue,
     ConnectionValues,
 } from '@chamvi/core';
+import type { ConnectionFieldSource } from '@chamvi/core-kit';
 import { IssueCode, defineIssueItem } from '@ebec/core';
 import type { Issue } from '@ebec/core';
 import { ConflictError } from '@chamvi/errors';

@@ -6,7 +6,7 @@
  */
 
 import { ValidationError } from '@chamvi/errors';
-import type { TriggerSource } from '@chamvi/store';
+import type { TriggerSource } from '@chamvi/core-kit';
 import { isObject } from 'smob';
 import { assertDispatchKey } from './keys.ts';
 

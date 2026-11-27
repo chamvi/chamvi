@@ -6,7 +6,7 @@
  */
 
 import type { RunContext } from '../run/types.ts';
-import type { ConversationBinding, Run } from '@chamvi/store';
+import type { ConversationBinding, Run } from '@chamvi/core-kit';
 import { ConversationOperation } from './constants.ts';
 import type { IConversations } from './types.ts';
 

@@ -14,8 +14,8 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import type { IEngine } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
-import type { Run } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Run } from '@chamvi/core-kit';
 import { readRemoteOutcome, remoteOutcomeOf } from '../../../src/engine/remote/helpers/index.ts';
 import { peerRunView } from '../../utils/peers.ts';
 import type { RemoteOutcome } from '../../../src/engine/remote/types.ts';

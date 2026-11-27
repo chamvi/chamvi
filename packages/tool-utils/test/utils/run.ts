@@ -21,7 +21,7 @@ import {
     systemClock,
 } from '@chamvi/core';
 import type { DispatchEnvelope } from '@chamvi/core';
-import type { DispatchParent, TriggerParent } from '@chamvi/store';
+import type { DispatchParent, TriggerParent } from '@chamvi/core-kit';
 import {
     MemoryAgentRevisionRepository,
     MemoryArtifactRepository,

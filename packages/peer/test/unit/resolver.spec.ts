@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import type { Invoker } from '@chamvi/store';
+import type { Invoker } from '@chamvi/core-kit';
 import { ControllableClock } from '@chamvi/test-kit';
 import { PEER_POLL_DEFAULT_MS, createPeerResolver } from '@chamvi/peer';
 import type { PeerOptions } from '@chamvi/peer';
@@ -45,25 +45,25 @@ describe('createPeerResolver: options', () => {
         ['an unparsable url', { dev: { url: 'not a url', outgoing: { token: SECRET } } }],
         ['a pollMs below 1 000', {
             dev: {
-                url: 'https://dev.example', 
-                outgoing: { token: SECRET }, 
-                pollMs: 999, 
-            }, 
+                url: 'https://dev.example',
+                outgoing: { token: SECRET },
+                pollMs: 999,
+            },
         }],
         ['a fractional pollMs', {
             dev: {
-                url: 'https://dev.example', 
-                outgoing: { token: SECRET }, 
-                pollMs: 1500.5, 
-            }, 
+                url: 'https://dev.example',
+                outgoing: { token: SECRET },
+                pollMs: 1500.5,
+            },
         }],
         ['an empty outgoing token', { dev: { url: 'https://dev.example', outgoing: { token: '' } } }],
         ['an empty incoming token', {
             dev: {
-                url: 'https://dev.example', 
-                outgoing: { token: SECRET }, 
-                incoming: { token: '' }, 
-            }, 
+                url: 'https://dev.example',
+                outgoing: { token: SECRET },
+                incoming: { token: '' },
+            },
         }],
         ['an empty incoming authup client', { dev: { url: 'https://dev.example', incoming: { authupClient: '' } } }],
         ['an unknown outgoing shape', { dev: { url: 'https://dev.example', outgoing: { password: SECRET } } }],
@@ -74,10 +74,10 @@ describe('createPeerResolver: options', () => {
                     authup: {
                         url: 'https://auth.example',
                         clientId: 'c1',
-                        clientSecret: '', 
-                    }, 
-                }, 
-            }, 
+                        clientSecret: '',
+                    },
+                },
+            },
         }],
         ['an authup outgoing on a non-http url', {
             dev: {
@@ -86,24 +86,24 @@ describe('createPeerResolver: options', () => {
                     authup: {
                         url: 'file:///x',
                         clientId: 'c1',
-                        clientSecret: SECRET, 
-                    }, 
-                }, 
-            }, 
+                        clientSecret: SECRET,
+                    },
+                },
+            },
         }],
         ['an approvals destination without an address', {
             dev: {
                 url: 'https://dev.example',
                 outgoing: { token: SECRET },
-                approvals: { channel: 'chat', address: '' }, 
-            }, 
+                approvals: { channel: 'chat', address: '' },
+            },
         }],
         ['a non-boolean untrusted', {
             dev: {
                 url: 'https://dev.example',
                 outgoing: { token: SECRET },
-                untrusted: 'yes', 
-            }, 
+                untrusted: 'yes',
+            },
         }],
         ['an outgoing with both shapes', {
             dev: {
@@ -240,14 +240,14 @@ describe('createPeerResolver: recognize', () => {
         ['another token', invoker({ kind: 'token', id: 'peer-other' })],
         ['the token id under another kind', invoker({ kind: 'oidc', id: 'peer-dev' })],
         ['a user with the client id', invoker({
-            kind: 'authup', 
-            id: 'c1', 
-            identity: { type: 'user', id: 'c1' }, 
+            kind: 'authup',
+            id: 'c1',
+            identity: { type: 'user', id: 'c1' },
         })],
         ['another client', invoker({
-            kind: 'authup', 
-            id: 'c2', 
-            identity: { type: 'client', id: 'c2' }, 
+            kind: 'authup',
+            id: 'c2',
+            identity: { type: 'client', id: 'c2' },
         })],
         ['the client id as a token', invoker({ kind: 'token', id: 'c1' })],
         ['the client identity from another issuer', invoker({

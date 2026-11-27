@@ -14,7 +14,7 @@ import {
     CONNECTION_TYPE_MAX_LENGTH,
 } from './constants.ts';
 import type { ConnectionConfigWrite, ConnectionEntryWrite, ConnectionValue } from './types.ts';
-import type { ConnectionInput } from '@chamvi/store';
+import type { ConnectionInput } from '@chamvi/core-kit';
 
 /**
  * Text every driver stores as given: well-formed UTF-16 (a lone surrogate

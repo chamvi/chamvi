@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ConnectionSettingsFieldView } from '@chamvi/http';
+import type { ConnectionSettingsFieldView } from '@chamvi/core-kit';
 import type { ConnectionStreamOptions, ConnectionTypeWire } from '@chamvi/http-kit';
 
 /** The chip a status renders as: its words and one of the dashboard's status tones. */
@@ -27,10 +27,10 @@ export type ConnectionFormValues = Record<string, string>;
 
 /** The open in-page confirmation of the form, at most one. */
 export type ConnectionFormConfirmation = { kind: 'delete' } | {
-    kind: 'clear'; 
-    key: string; 
-    label: string; 
-    stopsNextStart: boolean 
+    kind: 'clear';
+    key: string;
+    label: string;
+    stopsNextStart: boolean
 };
 
 export type UseConnectionFormOptions = {

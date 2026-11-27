@@ -5,9 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityQueryError } from '@chamvi/errors';
 import type { DataSource, DeepPartial, EntityManager } from 'typeorm';
-import { EntityQueryError } from '@chamvi/store';
-import type { IStepRepository, Step } from '@chamvi/store';
+import type { IStepRepository } from '@chamvi/store';
+import type { Step } from '@chamvi/core-kit';
 import { RunEntity, StepEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 
@@ -74,11 +75,11 @@ export class DatabaseStepRepository extends EntityRepositoryAdapter<Step, StepEn
 
     /** Steps are append-only (their identity `id` is no key a caller holds): refused with EntityQueryError. */
     override async upsert(): Promise<Step> {
-        throw new EntityQueryError(this.options.entity);
+        throw new EntityQueryError({ entity: this.options.entity });
     }
 
     /** Steps are append-only: refused with EntityQueryError. */
     override async upsertMany(): Promise<Step[]> {
-        throw new EntityQueryError(this.options.entity);
+        throw new EntityQueryError({ entity: this.options.entity });
     }
 }

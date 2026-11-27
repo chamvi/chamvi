@@ -6,9 +6,8 @@
  */
 
 import { RunNotFoundError, findApprovalWaitBelow, pendingApprovalOf } from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
-import type { PeerRunView } from '@chamvi/core';
-import type { Invoker, Run } from '@chamvi/store';
+import { RunStatus } from '@chamvi/core-kit';
+import type { Invoker, PeerRunView, Run } from '@chamvi/core-kit';
 import { isObject } from 'smob';
 import type { HttpContext } from '../../app/types.ts';
 

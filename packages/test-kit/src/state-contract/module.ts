@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError } from '@chamvi/errors';
 import { defineQuery, eq } from '@rapiq/core';
 import {
     beforeEach,
@@ -12,13 +13,8 @@ import {
     expect,
     it,
 } from 'vitest';
-import { EntityConflictError } from '@chamvi/store';
-import type {
-    IStateDocumentRepository,
-    IStateRepository,
-    StateDocument,
-    StateEntry,
-} from '@chamvi/store';
+import type { IStateDocumentRepository, IStateRepository } from '@chamvi/store';
+import type { StateDocument, StateEntry } from '@chamvi/core-kit';
 import { testUuid } from '../fixture/helpers.ts';
 import type { StateRepositoryContractInput } from './types.ts';
 

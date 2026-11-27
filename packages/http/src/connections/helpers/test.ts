@@ -7,6 +7,7 @@
 
 import { ChamviError, ErrorCode } from '@chamvi/errors';
 import type { ClockTimer, ConnectionTypeDefinition, ConnectionValues } from '@chamvi/core';
+import { isStorageError } from '../../app/helpers/errors.ts';
 import { TEST_MESSAGE_MAX_LENGTH, TEST_TIMEOUT_MS } from '../constants.ts';
 import type { ConnectionHttpServiceContext } from '../types.ts';
 
@@ -39,9 +40,9 @@ export async function runTest(
     }
 }
 
-/** Every failure's message is shown to an operator: only ours, with the saved secrets removed. */
+/** Every failure's message is shown to an operator: only ours (no storage error), with the saved secrets removed. */
 export function testFailureMessage(error: unknown, secrets: readonly string[]): string {
-    if (!(error instanceof ChamviError)) {
+    if (!(error instanceof ChamviError) || isStorageError(error)) {
         return 'The connection test failed.';
     }
 

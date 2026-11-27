@@ -10,7 +10,7 @@ import type { IEngine } from '../engine/types.ts';
 import { stableHash } from '../effect/helpers.ts';
 import { InvalidRunStateError, ToolDeniedError } from '../errors/index.ts';
 import type { RunContext } from '../run/types.ts';
-import type { RunTaint } from '@chamvi/store';
+import type { RunTaint } from '@chamvi/core-kit';
 import type { AgentTrust, ToolContext } from '../tool/types.ts';
 import type { RunSource } from './types.ts';
 

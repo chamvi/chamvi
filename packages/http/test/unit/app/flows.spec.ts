@@ -23,7 +23,7 @@ import {
     staticTokens,
     webhook,
 } from '@chamvi/http';
-import type { Run, Step } from '@chamvi/store';
+import type { Run, Step } from '@chamvi/core-kit';
 import {
     ADMIN_TOKEN,
     READER_TOKEN,
@@ -55,9 +55,9 @@ const authupVerifier: ITokenVerifier = {
             realm_id: AUTHUP_REALM,
             scope: 'global',
             permissions: [{
-                name: Permission.AGENT_APPROVE, 
-                realm_scope: 'own', 
-                policies: ['gate'], 
+                name: Permission.AGENT_APPROVE,
+                realm_scope: 'own',
+                policies: ['gate'],
             }],
         };
     },

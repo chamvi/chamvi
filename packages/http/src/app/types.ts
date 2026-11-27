@@ -19,12 +19,11 @@ import type { Options as CorsPluginOptions } from '@routup/cors';
 import type { Options as PrometheusPluginOptions } from '@routup/prometheus';
 import type { Options as RateLimitPluginOptions } from '@routup/rate-limit';
 import type { AppOptionsInput } from 'routup';
-import type { AgentIssue } from '../agents/types.ts';
+import type { AgentIssue, UiPage } from '@chamvi/core-kit';
 import type { Authenticator, Principal } from '../auth/types.ts';
 import type { HttpComponent } from '../components/types.ts';
 import type { OpenApiOptions } from '../openapi/types.ts';
 import type { IShutdown } from '../shutdown/types.ts';
-import type { UiPage } from '../static/types.ts';
 
 // #region options
 export type CorsOptions = CorsPluginOptions;

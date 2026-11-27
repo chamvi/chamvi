@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { EntityConflictError, EntityNotFoundError, EntityQueryError } from '@chamvi/errors';
 import type { IQuery } from '@rapiq/core';
 import { In } from 'typeorm';
 import type {
@@ -12,11 +13,6 @@ import type {
     ObjectLiteral,
     SelectQueryBuilder,
 } from 'typeorm';
-import {
-    EntityConflictError,
-    EntityNotFoundError,
-    EntityQueryError,
-} from '@chamvi/store';
 import type {
     EntityFindManyResult,
     EntityRecord,
@@ -110,7 +106,7 @@ export abstract class EntityRepositoryAdapter<T extends EntityRecord, E extends 
     async findOneById(id: string): Promise<T | null> {
         // no key matches no row: never the first row of a where without a condition
         if (id === undefined || id === null) {
-            throw new EntityQueryError(this.options.entity);
+            throw new EntityQueryError({ entity: this.options.entity });
         }
 
         const [primary] = this.metadata.primaryColumns;
@@ -190,7 +186,7 @@ export abstract class EntityRepositoryAdapter<T extends EntityRecord, E extends 
         const key = this.keyOf(values);
 
         if (!key) {
-            throw new EntityNotFoundError(this.options.entity);
+            throw new EntityNotFoundError({ entity: this.options.entity });
         }
 
         const changed = changedColumns(this.metadata, values, this.marks.snapshots.get(entity));
@@ -207,7 +203,7 @@ export abstract class EntityRepositoryAdapter<T extends EntityRecord, E extends 
         }, 'save');
 
         if (!found) {
-            throw new EntityNotFoundError(this.options.entity);
+            throw new EntityNotFoundError({ entity: this.options.entity });
         }
 
         this.remember(entity, values);
@@ -271,7 +267,7 @@ export abstract class EntityRepositoryAdapter<T extends EntityRecord, E extends 
         const unconditional = parts.some((part) => Object.keys(part).length === 0);
 
         if (unconditional) {
-            throw new EntityQueryError(this.options.entity);
+            throw new EntityQueryError({ entity: this.options.entity });
         }
 
         if (this.mustQueue() || (!this.tx && parts.length > 1)) {
@@ -350,7 +346,7 @@ export abstract class EntityRepositoryAdapter<T extends EntityRecord, E extends 
             const found = await this.persist(() => this.repository.findOne({ where: findWhere }), 'checkUniqueness');
 
             if (found && (!own || !this.isKey(found, own))) {
-                throw new EntityConflictError(this.options.entity);
+                throw new EntityConflictError({ entity: this.options.entity });
             }
         }
     }
