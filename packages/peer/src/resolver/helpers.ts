@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { InvalidAgentDefinitionError, isAgentName } from '@chamvi/core';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { isAgentName } from '@chamvi/core-kit';
 import { isObject } from 'smob';
 import type { PeerOutgoing } from '../auth/types.ts';
 import { PEER_POLL_DEFAULT_MS, PEER_POLL_MIN_MS } from './constants.ts';

@@ -127,6 +127,15 @@ describe('public api', () => {
         expectTypeOf<app.Invoker>().toEqualTypeOf<kit.Invoker>();
     });
 
+    it('exports the domain rules of @chamvi/core-kit', () => {
+        expect(app.isAgentName).toBe(kit.isAgentName);
+        expect(app.isArtifactMediaType).toBe(kit.isArtifactMediaType);
+        expect(app.AGENT_NAME_MAX_LENGTH).toBe(64);
+        expect(app.TRIGGER_KEY_MAX_LENGTH).toBe(255);
+        expect(app.DISPATCH_DEPTH_MAX).toBe(kit.DISPATCH_DEPTH_MAX);
+        expect(app.APPROVAL_OPTIONS_MAX).toBe(kit.APPROVAL_OPTIONS_MAX);
+    });
+
     it.each(['createModelRegistry', 'installDefaultProvider', 'resolveModels'])('does not export %s', (name) => {
         expect(app).not.toHaveProperty(name);
     });

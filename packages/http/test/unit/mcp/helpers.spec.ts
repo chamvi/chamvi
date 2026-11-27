@@ -8,10 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import {
-    DISPATCH_DEPTH_MAX,
-    PeerStartBusyError,
-} from '@chamvi/core';
+import { PeerStartBusyError } from '@chamvi/core';
 import {
     EntityConflictError,
     EntityDeadlockError,
@@ -22,6 +19,7 @@ import {
     ServiceUnavailableError,
 } from '@chamvi/errors';
 import { BaseError } from '@ebec/core';
+import { DISPATCH_DEPTH_MAX } from '@chamvi/core-kit';
 import type { Run, WaitPoint } from '@chamvi/core-kit';
 import {
     findWaitingApproval,

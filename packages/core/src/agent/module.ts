@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from '@chamvi/core-kit';
 import type { ToolSet } from 'ai';
 import { assertConcurrencyMaxRuns } from '../channel/concurrency.ts';
 import type { ChannelSubscription } from '../channel/types.ts';
@@ -20,8 +21,6 @@ import type { StateSchema } from '../state/types.ts';
 import {
     DEFAULT_MAX_STEPS,
     DEFAULT_TIMEOUT_MS,
-    NAME_MAX_LENGTH,
-    NAME_PATTERN,
 } from './constants.ts';
 import {
     assertDescription,
@@ -33,7 +32,6 @@ import {
     assertSubtreeBudget,
     assertToolsContext,
     conversationKey,
-    isName,
 } from './asserts.ts';
 import type {
     ModelAgent,
@@ -91,23 +89,14 @@ export function defineRemoteAgent(def: RemoteAgentDefinition): RemoteAgent {
     };
 }
 
-/**
- * Whether `value` follows the agent-name rule: lowercase letters and digits
- * in words joined by single hyphens, at most `AGENT_NAME_MAX_LENGTH`
- * characters (agent, channel, role and peer names).
- */
-export function isAgentName(value: unknown): value is string {
-    return isName(value);
-}
-
 function assertName(name: unknown): void {
     if (
         typeof name !== 'string' ||
-        name.length > NAME_MAX_LENGTH ||
-        !NAME_PATTERN.test(name)
+        name.length > AGENT_NAME_MAX_LENGTH ||
+        !AGENT_NAME_PATTERN.test(name)
     ) {
         throw new InvalidAgentDefinitionError(
-            `Invalid agent name "${String(name)}": must match ${NAME_PATTERN} and be at most ${NAME_MAX_LENGTH} characters.`,
+            `Invalid agent name "${String(name)}": must match ${AGENT_NAME_PATTERN} and be at most ${AGENT_NAME_MAX_LENGTH} characters.`,
         );
     }
 }

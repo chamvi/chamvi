@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { AGENT_NAME_MAX_LENGTH, isAgentName, isArtifactMediaType } from '@chamvi/core';
+import { AGENT_NAME_MAX_LENGTH, isAgentName, isArtifactMediaType } from '@chamvi/core-kit';
 import { IssueCode, prefixIssuePath } from '@ebec/core';
 import type { Issue } from '@ebec/core';
 import {

@@ -8,7 +8,7 @@
 import { ValidationError } from '@chamvi/errors';
 import type { ToolSet } from 'ai';
 import { isObject } from 'smob';
-import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
+import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from '@chamvi/core-kit';
 import { APPROVAL_TIMEOUT_MAX_MS } from '../approval/constants.ts';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { LIMIT_KEY_MAX_LENGTH, LIMIT_WEIGHT_MAX } from './constants.ts';
@@ -73,9 +73,9 @@ export function assertToolLimit(limit: unknown, name?: string): asserts limit is
         throw new InvalidAgentDefinitionError(`The limit onExceed of ${label} must be "approve" or "deny".`);
     }
 
-    if (bucket !== undefined && (typeof bucket !== 'string' || bucket.length > NAME_MAX_LENGTH || !NAME_PATTERN.test(bucket))) {
+    if (bucket !== undefined && (typeof bucket !== 'string' || bucket.length > AGENT_NAME_MAX_LENGTH || !AGENT_NAME_PATTERN.test(bucket))) {
         throw new InvalidAgentDefinitionError(
-            `The limit bucket of ${label} must match ${NAME_PATTERN} and be at most ${NAME_MAX_LENGTH} characters.`,
+            `The limit bucket of ${label} must match ${AGENT_NAME_PATTERN} and be at most ${AGENT_NAME_MAX_LENGTH} characters.`,
         );
     }
 }

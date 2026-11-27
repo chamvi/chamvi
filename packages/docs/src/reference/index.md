@@ -163,7 +163,7 @@ There is no store aggregate: `RunService`, `StepService`, `CheckpointService`, `
 
 <<< ../../../core/src/artifact/types.ts{ts}
 
-`isArtifactMediaType(value: unknown): value is string` is the media type rule `dispatch` and `artifacts.put()` apply: `type/subtype` (RFC 6838 restricted names) without parameters. An intake layer can check attachments with it before dispatching (`@chamvi/http` does).
+`isArtifactMediaType(value: unknown): value is string` (`@chamvi/core-kit`) is the media type rule `dispatch` and `artifacts.put()` apply: `type/subtype` (RFC 6838 restricted names) without parameters. An intake layer can check attachments with it before dispatching (`@chamvi/http` does).
 
 `artifactFilePart(artifact)` is the file item a tool's `toModelOutput` returns to show an artifact of the run to the model (an image it stored with `artifacts.put()`): its data is the artifact's marker, so the tool step and the checkpoints keep the id while the engine hands the model the bytes before each model call.
 
@@ -251,7 +251,7 @@ function approve(ctx: ToolContext, request: ApprovalRequestInput): Promise<Appro
 
 const DEFAULT_APPROVAL_TIMEOUT_MS: 86_400_000; // 24 hours
 const APPROVAL_TIMEOUT_MAX_MS: 2_147_483_647;
-const APPROVAL_OPTIONS_MAX: 20;
+const APPROVAL_OPTIONS_MAX: 20; // @chamvi/core-kit
 const APPROVAL_OPTION_ID_PATTERN: RegExp; // /^[A-Za-z0-9@][\w.:/@+-]{0,127}$/
 const APPROVAL_OPTION_LABEL_MAX_LENGTH: 200;
 const APPROVAL_OPTION_DETAIL_MAX_LENGTH: 20_000;
@@ -279,7 +279,7 @@ function dispatchTools(options: DispatchToolsOptions): ToolSet; // dispatch_<rol
 
 const DEFAULT_DISPATCH_ROLE: 'default';
 const DEFAULT_DISPATCH_MAX_DEPTH: 1;
-const DISPATCH_DEPTH_MAX: 8;
+const DISPATCH_DEPTH_MAX: 8; // @chamvi/core-kit
 const DEFAULT_MAX_DISPATCHES_PER_RUN: 100;
 const DEFAULT_DISPATCH_WAIT_TIMEOUT_MS: 86_400_000; // 24 hours
 ```

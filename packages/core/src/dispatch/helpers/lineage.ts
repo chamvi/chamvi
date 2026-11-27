@@ -6,7 +6,7 @@
  */
 
 import type { Run } from '@chamvi/core-kit';
-import { DISPATCH_DEPTH_MAX } from '../constants.ts';
+import { DISPATCH_DEPTH_MAX } from '@chamvi/core-kit';
 import type { DispatchHost } from '../types.ts';
 
 /**

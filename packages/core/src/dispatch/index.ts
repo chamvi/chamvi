@@ -10,7 +10,6 @@ export {
     DEFAULT_DISPATCH_ROLE,
     DEFAULT_DISPATCH_WAIT_TIMEOUT_MS,
     DEFAULT_MAX_DISPATCHES_PER_RUN,
-    DISPATCH_DEPTH_MAX,
 } from './constants.ts';
 export * from './descendants.ts';
 export { rebaseJsonSchemaRefs } from './schema.ts';

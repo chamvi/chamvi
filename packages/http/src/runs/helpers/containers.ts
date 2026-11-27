@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { APPROVAL_OPTIONS_MAX, DISPATCH_DEPTH_MAX, PEER_ORIGIN_MAX_LENGTH } from '@chamvi/core';
+import { APPROVAL_OPTIONS_MAX, DISPATCH_DEPTH_MAX, PEER_ORIGIN_MAX_LENGTH } from '@chamvi/core-kit';
 import type { ArtifactInput } from '@chamvi/core-kit';
 import { Container } from 'validup';
 import {

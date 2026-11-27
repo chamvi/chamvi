@@ -6,7 +6,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { TRIGGER_KEY_MAX_LENGTH } from '../../../trigger/constants.ts';
+import { TRIGGER_KEY_MAX_LENGTH } from '@chamvi/core-kit';
 
 /**
  * The idempotency key a peer's start claims: `peer:<key>`, or

@@ -17,9 +17,9 @@ import {
 import {
     Engine,
     InvalidAgentDefinitionError,
-    TRIGGER_KEY_MAX_LENGTH,
     defineModelAgent,
 } from '@chamvi/core';
+import { TRIGGER_KEY_MAX_LENGTH } from '@chamvi/core-kit';
 import type {
     ChannelContext,
     ChannelSubscription,

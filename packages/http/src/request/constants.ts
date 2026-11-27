@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { TRIGGER_KEY_MAX_LENGTH } from '@chamvi/core';
+import { TRIGGER_KEY_MAX_LENGTH } from '@chamvi/core-kit';
 
 /**
  * Bounds of an `idempotencyKey`, an `address`, an `Idempotency-Key` header and

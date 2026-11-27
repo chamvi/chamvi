@@ -7,12 +7,12 @@
 
 import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
+import { APPROVAL_OPTIONS_MAX } from '@chamvi/core-kit';
 import type { ApprovalOption, ApprovalWaitPoint, Invoker } from '@chamvi/core-kit';
 import {
     APPROVAL_ARTIFACTS_MAX,
     APPROVAL_ARTIFACTS_PER_OPTION_MAX,
     APPROVAL_OPTIONS_DETAIL_MAX_LENGTH,
-    APPROVAL_OPTIONS_MAX,
     APPROVAL_OPTION_DETAIL_MAX_LENGTH,
     APPROVAL_OPTION_ID_PATTERN,
     APPROVAL_OPTION_LABEL_MAX_LENGTH,

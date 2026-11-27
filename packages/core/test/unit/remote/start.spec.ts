@@ -14,15 +14,14 @@ import {
 } from 'vitest';
 import {
     InvalidAgentDefinitionError,
-    PEER_ORIGIN_MAX_LENGTH,
     PEER_REQUEST_TIMEOUT_MS,
     agent,
     defineRemoteAgent,
     defineSimpleAgent,
     dispatchTo,
 } from '@chamvi/core';
+import { PEER_ORIGIN_MAX_LENGTH, RunStatus } from '@chamvi/core-kit';
 import type { IEngine, RemoteAgent } from '@chamvi/core';
-import { RunStatus } from '@chamvi/core-kit';
 import { IDEMPOTENCY_TTL_MS } from '../../../src/engine/constants.ts';
 import { rejectWith } from '../../utils/peers.ts';
 import {

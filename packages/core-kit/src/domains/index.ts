@@ -15,6 +15,7 @@ export * from './checkpoint/index.ts';
 export * from './component/index.ts';
 export * from './connection/index.ts';
 export * from './conversation/index.ts';
+export * from './dispatch/index.ts';
 export * from './effect/index.ts';
 export * from './idempotency/index.ts';
 export * from './limit/index.ts';

@@ -9,7 +9,7 @@ import { ValidationError } from '@chamvi/errors';
 import type { ArtifactInput, PeerStartInput, Run } from '@chamvi/core-kit';
 import type { IArtifactService } from '../../../artifact/types.ts';
 import { ArtifactNotFoundError } from '../../../errors/index.ts';
-import { PEER_ORIGIN_MAX_LENGTH } from '../../../peer/constants.ts';
+import { PEER_ORIGIN_MAX_LENGTH } from '@chamvi/core-kit';
 import { IDEMPOTENCY_TTL_MS } from '../../constants.ts';
 import type { RemoteStartAttempt, RemoteStartSource } from '../types.ts';
 import { peerRequest } from './request.ts';

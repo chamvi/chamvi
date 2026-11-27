@@ -240,7 +240,6 @@ describe('public api', () => {
         'IncompleteResponseError',
         'SandboxError',
         'requireToolPermission',
-        'isArtifactMediaType',
         'artifactFilePart',
         'assertTriggerKey',
         'assertConcurrencyMaxRuns',
@@ -255,7 +254,6 @@ describe('public api', () => {
         'AgentNotFoundError',
         'AgentReplacedError',
         'PeerStartBusyError',
-        'isAgentName',
         'checkAgentModel',
         'resolveModel',
         'extract',
@@ -318,14 +316,9 @@ describe('public api', () => {
     it('exports the remote agent and peer api', () => {
         expect(core.REMOTE_TIMEOUT_DEFAULT_MS).toBe(86_400_000);
         expect(core.PEER_REQUEST_TIMEOUT_MS).toBe(30_000);
-        expect(core.PEER_ORIGIN_MAX_LENGTH).toBe(128);
         expect(ErrorCode.REMOTE_FAILED).toBe('remote_failed');
         expect(ErrorCode.PEER_START_BUSY).toBe('peer_start_busy');
         expect(new core.PeerStartBusyError('dev', 'r1').code).toBe('peer_start_busy');
-        expect(core.AGENT_NAME_MAX_LENGTH).toBe(64);
-        expect(core.isAgentName('dev-ops')).toBe(true);
-        expect(core.isAgentName('Dev')).toBe(false);
-        expect(core.isAgentName('a'.repeat(65))).toBe(false);
         expectTypeOf<core.IEngine['wake']>().toEqualTypeOf<(runId: string, invoker: kit.Invoker | undefined) => Promise<core.WakeOutcome | undefined>>();
         expectTypeOf<core.Agent>().toEqualTypeOf<core.ModelAgent | core.SimpleAgent | core.RemoteAgent>();
         expectTypeOf(core.defineRemoteAgent).returns.toEqualTypeOf<core.RemoteAgent>();
@@ -385,7 +378,6 @@ describe('public api', () => {
         expect(core.AGENT_CHANNEL_NAME).toBe('agent');
         expect(core.DEFAULT_DISPATCH_ROLE).toBe('default');
         expect(core.DEFAULT_DISPATCH_MAX_DEPTH).toBe(1);
-        expect(core.DISPATCH_DEPTH_MAX).toBe(8);
         expect(core.DEFAULT_MAX_DISPATCHES_PER_RUN).toBe(100);
         expect(core.DEFAULT_DISPATCH_WAIT_TIMEOUT_MS).toBe(86_400_000);
         expect(core.agent.on).toBeTypeOf('function');
@@ -549,7 +541,6 @@ describe('public api', () => {
     });
 
     it('exports the trigger key bound', () => {
-        expect(core.TRIGGER_KEY_MAX_LENGTH).toBe(255);
     });
 
     it('removes the trigger factories', () => {
@@ -578,7 +569,6 @@ describe('public api', () => {
     });
 
     it('exports the approval option limits', () => {
-        expect(core.APPROVAL_OPTIONS_MAX).toBe(20);
         expect(core.APPROVAL_OPTION_ID_PATTERN).toBeInstanceOf(RegExp);
         expect(core.APPROVAL_OPTION_LABEL_MAX_LENGTH).toBe(200);
         expect(core.APPROVAL_OPTION_DETAIL_MAX_LENGTH).toBe(20_000);

@@ -17,11 +17,10 @@ import {
 } from 'node:path';
 import type { Agent } from '@chamvi/core';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from '@chamvi/core-kit';
 import { locateMany } from 'locter';
 import {
     AGENT_FILE,
-    AGENT_NAME_MAX_LENGTH,
-    AGENT_NAME_PATTERN,
     NODE_MODULES_DIR,
     SCRIPT_EXTENSIONS,
 } from './constants.ts';
