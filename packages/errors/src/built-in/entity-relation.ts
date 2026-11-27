@@ -8,7 +8,7 @@
 import { markInstanceof } from '@ebec/core';
 import { ErrorCode } from '../constants.ts';
 import { ChamviError } from '../module.ts';
-import type { ChamviEntityRelationErrorOptions } from '../types.ts';
+import type { ChamviEntityErrorInput, ChamviEntityRelationErrorOptions } from '../types.ts';
 
 export const ENTITY_RELATION_ERROR_INSTANCE = Symbol.for('@chamvi/errors/EntityRelationError');
 
@@ -21,7 +21,7 @@ export class EntityRelationError extends ChamviError {
 
     readonly relation: string | undefined;
 
-    constructor(input?: string | ChamviEntityRelationErrorOptions) {
+    constructor(input?: ChamviEntityErrorInput<ChamviEntityRelationErrorOptions>) {
         const options: ChamviEntityRelationErrorOptions = typeof input === 'string' ? { message: input } : (input ?? {});
         const {
             entity,

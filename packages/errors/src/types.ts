@@ -18,7 +18,8 @@ export type ChamviEntityErrorOptions = ChamviErrorOptions & {
     entity?: string,
 };
 
-export type ChamviEntityErrorInput = string | ChamviEntityErrorOptions;
+/** A message, or the options of an entity error (`T`: the options of a class with extra fields). */
+export type ChamviEntityErrorInput<T extends ChamviEntityErrorOptions = ChamviEntityErrorOptions> = string | T;
 
 export type ChamviEntityRelationErrorOptions = ChamviEntityErrorOptions & {
     /** The label of the referenced entity, never its id. */

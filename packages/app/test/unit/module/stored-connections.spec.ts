@@ -6,6 +6,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
+import { EntityInvalidError } from '@chamvi/errors';
 import {
     afterEach,
     describe,
@@ -274,6 +275,24 @@ describe('readStoredConnections()', () => {
 
         expect(error.message).toContain('mail-home');
         expect(error.message).not.toContain('driver text');
+    });
+
+    it('names the connection for a storage error, without its message', async () => {
+        const store = createTestStore();
+
+        await seed(store, 'mail-home', 'mail');
+        store.connectionRepository.secrets.findManyBy = async () => {
+            throw new EntityInvalidError({
+                entity: 'connection_secret',
+                operation: 'find',
+                field: 'value',
+            });
+        };
+
+        const harness = await harnessOf(store, { keyring });
+        const error = await rejectionOf(readStoredConnections(harness.container, 'mail'));
+
+        expect(error.message).toBe('The connection "mail-home" cannot be read: the read failed');
     });
 
     it('in a check, warns and returns nothing when the list meets a behind schema', async () => {

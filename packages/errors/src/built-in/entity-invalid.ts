@@ -8,7 +8,7 @@
 import { markInstanceof } from '@ebec/core';
 import { ErrorCode } from '../constants.ts';
 import { ChamviError } from '../module.ts';
-import type { ChamviEntityInvalidErrorOptions } from '../types.ts';
+import type { ChamviEntityErrorInput, ChamviEntityInvalidErrorOptions } from '../types.ts';
 
 export const ENTITY_INVALID_ERROR_INSTANCE = Symbol.for('@chamvi/errors/EntityInvalidError');
 
@@ -28,7 +28,7 @@ export class EntityInvalidError extends ChamviError {
     /** The column or constraint the storage named, if it named one. */
     readonly field: string | undefined;
 
-    constructor(input?: string | ChamviEntityInvalidErrorOptions) {
+    constructor(input?: ChamviEntityErrorInput<ChamviEntityInvalidErrorOptions>) {
         const options: ChamviEntityInvalidErrorOptions = typeof input === 'string' ? { message: input } : (input ?? {});
         const {
             entity,

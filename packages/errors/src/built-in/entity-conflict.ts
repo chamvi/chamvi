@@ -8,7 +8,7 @@
 import { markInstanceof } from '@ebec/core';
 import { ErrorCode } from '../constants.ts';
 import { ChamviError } from '../module.ts';
-import type { ChamviEntityErrorOptions } from '../types.ts';
+import type { ChamviEntityErrorInput, ChamviEntityErrorOptions } from '../types.ts';
 
 export const ENTITY_CONFLICT_ERROR_INSTANCE = Symbol.for('@chamvi/errors/EntityConflictError');
 
@@ -19,7 +19,7 @@ export const ENTITY_CONFLICT_ERROR_INSTANCE = Symbol.for('@chamvi/errors/EntityC
 export class EntityConflictError extends ChamviError {
     readonly entity: string | undefined;
 
-    constructor(input?: string | ChamviEntityErrorOptions) {
+    constructor(input?: ChamviEntityErrorInput) {
         const options: ChamviEntityErrorOptions = typeof input === 'string' ? { message: input } : (input ?? {});
         const { entity, ...rest } = options;
 

@@ -273,3 +273,34 @@ describe('entity errors', () => {
         expect(unnamed.field).toBeUndefined();
     });
 });
+
+describe('entity errors carry no stored value', () => {
+    const SECRET = 'secret-value-4711';
+
+    // as the repositories build them: labels and identifiers, here with a stored value slipped in as an extra option
+    it.each([
+        ['not found', () => new EntityNotFoundError({ entity: 'run', id: SECRET } as ConstructorParameters<typeof EntityNotFoundError>[0])],
+        ['conflict', () => new EntityConflictError({ entity: 'run', key: SECRET } as ConstructorParameters<typeof EntityConflictError>[0])],
+        ['deadlock', () => new EntityDeadlockError({ entity: 'lock', id: SECRET } as ConstructorParameters<typeof EntityDeadlockError>[0])],
+        ['query', () => new EntityQueryError({ entity: 'run', where: { id: SECRET } } as ConstructorParameters<typeof EntityQueryError>[0])],
+        ['relation', () => new EntityRelationError({
+            entity: 'step',
+            relation: 'run',
+            id: SECRET,
+        } as ConstructorParameters<typeof EntityRelationError>[0])],
+        ['invalid', () => new EntityInvalidError({
+            entity: 'run',
+            operation: 'save',
+            field: 'status',
+            value: SECRET,
+        } as ConstructorParameters<typeof EntityInvalidError>[0])],
+    ])('the %s error carries no passed value', (_, build) => {
+        const error = build();
+
+        expect(error.message).not.toContain(SECRET);
+        expect(JSON.stringify(error.toJSON())).not.toContain(SECRET);
+        expect(JSON.stringify({ ...error })).not.toContain(SECRET);
+        expect(error.cause).toBeUndefined();
+        expect(error.issues).toEqual([]);
+    });
+});

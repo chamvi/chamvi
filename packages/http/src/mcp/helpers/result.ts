@@ -10,7 +10,7 @@ import { pendingApprovalOf } from '@chamvi/core';
 import type { Run } from '@chamvi/core-kit';
 import { isHTTPError } from '@ebec/http';
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import { isRetryableErrorCode } from '../../app/helpers/errors.ts';
+import { isRetryableErrorCode, isStorageError } from '../../app/helpers/errors.ts';
 import type { HttpContext } from '../../app/types.ts';
 import type { RunToolResult } from '../types.ts';
 
@@ -31,9 +31,14 @@ export function toolError(message: string): CallToolResult {
 
 /**
  * A refusal the tool reports with its message: a chamvi error below 500,
- * unmapped or retryable, or an @ebec/http error below 500.
+ * unmapped or retryable, or an @ebec/http error below 500. A storage error
+ * never is: its message names an entity, an operation or a column.
  */
 function isToolRefusal(error: unknown): error is Error {
+    if (isStorageError(error)) {
+        return false;
+    }
+
     if (isChamviError(error)) {
         const status = httpStatusOf(error);
 

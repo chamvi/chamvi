@@ -97,20 +97,31 @@ function isBareAppError(error: IHTTPError): boolean {
 }
 
 /**
+ * A storage error (an `Entity*Error`, the database's unavailability), by
+ * its code: internal, so its own message (an entity label, an operation,
+ * a driver code) never reaches a caller.
+ */
+export function isStorageError(error: unknown): boolean {
+    if (!Error.isError(error)) {
+        return false;
+    }
+
+    const { code } = error as { code?: unknown };
+
+    return typeof code === 'string' && Object.hasOwn(STORAGE_ERRORS, code);
+}
+
+/**
  * A storage error by its code, with its fixed message: never the error's
  * own message or fields (an entity label, an operation, a driver code),
  * and never its issues.
  */
 function toStorageErrorBody(cause: unknown): ErrorBody | undefined {
-    if (!Error.isError(cause)) {
+    if (!isStorageError(cause)) {
         return undefined;
     }
 
-    const { code } = cause as { code?: unknown };
-
-    if (typeof code !== 'string' || !Object.hasOwn(STORAGE_ERRORS, code)) {
-        return undefined;
-    }
+    const { code } = cause as { code: string };
 
     // by code, not class: a foreign copy or a rehydrated storage error answers alike
     const status = code === DATABASE_UNAVAILABLE_CODE ? DATABASE_UNAVAILABLE_STATUS : httpStatusFromCode(code);

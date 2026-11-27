@@ -67,7 +67,7 @@ isNotFoundError(rehydrated); // true
 | `EntityQueryError` | `entity_query_invalid` | |
 | `EntityInvalidError` | `entity_invalid` | `operation`, and `field`: the column or constraint the storage named, if any |
 
-Each takes a message or options with the entity's label (`new EntityNotFoundError({ entity: 'run' })`, message `The run was not found.`) and keeps it as `entity`: no error carries an id, a key or any stored value.
+Each takes a message or options with the entity's label (`new EntityNotFoundError({ entity: 'run' })`, message `The run was not found.`) and keeps it as `entity`. The message and the fields hold only the labels passed (`entity`, `relation`, `operation`, `field`); an option `ChamviErrorOptions` does not name is dropped, so a stored value given as an extra option (an id, a key) is neither in the message nor serialized (`data` is serialized by design). The repositories pass entity labels, the operation and a column or constraint name, never a stored value. An HTTP response never carries the message: `@chamvi/http` answers a storage error with a fixed text per code.
 
 ## License
 
