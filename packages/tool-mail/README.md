@@ -36,7 +36,7 @@
 npm install @chamvi/tool-mail @chamvi/core @chamvi/http ai --save
 ```
 
-ESM only, Node.js `>=26.0.0`. `@chamvi/core` and `ai` are peer dependencies; `@chamvi/app` is an optional peer, needed only for `@chamvi/tool-mail/module`.
+ESM only, Node.js `>=26.0.0`. `@chamvi/core`, `@chamvi/errors` and `ai` are peer dependencies; `@chamvi/app` is an optional peer, needed only for `@chamvi/tool-mail/module`.
 
 ## Usage
 

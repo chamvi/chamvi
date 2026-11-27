@@ -32,7 +32,7 @@
 npm install @chamvi/chat-discord @chamvi/chat @chamvi/core @chamvi/http chat @chat-adapter/discord@4.45.0 discord.js --save
 ```
 
-ESM only, Node.js `>=26.0.0`. `@chamvi/chat`, `@chamvi/core`, [`chat`](https://www.npmjs.com/package/chat) (the Chat SDK, 4.45 or later in the 4.x line), `@chat-adapter/discord` and `discord.js` (14.25.1 or later in the 14.x line) are peer dependencies; `@chat-adapter/discord` is pinned to the one version chamvi was verified against (`4.45.0`). `smob` is the only runtime dependency. The package uses only `@chamvi/chat`'s public API: its channel is a `chatChannel()` with the Discord hooks passed as `platform` ([`IChatPlatform`](https://www.npmjs.com/package/@chamvi/chat#platform-packages)).
+ESM only, Node.js `>=26.0.0`. `@chamvi/chat`, `@chamvi/core`, `@chamvi/errors`, [`chat`](https://www.npmjs.com/package/chat) (the Chat SDK, 4.45 or later in the 4.x line), `@chat-adapter/discord` and `discord.js` (14.25.1 or later in the 14.x line) are peer dependencies; `@chat-adapter/discord` is pinned to the one version chamvi was verified against (`4.45.0`). `smob` is the only runtime dependency. The package uses only `@chamvi/chat`'s public API: its channel is a `chatChannel()` with the Discord hooks passed as `platform` ([`IChatPlatform`](https://www.npmjs.com/package/@chamvi/chat#platform-packages)).
 
 ## Usage
 

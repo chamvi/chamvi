@@ -34,7 +34,7 @@
 npm install @chamvi/peer @chamvi/core --save
 ```
 
-ESM only, Node.js `>=26.0.0`. `@chamvi/core` is a peer dependency; the requests go through [`@chamvi/http-kit`](../http-kit/README.md).
+ESM only, Node.js `>=26.0.0`. `@chamvi/core` and `@chamvi/errors` are peer dependencies; the requests go through [`@chamvi/http-kit`](../http-kit/README.md).
 
 ## Usage
 

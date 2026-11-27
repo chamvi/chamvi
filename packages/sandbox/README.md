@@ -40,7 +40,7 @@
 npm install @chamvi/sandbox @chamvi/core ai --save
 ```
 
-ESM only, Node.js `>=26.0.0`. `@chamvi/core` and `ai` are peer dependencies. Install a provider next to it.
+ESM only, Node.js `>=26.0.0`. `@chamvi/core`, `@chamvi/errors` and `ai` are peer dependencies. Install a provider next to it.
 
 ## Providers
 

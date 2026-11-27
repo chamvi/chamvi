@@ -36,7 +36,7 @@
 npm install @chamvi/tool-calendar @chamvi/core @chamvi/http ai --save
 ```
 
-ESM only, Node.js `>=26.0.0` (event times are computed with `Temporal`). `@chamvi/core` and `ai` are peer dependencies; `@chamvi/app` is an optional peer, needed only for `@chamvi/tool-calendar/module`.
+ESM only, Node.js `>=26.0.0` (event times are computed with `Temporal`). `@chamvi/core`, `@chamvi/errors` and `ai` are peer dependencies; `@chamvi/app` is an optional peer, needed only for `@chamvi/tool-calendar/module`.
 
 ## Usage
 

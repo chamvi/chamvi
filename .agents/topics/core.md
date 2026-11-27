@@ -8,7 +8,7 @@ Every module is a folder with `module.ts`, `types.ts`, `asserts.ts`, `constants.
 
 | Path | Purpose |
 |------|---------|
-| `errors/` | `ChamviError` (`base.ts`), one file per subclass, `ErrorCode` (`constants.ts`) |
+| `errors/` | one file per engine error (`ChamviError` and `ErrorCode` are `@chamvi/errors`) |
 | `context/` | `defineContextKey()`, `inject()`, `tryInject()` (`module.ts`), `ContextKey`, `IContextProvider` (`types.ts`), the key `WeakSet` and the ToolContext `WeakMap`: `registerContextKey()`, `isContextKey()`, `bindProvided()`, `providedOf()`, `contextKeyName()` (`asserts.ts`, internal); `ContextNotProvidedError` lives in `errors/context-not-provided.ts` |
 | `agent/` | `defineModelAgent()`, `AgentDefinition`, `AgentHooks`, `ToolCallInfo` (`types.ts`), name rules and budget defaults (`constants.ts`), `assertToolsContext()`, `assertNoNeedsApproval()` (`asserts.ts`, internal) |
 | `trigger/` | `assertTriggerKey()` (`key.ts`), `TRIGGER_KEY_MAX_LENGTH` (`constants.ts`), `toInvoker()`, `idempotencyScope()` (`helpers.ts`, internal); `TriggerEnvelope`, `Invoker`, `TriggerParent` and `normalizeEnvelope()` live in `@chamvi/store` |

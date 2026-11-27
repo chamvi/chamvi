@@ -31,7 +31,7 @@
 npm install @chamvi/tool-files @chamvi/core ai --save
 ```
 
-ESM only, Node.js `>=26.0.0`. `@chamvi/core` and `ai` are peer dependencies.
+ESM only, Node.js `>=26.0.0`. `@chamvi/core`, `@chamvi/errors` and `ai` are peer dependencies.
 
 ## Usage
 
