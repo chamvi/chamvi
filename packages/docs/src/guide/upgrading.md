@@ -8,7 +8,7 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 
 The domain records, enums, constants, helpers and wire views are in the new browser-safe `@chamvi/core-kit`; `@chamvi/app` re-exports it. `@chamvi/store` keeps only the repository ports, so every record, enum, constant and helper it exported (`Run`, `Step`, `RunStatus`, `STEP_STORED_ORDER`, `normalizeEnvelope`, ...) is imported from `@chamvi/core-kit` (or `@chamvi/app`). Install core-kit next to core when you do not use `@chamvi/app`. These exports are also removed from their old package:
 
-- `@chamvi/core`: `Budget`, `ArtifactInput`, `ConnectionStatus`, `ConnectionWidget`, `ConnectionFieldKind`, `ConnectionFieldSource`, `ConnectionState`, `PeerStartInput`, `PeerRunView`.
+- `@chamvi/core`: `Budget`, `ArtifactInput`, `ConnectionStatus`, `ConnectionWidget`, `ConnectionFieldKind`, `ConnectionFieldSource`, `ConnectionState`, `PeerStartInput`, `PeerRunView`, and the domain rules `isAgentName`, `isArtifactMediaType`, `AGENT_NAME_MAX_LENGTH`, `TRIGGER_KEY_MAX_LENGTH`, `DISPATCH_DEPTH_MAX`, `PEER_ORIGIN_MAX_LENGTH`, `APPROVAL_OPTIONS_MAX`.
 - `@chamvi/http`: `AgentSummary`, `AgentIssue`, `ScheduleSummary`, `ScheduleOverlap`, `MeView`, `ComponentView`, `AuthorizationCheckView`, `RunView`, `InvokerView`, `UiPage`, `ConnectionView`, `ConnectionDetailView`, `ConnectionTypeFieldView`, `ConnectionTypeView`, `ConnectionSettingsFieldView`, `ConnectionSettingsView`, `ConnectionTestView`, `ConnectionSecretValues`, `ConnectionSaveBody`, `ConnectionCreateBody`.
 
 | Before | After |

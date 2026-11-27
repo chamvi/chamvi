@@ -12,12 +12,12 @@ import {
     DEFAULT_DISPATCH_ROLE,
     DEFAULT_DISPATCH_WAIT_TIMEOUT_MS,
     DEFAULT_MAX_DISPATCHES_PER_RUN,
-    DISPATCH_DEPTH_MAX,
     InvalidAgentDefinitionError,
     agent,
     agentChannel,
     defineModelAgent,
 } from '@chamvi/core';
+import { DISPATCH_DEPTH_MAX } from '@chamvi/core-kit';
 import type { ChannelSubscription } from '@chamvi/core';
 import { mockModel } from '../../utils/mock-model.ts';
 import { createTestEngine, createTestServices } from '../../utils/engine.ts';

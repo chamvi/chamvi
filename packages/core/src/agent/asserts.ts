@@ -9,8 +9,12 @@ import type { ToolSet } from 'ai';
 import { isObject } from 'smob';
 import { APPROVAL_TIMEOUT_MAX_MS } from '../approval/constants.ts';
 import { CONVERSATION_FIELD_MAX_LENGTH } from '../conversation/constants.ts';
-import { TRIGGER_KEY_MAX_LENGTH } from '../trigger/constants.ts';
-import { NAME_MAX_LENGTH, NAME_PATTERN } from './constants.ts';
+import {
+    AGENT_NAME_MAX_LENGTH,
+    AGENT_NAME_PATTERN,
+    TRIGGER_KEY_MAX_LENGTH,
+    isAgentName,
+} from '@chamvi/core-kit';
 import type {
     Agent,
     AgentDefinition,
@@ -42,11 +46,6 @@ const REMOTE_AGENT_REFUSED = [
     'limits',
 ] as const;
 
-/** Whether `value` follows the agent-name rule (also peer and role names). */
-export function isName(value: unknown): value is string {
-    return typeof value === 'string' && value.length <= NAME_MAX_LENGTH && NAME_PATTERN.test(value);
-}
-
 /**
  * A remote agent names its peer, the remote agent and role by the
  * agent-name rule, declares none of the fields of the other kinds, and
@@ -65,9 +64,9 @@ export function assertRemoteAgent(def: RemoteAgentDefinition): void {
     for (const field of ['peer', 'agent', 'role'] as const) {
         const value = fields[field];
 
-        if ((field === 'peer' || value !== undefined) && !isName(value)) {
+        if ((field === 'peer' || value !== undefined) && !isAgentName(value)) {
             throw new InvalidAgentDefinitionError(
-                `Agent "${def.name}": ${field} "${String(value)}" must match ${NAME_PATTERN} and be at most ${NAME_MAX_LENGTH} characters.`,
+                `Agent "${def.name}": ${field} "${String(value)}" must match ${AGENT_NAME_PATTERN} and be at most ${AGENT_NAME_MAX_LENGTH} characters.`,
             );
         }
     }
@@ -91,7 +90,7 @@ export function assertRemoteAgent(def: RemoteAgentDefinition): void {
 
     const { channel, address } = (isObject(def.approvals) ? def.approvals : {}) as Record<string, unknown>;
 
-    if (!isName(channel) || typeof address !== 'string' || address.length === 0 ||
+    if (!isAgentName(channel) || typeof address !== 'string' || address.length === 0 ||
         address.length > TRIGGER_KEY_MAX_LENGTH || address.includes('\0')) {
         throw new InvalidAgentDefinitionError(
             `Agent "${def.name}": approvals needs a channel name and a non-empty address of at most ${TRIGGER_KEY_MAX_LENGTH} characters without NUL.`,

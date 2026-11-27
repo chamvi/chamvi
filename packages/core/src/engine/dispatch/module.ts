@@ -6,7 +6,7 @@
  */
 
 import { ErrorCode } from '@chamvi/errors';
-import { DISPATCH_DEPTH_MAX } from '../../dispatch/constants.ts';
+import { DISPATCH_DEPTH_MAX, RunStatus } from '@chamvi/core-kit';
 import {
     isRunSettled,
     sumSubtreeUsage,
@@ -16,7 +16,6 @@ import {
 } from '../../dispatch/helpers/index.ts';
 import type { DispatchWaitRecord } from '../../dispatch/types.ts';
 import { InvalidRunStateError } from '../../errors/index.ts';
-import { RunStatus } from '@chamvi/core-kit';
 import type { DispatchWaitPoint, Run } from '@chamvi/core-kit';
 import type { CancelReason } from '../registry/types.ts';
 import type { DispatchEngineContext } from './types.ts';

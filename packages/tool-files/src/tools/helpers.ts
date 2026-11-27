@@ -6,7 +6,7 @@
  */
 
 import { ValidationError } from '@chamvi/errors';
-import { isArtifactMediaType } from '@chamvi/core';
+import { isArtifactMediaType } from '@chamvi/core-kit';
 import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
 import { aggregateLimitMessage } from '../runner/helpers.ts';

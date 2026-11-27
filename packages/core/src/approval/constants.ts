@@ -11,8 +11,6 @@ export const DEFAULT_APPROVAL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 /** The longest `timeoutMs` approve() takes (a larger Node timer fires after 1 ms). */
 export const APPROVAL_TIMEOUT_MAX_MS = 2 ** 31 - 1;
 
-/** The most options an approval request may offer (at least one). */
-export const APPROVAL_OPTIONS_MAX = 20;
 
 /** An option id: at most 128 characters, no whitespace (rule names, versions, branch names). */
 export const APPROVAL_OPTION_ID_PATTERN = /^[A-Za-z0-9@][\w.:/@+-]{0,127}$/;

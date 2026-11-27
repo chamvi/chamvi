@@ -7,7 +7,7 @@
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
-import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from '../../loader/constants.ts';
+import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from '@chamvi/core-kit';
 import type { AppComponent } from '../../module/types.ts';
 
 function isComponent(value: unknown): boolean {

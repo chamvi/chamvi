@@ -6,7 +6,7 @@
  */
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { TRIGGER_KEY_MAX_LENGTH } from '@chamvi/core';
+import { TRIGGER_KEY_MAX_LENGTH } from '@chamvi/core-kit';
 import { BadRequestError } from '@chamvi/errors';
 import { isObject } from 'smob';
 import type { GithubEvent, GithubPayload } from '../subscription/types.ts';

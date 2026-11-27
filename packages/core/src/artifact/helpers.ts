@@ -12,7 +12,7 @@ import type { Artifact, ArtifactInput, ArtifactRecord } from '@chamvi/core-kit';
 import { ArtifactNotFoundError } from '../errors/index.ts';
 import type { IArtifactService } from './types.ts';
 import { ARTIFACT_KEY_MAX_LENGTH, ARTIFACT_URI_PREFIX } from './constants.ts';
-import { isArtifactMediaType } from './media-type.ts';
+import { isArtifactMediaType } from '@chamvi/core-kit';
 
 /** Throws ValidationError unless `input` is an ArtifactInput (`what` names it in the message). */
 export function assertArtifactInput(input: unknown, what = 'artifact'): asserts input is ArtifactInput {

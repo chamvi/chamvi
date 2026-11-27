@@ -6,7 +6,7 @@
  */
 
 import { ValidationError } from '@chamvi/errors';
-import { TRIGGER_KEY_MAX_LENGTH } from './constants.ts';
+import { TRIGGER_KEY_MAX_LENGTH } from '@chamvi/core-kit';
 
 /**
  * A trigger key (`idempotencyKey`, `concurrencyKey`, `address`): absent, or a

@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from '../../loader/constants.ts';
+import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from '@chamvi/core-kit';
 import { PROVIDER_TYPES } from '../constants.ts';
 import type { ProviderType } from '../types.ts';
 

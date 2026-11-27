@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { isArtifactMediaType } from '@chamvi/core';
+import { isArtifactMediaType } from '@chamvi/core-kit';
 
 describe('isArtifactMediaType', () => {
     it.each(['image/png', 'application/vnd.api+json', 'TEXT/Plain', 'x-a/b.c_d'])('accepts %s', (value) => {

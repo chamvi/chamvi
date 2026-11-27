@@ -5,13 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { NAME_MAX_LENGTH, NAME_PATTERN } from '../../agent/constants.ts';
+import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN, DISPATCH_DEPTH_MAX } from '@chamvi/core-kit';
 import type { ChannelSubscription } from '../../channel/types.ts';
 import { InvalidAgentDefinitionError } from '../../errors/index.ts';
 import {
     DEFAULT_DISPATCH_MAX_DEPTH,
     DEFAULT_MAX_DISPATCHES_PER_RUN,
-    DISPATCH_DEPTH_MAX,
 } from '../constants.ts';
 
 /** `maxPerRun` or its default; InvalidAgentDefinitionError for a value that is no positive safe integer. */
@@ -48,7 +47,7 @@ function isFromEntry(entry: unknown): boolean {
 
     const parts = entry.split('/');
 
-    return parts.length <= 2 && parts.every((part) => part.length <= NAME_MAX_LENGTH && NAME_PATTERN.test(part));
+    return parts.length <= 2 && parts.every((part) => part.length <= AGENT_NAME_MAX_LENGTH && AGENT_NAME_PATTERN.test(part));
 }
 
 /**
@@ -67,7 +66,7 @@ export function checkDispatchFrom(label: string, value: unknown): string[] | und
     for (const entry of value) {
         if (!isFromEntry(entry)) {
             throw new InvalidAgentDefinitionError(
-                `${label}: from entry "${String(entry)}" must be an agent name or <peer>/<agent>, each matching ${NAME_PATTERN} and at most ${NAME_MAX_LENGTH} characters.`,
+                `${label}: from entry "${String(entry)}" must be an agent name or <peer>/<agent>, each matching ${AGENT_NAME_PATTERN} and at most ${AGENT_NAME_MAX_LENGTH} characters.`,
             );
         }
     }

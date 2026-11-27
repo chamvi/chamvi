@@ -14,8 +14,6 @@ export const DEFAULT_DISPATCH_ROLE = 'default';
 /** The depth a role accepts unless `agent.on({ maxDepth })` says otherwise: a dispatched run cannot dispatch again. */
 export const DEFAULT_DISPATCH_MAX_DEPTH = 1;
 
-/** The highest `agent.on({ maxDepth })`: the engine's cap on dispatch trees. */
-export const DISPATCH_DEPTH_MAX = 8;
 
 /** The dispatches of one role a run may start unless `agent.on({ maxPerRun })` says otherwise. */
 export const DEFAULT_MAX_DISPATCHES_PER_RUN = 100;

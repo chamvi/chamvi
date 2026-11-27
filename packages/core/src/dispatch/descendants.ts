@@ -5,10 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { RunStatus } from '@chamvi/core-kit';
+import { DISPATCH_DEPTH_MAX, RunStatus } from '@chamvi/core-kit';
 import type { RemoteApproval, Run, RunStatusLiteral } from '@chamvi/core-kit';
 import type { IRunService } from '../run/types.ts';
-import { DISPATCH_DEPTH_MAX } from './constants.ts';
 
 /** Statuses of a run that may still reach an approval wait. */
 const UNSETTLED: RunStatusLiteral[] = [RunStatus.QUEUED, RunStatus.RUNNING, RunStatus.WAITING, RunStatus.INTERRUPTED];

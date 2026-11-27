@@ -21,10 +21,6 @@ export const PINNED_PACKAGE_SCOPES = ['@chamvi', '@ai-sdk'] as const;
 
 export const NODE_MODULES_DIR = 'node_modules';
 
-/** core's agent name rule (`agent/constants.ts`, internal there). */
-export const AGENT_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-export const AGENT_NAME_MAX_LENGTH = 64;
-
 /**
  * Files the folder hash leaves out (matched against the basename, at any
  * depth): docs and editor leftovers, whose edit never changes what the agent
