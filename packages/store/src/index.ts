@@ -7,7 +7,6 @@
 
 // The package entry composes the folder barrels.
 export * from './agent-revision/index.ts';
-export * from './approval/index.ts';
 export * from './artifact/index.ts';
 export * from './checkpoint/index.ts';
 export * from './connection/index.ts';
@@ -21,4 +20,3 @@ export * from './lock/index.ts';
 export * from './run/index.ts';
 export * from './state/index.ts';
 export * from './step/index.ts';
-export * from './trigger/index.ts';

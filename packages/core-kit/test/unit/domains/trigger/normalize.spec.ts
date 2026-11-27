@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { normalizeEnvelope } from '@chamvi/store';
+import { normalizeEnvelope } from '@chamvi/core-kit';
 
 const receivedAt = new Date(1_000);
 

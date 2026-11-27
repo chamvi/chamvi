@@ -6,7 +6,7 @@
 
 <p align="center">
     <b>The storage contract of chamvi.</b><br>
-    The stored record types, the generic entity repository port and the storage errors every store driver reports.
+    The generic entity repository port, a port per aggregate and the storage errors every store driver reports.
 </p>
 
 <p align="center">
@@ -19,7 +19,6 @@
 
 **Table of Contents**
 - [Installation](#installation)
-- [Stored records](#stored-records)
 - [Repository port](#repository-port)
 - [Errors](#errors)
 - [License](#license)
@@ -32,13 +31,9 @@ npm install @chamvi/store --save
 
 ESM only, Node.js `>=26.0.0`. It names no database driver: a store package implements the port.
 
-## Stored records
-
-The shapes the store holds, shared by core, every store and the apps that read them: `Run` (with `RunStatus`, `Usage`, `RunTaint` and the `WaitPoint`s), `Step`, `Checkpoint`, `TriggerEnvelope` (with `Invoker`, `TriggerParent`, `TriggerSource`), `Artifact`, `ApprovalOption`, `AgentRevision`, `Connection` and the conversation records (`ConversationScope`, `ConversationItem`, `ConversationNote`, `ConversationSnapshot`, ...). `normalizeEnvelope()` and `normalizeWaitPoint()` read a legacy stored envelope or wait point back in the current shape. `Checkpoint` and `ConversationSnapshot` hold AI SDK `ModelMessage`s: `ai` is an optional peer dependency, needed for those types only.
-
 ## Repository port
 
-`IEntityRepository<T>` is the port of one entity. A repository decides nothing: it stores, reads, locks a row, runs a query and reports a storage error; status compares, limits, defaults and time stamps belong to the service that uses it.
+`IEntityRepository<T>` is the port of one entity; the records it stores (`Run`, `Step`, `CheckpointRecord`, ...) are the types of `@chamvi/core-kit`. A repository decides nothing: it stores, reads, locks a row, runs a query and reports a storage error; status compares, limits, defaults and time stamps belong to the service that uses it.
 
 The aggregates' ports extend it: `IRunRepository` (with `findByWaitKind(kind, query)`, the one run query rapiq cannot express on every driver), `IStepRepository`, `ICheckpointRepository` (`CheckpointRecord`), `IEffectRepository` (`EffectRecord`), `IArtifactRepository` (`ArtifactRecord`: the metadata with the write-only `key` and `data`, plus `readData(id)`), `IStateRepository` (`StateEntry`), `IStateDocumentRepository` (`StateDocument`, plus `findContaining(agent, collection, where, page)`, the top-level document match rapiq cannot express on every driver), `IAgentRevisionRepository` (`AgentRevisionRecord`: the `AgentRevision` and its storage `id`, `agent` unique), `ILockRepository` (`Lock`: `key`, `owner`, `expiresAt`) and `IIdempotencyRepository` (`IdempotencyKey`: `scope`, `key`, `runId`, `expiresAt`), these two plus `removeExpiredBy(time)`, which deletes the rows expired at `time` and resolves how many, and `IConnectionRepository` (`ConnectionRecord`: the `Connection` with its storage `id`, `settings` and `configRevision`, `name` unique), whose child tables are repositories of their own, `entries` (`IConnectionEntryRepository` on `ConnectionEntryRecord`) and `secrets` (`IConnectionSecretRepository` on `ConnectionSecretRecord`), bound to the root's transaction, plus `findFence(name)`, the lease's `Lock` row read locked inside a transaction (it decides nothing), and `IConversationRepository` (`ConversationRecord`: the scope id, the identity's `key` (unique), the identity, the generation, the active run and its snapshot), whose child tables are `items` (`IConversationItemRepository` on `ConversationItemRecord`, its storage key `id` assigned in the order rows are stored: sort by `CONVERSATION_ITEM_STORED_ORDER`; `bytes`, the UTF-8 byte length of its text, set by the service and stored as given), `notes` (`IConversationNoteRepository` on `ConversationNoteRecord`) and `operations` (`IConversationOperationRepository` on `ConversationOperationRecord`), bound to the root's transaction. The services of `@chamvi/core` hold their rules.
 

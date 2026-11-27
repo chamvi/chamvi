@@ -5,19 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { Step } from '@chamvi/core-kit';
 import type { IEntityRepository } from '../entity/types.ts';
-
-export type Step = {
-    runId: string;
-    index: number;
-    kind: 'llm' | 'tool' | 'wait';
-    name?: string;
-    input?: unknown;
-    output?: unknown;
-    error?: unknown;
-    startedAt: Date;
-    finishedAt: Date;
-};
 
 /**
  * The step port: the generic entity port on `Step`, `runId` referencing a

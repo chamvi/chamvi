@@ -5,27 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { StateDocument, StateEntry } from '@chamvi/core-kit';
 import type { EntityFindManyResult, IEntityRepository } from '../entity/types.ts';
-
-/** One key of an agent's key-value state. */
-export type StateEntry = {
-    /** The row's storage id (a uuid), kept by every later `upsert` of the same `(agent, key)`. */
-    id: string;
-    agent: string;
-    key: string;
-    value: unknown;
-};
-
-/** One document of an agent's state collection. */
-export type StateDocument = {
-    /** The row's storage id (a uuid), kept by every later `upsert` of the same document. */
-    id: string;
-    agent: string;
-    collection: string;
-    /** The document's id within its collection. */
-    documentId: string;
-    doc: unknown;
-};
 
 /** One page of `findContaining`: without `limit`, every row from `offset`. */
 export type StateDocumentPage = {
