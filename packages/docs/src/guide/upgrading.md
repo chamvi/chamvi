@@ -4,6 +4,18 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 
 ## Upgrading to 0.13
 
+### Records move to `@chamvi/core-kit`
+
+The domain records, enums, constants, helpers and wire views are in the new browser-safe `@chamvi/core-kit`; `@chamvi/app` re-exports it. `@chamvi/store` keeps only the repository ports, so every record, enum, constant and helper it exported (`Run`, `Step`, `RunStatus`, `STEP_STORED_ORDER`, `normalizeEnvelope`, ...) is imported from `@chamvi/core-kit` (or `@chamvi/app`). Install core-kit next to core when you do not use `@chamvi/app`. These exports are also removed from their old package:
+
+- `@chamvi/core`: `Budget`, `ArtifactInput`, `ConnectionStatus`, `ConnectionWidget`, `ConnectionFieldKind`, `ConnectionFieldSource`, `ConnectionState`, `PeerStartInput`, `PeerRunView`.
+- `@chamvi/http`: `AgentSummary`, `AgentIssue`, `ScheduleSummary`, `ScheduleOverlap`, `MeView`, `ComponentView`, `AuthorizationCheckView`, `RunView`, `InvokerView`, `UiPage`, `ConnectionView`, `ConnectionDetailView`, `ConnectionTypeFieldView`, `ConnectionTypeView`, `ConnectionSettingsFieldView`, `ConnectionSettingsView`, `ConnectionTestView`, `ConnectionSecretValues`, `ConnectionSaveBody`, `ConnectionCreateBody`.
+
+| Before | After |
+|---|---|
+| `import type { Run, RunStatus } from '@chamvi/store'` | `import type { Run, RunStatus } from '@chamvi/core-kit'` (or `@chamvi/app`) |
+| `import type { RunView, Budget } from '@chamvi/http'` / `'@chamvi/core'` | `import type { RunView, Budget } from '@chamvi/core-kit'` (or `@chamvi/app`) |
+
 ### Errors move to `@chamvi/errors`
 
 `ChamviError`, `ErrorCode` and `ValidationError` are no longer exported by `@chamvi/core`. Import them from `@chamvi/errors`, or from `@chamvi/app`, which re-exports it. Core's engine errors (`AgentNotFoundError`, `BudgetExceededError`, ...) stay in `@chamvi/core` and now extend the new `ChamviError`. Error codes, response bodies and statuses are unchanged.
