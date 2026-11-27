@@ -5,7 +5,20 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import {
+    isBadRequestError,
+    isConflictError,
+    isForbiddenError,
+    isInternalError,
+    isNotFoundError,
+    isRequestEntityTooLargeError,
+    isServiceUnavailableError,
+    isTooManyRequestsError,
+    isUnauthorizedError,
+    isUnsupportedMediaTypeError,
+} from './built-in/check.ts';
 import { ErrorCode } from './constants.ts';
+import type { ChamviError } from './module.ts';
 
 /**
  * Default mapping from `ErrorCode` to HTTP status. Adapters apply this and
@@ -35,7 +48,7 @@ export const ERROR_CODE_TO_STATUS: Readonly<Partial<Record<ErrorCode, number>>> 
     [ErrorCode.AGENT_REPLACED]: 409,
     [ErrorCode.CONNECTION_CHANGED]: 409,
     [ErrorCode.CONNECTION_HELD]: 409,
-    // a stored seal no key of the keyring opens (one dropped)
+    // a stored seal no key of the keyring opens (one dropped); the message names at most a key id
     [ErrorCode.DECRYPTION_FAILED]: 409,
     [ErrorCode.INVALID_RUN_STATE]: 409,
 
@@ -63,4 +76,35 @@ export const ERROR_CODE_TO_STATUS: Readonly<Partial<Record<ErrorCode, number>>> 
  */
 export function httpStatusFromCode(code: string, fallback = 400): number {
     return ERROR_CODE_TO_STATUS[code as ErrorCode] ?? fallback;
+}
+
+/** The code each built-in class answers with when it carries a code of its own (an oidc 401 carries the vouchly code). */
+const BUILT_IN_CODES: ReadonlyArray<readonly [(input: unknown) => boolean, ErrorCode]> = [
+    [isBadRequestError, ErrorCode.BAD_REQUEST],
+    [isUnauthorizedError, ErrorCode.UNAUTHORIZED],
+    [isForbiddenError, ErrorCode.FORBIDDEN],
+    [isNotFoundError, ErrorCode.NOT_FOUND],
+    [isConflictError, ErrorCode.CONFLICT],
+    [isRequestEntityTooLargeError, ErrorCode.REQUEST_ENTITY_TOO_LARGE],
+    [isUnsupportedMediaTypeError, ErrorCode.UNSUPPORTED_MEDIA_TYPE],
+    [isTooManyRequestsError, ErrorCode.TOO_MANY_REQUESTS],
+    [isServiceUnavailableError, ErrorCode.SERVICE_UNAVAILABLE],
+    [isInternalError, ErrorCode.INTERNAL_ERROR],
+];
+
+/**
+ * The HTTP status of a chamvi error, `undefined` when neither its code nor
+ * its class names one (an internal error).
+ */
+export function httpStatusOf(error: ChamviError): number | undefined {
+    // the code wins over the class: a built-in whose code is in the table answers with that code's status
+    const status = ERROR_CODE_TO_STATUS[error.code as ErrorCode];
+
+    if (status !== undefined) {
+        return status;
+    }
+
+    const builtIn = BUILT_IN_CODES.find(([guard]) => guard(error));
+
+    return builtIn ? ERROR_CODE_TO_STATUS[builtIn[1]] : undefined;
 }

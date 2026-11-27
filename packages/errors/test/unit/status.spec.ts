@@ -6,7 +6,14 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ErrorCode, httpStatusFromCode } from '@chamvi/errors';
+import {
+    ChamviError,
+    ErrorCode,
+    NotFoundError,
+    UnauthorizedError,
+    httpStatusFromCode,
+    httpStatusOf,
+} from '@chamvi/errors';
 
 describe('httpStatusFromCode', () => {
     it.each([
@@ -41,5 +48,21 @@ describe('httpStatusFromCode', () => {
 
     it('falls back to the given status for an unknown code', () => {
         expect(httpStatusFromCode('unknown', 500)).toEqual(500);
+    });
+});
+
+describe('httpStatusOf', () => {
+    it('answers a built-in with a code of its own with its class status', () => {
+        expect(httpStatusOf(new UnauthorizedError({ message: 'x', code: 'token_expired' }))).toBe(401);
+    });
+
+    it('answers a plain chamvi error with an unmapped code with undefined', () => {
+        expect(httpStatusOf(new ChamviError({ code: 'unmapped' }))).toBeUndefined();
+    });
+
+    it('answers a built-in with a table code with that code status, not its class status', () => {
+        expect(httpStatusOf(new NotFoundError())).toBe(404);
+        expect(httpStatusOf(new NotFoundError({ code: ErrorCode.RUN_NOT_FOUND }))).toBe(404);
+        expect(httpStatusOf(new UnauthorizedError({ code: ErrorCode.CONFLICT }))).toBe(409);
     });
 });

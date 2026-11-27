@@ -5,12 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { isChamviError } from '@chamvi/errors';
+import { httpStatusOf, isChamviError } from '@chamvi/errors';
 import { pendingApprovalOf } from '@chamvi/core';
 import type { Run } from '@chamvi/store';
 import { isHTTPError } from '@ebec/http';
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import { isRetryableErrorCode, statusOfChamviError } from '../../app/helpers/errors.ts';
+import { isRetryableErrorCode } from '../../app/helpers/errors.ts';
 import type { HttpContext } from '../../app/types.ts';
 import type { RunToolResult } from '../types.ts';
 
@@ -35,7 +35,7 @@ export function toolError(message: string): CallToolResult {
  */
 function isToolRefusal(error: unknown): error is Error {
     if (isChamviError(error)) {
-        const status = statusOfChamviError(error);
+        const status = httpStatusOf(error);
 
         return status === undefined || status < 500 || isRetryableErrorCode(error.code);
     }

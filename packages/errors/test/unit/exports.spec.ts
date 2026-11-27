@@ -39,6 +39,7 @@ const EXPORTS = [
     'ValidationError',
     'hasInstanceof',
     'httpStatusFromCode',
+    'httpStatusOf',
     'isBadRequestError',
     'isChamviError',
     'isConflictError',

@@ -5,22 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import {
-    ERROR_CODE_TO_STATUS,
-    ErrorCode,
-    isBadRequestError,
-    isChamviError,
-    isConflictError,
-    isForbiddenError,
-    isInternalError,
-    isNotFoundError,
-    isRequestEntityTooLargeError,
-    isServiceUnavailableError,
-    isTooManyRequestsError,
-    isUnauthorizedError,
-    isUnsupportedMediaTypeError,
-} from '@chamvi/errors';
-import type { ChamviError } from '@chamvi/errors';
+import { ErrorCode, httpStatusOf, isChamviError } from '@chamvi/errors';
 import type { Issue } from '@ebec/core';
 import { isHTTPError } from '@ebec/http';
 import type { IHTTPError } from '@ebec/http';
@@ -41,36 +26,6 @@ type ErrorBody = {
 };
 
 const APP_ERROR_CODE = 'APP_ERROR';
-
-/** The class of a built-in decides its status when its code is one of its own (an oidc 401 carries the vouchly code). */
-const BUILT_IN_STATUS: ReadonlyArray<readonly [(error: unknown) => boolean, ErrorCode]> = [
-    [isBadRequestError, ErrorCode.BAD_REQUEST],
-    [isUnauthorizedError, ErrorCode.UNAUTHORIZED],
-    [isForbiddenError, ErrorCode.FORBIDDEN],
-    [isNotFoundError, ErrorCode.NOT_FOUND],
-    [isConflictError, ErrorCode.CONFLICT],
-    [isRequestEntityTooLargeError, ErrorCode.REQUEST_ENTITY_TOO_LARGE],
-    [isUnsupportedMediaTypeError, ErrorCode.UNSUPPORTED_MEDIA_TYPE],
-    [isTooManyRequestsError, ErrorCode.TOO_MANY_REQUESTS],
-    [isServiceUnavailableError, ErrorCode.SERVICE_UNAVAILABLE],
-    [isInternalError, ErrorCode.INTERNAL_ERROR],
-];
-
-/**
- * The status a chamvi error renders with: its code's (`ERROR_CODE_TO_STATUS`),
- * else its built-in class's, else `undefined` (an internal error).
- */
-export function statusOfChamviError(error: ChamviError): number | undefined {
-    const status = ERROR_CODE_TO_STATUS[error.code as ErrorCode];
-
-    if (status !== undefined) {
-        return status;
-    }
-
-    const builtIn = BUILT_IN_STATUS.find(([guard]) => guard(error));
-
-    return builtIn ? ERROR_CODE_TO_STATUS[builtIn[1]] : undefined;
-}
 
 /** A refusal the caller retries after `Retry-After` (a busy peer start): never reported. */
 export function isRetryableErrorCode(code: string): boolean {
@@ -165,7 +120,7 @@ function toErrorBody(cause: unknown): ErrorBody | undefined {
     }
 
     if (isChamviError(cause)) {
-        const status = statusOfChamviError(cause);
+        const status = httpStatusOf(cause);
 
         if (status === undefined) {
             return undefined;

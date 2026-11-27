@@ -7,9 +7,8 @@
 
 import type { IChannel, IEngine } from '@chamvi/core';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import { isChamviError } from '@chamvi/errors';
+import { httpStatusOf, isChamviError } from '@chamvi/errors';
 import { isHTTPError } from '@ebec/http';
-import { statusOfChamviError } from '../app/helpers/errors.ts';
 import type { WebhookTarget } from './types.ts';
 
 const WEBHOOK_CHANNELS = new WeakSet<object>();
@@ -84,7 +83,7 @@ export function webhookUrl(basePath: string, channel: string, agent: string, pat
 /** A body refused for its size: a chamvi or an @ebec/http 413. */
 export function isPayloadTooLarge(error: unknown): boolean {
     if (isChamviError(error)) {
-        return statusOfChamviError(error) === 413;
+        return httpStatusOf(error) === 413;
     }
 
     return isHTTPError(error) && error.statusCode === 413;
