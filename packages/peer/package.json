@@ -66,6 +66,7 @@
     "peerDependencies": {
         "@chamvi/app": "^0.12.0",
         "@chamvi/core": "^0.12.0",
+        "@chamvi/core-kit": "^0.12.0",
         "@chamvi/errors": "^0.12.0"
     },
     "peerDependenciesMeta": {

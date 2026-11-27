@@ -12,7 +12,6 @@ export type BuildFile = {
     /** Under `assets/`: content-hashed, cached for a year. */
     immutable: boolean;
 };
-
 /** What `buildCsp()` reads of a page's config: the authup origin joins `connect-src` and `form-action`. */
 export type StaticCspConfig = {
     [key: string]: unknown;
@@ -32,4 +31,3 @@ export type StaticRoutesOptions = {
     /** The Content-Security-Policy of that config. */
     csp: (config: unknown) => string;
 };
-

@@ -6,7 +6,7 @@
 
 <p align="center">
     <b>The storage contract of chamvi.</b><br>
-    The generic entity repository port, a port per aggregate and the storage errors every store driver reports.
+    The generic entity repository port, a port per aggregate.
 </p>
 
 <p align="center">

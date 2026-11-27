@@ -6,6 +6,8 @@ The layering rules (a repository decides nothing, the service transaction shape,
 
 ## Ports (`@chamvi/store`)
 
+Redis is never required.
+
 `@chamvi/store` holds only the repository ports; the records they store (`Run`, `CheckpointRecord`, ...), enums, `STEP_STORED_ORDER` and `normalizeEnvelope`/`normalizeWaitPoint` are `@chamvi/core-kit`'s (browser-safe, so clients share them).
 
 - `IEntityRepository<T>`: `findMany(query)` (rapiq, `{ data, meta: { total, limit?, offset? } }`), `findOneById`, `findOneBy`, `findManyBy` (`EntityWhere<T>`: a value, `null` or an array of values per field; at most one unbounded array per where, the adapter splits it), `create`, `merge`, `save`, `upsert`, `upsertMany` (one transaction, chunked by the driver, a later entity of a key wins, results in input order equal to the next reads), `remove`, `removeMany`, `removeManyBy` (one statement, resolves the count, never an empty where), `validateRelations`, `checkUniqueness`, `transaction(fn)`. Write multi-row child changes with `upsertMany`/`removeManyBy` inside the root's transaction after the root's locked read; never loop single writes over unbounded children, never `removeMany(await findManyBy(...))`.

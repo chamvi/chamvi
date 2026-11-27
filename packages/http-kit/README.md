@@ -38,7 +38,7 @@ The REST API of [`@chamvi/http`](../http/README.md) is plain JSON over bearer to
 
 | Concern | With `fetch` | With `@chamvi/http-kit` |
 |---|---|---|
-| Routes and bodies | Build `/runs/${encodeURIComponent(id)}/approve` and its body by hand, untyped | `client.run.approve(id, { approvalId, approved })`, typed from `@chamvi/http` |
+| Routes and bodies | Build `/runs/${encodeURIComponent(id)}/approve` and its body by hand, untyped | `client.run.approve(id, { approvalId, approved })`, typed from `@chamvi/core-kit` |
 | Bearer token | Add the header per call, refresh on a 401, retry, sign out when it stands | `token`, `refresh` and `onUnauthorized` once in `createClient()` |
 | Failures | Tell a 4xx body from a proxy page, a dropped connection, a non-JSON 2xx | One `ApiError` with `status`, `code`, `message`, `issues` and `retryAfter` |
 | Timeouts | Compose your abort signal with a deadline (`AbortSignal.any()` is missing on the dashboard's browser target) | Every call has a deadline (45 s) next to your `signal` |
