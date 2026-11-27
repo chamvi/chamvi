@@ -9,8 +9,6 @@ import type { IClock } from '@chamvi/core';
 import type { AuthorizationCheckBody, AuthorizationCheckView } from '@chamvi/core-kit';
 import type { Principal } from '../auth/types.ts';
 
-
-
 /** What `AuthorizationService` needs of the http context. */
 export type AuthorizationServiceContext = {
     clock: IClock;
