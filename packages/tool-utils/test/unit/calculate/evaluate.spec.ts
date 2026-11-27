@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { evaluateExpression } from '../../../src/calculate/evaluate.ts';
 
 describe('evaluateExpression', () => {

@@ -7,7 +7,8 @@
 
 import type { LanguageModel, ToolSet } from 'ai';
 import { afterEach } from 'vitest';
-import { ValidationError, defineModelAgent } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { defineModelAgent } from '@chamvi/core';
 import type {
     AgentLimits,
     ChannelMessage,
@@ -84,9 +85,9 @@ export function createWriteEngine(options: {
     const sent: WriteEngine['sent'] = [];
     const client = options.client ?? (options.fake ?
         createCalendarWriteClient([WRITE_ACCOUNT], {
-            fetch: options.fake.fetch, 
-            clock, 
-            timezone: 'Europe/Berlin', 
+            fetch: options.fake.fetch,
+            clock,
+            timezone: 'Europe/Berlin',
         }) :
         undefined);
     const chat: IChannel = {

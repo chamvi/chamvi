@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { Permission, can, isPermissionBinding } from '@chamvi/access';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { isObject } from 'smob';
@@ -13,7 +14,7 @@ import type { DispatchResult } from '../channel/types.ts';
 import { inject } from '../context/module.ts';
 import { assertFrameActive, currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
-import { BudgetExceededError, InvalidRunStateError, ValidationError } from '../errors/index.ts';
+import { BudgetExceededError, InvalidRunStateError } from '../errors/index.ts';
 import type { Run, Usage } from '@chamvi/store';
 import type { StateSchema } from '../state/types.ts';
 import type { ToolContext } from '../tool/types.ts';

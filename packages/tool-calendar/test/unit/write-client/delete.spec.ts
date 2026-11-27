@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ChamviError, ValidationError } from '@chamvi/core';
+import { ChamviError, ValidationError } from '@chamvi/errors';
 import { ControllableClock } from '@chamvi/test-kit';
 import { CALENDAR_CHANGED_MESSAGE, CALENDAR_REQUEST_ERROR_CODE, createCalendarWriteClient } from '@chamvi/tool-calendar';
 import { encodeCalendarEventId } from '../../../src/event-id/module.ts';
@@ -23,17 +23,17 @@ const ACCOUNT = {
 
 function object(name: string, ...lines: string[]): FakeObject {
     return {
-        name, 
-        ics: calendar(vevent(...lines)), 
-        etag: `"${name}"`, 
+        name,
+        ics: calendar(vevent(...lines)),
+        etag: `"${name}"`,
     };
 }
 
 function idOf(name: string, etag = `"${name}"`): string {
     return encodeCalendarEventId({
-        calendar: 'icloud:home', 
-        name, 
-        etag, 
+        calendar: 'icloud:home',
+        name,
+        etag,
     });
 }
 
@@ -70,9 +70,9 @@ function setup(extra: FakeObject[] = []) {
                 'ATTENDEE:mailto:peter@example.com',
             ),
             {
-                name: 'standup.ics', 
-                ics: weeklyStandup(), 
-                etag: '"standup"', 
+                name: 'standup.ics',
+                ics: weeklyStandup(),
+                etag: '"standup"',
             },
             object(
                 'moved.ics',
@@ -92,9 +92,9 @@ function setup(extra: FakeObject[] = []) {
     const client = createCalendarWriteClient([ACCOUNT], { fetch: server.fetch, clock });
 
     return {
-        server, 
-        clock, 
-        client, 
+        server,
+        clock,
+        client,
     };
 }
 
@@ -186,19 +186,19 @@ describe('createCalendarWriteClient: describe', () => {
     it('gives undefined for a missing event and refuses what it cannot show', async () => {
         const { server, client } = setup([
             {
-                name: 'huge.ics', 
-                ics: calendar(vevent('UID:huge', 'DTSTART:20261105T080000Z', `DESCRIPTION:${'x'.repeat(2 * 1024 * 1024)}`)), 
-                etag: '"huge"', 
+                name: 'huge.ics',
+                ics: calendar(vevent('UID:huge', 'DTSTART:20261105T080000Z', `DESCRIPTION:${'x'.repeat(2 * 1024 * 1024)}`)),
+                etag: '"huge"',
             },
             {
-                name: 'todo.ics', 
-                ics: calendar('BEGIN:VTODO', 'UID:t', 'END:VTODO'), 
-                etag: '"todo"', 
+                name: 'todo.ics',
+                ics: calendar('BEGIN:VTODO', 'UID:t', 'END:VTODO'),
+                etag: '"todo"',
             },
             {
-                name: 'junk.ics', 
-                ics: 'not a calendar', 
-                etag: '"junk"', 
+                name: 'junk.ics',
+                ics: 'not a calendar',
+                etag: '"junk"',
             },
         ]);
 
@@ -226,19 +226,19 @@ describe('createCalendarWriteClient: describe', () => {
         for (const id of [
             'nonsense',
             encodeCalendarEventId({
-                calendar: 'other:home', 
-                name: 'one.ics', 
-                etag: '"one.ics"', 
+                calendar: 'other:home',
+                name: 'one.ics',
+                etag: '"one.ics"',
             }),
             encodeCalendarEventId({
-                calendar: 'icloud:home', 
-                name: '..', 
-                etag: '"x"', 
+                calendar: 'icloud:home',
+                name: '..',
+                etag: '"x"',
             }),
             encodeCalendarEventId({
-                calendar: 'icloud:home', 
-                name: '%2e%2e', 
-                etag: '"x"', 
+                calendar: 'icloud:home',
+                name: '%2e%2e',
+                etag: '"x"',
             }),
         ]) {
             expect(await rejection(client.describe(id))).toBeInstanceOf(ValidationError);
@@ -251,9 +251,9 @@ describe('createCalendarWriteClient: describe', () => {
     it('refuses an id of an unknown calendar of the account', async () => {
         const { server, client } = setup();
         const id = encodeCalendarEventId({
-            calendar: 'icloud:work', 
-            name: 'one.ics', 
-            etag: '"one.ics"', 
+            calendar: 'icloud:work',
+            name: 'one.ics',
+            etag: '"one.ics"',
         });
 
         expect(await rejection(client.describe(id))).toBeInstanceOf(ValidationError);
@@ -287,9 +287,9 @@ describe('createCalendarWriteClient: remove', () => {
         expect((await rejection(client.remove(idOf('one.ics')))).message).toBe('calendar_delete: icloud: not permitted');
 
         server.fail = {
-            method: 'DELETE', 
-            status: 301, 
-            location: 'https://evil.test/', 
+            method: 'DELETE',
+            status: 301,
+            location: 'https://evil.test/',
         };
         expect((await rejection(client.remove(idOf('one.ics')))).message).toBe('calendar_delete: icloud: request failed');
         expect(server.requests.filter((request) => request.method === 'DELETE')).toHaveLength(2);
@@ -300,10 +300,10 @@ describe('createCalendarWriteClient: remove', () => {
 describe('createCalendarWriteClient: sharing', () => {
     function sharingSetup(owner?: string) {
         const server = createFakeCalDav([{
-            slug: 'home', 
-            name: 'Home', 
-            ...(owner && { owner }), 
-            objects: [ONE], 
+            slug: 'home',
+            name: 'Home',
+            ...(owner && { owner }),
+            objects: [ONE],
         }]);
         const client = createCalendarWriteClient([ACCOUNT], { fetch: server.fetch });
 

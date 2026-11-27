@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import type { LanguageModel } from 'ai';
 import { z } from 'zod';
 import { cron, cronChannel } from '@chamvi/channel-cron';
+import { ValidationError } from '@chamvi/errors';
 import {
     AgentRevisionService,
     ArtifactService,
@@ -13,7 +14,6 @@ import {
     RunService,
     StateService,
     StepService,
-    ValidationError,
     consoleChannel,
     defineModelAgent,
     defineTool,

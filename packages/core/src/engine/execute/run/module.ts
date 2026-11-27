@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type {
     LanguageModel,
     ModelMessage,
@@ -21,7 +22,7 @@ import { hydrateMessages } from '../../../artifact/helpers.ts';
 import type { ClockTimer } from '../../../clock/types.ts';
 import { bindConversationRun } from '../../../conversation/context.ts';
 import { bindRunSnapshot } from '../../../dispatch/helpers/index.ts';
-import { ArtifactNotFoundError, InvalidAgentDefinitionError, ValidationError } from '../../../errors/index.ts';
+import { ArtifactNotFoundError, InvalidAgentDefinitionError } from '../../../errors/index.ts';
 import { assertTranscriptMessages, splitInstructions } from '../../../message/helpers.ts';
 import { toLanguageModel } from '../../../model/asserts.ts';
 import type { Budget, RunContext } from '../../../run/types.ts';

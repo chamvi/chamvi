@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ChamviError, ValidationError } from '@chamvi/core';
+import { ChamviError, ValidationError } from '@chamvi/errors';
 import { ControllableClock } from '@chamvi/test-kit';
 import { CALENDAR_REQUEST_ERROR_CODE, createCalendarWriteClient } from '@chamvi/tool-calendar';
 import { createUnconfiguredCalendarWriteClient } from '../../../src/write-client/unconfigured.ts';
@@ -29,9 +29,9 @@ function account(id = 'icloud', user = 'me@example.com') {
 function fake() {
     return createFakeCalDav([
         {
-            slug: 'home', 
-            name: 'Home', 
-            objects: [weeklyStandup()], 
+            slug: 'home',
+            name: 'Home',
+            objects: [weeklyStandup()],
         },
         {
             slug: 'reminders',

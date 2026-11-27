@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { ControllableClock } from '@chamvi/test-kit';
 import { PEER_TOKEN_REFRESH_MARGIN_MS, PeerRequestError, createPeerResolver } from '@chamvi/peer';
 import type { FakeRequest } from '../utils/fetch.ts';

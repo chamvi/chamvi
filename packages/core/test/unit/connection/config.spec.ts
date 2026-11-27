@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
@@ -14,7 +15,6 @@ import {
     InvalidAgentDefinitionError,
     LeaseLostError,
     RepositoryNotFoundError,
-    ValidationError,
     createConnectionConfigStore,
     createConnectionVault,
     createKeyring,
@@ -310,9 +310,9 @@ describe('createConnectionConfigStore', () => {
             });
             await expect(config.describe('missing')).resolves.toBeUndefined();
             await expect(config.read('secretless')).resolves.toEqual({
-                values: { host: 'a' }, 
-                revision: 1, 
-                generation: expect.any(String), 
+                values: { host: 'a' },
+                revision: 1,
+                generation: expect.any(String),
             });
             await expect(config.read('missing')).resolves.toBeUndefined();
 

@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError, ErrorCode } from '@chamvi/core';
+import { ErrorCode, httpStatusOf, isChamviError } from '@chamvi/errors';
 import type { Issue } from '@ebec/core';
 import { isHTTPError } from '@ebec/http';
 import type { IHTTPError } from '@ebec/http';
@@ -25,23 +25,12 @@ type ErrorBody = {
     fixed?: boolean;
 };
 
-const CORE_STATUS: Record<string, number> = {
-    [ErrorCode.VALIDATION]: 400,
-    [ErrorCode.AGENT_NOT_FOUND]: 404,
-    [ErrorCode.AGENT_REPLACED]: 409,
-    [ErrorCode.RUN_NOT_FOUND]: 404,
-    [ErrorCode.ARTIFACT_NOT_FOUND]: 404,
-    [ErrorCode.CONNECTION_CHANGED]: 409,
-    [ErrorCode.CONNECTION_HELD]: 409,
-    // a stored seal no key of the keyring opens (one dropped); the message names at most a key id
-    [ErrorCode.DECRYPTION_FAILED]: 409,
-    [ErrorCode.REPOSITORY_NOT_FOUND]: 404,
-    [ErrorCode.INVALID_RUN_STATE]: 409,
-    // retryable: rendered with `Retry-After` (RETRY_AFTER_SECONDS), never reported
-    [ErrorCode.PEER_START_BUSY]: 503,
-};
-
 const APP_ERROR_CODE = 'APP_ERROR';
+
+/** A refusal the caller retries after `Retry-After` (a busy peer start): never reported. */
+export function isRetryableErrorCode(code: string): boolean {
+    return Object.hasOwn(RETRY_AFTER_SECONDS, code);
+}
 
 export function renderError(event: IAppEvent, body: ErrorBody): Response {
     const headers = new Headers(event.response.headers);
@@ -130,6 +119,20 @@ function toErrorBody(cause: unknown): ErrorBody | undefined {
         return storage;
     }
 
+    if (isChamviError(cause)) {
+        const status = httpStatusOf(cause);
+
+        if (status === undefined) {
+            return undefined;
+        }
+
+        return withIssues({
+            status,
+            code: cause.code,
+            message: cause.message,
+        }, cause.issues);
+    }
+
     if (isHTTPError(cause) && !isBareAppError(cause)) {
         return withIssues({
             status: cause.status,
@@ -146,20 +149,6 @@ function toErrorBody(cause: unknown): ErrorBody | undefined {
         }, cause.issues);
     }
 
-    if (cause instanceof ChamviError) {
-        const status = CORE_STATUS[cause.code];
-
-        if (status === undefined) {
-            return undefined;
-        }
-
-        return withIssues({
-            status,
-            code: cause.code,
-            message: cause.message,
-        }, cause.issues);
-    }
-
     return undefined;
 }
 
@@ -171,7 +160,7 @@ export function createErrorHandler(ctx: HttpContext): Handler {
     return defineErrorHandler((error, event) => {
         const cause = unwrapAppError(error);
         let body = toErrorBody(cause);
-        const retryAfter = body && Object.hasOwn(RETRY_AFTER_SECONDS, body.code) ? RETRY_AFTER_SECONDS[body.code] : undefined;
+        const retryAfter = body && isRetryableErrorCode(body.code) ? RETRY_AFTER_SECONDS[body.code] : undefined;
 
         // an expected refusal the caller retries: not reported
         if (body && retryAfter !== undefined) {

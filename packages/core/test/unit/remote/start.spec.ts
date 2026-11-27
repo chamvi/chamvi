@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import {
     afterEach,
     describe,
@@ -15,7 +16,6 @@ import {
     InvalidAgentDefinitionError,
     PEER_ORIGIN_MAX_LENGTH,
     PEER_REQUEST_TIMEOUT_MS,
-    ValidationError,
     agent,
     defineRemoteAgent,
     defineSimpleAgent,
@@ -463,10 +463,10 @@ describe('the stand-in run: start', () => {
         // the start went to a target an earlier definition named
         await store.effectService.save(`remote-start:${runId}`, {
             attempt: {
-                ...attempt, 
-                peer: 'ops', 
-                agent: 'builder', 
-            }, 
+                ...attempt,
+                peer: 'ops',
+                agent: 'builder',
+            },
         });
         clock.advance(120_000);
         await engine.recover();

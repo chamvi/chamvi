@@ -43,10 +43,10 @@ describe('staticTokens', () => {
     it('expands "*" to every chamvi permission, unrestricted', async () => {
         const admin = staticTokens({
             tokens: [{
-                value: ADMIN, 
-                id: 'admin', 
-                permissions: '*', 
-            }], 
+                value: ADMIN,
+                id: 'admin',
+                permissions: '*',
+            }],
         });
 
         expect(await admin(request(`Bearer ${ADMIN}`))).toEqual({
@@ -59,10 +59,10 @@ describe('staticTokens', () => {
     it('keeps a restricted binding as configured', async () => {
         const restricted = staticTokens({
             tokens: [{
-                value: ADMIN, 
-                id: 'triage', 
-                permissions: [TRIAGE_ONLY], 
-            }], 
+                value: ADMIN,
+                id: 'triage',
+                permissions: [TRIAGE_ONLY],
+            }],
         });
         const principal = await restricted(request(`Bearer ${ADMIN}`));
 
@@ -74,10 +74,10 @@ describe('staticTokens', () => {
     it('answers a copy, so a caller cannot change the configured grants', async () => {
         const restricted = staticTokens({
             tokens: [{
-                value: ADMIN, 
-                id: 'triage', 
-                permissions: [TRIAGE_ONLY], 
-            }], 
+                value: ADMIN,
+                id: 'triage',
+                permissions: [TRIAGE_ONLY],
+            }],
         });
         const first = await restricted(request(`Bearer ${ADMIN}`));
 
@@ -94,19 +94,19 @@ describe('staticTokens', () => {
     ])('rejects %s, naming the token and the binding shape', (_name, permissions) => {
         expect(() => staticTokens({
             tokens: [{
-                value: ADMIN, 
-                id: 'ci', 
-                permissions: permissions as never, 
-            }], 
+                value: ADMIN,
+                id: 'ci',
+                permissions: permissions as never,
+            }],
         })).toThrow(
             'Static token "ci": permissions must be "*" or an array of permission bindings ({ permission: { name }, policies? }).',
         );
         expect(() => staticTokens({
             tokens: [{
-                value: ADMIN, 
-                id: 'ci', 
-                permissions: permissions as never, 
-            }], 
+                value: ADMIN,
+                id: 'ci',
+                permissions: permissions as never,
+            }],
         })).toThrow(InvalidAgentDefinitionError);
     });
 
@@ -116,7 +116,7 @@ describe('staticTokens', () => {
     });
 
     it('rejects another scheme with 401', async () => {
-        await expect(auth(request('Basic abc'))).rejects.toMatchObject({ status: 401 });
+        await expect(auth(request('Basic abc'))).rejects.toMatchObject({ code: 'unauthorized' });
     });
 
     it('resolves every token of a principal that holds several', async () => {

@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError, ErrorCode, InvalidRunStateError } from '@chamvi/core';
+import { ChamviError, ErrorCode } from '@chamvi/errors';
+import { InvalidRunStateError } from '@chamvi/core';
 import { isObject } from 'smob';
 
 export function failure(code: string, message: string, cause?: unknown): ChamviError {

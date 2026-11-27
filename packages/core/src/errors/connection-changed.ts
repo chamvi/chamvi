@@ -5,8 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from './base.ts';
-import { ErrorCode } from './constants.ts';
+import { ChamviError, ErrorCode } from '@chamvi/errors';
 
 /** The stored connection changed underneath a write (e.g. its data key was replaced). */
 export class ConnectionChangedError extends ChamviError {

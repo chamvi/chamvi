@@ -7,7 +7,8 @@
 
 import type { ClockTimer } from '@chamvi/core';
 import { randomBytes } from 'node:crypto';
-import { SandboxError, ValidationError, systemClock } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError, systemClock } from '@chamvi/core';
 import { toSandboxError } from '../manager/helpers/index.ts';
 import { createOutputCollector } from '../output/module.ts';
 import { absoluteWorkspacePath, resolveWorkspacePath } from '../path/module.ts';

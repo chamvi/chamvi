@@ -6,7 +6,7 @@
  */
 
 import { inspect } from 'node:util';
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import { describe, expect, it } from 'vitest';
 import { createStoppedError } from '../../../../src/module/helpers/index.ts';
 import { maskPassword } from '../../../../src/modules/repository/helpers.ts';

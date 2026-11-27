@@ -5,9 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ErrorCode } from '@chamvi/errors';
 import { describe, expect, it } from 'vitest';
 import { MemoryArtifactRepository, MemoryRegistry } from '@chamvi/store-memory';
-import { ErrorCode, InvalidRunStateError } from '@chamvi/core';
+import { InvalidRunStateError } from '@chamvi/core';
 import { createRunArtifacts, storeArtifact } from '../../../src/artifact/module.ts';
 import { ArtifactService } from '../../../src/artifact/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';

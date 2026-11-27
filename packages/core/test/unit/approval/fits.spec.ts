@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import {
     afterEach,
     describe,
@@ -12,7 +13,7 @@ import {
     it,
 } from 'vitest';
 import { z } from 'zod';
-import { ValidationError, defineTool } from '@chamvi/core';
+import { defineTool } from '@chamvi/core';
 import type { ChannelMessage, IChannel, IEngine } from '@chamvi/core';
 import { approvalWait } from '../../utils/approvals.ts';
 import {

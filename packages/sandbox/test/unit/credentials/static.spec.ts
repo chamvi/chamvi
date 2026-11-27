@@ -6,7 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { InvalidAgentDefinitionError, SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError, SandboxError } from '@chamvi/core';
 import { staticGitCredentials } from '@chamvi/sandbox';
 import type { GitCredentialRequest } from '@chamvi/sandbox';
 import { credentialRequest, resolveGitCredential } from '../../../src/credentials/helpers.ts';

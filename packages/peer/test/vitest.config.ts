@@ -13,6 +13,7 @@ export default defineConfig({
             { find: /^@chamvi\/app$/, replacement: source('app') },
             { find: /^@chamvi\/app\/testing$/, replacement: fileURLToPath(new URL('../../app/src/testing/index.ts', import.meta.url)) },
             { find: /^@chamvi\/channel-cron$/, replacement: source('channel-cron') },
+            { find: /^@chamvi\/errors$/, replacement: source('errors') },
             { find: /^@chamvi\/core$/, replacement: source('core') },
             { find: /^@chamvi\/http$/, replacement: source('http') },
             { find: /^@chamvi\/http-kit$/, replacement: source('http-kit') },

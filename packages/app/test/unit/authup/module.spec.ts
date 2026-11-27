@@ -8,6 +8,8 @@
 import type { ITokenVerifier } from '@authup/server-adapter-kit';
 import { Permission } from '@chamvi/access';
 import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
+import type { ChamviError } from '@chamvi/errors';
+import { httpStatusOf, isServiceUnavailableError, isUnauthorizedError } from '@chamvi/errors';
 import { http } from '@chamvi/http';
 import type { IModule } from 'orkos';
 import {
@@ -456,7 +458,11 @@ describe('authupModule deadline', () => {
 
         await until(() => clock.active() === 1);
         clock.advance(500);
-        await expect(outcome).rejects.toMatchObject({ status: 503 });
+
+        const stalledError = await outcome.catch((error: unknown) => error);
+
+        expect(isServiceUnavailableError(stalledError)).toBe(true);
+        expect(httpStatusOf(stalledError as ChamviError)).toBe(503);
 
         const rejecting = await authenticatorOf({
             ...injected({
@@ -467,7 +473,10 @@ describe('authupModule deadline', () => {
             timeoutMs: 500,
         }, clock);
 
-        await expect(rejecting.login()).rejects.toMatchObject({ status: 401 });
+        const rejectedError = await rejecting.login().catch((error: unknown) => error);
+
+        expect(isUnauthorizedError(rejectedError)).toBe(true);
+        expect(httpStatusOf(rejectedError as ChamviError)).toBe(401);
         expect(clock.active()).toBe(0);
     });
 
@@ -547,6 +556,10 @@ describe('authupModule deadline', () => {
         clock.advance(249);
         expect(clock.active()).toBe(1);
         clock.advance(1);
-        await expect(outcome).rejects.toMatchObject({ status: 503 });
+
+        const stalledError = await outcome.catch((error: unknown) => error);
+
+        expect(isServiceUnavailableError(stalledError)).toBe(true);
+        expect(httpStatusOf(stalledError as ChamviError)).toBe(503);
     });
 });

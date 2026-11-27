@@ -5,11 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import {
-    SandboxError,
-    ValidationError,
-    systemClock,
-} from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError, systemClock } from '@chamvi/core';
 import type { IWorkspace } from '../workspace/types.ts';
 import { InstructionCollector } from './collector.ts';
 import { INSTRUCTION_REQUEST_TIMEOUT_MS } from './constants.ts';

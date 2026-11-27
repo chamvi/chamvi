@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { parseMailId } from '@chamvi/tool-mail';
 import type { MailAccountView, MailSearchResult } from '@chamvi/tool-mail';
 import { untagged } from '../../utils/mail.ts';

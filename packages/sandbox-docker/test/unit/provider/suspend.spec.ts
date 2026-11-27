@@ -12,7 +12,8 @@ import {
     expect,
     it,
 } from 'vitest';
-import { SandboxError, ValidationError, systemClock } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError, systemClock } from '@chamvi/core';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import type { IWorkspace } from '@chamvi/sandbox';
 import { CONTAINER_NAME_PREFIX, createDockerSandbox } from '@chamvi/sandbox-docker';
@@ -60,9 +61,9 @@ describeDocker('docker suspension', () => {
 
     it('stops a running container of a suspendable run and keeps it, uncounted', async () => {
         const {
-            provider, 
-            deployment, 
-            runId, 
+            provider,
+            deployment,
+            runId,
         } = setup();
         const workspace = await provider.create({ runId, deployment });
 
@@ -113,9 +114,9 @@ describeDocker('docker suspension', () => {
 
     it('find restarts a suspended workspace with its files through a fresh handle', async () => {
         const {
-            provider, 
-            deployment, 
-            runId, 
+            provider,
+            deployment,
+            runId,
         } = setup();
         const workspace = await provider.create({ runId, deployment });
 
@@ -156,9 +157,9 @@ describeDocker('docker suspension', () => {
         };
 
         const provider = createDockerSandbox({
-            ...dockerOptions, 
-            docker: gated, 
-            suspend: true, 
+            ...dockerOptions,
+            docker: gated,
+            suspend: true,
         });
         const deployment = `test-${randomUUID().slice(0, 8)}`;
         const runId = `test-${randomUUID()}`;
@@ -195,9 +196,9 @@ describeDocker('docker suspension', () => {
 
     it('a manager gets the workspace of a suspended run back with its files', async () => {
         const {
-            provider, 
-            deployment, 
-            runId, 
+            provider,
+            deployment,
+            runId,
         } = setup();
         const errors: unknown[] = [];
         let suspendable = true;
@@ -231,9 +232,9 @@ describeDocker('docker suspension', () => {
 
     it('removes a suspended container whose run settled', async () => {
         const {
-            provider, 
-            deployment, 
-            runId, 
+            provider,
+            deployment,
+            runId,
         } = setup();
         const workspace = await provider.create({ runId, deployment });
 
@@ -246,9 +247,9 @@ describeDocker('docker suspension', () => {
 
     it('removes a settled run\'s container rather than suspending it', async () => {
         const {
-            provider, 
-            deployment, 
-            runId, 
+            provider,
+            deployment,
+            runId,
         } = setup();
         const workspace = await provider.create({ runId, deployment });
 
@@ -292,9 +293,9 @@ describeDocker('docker suspension', () => {
         // the real time, since a container sleeps until its expiry on the daemon's clock
         const clock = new ExpiryClock(new Date());
         const {
-            provider, 
-            deployment, 
-            runId, 
+            provider,
+            deployment,
+            runId,
         } = setup(clock);
         const workspace = await provider.create({ runId, deployment });
 
@@ -311,9 +312,9 @@ describeDocker('docker suspension', () => {
      */
     async function createCacheRepos(): Promise<[string, string]> {
         const {
-            provider, 
-            deployment, 
-            runId, 
+            provider,
+            deployment,
+            runId,
         } = setup();
         const helper = await provider.create({ runId, deployment });
         const root = `/cache/repos-${randomUUID().slice(0, 8)}`;
@@ -348,9 +349,9 @@ describeDocker('docker suspension', () => {
     ])('after a restart, %s keeps the other repository workspace reusable with its files', async (_name, remove) => {
         const [repoA, repoB] = await createCacheRepos();
         const {
-            provider, 
-            deployment, 
-            runId, 
+            provider,
+            deployment,
+            runId,
         } = setup();
         const manage = (sandbox: typeof provider) => createWorkspaceManager({
             provider: sandbox,

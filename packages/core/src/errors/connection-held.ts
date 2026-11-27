@@ -5,8 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from './base.ts';
-import { ErrorCode } from './constants.ts';
+import { ChamviError, ErrorCode } from '@chamvi/errors';
 
 /** The lease of a connection is held by another process (or another session of this one). */
 export class ConnectionHeldError extends ChamviError {

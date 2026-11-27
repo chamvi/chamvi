@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
 
 /** The tool input as an object, else a ValidationError (a tool error the model can correct). */

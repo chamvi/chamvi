@@ -21,7 +21,7 @@ import type {
     ChatInstance,
     RawMessage,
 } from 'chat';
-import { ChamviError, ValidationError } from '@chamvi/core';
+import { ChamviError, ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
 import { CHAT_REQUEST_ERROR_CODE } from '@chamvi/chat';
 import type { ChatAudioAttachment } from '@chamvi/chat';

@@ -10,15 +10,19 @@ import { z } from 'zod';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import {
     DISPATCH_DEPTH_MAX,
+    PeerStartBusyError,
 } from '@chamvi/core';
+import { ServiceUnavailableError } from '@chamvi/errors';
 import type { Run, WaitPoint } from '@chamvi/store';
 import {
     findWaitingApproval,
     isWaitOver,
+    runTool,
     toJsonSchema,
     toRunToolResult,
 } from '../../../src/mcp/helpers/index.ts';
 import { createTestEngine } from '@chamvi/test-kit';
+import type { HttpContext } from '../../../src/app/types.ts';
 
 function plainSchema(jsonSchema?: unknown): StandardSchemaV1 {
     return {
@@ -227,9 +231,9 @@ describe('toRunToolResult', () => {
 
     it('answers only the run id, status and deduplicated when not readable', () => {
         const run = {
-            ...buildRun('failed', APPROVAL_WAIT), 
-            output: 'x', 
-            error: { code: 'e', message: 'm' }, 
+            ...buildRun('failed', APPROVAL_WAIT),
+            output: 'x',
+            error: { code: 'e', message: 'm' },
         };
 
         expect(toRunToolResult(run, true, false)).toEqual({
@@ -349,5 +353,37 @@ describe('isWaitOver', () => {
         expect(isWaitOver(buildRun('queued'))).toBe(false);
         expect(isWaitOver(buildRun('running'))).toBe(false);
         expect(isWaitOver(buildRun('interrupted'))).toBe(false);
+    });
+});
+
+describe('runTool', () => {
+    function contextOf(reported: unknown[]): HttpContext {
+        return {
+            onError: (error: unknown) => {
+                reported.push(error);
+            },
+        } as unknown as HttpContext;
+    }
+
+    it('reports a chamvi 5xx and answers Internal Server Error', async () => {
+        const reported: unknown[] = [];
+        const error = new ServiceUnavailableError({ message: 'The token issuer is unreachable.' });
+        const result = await runTool(contextOf(reported), async () => {
+            throw error;
+        });
+
+        expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'Internal Server Error' }] });
+        expect(reported).toEqual([error]);
+    });
+
+    it('answers a busy peer start with its message, unreported', async () => {
+        const reported: unknown[] = [];
+        const error = new PeerStartBusyError('peer-a', 'r1');
+        const result = await runTool(contextOf(reported), async () => {
+            throw error;
+        });
+
+        expect(result).toEqual({ isError: true, content: [{ type: 'text', text: error.message }] });
+        expect(reported).toEqual([]);
     });
 });

@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError, InvalidAgentDefinitionError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type * as storeDb from '@chamvi/store-db';
 import type { DatabaseKind } from '@chamvi/store-db';
 import type { IContainer } from 'eldin';

@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError, defineTool } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { defineTool } from '@chamvi/core';
 import { jsonSchema } from 'ai';
 import type { Tool } from 'ai';
 import { FILES_MAX_FILES } from './constants.ts';

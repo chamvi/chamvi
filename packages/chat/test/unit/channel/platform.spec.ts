@@ -13,11 +13,8 @@ import {
     expectTypeOf,
     it,
 } from 'vitest';
-import {
-    InvalidAgentDefinitionError,
-    ValidationError,
-    defineModelAgent,
-} from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import type {
     Agent,
     ChannelMessage,
@@ -422,9 +419,9 @@ describe('chatChannel({ maxTextChars })', () => {
         const fixture = await started({
             agents: () => [],
             patch: {
-                platform, 
-                maxTextChars: 2000, 
-                approvalUrl: URL_OF, 
+                platform,
+                maxTextChars: 2000,
+                approvalUrl: URL_OF,
             },
         });
 

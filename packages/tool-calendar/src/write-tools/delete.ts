@@ -7,9 +7,9 @@
 
 import type { Tool } from 'ai';
 import { jsonSchema } from 'ai';
+import { ValidationError } from '@chamvi/errors';
 import {
     ToolDeniedError,
-    ValidationError,
     defineEffectTool,
     once,
     toolLimitApproved,
@@ -121,15 +121,15 @@ export function calendarDeleteTool(
 
                 return backup ?
                     {
-                        event, 
-                        calendar: ref.calendar, 
-                        status: 'deleted', 
-                        backup, 
+                        event,
+                        calendar: ref.calendar,
+                        status: 'deleted',
+                        backup,
                     } :
                     {
-                        event, 
-                        calendar: ref.calendar, 
-                        status: 'missing', 
+                        event,
+                        calendar: ref.calendar,
+                        status: 'missing',
                     };
             }
 

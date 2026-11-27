@@ -13,11 +13,10 @@ import {
     vi,
 } from 'vitest';
 import { z } from 'zod';
+import { ChamviError, ValidationError } from '@chamvi/errors';
 import {
-    ChamviError,
     InvalidRunStateError,
     TimeoutError,
-    ValidationError,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';

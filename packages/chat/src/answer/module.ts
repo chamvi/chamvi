@@ -6,7 +6,7 @@
  */
 
 import { Permission, can } from '@chamvi/access';
-import { ErrorCode } from '@chamvi/core';
+import { ErrorCode } from '@chamvi/errors';
 import type { IEngine } from '@chamvi/core';
 import type { ApprovalWaitPoint, Invoker, Run } from '@chamvi/store';
 import type { LanguageModel } from 'ai';

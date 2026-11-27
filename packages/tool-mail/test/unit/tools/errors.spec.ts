@@ -6,12 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-    ChamviError,
-    ContextNotProvidedError,
-    InvalidAgentDefinitionError,
-    ValidationError,
-} from '@chamvi/core';
+import { ChamviError, ValidationError } from '@chamvi/errors';
+import { ContextNotProvidedError, InvalidAgentDefinitionError } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import {
     MAIL_REQUEST_ERROR_CODE,

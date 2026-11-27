@@ -320,6 +320,6 @@ const systemClock: IClock;
 
 `ChamviError`, `InvalidAgentDefinitionError`, `AgentNotFoundError`, `ChannelNotFoundError`, `ContextNotProvidedError`, `InvalidRunStateError`, `RunNotFoundError`, `ArtifactNotFoundError`, `BudgetExceededError`, `TimeoutError`, `FatalToolError`, `IncompleteResponseError`, `ToolNotAllowedError`, `ToolDeniedError`, `LeaseLostError`, `SandboxError`, `ValidationError` and `ErrorCode`:
 
-<<< ../../../core/src/errors/constants.ts{ts}
+<<< ../../../errors/src/constants.ts{ts}
 
 See [Errors](/guide/errors) for when each is thrown.

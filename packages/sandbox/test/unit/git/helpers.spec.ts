@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { credentialKey, credentialsFileContent } from '../../../src/git/helpers.ts';
 
 describe('urlRepoPath of a malformed escape', () => {

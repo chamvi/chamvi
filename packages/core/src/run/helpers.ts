@@ -5,11 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { isFilter, isFilters } from '@rapiq/core';
 import type { ICondition, IFilters, ISort } from '@rapiq/core';
 import { normalizeEnvelope, normalizeWaitPoint } from '@chamvi/store';
 import type { Run, WaitPoint } from '@chamvi/store';
-import { ValidationError } from '../errors/index.ts';
 
 /** The run field a listing selects a wait point kind by (`Run.waiting.kind`). */
 const WAITING_FIELD = 'waiting';

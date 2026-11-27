@@ -5,8 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ChamviError, ErrorCode } from '@chamvi/errors';
 import { describe, expect, it } from 'vitest';
-import { ChamviError, ErrorCode, SandboxError } from '@chamvi/core';
+import { SandboxError } from '@chamvi/core';
 
 describe('SandboxError', () => {
     it('carries code sandbox_error and the cause', () => {

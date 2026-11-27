@@ -5,14 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { randomUUID } from 'node:crypto';
 import { isObject } from 'smob';
 import { systemClock } from '../clock/module.ts';
-import {
-    ConnectionHeldError,
-    InvalidAgentDefinitionError,
-    ValidationError,
-} from '../errors/index.ts';
+import { ConnectionHeldError, InvalidAgentDefinitionError } from '../errors/index.ts';
 import { open, seal } from '../keyring/module.ts';
 import { DEFAULT_CONNECTION_LEASE_TTL_MS } from './constants.ts';
 import { dataKeyContextOf, lockKeyOf, secretAadOf } from './helpers.ts';
@@ -191,9 +188,9 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
             const values = { ...config.settings, ...secrets } as ConnectionValues;
 
             return {
-                values, 
-                revision: config.revision, 
-                generation: config.generation, 
+                values,
+                revision: config.revision,
+                generation: config.generation,
             };
         },
 

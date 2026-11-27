@@ -31,14 +31,15 @@
 npm install @chamvi/tool-files @chamvi/core ai --save
 ```
 
-ESM only, Node.js `>=26.0.0`. `@chamvi/core` and `ai` are peer dependencies.
+ESM only, Node.js `>=26.0.0`. `@chamvi/core`, `@chamvi/errors` and `ai` are peer dependencies.
 
 ## Usage
 
 This model-free agent accepts a `sales.json` attachment such as `[{"amount":12},{"amount":30}]`, publishes `report.json` containing `42`, then reads that output through the native artifact API. Start it with `Engine.dispatch({ agent: 'file-report', trigger, channel, payload, attachments })`; [the executable example test](https://github.com/chamvi/chamvi/blob/master/packages/tool-files/test/unit/readme.spec.ts) supplies the engine and attachment without credentials.
 
 ```typescript
-import { ValidationError, defineSimpleAgent } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { defineSimpleAgent } from '@chamvi/core';
 import { fileTools } from '@chamvi/tool-files';
 
 export function createFileAgent() {

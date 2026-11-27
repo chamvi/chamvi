@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { LanguageModel } from 'ai';
 import {
     afterEach,
@@ -16,7 +17,6 @@ import {
 import { z } from 'zod';
 import {
     InvalidRunStateError,
-    ValidationError,
     approve,
     defineModelAgent,
     defineTool,

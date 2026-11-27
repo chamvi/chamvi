@@ -5,13 +5,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import {
     afterEach,
     describe,
     expect,
     it,
 } from 'vitest';
-import { PEER_REQUEST_TIMEOUT_MS, ValidationError } from '@chamvi/core';
+import { PEER_REQUEST_TIMEOUT_MS } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type { Invoker, Run } from '@chamvi/store';

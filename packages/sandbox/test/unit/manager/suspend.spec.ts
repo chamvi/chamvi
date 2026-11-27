@@ -6,7 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type { IEngine, RunEvent } from '@chamvi/core';
 import type { Run } from '@chamvi/store';
@@ -110,9 +111,9 @@ describe('workspace manager: suspension', () => {
     it('never tells the provider to suspend a held run whose answer was rejected', async () => {
         let calls = 0;
         const {
-            manager, 
-            provider, 
-            errors, 
+            manager,
+            provider,
+            errors,
         } = setup({
             isSuspendable: async () => {
                 calls++;
@@ -221,9 +222,9 @@ describe('workspace manager: suspension', () => {
         // a provider that suspends nothing (k8s without persistence, local):
         // the workspace stays live after the manager forgot its handle
         const {
-            manager, 
-            provider, 
-            errors, 
+            manager,
+            provider,
+            errors,
         } = setup({
             gcIntervalMs: 600_000,
             isSettled: async () => false,
@@ -298,9 +299,9 @@ describe('workspace manager: suspension', () => {
     it('isSuspendable rejection is reported and keeps the workspace', async () => {
         const failure = new Error('store down');
         const {
-            manager, 
-            provider, 
-            errors, 
+            manager,
+            provider,
+            errors,
         } = setup({
             isSuspendable: async () => {
                 throw failure;
@@ -340,9 +341,9 @@ describe('workspace manager: suspension', () => {
     it('find gets rebuild env and limits', async () => {
         const author = { name: 'demo[bot]', email: 'demo@example.com' };
         const { manager, provider } = setup({
-            env: { A: '1' }, 
-            author, 
-            limits: { cpu: '2' }, 
+            env: { A: '1' },
+            author,
+            limits: { cpu: '2' },
         });
 
         await manager.get('r1').catch(() => undefined);
@@ -396,17 +397,17 @@ describe('workspace manager: suspension', () => {
 
     it('release of one workspace it does not hold finds with restore false, disposes only that one and adopts nothing', async () => {
         const {
-            manager: owner, 
-            provider, 
-            clock, 
+            manager: owner,
+            provider,
+            clock,
         } = setup();
         const { workspace } = await owner.acquire('r1', {});
         const { workspace: other } = await owner.acquire('r1', { repo: 'octo/demo' });
         // another replica (or this one after a restart) holds nothing of the run
         const manager = createWorkspaceManager({
-            provider, 
-            clock, 
-            gcIntervalMs: 0, 
+            provider,
+            clock,
+            gcIntervalMs: 0,
         });
         const findsBefore = provider.findCalls.length;
 
@@ -435,15 +436,15 @@ describe('workspace manager: suspension', () => {
 
     it('dispose resolves the only workspace of the run without restoring', async () => {
         const {
-            manager: owner, 
-            provider, 
-            clock, 
+            manager: owner,
+            provider,
+            clock,
         } = setup();
         const { workspace } = await owner.acquire('r1', {});
         const manager = createWorkspaceManager({
-            provider, 
-            clock, 
-            gcIntervalMs: 0, 
+            provider,
+            clock,
+            gcIntervalMs: 0,
         });
         const findsBefore = provider.findCalls.length;
 
@@ -457,18 +458,18 @@ describe('workspace manager: suspension', () => {
 
     it('dispose without an id refuses several and reports none, never restoring', async () => {
         const {
-            manager: owner, 
-            provider, 
-            clock, 
+            manager: owner,
+            provider,
+            clock,
         } = setup();
 
         await owner.acquire('r1', {});
         await owner.acquire('r1', { repo: 'octo/demo' });
 
         const manager = createWorkspaceManager({
-            provider, 
-            clock, 
-            gcIntervalMs: 0, 
+            provider,
+            clock,
+            gcIntervalMs: 0,
         });
         const findsBefore = provider.findCalls.length;
 

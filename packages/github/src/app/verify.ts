@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError, systemClock } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { systemClock } from '@chamvi/core';
 import { normalizePrivateKey } from '../auth/helpers.ts';
 import { createInstallationTokens } from '../auth/module.ts';
 import { GITHUB_REQUEST_ERROR_CODE } from '../tools/constants.ts';

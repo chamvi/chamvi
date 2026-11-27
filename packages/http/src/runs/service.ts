@@ -13,7 +13,7 @@ import type {
     DispatchEnvelope,
 } from '@chamvi/core';
 import type { Artifact, Run } from '@chamvi/store';
-import { BadRequestError } from '@ebec/http';
+import { BadRequestError } from '@chamvi/errors';
 import { and, defineQuery, inArray } from '@rapiq/core';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Container } from 'validup';

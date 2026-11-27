@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { describe, expect, it } from 'vitest';
 import type { ConnectionInput } from '@chamvi/store';
 import { MemoryConnectionRepository, MemoryLockRepository, MemoryRegistry } from '@chamvi/store-memory';
@@ -14,7 +15,6 @@ import {
     LeaseLostError,
     LockService,
     RepositoryNotFoundError,
-    ValidationError,
 } from '../../../src/index.ts';
 import type { ConnectionConfigWrite, ConnectionEntryWrite } from '../../../src/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
@@ -644,9 +644,9 @@ describe('ConnectionService', () => {
 
     it('replace bumps the config revision and keeps the id and createdAt', async () => {
         const {
-            clock, 
-            connections, 
-            hold, 
+            clock,
+            connections,
+            hold,
         } = setup();
         const key = makeConnection('wa').wrappedKey;
 

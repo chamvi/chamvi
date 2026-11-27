@@ -18,7 +18,8 @@ import {
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
-import type { ChamviError, IEngine } from '@chamvi/core';
+import type { ChamviError } from '@chamvi/errors';
+import type { IEngine } from '@chamvi/core';
 import type { ApprovalWaitPoint, Run } from '@chamvi/store';
 import { github } from '@chamvi/github';
 import type { GithubChannelOptions, IGithubApp } from '@chamvi/github';
@@ -298,10 +299,10 @@ describe('github channel with the engine', () => {
                     model: mockModel([
                         {
                             parts: [{
-                                type: 'tool-call', 
-                                toolName: 'ask', 
-                                input: { number }, 
-                            }], 
+                                type: 'tool-call',
+                                toolName: 'ask',
+                                input: { number },
+                            }],
                         },
                         { parts: [{ type: 'text', text: 'Asked.' }] },
                     ]),

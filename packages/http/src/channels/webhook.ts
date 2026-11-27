@@ -12,7 +12,7 @@ import {
     BadRequestError,
     NotFoundError,
     UnsupportedMediaTypeError,
-} from '@ebec/http';
+} from '@chamvi/errors';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { DEFAULT_BODY_LIMIT } from '../app/constants.ts';
 import {

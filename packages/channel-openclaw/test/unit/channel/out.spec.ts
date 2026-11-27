@@ -11,7 +11,7 @@ import {
     it,
     vi,
 } from 'vitest';
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import type { ChannelMessage, ChannelSendOptions } from '@chamvi/core';
 import type { TriggerEnvelope } from '@chamvi/store';
 import { MESSAGE_BODY_MAX_LENGTH, OPENCLAW_TIMEOUT_MS, openclawChannel } from '@chamvi/channel-openclaw';

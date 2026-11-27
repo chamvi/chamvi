@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError, injectClock } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { injectClock } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
 import type { ParsedDate } from './types.ts';
 import { resolveZone } from './zone.ts';

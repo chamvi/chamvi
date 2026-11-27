@@ -68,6 +68,7 @@
         "@chamvi/access": "^0.12.0",
         "@chamvi/channel-cron": "^0.12.0",
         "@chamvi/core": "^0.12.0",
+        "@chamvi/errors": "^0.12.0",
         "@chamvi/http": "^0.12.0",
         "@chamvi/store": "^0.12.0",
         "@chamvi/store-db": "^0.12.0",

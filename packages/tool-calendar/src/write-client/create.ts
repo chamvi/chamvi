@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import ICAL from 'ical.js';
 import { calendarError } from '../client/asserts.ts';
 import { encodeCalendarEventId } from '../event-id/module.ts';
@@ -132,10 +132,10 @@ function resultOf(
         uid: event.uid,
         ...(etag && {
             event: encodeCalendarEventId({
-                calendar, 
-                name, 
-                etag, 
-            }), 
+                calendar,
+                name,
+                etag,
+            }),
         }),
         start: printTime(event.start, zone),
         end: printTime(event.end, zone),

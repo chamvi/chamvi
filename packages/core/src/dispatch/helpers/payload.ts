@@ -5,9 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
-import { ValidationError } from '../../errors/index.ts';
 import { describeIssues } from '../../state/helpers.ts';
 
 /** `payload` parsed by `schema` (the parsed value); without one unchanged. */

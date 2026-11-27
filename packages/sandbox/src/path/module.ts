@@ -6,7 +6,7 @@
  */
 
 import { posix } from 'node:path';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { WORKSPACE_ROOT } from '../workspace/constants.ts';
 
 /**

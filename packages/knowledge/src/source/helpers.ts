@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
 import { KNOWLEDGE_DOCUMENT_ID_MAX_LENGTH } from './constants.ts';
 import type { KnowledgeDocumentInput } from './types.ts';

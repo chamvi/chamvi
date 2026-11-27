@@ -6,7 +6,8 @@
  */
 
 import type { ITokenVerifier } from '@authup/server-adapter-kit';
-import { ErrorCode, InvalidAgentDefinitionError } from '@chamvi/core';
+import { ErrorCode } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { IClock } from '@chamvi/core';
 import { authup } from '@chamvi/http';
 import type { IContainer } from 'eldin';

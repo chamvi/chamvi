@@ -22,7 +22,7 @@
 npm install --save-dev @chamvi/test-kit @chamvi/core ai vitest
 ```
 
-`@chamvi/core`, `ai` (v7) and `vitest` are peer dependencies; `typeorm`, `pg` and `better-sqlite3` are optional ones, needed by `createTestDataSource()` only. The workspace contract takes any `IWorkspace` of `@chamvi/sandbox` (typed structurally as `ContractWorkspace`, so the kit does not depend on `@chamvi/sandbox`).
+`@chamvi/core`, `@chamvi/errors`, `ai` (v7) and `vitest` are peer dependencies; `typeorm`, `pg` and `better-sqlite3` are optional ones, needed by `createTestDataSource()` only. The workspace contract takes any `IWorkspace` of `@chamvi/sandbox` (typed structurally as `ContractWorkspace`, so the kit does not depend on `@chamvi/sandbox`).
 
 ## Usage
 

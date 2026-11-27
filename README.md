@@ -64,6 +64,7 @@ Workflow DevKit, Mastra, Inngest and Trigger.dev also make agent runs durable. H
 | Package | Version | Description |
 |---|---|---|
 | [`@chamvi/core`](./packages/core) | [![npm](https://img.shields.io/npm/v/@chamvi/core)](https://www.npmjs.com/package/@chamvi/core) | Agents, the channel contract, the run engine, checkpoints, effect tools, durable approvals, dispatch between agents, hooks, agent state and a service per stored aggregate |
+| [`@chamvi/errors`](./packages/errors) | [![npm](https://img.shields.io/npm/v/@chamvi/errors)](https://www.npmjs.com/package/@chamvi/errors) | `ChamviError`, the error codes, generic HTTP errors, the code-to-status mapping and guards that survive JSON |
 | [`@chamvi/store-db`](./packages/store-db) | [![npm](https://img.shields.io/npm/v/@chamvi/store-db)](https://www.npmjs.com/package/@chamvi/store-db) | PostgreSQL store (TypeORM): the repositories for durable runs, leases, agent state and conversations across replicas, with migrations |
 | [`@chamvi/store`](./packages/store) | [![npm](https://img.shields.io/npm/v/@chamvi/store)](https://www.npmjs.com/package/@chamvi/store) | The storage contract: stored record types, the repository port per aggregate and the storage errors |
 | [`@chamvi/store-memory`](./packages/store-memory) | [![npm](https://img.shields.io/npm/v/@chamvi/store-memory)](https://www.npmjs.com/package/@chamvi/store-memory) | In-memory repositories with row locks, transactions and foreign keys, for development and tests |

@@ -13,7 +13,8 @@ import {
     it,
 } from 'vitest';
 import { z } from 'zod';
-import type { ChamviError, IEngine } from '@chamvi/core';
+import type { ChamviError } from '@chamvi/errors';
+import type { IEngine } from '@chamvi/core';
 import type { ApprovalWaitPoint, Run } from '@chamvi/store';
 import {
     defineModelAgent,

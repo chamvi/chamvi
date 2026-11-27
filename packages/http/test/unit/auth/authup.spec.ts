@@ -40,14 +40,14 @@ const CATALOG = {
 
 const GRANTS = [
     {
-        name: Permission.AGENT_RUN, 
-        realm_scope: 'own' as const, 
-        policies: ['triage'], 
+        name: Permission.AGENT_RUN,
+        realm_scope: 'own' as const,
+        policies: ['triage'],
     },
     {
-        name: Permission.RUN_READ, 
-        realm_scope: 'own' as const, 
-        policies: [], 
+        name: Permission.RUN_READ,
+        realm_scope: 'own' as const,
+        policies: [],
     },
 ];
 
@@ -160,9 +160,9 @@ describe('authup', () => {
     it('refreshes a stale catalog once and builds against the fresh one', async () => {
         const stale = { policies: POLICIES, permissions: [definition(Permission.RUN_READ)] };
         const {
-            authenticate, 
-            errors, 
-            loads, 
+            authenticate,
+            errors,
+            loads,
         } = setup({ catalogs: [stale, CATALOG] });
         const principal = await authenticate(request('Bearer good'));
 
@@ -174,9 +174,9 @@ describe('authup', () => {
     it('grants nothing and reports once when the refreshed catalog is still stale', async () => {
         const stale = { policies: POLICIES, permissions: [definition(Permission.RUN_READ)] };
         const {
-            authenticate, 
-            errors, 
-            loads, 
+            authenticate,
+            errors,
+            loads,
         } = setup({ catalogs: [stale] });
         const principal = await authenticate(request('Bearer good'));
 
@@ -201,9 +201,9 @@ describe('authup', () => {
     it('reports a failed catalog fetch once for concurrent requests', async () => {
         const failure = new Error('down');
         const {
-            authenticate, 
-            errors, 
-            loads, 
+            authenticate,
+            errors,
+            loads,
         } = setup({ catalogs: [failure] });
 
         await Promise.all([1, 2, 3].map(() => authenticate(request('Bearer good'))));
@@ -382,9 +382,9 @@ describe('authup', () => {
         const { authenticate, loads } = setup({ data });
 
         expect(await authenticate(request('Bearer good'))).toMatchObject({
-            id: USER, 
-            identity: { id: USER }, 
-            bindings: [], 
+            id: USER,
+            identity: { id: USER },
+            bindings: [],
         });
         expect(loads()).toBe(0);
     });
@@ -402,10 +402,10 @@ describe('authup', () => {
         const client = 'c641912c-21e5-4cb4-84b6-169e2b2bb025';
         const { authenticate } = setup({
             data: tokenData({
-                sub: client, 
-                sub_kind: 'client', 
-                client_id: client, 
-            }), 
+                sub: client,
+                sub_kind: 'client',
+                client_id: client,
+            }),
         });
 
         expect((await authenticate(request('Bearer good')))?.identity).toEqual({
@@ -423,7 +423,7 @@ describe('authup', () => {
 
     it('rejects a token the verifier rejects with 401', async () => {
         await expect(setup().authenticate(request('Bearer bad'))).rejects.toMatchObject({
-            status: 401,
+            code: 'unauthorized',
             message: 'The access token is invalid.',
         });
     });
@@ -438,7 +438,7 @@ describe('authup', () => {
         }
 
         await expect(setup({ data }).authenticate(request('Bearer good'))).rejects.toMatchObject({
-            status: 401,
+            code: 'unauthorized',
             message: 'The access token names no subject.',
         });
     });
@@ -455,10 +455,10 @@ describe('authup', () => {
         };
 
         await expect(authup(timedOut)(request('Bearer good'))).rejects.toMatchObject({
-            status: 503,
+            code: 'service_unavailable',
             message: 'The access token could not be verified in time.',
         });
-        await expect(setup().authenticate(request('Bearer bad'))).rejects.toMatchObject({ status: 401 });
+        await expect(setup().authenticate(request('Bearer bad'))).rejects.toMatchObject({ code: 'unauthorized' });
     });
 
     it.each([['upstream_error'], ['upstream_timeout']])('answers 503 when the verifier reports authup unreachable (%s)', async (code) => {
@@ -473,13 +473,13 @@ describe('authup', () => {
         };
 
         await expect(authup(unreachable)(request('Bearer good'))).rejects.toMatchObject({
-            status: 503,
+            code: 'service_unavailable',
             message: 'The access token could not be verified: authup is unreachable.',
         });
     });
 
     it('rejects a malformed header with 401', async () => {
-        await expect(setup().authenticate(request('Bearer'))).rejects.toMatchObject({ status: 401 });
+        await expect(setup().authenticate(request('Bearer'))).rejects.toMatchObject({ code: 'unauthorized' });
     });
     describe('the snapshot', () => {
         const OTHER_REALM = 'c641912c-21e5-4cb4-84b6-169e2b2bb024';
@@ -527,9 +527,9 @@ describe('authup', () => {
             const { principal } = await principalFor(
                 extended(definition('release_manage')),
                 [...GRANTS, {
-                    name: 'release_manage', 
-                    realm_scope: 'own', 
-                    policies: ['triage'], 
+                    name: 'release_manage',
+                    realm_scope: 'own',
+                    policies: ['triage'],
                 }],
             );
 
@@ -558,14 +558,14 @@ describe('authup', () => {
                 ),
                 [
                     {
-                        name: 'release_manage', 
-                        realm_id: OTHER_REALM, 
-                        realm_scope: 'any', 
+                        name: 'release_manage',
+                        realm_id: OTHER_REALM,
+                        realm_scope: 'any',
                     },
                     {
-                        name: 'release_read', 
-                        client_id: CLIENT, 
-                        realm_scope: 'any', 
+                        name: 'release_read',
+                        client_id: CLIENT,
+                        realm_scope: 'any',
                     },
                 ],
             );
@@ -578,9 +578,9 @@ describe('authup', () => {
             const { principal } = await principalFor(
                 extended({ ...definition('release_manage'), realmId: REALM }),
                 [{
-                    name: 'release_manage', 
-                    realm_id: REALM, 
-                    realm_scope: 'own', 
+                    name: 'release_manage',
+                    realm_id: REALM,
+                    realm_scope: 'own',
                 }],
             );
 
@@ -660,19 +660,19 @@ describe('authup', () => {
                 ),
                 [
                     {
-                        name: Permission.RUN_READ, 
-                        realm_id: OTHER_REALM, 
-                        realm_scope: 'any', 
+                        name: Permission.RUN_READ,
+                        realm_id: OTHER_REALM,
+                        realm_scope: 'any',
                     },
                     {
-                        name: Permission.RUN_READ, 
-                        client_id: CLIENT, 
-                        realm_scope: 'any', 
+                        name: Permission.RUN_READ,
+                        client_id: CLIENT,
+                        realm_scope: 'any',
                     },
                     {
-                        name: 'release_read', 
-                        client_id: CLIENT, 
-                        realm_scope: 'any', 
+                        name: 'release_read',
+                        client_id: CLIENT,
+                        realm_scope: 'any',
                     },
                 ],
             );

@@ -7,7 +7,7 @@
 
 import { can, canSome } from '@chamvi/access';
 import type { Agent, IClock } from '@chamvi/core';
-import { ForbiddenError } from '@ebec/http';
+import { ForbiddenError } from '@chamvi/errors';
 import type { IAppEvent } from 'routup';
 import { useHttpContext } from '../../app/helpers/index.ts';
 import type { HttpContext } from '../../app/types.ts';

@@ -6,7 +6,8 @@
  */
 
 import type { ToolSet } from 'ai';
-import { ValidationError, defineTool } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { defineTool } from '@chamvi/core';
 import type { IGithubApp } from '../app/types.ts';
 import {
     COMMIT_MESSAGE_MAX_CHARS,

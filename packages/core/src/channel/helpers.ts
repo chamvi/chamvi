@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { conversationFor } from '../conversation/context.ts';
 import { gateOutbound } from '../trust/module.ts';
 import { isObject } from 'smob';
@@ -19,7 +20,6 @@ import {
     ChannelNotFoundError,
     InvalidAgentDefinitionError,
     InvalidRunStateError,
-    ValidationError,
 } from '../errors/index.ts';
 import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
 import { untilAborted } from '../run/helpers.ts';

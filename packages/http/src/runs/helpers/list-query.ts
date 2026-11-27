@@ -6,7 +6,7 @@
  */
 
 import { RunStatus } from '@chamvi/store';
-import { BadRequestError } from '@ebec/http';
+import { BadRequestError } from '@chamvi/errors';
 import {
     defineSchema,
     eq,

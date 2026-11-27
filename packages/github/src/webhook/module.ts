@@ -12,7 +12,7 @@ import type {
     ChannelSubscription,
 } from '@chamvi/core';
 import { readRequestBody } from '@chamvi/http';
-import { NotFoundError, UnauthorizedError, UnsupportedMediaTypeError } from '@ebec/http';
+import { NotFoundError, UnauthorizedError, UnsupportedMediaTypeError } from '@chamvi/errors';
 import { isSameLogin } from '../app/helpers/index.ts';
 import type { IGithubApp } from '../app/types.ts';
 import type { ResolvedGithubChannelOptions } from '../channel/types.ts';

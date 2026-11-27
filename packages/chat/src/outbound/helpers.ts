@@ -5,11 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import {
-    ChamviError,
-    InvalidAgentDefinitionError,
-    ValidationError,
-} from '@chamvi/core';
+import { ChamviError, ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { ChannelMessage } from '@chamvi/core';
 import { CHAT_ANSWER_HINT, CHAT_ANSWER_HINT_PLAIN } from '../answer/constants.ts';
 import { CHAT_REQUEST_ERROR_CODE, CHAT_TEXT_MAX_CHARS } from '../channel/constants.ts';

@@ -7,13 +7,9 @@
 
 import { createServer } from 'node:net';
 import { describe, expect, it } from 'vitest';
-import type { ChamviError } from '@chamvi/core';
-import {
-    ConnectionNotConfiguredError,
-    InvalidAgentDefinitionError,
-    ValidationError,
-    effectMarker,
-} from '@chamvi/core';
+import type { ChamviError } from '@chamvi/errors';
+import { ValidationError } from '@chamvi/errors';
+import { ConnectionNotConfiguredError, InvalidAgentDefinitionError, effectMarker } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import {
     MAIL_REQUEST_ERROR_CODE,
@@ -24,11 +20,11 @@ import {
 import type { MailSendRequest } from '@chamvi/tool-mail';
 import { createUnconfiguredMailWriteClient } from '../../../src/write-client/unconfigured.ts';
 import type { FakeFolder } from '../../utils/imap.ts';
-import { 
-    PASSWORD, 
-    accountOf, 
-    genericFolders, 
-    gmailFolders, 
+import {
+    PASSWORD,
+    accountOf,
+    genericFolders,
+    gmailFolders,
 } from '../../utils/mail.ts';
 import { SMTP_SERVER_TEXT } from '../../utils/smtp.ts';
 import { setupWrite } from '../../utils/write.ts';
@@ -109,10 +105,10 @@ describe('the write client: sending', () => {
 
     it('files the sent bytes plus the Bcc header in Sent with \\Seen on a generic account', async () => {
         const {
-            smtp, 
-            client, 
-            folders, 
-            imap, 
+            smtp,
+            client,
+            folders,
+            imap,
         } = await setupWrite(false);
 
         expect(await client.send(request())).toEqual({
@@ -179,19 +175,19 @@ describe('the write client: sending', () => {
 
     it.each([
         ['a changed UIDVALIDITY', {
-            folder: 'INBOX', 
-            uidValidity: '41', 
-            uid: 1, 
+            folder: 'INBOX',
+            uidValidity: '41',
+            uid: 1,
         }, 'mail id is stale, search again'],
         ['a missing uid', {
-            folder: 'INBOX', 
-            uidValidity: '42', 
-            uid: 99, 
+            folder: 'INBOX',
+            uidValidity: '42',
+            uid: 99,
         }, 'mail id is stale, search again'],
         ['an unlisted folder', {
-            folder: 'Nowhere', 
-            uidValidity: '42', 
-            uid: 1, 
+            folder: 'Nowhere',
+            uidValidity: '42',
+            uid: 1,
         }, 'search again'],
     ])('refuses a reply to %s', async (_, parts, message) => {
         const { client } = await setupWrite(false);
@@ -203,9 +199,9 @@ describe('the write client: sending', () => {
 
     it('sends on Gmail without an APPEND: Gmail files the mail itself', async () => {
         const {
-            smtp, 
-            client, 
-            imap, 
+            smtp,
+            client,
+            imap,
         } = await setupWrite(true);
 
         expect(await client.send(request())).toEqual({
@@ -221,9 +217,9 @@ describe('the write client: sending', () => {
     it('does not file without a \\Sent folder', async () => {
         const folders = genericFolders().map((folder) => ({ ...folder, flags: [] }));
         const {
-            smtp, 
-            client, 
-            imap, 
+            smtp,
+            client,
+            imap,
         } = await setupWrite(false, { fake: { folders } });
 
         expect((await client.send(request())).filed).toBe(false);
@@ -247,9 +243,9 @@ describe('the write client: sending', () => {
     it('files the Sent copy even when the run is aborted after the SMTP accept', async () => {
         const controller = new AbortController();
         const {
-            smtp, 
-            client, 
-            folders, 
+            smtp,
+            client,
+            folders,
         } = await setupWrite(false, {
             fake: {
                 onCommand: (line) => {
@@ -290,9 +286,9 @@ describe('the write client: sending', () => {
 
     it('answers filed: false when the IMAP server is gone after the SMTP accept', async () => {
         const {
-            smtp, 
-            client, 
-            imap, 
+            smtp,
+            client,
+            imap,
         } = await setupWrite(false);
 
         await imap.close();

@@ -5,8 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from './base.ts';
-import { ErrorCode } from './constants.ts';
+import { ChamviError, ErrorCode } from '@chamvi/errors';
 
 /**
  * Thrown from a tool's execute to fail the whole run. Any other tool error is

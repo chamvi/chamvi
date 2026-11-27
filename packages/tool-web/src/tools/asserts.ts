@@ -7,7 +7,7 @@
 
 import { jsonSchema } from 'ai';
 import type { JSONSchema7 } from 'ai';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
 

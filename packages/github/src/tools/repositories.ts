@@ -6,7 +6,8 @@
  */
 
 import type { ToolSet } from 'ai';
-import { ValidationError, defineTool } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { defineTool } from '@chamvi/core';
 import { isObject } from 'smob';
 import type { IGithubApp } from '../app/types.ts';
 import { ISSUES_MAX, LABELS_MAX, REPOSITORIES_MAX } from './constants.ts';

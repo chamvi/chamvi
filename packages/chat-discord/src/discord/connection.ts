@@ -13,7 +13,8 @@ import {
     Partials,
 } from 'discord.js';
 import type { ClientOptions } from 'discord.js';
-import { ChamviError, InvalidRunStateError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { InvalidRunStateError } from '@chamvi/core';
 import type { ClockTimer, IClock } from '@chamvi/core';
 import { isObject } from 'smob';
 import {

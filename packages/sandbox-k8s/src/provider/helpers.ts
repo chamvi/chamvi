@@ -13,7 +13,8 @@ import type {
     V1Volume,
     V1VolumeMount,
 } from '@kubernetes/client-node';
-import { ChamviError, InvalidAgentDefinitionError, SandboxError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError, SandboxError } from '@chamvi/core';
 import {
     CACHE_DIR,
     CACHE_ENV,
@@ -262,14 +263,14 @@ export function buildPod(input: PodInput): V1Pod {
         {
             mounts: [
                 {
-                    name: 'workspace', 
-                    mountPath: WORKSPACE_ROOT, 
-                    subPath: 'workspace', 
+                    name: 'workspace',
+                    mountPath: WORKSPACE_ROOT,
+                    subPath: 'workspace',
                 },
                 {
-                    name: 'workspace', 
-                    mountPath: WORKSPACE_HOME, 
-                    subPath: 'home', 
+                    name: 'workspace',
+                    mountPath: WORKSPACE_HOME,
+                    subPath: 'home',
                 },
             ],
             volumes: [{ name: 'workspace', persistentVolumeClaim: { claimName: input.claim } }],

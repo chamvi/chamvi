@@ -5,10 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError, pendingApprovalOf } from '@chamvi/core';
+import { httpStatusOf, isChamviError } from '@chamvi/errors';
+import { pendingApprovalOf } from '@chamvi/core';
 import type { Run } from '@chamvi/store';
 import { isHTTPError } from '@ebec/http';
 import type { CallToolResult } from '@modelcontextprotocol/server';
+import { isRetryableErrorCode } from '../../app/helpers/errors.ts';
 import type { HttpContext } from '../../app/types.ts';
 import type { RunToolResult } from '../types.ts';
 
@@ -28,15 +30,29 @@ export function toolError(message: string): CallToolResult {
 }
 
 /**
- * Runs a tool body: HTTP and core errors become `isError` results with
- * their message, anything else goes to `onError` and reads as
+ * A refusal the tool reports with its message: a chamvi error below 500,
+ * unmapped or retryable, or an @ebec/http error below 500.
+ */
+function isToolRefusal(error: unknown): error is Error {
+    if (isChamviError(error)) {
+        const status = httpStatusOf(error);
+
+        return status === undefined || status < 500 || isRetryableErrorCode(error.code);
+    }
+
+    return isHTTPError(error) && error.status < 500;
+}
+
+/**
+ * Runs a tool body: a refusal (`isToolRefusal`) becomes an `isError`
+ * result with its message, anything else goes to `onError` and reads as
  * `Internal Server Error`.
  */
 export async function runTool(ctx: HttpContext, fn: () => Promise<CallToolResult>): Promise<CallToolResult> {
     try {
         return await fn();
     } catch (error) {
-        if ((isHTTPError(error) && error.status < 500) || error instanceof ChamviError) {
+        if (isToolRefusal(error)) {
             return toolError(error.message);
         }
 

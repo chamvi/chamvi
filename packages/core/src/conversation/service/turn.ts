@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import {
     and,
     defineQuery,
@@ -20,7 +21,7 @@ import type {
     ConversationSnapshot,
     IConversationRepository,
 } from '@chamvi/store';
-import { InvalidRunStateError, RunNotFoundError, ValidationError } from '../../errors/index.ts';
+import { InvalidRunStateError, RunNotFoundError } from '../../errors/index.ts';
 import { CONVERSATION_LIMITS_MAX } from '../constants.ts';
 import {
     isNoteActive,

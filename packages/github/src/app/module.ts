@@ -6,7 +6,8 @@
  */
 
 import type { ToolSet } from 'ai';
-import { ChamviError, systemClock } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { systemClock } from '@chamvi/core';
 import { GITHUB_USER_AGENT } from '../auth/constants.ts';
 import { normalizePrivateKey } from '../auth/helpers.ts';
 import { createInstallationTokens, withAppTimeout } from '../auth/module.ts';

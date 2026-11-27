@@ -6,7 +6,8 @@
  */
 
 import type { IClock } from '@chamvi/core';
-import { LeaseLostError, RepositoryNotFoundError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { LeaseLostError, RepositoryNotFoundError } from '@chamvi/core';
 import { EntityConflictError } from '@chamvi/store';
 import {
     and,
@@ -297,9 +298,9 @@ export class KnowledgeService implements IKnowledgeService {
             // served generation), which keeps the details it was written with until the switch
             await repository.chunks.updateOrigin(
                 {
-                    collectionId: record.id, 
-                    document: id, 
-                    generation: document.generation, 
+                    collectionId: record.id,
+                    document: id,
+                    generation: document.generation,
                 },
                 { title: details.title, source: details.source },
             );

@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError, SandboxError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { SandboxError } from '@chamvi/core';
 import {
     CACHE_DIR,
     CACHE_ENV,

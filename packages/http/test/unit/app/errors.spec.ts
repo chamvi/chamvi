@@ -12,12 +12,12 @@ import {
 } from '@ebec/http';
 import { App, defineCoreHandler } from 'routup';
 import { describe, expect, it } from 'vitest';
+import { ValidationError } from '@chamvi/errors';
 import {
     ArtifactNotFoundError,
     InvalidAgentDefinitionError,
     InvalidRunStateError,
     RunNotFoundError,
-    ValidationError,
 } from '@chamvi/core';
 import { call, createTestApp } from '../../utils/app.ts';
 

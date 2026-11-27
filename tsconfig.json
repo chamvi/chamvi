@@ -18,6 +18,7 @@
             "@chamvi/cli": ["./apps/cli/src/index.ts"],
             "@chamvi/coding": ["./packages/coding/src/index.ts"],
             "@chamvi/core": ["./packages/core/src/index.ts"],
+            "@chamvi/errors": ["./packages/errors/src/index.ts"],
             "@chamvi/github": ["./packages/github/src/index.ts"],
             "@chamvi/github/module": ["./packages/github/src/module/index.ts"],
             "@chamvi/http-kit": ["./packages/http-kit/src/index.ts"],

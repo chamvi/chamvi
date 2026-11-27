@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { createTransport } from 'nodemailer';
 import { MAIL_EFFECT_HEADER } from './constants.ts';
 import type { MailSendRequest, MailSmtpAccount } from './types.ts';

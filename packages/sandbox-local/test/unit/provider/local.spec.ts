@@ -24,7 +24,8 @@ import {
     it,
     vi,
 } from 'vitest';
-import { InvalidAgentDefinitionError, SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError, SandboxError } from '@chamvi/core';
 import { createLocalSandbox } from '@chamvi/sandbox-local';
 import { ControllableClock, createGitFixture } from '@chamvi/test-kit';
 import { KILL_GRACE_MS, LINGER_CHECK_MS } from '../../../src/provider/constants.ts';

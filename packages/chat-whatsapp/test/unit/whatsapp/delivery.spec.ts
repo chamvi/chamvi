@@ -11,7 +11,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import type { ChannelMessage, IEngine } from '@chamvi/core';
 import { CHAT_REQUEST_ERROR_CODE } from '@chamvi/chat';
 import {

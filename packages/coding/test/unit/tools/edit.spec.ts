@@ -14,7 +14,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { codingTools } from '@chamvi/coding';
 import type { IWorkspace } from '@chamvi/sandbox';
 import type { GitFixture } from '@chamvi/test-kit';

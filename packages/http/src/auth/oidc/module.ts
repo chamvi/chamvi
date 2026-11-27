@@ -6,7 +6,7 @@
  */
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import { UnauthorizedError } from '@ebec/http';
+import { UnauthorizedError } from '@chamvi/errors';
 import { createVerifier } from 'vouchly';
 import type { VerifyResult } from 'vouchly';
 import { isPrincipal, readBearerToken } from '../helpers/index.ts';

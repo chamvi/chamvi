@@ -6,7 +6,8 @@
  */
 
 import type { IClock, ILockService, IModelResolver } from '@chamvi/core';
-import { ChamviError, InvalidAgentDefinitionError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { EmbeddingModel } from 'ai';
 import { embedMany } from 'ai';
 import { defineIntervalComponent } from 'hubwire';

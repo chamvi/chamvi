@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ServiceUnavailableError } from '@ebec/http';
+import { ServiceUnavailableError } from '@chamvi/errors';
 import { isGithubAppConfigured } from '../app/deferred.ts';
 import { registerChannelName } from '../app/helpers/index.ts';
 import { createGithubSubscription, githubAddress } from '../subscription/module.ts';

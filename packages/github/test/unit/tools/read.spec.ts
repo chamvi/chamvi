@@ -6,12 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-    FatalToolError,
-    ValidationError,
-    defineModelAgent,
-    wrapToolsForRun,
-} from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { FatalToolError, defineModelAgent, wrapToolsForRun } from '@chamvi/core';
 import type { ToolSet } from 'ai';
 import { createGithubApp, github, githubChannel } from '@chamvi/github';
 import type { GithubAppOptions } from '@chamvi/github';

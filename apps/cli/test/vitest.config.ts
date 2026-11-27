@@ -24,6 +24,7 @@ export default defineConfig({
         // the sources, not dist
         alias: [
             { find: /^@chamvi\/access$/, replacement: source('access/src/index.ts') },
+            { find: /^@chamvi\/errors$/, replacement: source('errors/src/index.ts') },
             { find: /^@chamvi\/core$/, replacement: source('core/src/index.ts') },
             { find: /^@chamvi\/store$/, replacement: source('store/src/index.ts') },
             { find: /^@chamvi\/store-memory$/, replacement: source('store-memory/src/index.ts') },

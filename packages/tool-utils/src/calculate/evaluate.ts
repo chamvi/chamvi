@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { CALCULATE_MAX_LENGTH, CALCULATE_PRECISION } from './constants.ts';
 import { parseTokens } from './parse.ts';
 import { tokenize } from './tokenize.ts';

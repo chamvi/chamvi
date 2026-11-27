@@ -7,9 +7,9 @@
 
 import type { Tool } from 'ai';
 import { jsonSchema } from 'ai';
+import { ValidationError } from '@chamvi/errors';
 import {
     ToolDeniedError,
-    ValidationError,
     defineEffectTool,
     once,
     toolLimitApproved,

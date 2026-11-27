@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { InvalidRunStateError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidRunStateError } from '@chamvi/core';
 import { createWake } from '../indexer/helpers/index.ts';
 import { runCollection } from '../indexer/loop.ts';
 import { markOrphans } from '../indexer/orphans.ts';

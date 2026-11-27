@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
 import type { ToolSet } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
@@ -20,7 +21,6 @@ import {
     ContextNotProvidedError,
     InvalidAgentDefinitionError,
     InvalidRunStateError,
-    ValidationError,
     agent,
     agentChannel,
     approve,

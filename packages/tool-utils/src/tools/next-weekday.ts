@@ -6,7 +6,8 @@
  */
 
 import type { Tool } from 'ai';
-import { ValidationError, defineTool } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { defineTool } from '@chamvi/core';
 import {
     inputObject,
     objectSchema,

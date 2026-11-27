@@ -17,7 +17,7 @@ import type {
 } from '@chamvi/core';
 import { IssueCode, defineIssueItem } from '@ebec/core';
 import type { Issue } from '@ebec/core';
-import { ConflictError } from '@ebec/http';
+import { ConflictError } from '@chamvi/errors';
 import { ValidupError } from 'validup';
 import type { ConfigTarget, ConnectionHttpServiceContext, FormInput } from '../types.ts';
 import { isStored, lockOf, normalizeSetting } from './fields.ts';
@@ -234,9 +234,9 @@ export async function assertUnique(
             const stored = rowsByName.has(declared.name) ? await ctx.connectionConfigs?.describe(declared.name) : undefined;
             const current = stored ?
                 identityValues({
-                    name: declared.name, 
-                    definition, 
-                    declared, 
+                    name: declared.name,
+                    definition,
+                    declared,
                 }, stored.settings) :
                 declared.resolved.values;
 

@@ -6,7 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError } from '@chamvi/core';
 import { FILE_MAX_BYTES, createRemoteWorkspace } from '@chamvi/sandbox';
 import { WRITE_FILE_SCRIPT } from '../../../src/remote/constants.ts';
 import { ControllableClock } from '../../utils/clock.ts';

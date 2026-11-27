@@ -8,7 +8,7 @@
 import { RunNotFoundError } from '@chamvi/core';
 import type { IClock } from '@chamvi/core';
 import type { Run } from '@chamvi/store';
-import { ForbiddenError } from '@ebec/http';
+import { ForbiddenError } from '@chamvi/errors';
 import { Permission } from '@chamvi/access';
 import {
     agentResource,

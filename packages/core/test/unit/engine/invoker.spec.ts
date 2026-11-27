@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { tool } from 'ai';
 import type { LanguageModel } from 'ai';
 import {
@@ -14,11 +15,7 @@ import {
     it,
 } from 'vitest';
 import { z } from 'zod';
-import {
-    ValidationError,
-    defineModelAgent,
-    requireToolPermission,
-} from '@chamvi/core';
+import { defineModelAgent, requireToolPermission } from '@chamvi/core';
 import type {
     AgentDefinition,
     IEngine,
@@ -187,9 +184,9 @@ describe('invoker', () => {
         const { engine, store } = setup({ model: mockModel([]) });
         const realm = '0195f2a0-7c3e-7a4b-9c1d-000000000001';
         const name = {
-            name: Permission.RUN_READ, 
-            realmId: null, 
-            clientId: null, 
+            name: Permission.RUN_READ,
+            realmId: null,
+            clientId: null,
         };
         const invoker: Invoker = {
             id: '0195f2a0-7c3e-7a4b-9c1d-2e3f4a5b6c7d',
@@ -203,9 +200,9 @@ describe('invoker', () => {
                 },
             },
             identity: {
-                type: 'user', 
-                id: '0195f2a0-7c3e-7a4b-9c1d-2e3f4a5b6c7d', 
-                realmId: realm, 
+                type: 'user',
+                id: '0195f2a0-7c3e-7a4b-9c1d-2e3f4a5b6c7d',
+                realmId: realm,
             },
         };
         const { runId } = await engine.dispatch(env(invoker));
@@ -536,9 +533,9 @@ describe('tool policy', () => {
             bindings: [{
                 permission: { name: Permission.TOOL_USE },
                 policies: [{
-                    type: 'time', 
-                    start: '09:00', 
-                    end: '11:00', 
+                    type: 'time',
+                    start: '09:00',
+                    end: '11:00',
                 } as never],
             }],
         };

@@ -5,16 +5,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import {
     afterEach,
     describe,
     expect,
     it,
 } from 'vitest';
-import {
-    ValidationError,
-    defineModelAgent,
-} from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { createRunArtifacts } from '../../../src/artifact/module.ts';
 import { ControllableClock } from '../../utils/clock.ts';

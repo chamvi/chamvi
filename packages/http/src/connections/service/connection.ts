@@ -6,7 +6,7 @@
  */
 
 import type { IConnectionHandle } from '@chamvi/core';
-import { ConflictError, NotFoundError } from '@ebec/http';
+import { ConflictError, NotFoundError } from '@chamvi/errors';
 import type { Principal } from '../../auth/types.ts';
 import {
     assertConnectionAccess,

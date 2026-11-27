@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import type { ImapFlow, ListResponse } from 'imapflow';
 import { requestError } from '../client/asserts.ts';
 import { MAIL_DATE_QUERY } from '../client/constants.ts';

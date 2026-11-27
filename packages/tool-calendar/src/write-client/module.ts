@@ -6,7 +6,7 @@
  */
 
 import type { IClock } from '@chamvi/core';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import type { CalendarAccount } from '../client/types.ts';
 import { normalizeAccounts, normalizeClientOptions } from '../options/module.ts';
 import type { CalendarClientOptions, CalendarClientOptionsNormalized } from '../options/types.ts';

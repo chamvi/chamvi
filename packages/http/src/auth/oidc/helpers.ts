@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ServiceUnavailableError, UnauthorizedError } from '@ebec/http';
+import { ServiceUnavailableError, UnauthorizedError } from '@chamvi/errors';
 import { VouchlyErrorCode, isVouchlyError } from 'vouchly';
 import type { VouchlyError } from 'vouchly';
 import { isObject } from 'smob';

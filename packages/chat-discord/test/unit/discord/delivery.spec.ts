@@ -14,7 +14,8 @@ import {
     expect,
     it,
 } from 'vitest';
-import { ValidationError, defineModelAgent, defineTool } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { defineModelAgent, defineTool } from '@chamvi/core';
 import type {
     Agent,
     ChannelMessage,
@@ -159,9 +160,9 @@ describe('Discord inbound', () => {
             discordMessage({ channel: failing }),
             discordMessage({ id: '300000000000000002', channel: publicThread(THREAD, null) }),
             discordMessage({
-                id: '300000000000000003', 
-                channel: refused, 
-                author: { id: MALLORY }, 
+                id: '300000000000000003',
+                channel: refused,
+                author: { id: MALLORY },
             }),
         );
         await settle();

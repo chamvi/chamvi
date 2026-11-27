@@ -6,12 +6,8 @@
  */
 
 import type { IModelResolver } from '@chamvi/core';
-import {
-    InvalidAgentDefinitionError,
-    InvalidRunStateError,
-    ValidationError,
-    systemClock,
-} from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError, InvalidRunStateError, systemClock } from '@chamvi/core';
 import { createTestEngine, mockEmbeddingModel } from '@chamvi/test-kit';
 import { describe, expect, it } from 'vitest';
 import type { KnowledgeCollection, KnowledgeOptions } from '@chamvi/knowledge';
@@ -28,7 +24,7 @@ import { createIndexerSetup, gatedModel, mapSource } from '../../utils/indexer.t
 const source = defineKnowledgeSource({
     async* documents() {
         yield* [];
-    }, 
+    },
 });
 
 function base(options: Partial<KnowledgeOptions> = {}): KnowledgeOptions {
@@ -82,9 +78,9 @@ describe('createKnowledge', () => {
                 return model;
             }),
             collections: [knowledgeCollection('docs', {
-                model: 'openai/text-embedding-3-small', 
-                sources: [source], 
-                trusted: false, 
+                model: 'openai/text-embedding-3-small',
+                sources: [source],
+                trusted: false,
             })],
         }));
 
@@ -156,11 +152,11 @@ describe('createKnowledge', () => {
     it('re-checks a hand-built definition', () => {
         expect(() => createKnowledge(base({
             collections: [{
-                name: 'Bad Name', 
-                model: mockEmbeddingModel(), 
-                sources: [source], 
-                trusted: true, 
-            }], 
+                name: 'Bad Name',
+                model: mockEmbeddingModel(),
+                sources: [source],
+                trusted: true,
+            }],
         }))).toThrow(InvalidAgentDefinitionError);
     });
 

@@ -8,7 +8,7 @@
 import { Permission } from '@chamvi/access';
 import { ConnectionChangedError, assertConnectionName, storedConnectionName } from '@chamvi/core';
 import type { ConnectionConfigUpdate, ConnectionValues, IConnectionConfigStore } from '@chamvi/core';
-import { ConflictError, NotFoundError } from '@ebec/http';
+import { ConflictError, NotFoundError } from '@chamvi/errors';
 import { Container } from 'validup';
 import { forbidden, isGranted } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';

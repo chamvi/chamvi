@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { assertGitRef, normalizeRepo } from '@chamvi/sandbox';
 
 describe('normalizeRepo', () => {

@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { SandboxError, ValidationError, systemClock } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError, systemClock } from '@chamvi/core';
 import type { IClock } from '@chamvi/core';
 import { delay } from '../clock/module.ts';
 import { EXEC_TIMEOUT_MS } from '../workspace/constants.ts';

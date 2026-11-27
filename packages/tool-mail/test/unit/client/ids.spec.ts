@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { encodeMailId, parseMailId } from '@chamvi/tool-mail';
 
 describe('mail ids', () => {

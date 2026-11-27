@@ -6,7 +6,7 @@
  */
 
 import { assertTriggerKey } from '@chamvi/core';
-import { BadRequestError } from '@ebec/http';
+import { BadRequestError } from '@chamvi/errors';
 import { KEY_MAX_LENGTH } from '../constants.ts';
 
 /** An `Idempotency-Key` header value (`null`: absent): 1 to `KEY_MAX_LENGTH` characters, else 400. */

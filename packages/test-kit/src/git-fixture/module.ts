@@ -21,7 +21,7 @@ import {
 } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import type { GitFixture } from './types.ts';
 
 const execFileAsync = promisify(execFile);

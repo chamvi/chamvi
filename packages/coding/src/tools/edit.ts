@@ -6,7 +6,8 @@
  */
 
 import type { Tool } from 'ai';
-import { SandboxError, ValidationError, defineTool } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError, defineTool } from '@chamvi/core';
 import { REDACTED } from '@chamvi/sandbox';
 import type { IWorkspace } from '@chamvi/sandbox';
 import { FILE_NOT_FOUND, FILE_PATH_PROPERTY, MULTI_EDIT_MAX_EDITS } from './constants.ts';

@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError, ValidationError } from '@chamvi/core';
+import { ChamviError, ValidationError } from '@chamvi/errors';
 import { createDAVClient } from 'tsdav';
 import type { DAVCalendar, DAVCalendarObject } from 'tsdav';
 import { encodeCalendarEventId, isSafeEventEtag, isSafeResourceName } from '../event-id/module.ts';
@@ -91,9 +91,9 @@ function idOf(entry: CalendarEntry, object: DAVCalendarObject): string | undefin
     }
 
     return encodeCalendarEventId({
-        calendar: entry.view.calendar, 
-        name, 
-        etag: object.etag, 
+        calendar: entry.view.calendar,
+        name,
+        etag: object.etag,
     });
 }
 

@@ -1,7 +1,5 @@
-import {
-    ErrorCode,
-    LeaseLostError,
-} from '@chamvi/core';
+import { ErrorCode } from '@chamvi/errors';
+import { LeaseLostError } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type { Agent, EngineOptions, IEngine } from '@chamvi/core';
 

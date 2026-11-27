@@ -13,9 +13,8 @@ import {
     vi,
 } from 'vitest';
 import { Permission } from '@chamvi/access';
+import { ChamviError, ErrorCode } from '@chamvi/errors';
 import {
-    ChamviError,
-    ErrorCode,
     InvalidAgentDefinitionError,
     createConnectionConfigStore,
     createKeyring,
@@ -146,15 +145,15 @@ describe('ConnectionConfigService', () => {
     it('refuses a create without the grant (403) before the type lookup (404)', async () => {
         const { service } = setup();
 
-        await expect(service.create('mail', createBody, writer)).rejects.toMatchObject({ status: 403 });
-        await expect(service.create('nope', createBody, writer)).rejects.toMatchObject({ status: 403 });
-        await expect(service.create('nope', createBody, creator)).rejects.toMatchObject({ status: 404 });
+        await expect(service.create('mail', createBody, writer)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.create('nope', createBody, writer)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.create('nope', createBody, creator)).rejects.toMatchObject({ code: 'not_found' });
     });
 
     it('refuses a create of a type without instances (409)', async () => {
         const { service } = setup({ definition: mailDefinition({ multiple: false }) });
 
-        await expect(service.create('mail', createBody, creator)).rejects.toMatchObject({ status: 409 });
+        await expect(service.create('mail', createBody, creator)).rejects.toMatchObject({ code: 'conflict' });
     });
 
     it('creates an account and never returns its secret', async () => {
@@ -172,16 +171,16 @@ describe('ConnectionConfigService', () => {
     it('reads a configuration: 403 without a grant, 404 for an unknown name only for a reader', async () => {
         const { service } = setup({ declared: (definition) => [declare(definition, 'mail-work')] });
 
-        await expect(service.read('mail-work', nobody)).rejects.toMatchObject({ status: 403 });
-        await expect(service.read('nope', nobody)).rejects.toMatchObject({ status: 403 });
-        await expect(service.read('nope', reader)).rejects.toMatchObject({ status: 404 });
+        await expect(service.read('mail-work', nobody)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.read('nope', nobody)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.read('nope', reader)).rejects.toMatchObject({ code: 'not_found' });
         expect(await service.read('mail-work', reader)).toMatchObject({ type: 'mail', editable: true });
     });
 
     it('holds a lookup error back until the check passed', async () => {
         const { service } = setup();
 
-        await expect(service.read('NOT_VALID', nobody)).rejects.toMatchObject({ status: 403 });
+        await expect(service.read('NOT_VALID', nobody)).rejects.toMatchObject({ code: 'forbidden' });
         // the error exists, deferred behind the check: a core ValidationError, rendered as a 400
         await expect(service.read('NOT_VALID', reader)).rejects.toMatchObject({ code: ErrorCode.VALIDATION });
     });
@@ -189,13 +188,13 @@ describe('ConnectionConfigService', () => {
     it('refuses an update without write (403) and of a connection set in code (409)', async () => {
         const { service } = setup({ declared: (definition) => [declare(definition, 'mail-work', { editable: false })] });
         const data = {
-            settings: { host: 'h' }, 
-            secrets: { set: { password: PASSWORD } }, 
-            revision: 0, 
+            settings: { host: 'h' },
+            secrets: { set: { password: PASSWORD } },
+            revision: 0,
         };
 
-        await expect(service.update('mail-work', data, reader)).rejects.toMatchObject({ status: 403 });
-        await expect(service.update('mail-work', data, writer)).rejects.toMatchObject({ status: 409 });
+        await expect(service.update('mail-work', data, reader)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.update('mail-work', data, writer)).rejects.toMatchObject({ code: 'conflict' });
     });
 
     it('refuses an update without the keyring as a 409 naming the variable', async () => {
@@ -211,7 +210,7 @@ describe('ConnectionConfigService', () => {
             revision: 0,
         }, writer);
 
-        await expect(promise).rejects.toMatchObject({ status: 409 });
+        await expect(promise).rejects.toMatchObject({ code: 'conflict' });
         await expect(promise).rejects.toThrow('ENCRYPTION_KEYS');
     });
 
@@ -229,8 +228,8 @@ describe('ConnectionConfigService', () => {
             }),
         });
 
-        await expect(service.delete('mail-env', reader)).rejects.toMatchObject({ status: 403 });
-        await expect(service.delete('mail-env', writer)).rejects.toMatchObject({ status: 409 });
+        await expect(service.delete('mail-env', reader)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.delete('mail-env', writer)).rejects.toMatchObject({ code: 'conflict' });
 
         await service.create('mail', createBody, creator);
 
@@ -246,8 +245,8 @@ describe('ConnectionConfigService', () => {
         });
         const { signal } = new AbortController();
 
-        await expect(service.test('mail-work', signal, reader)).rejects.toMatchObject({ status: 403 });
-        await expect(service.test('mail-work', signal, writer)).rejects.toMatchObject({ status: 409, message: 'Save Host, Password first.' });
+        await expect(service.test('mail-work', signal, reader)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.test('mail-work', signal, writer)).rejects.toMatchObject({ code: 'conflict', message: 'Save Host, Password first.' });
         expect(test).not.toHaveBeenCalled();
     });
 

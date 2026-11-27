@@ -6,7 +6,7 @@
  */
 
 import type { IClock } from '@chamvi/core';
-import { ChamviError, ValidationError } from '@chamvi/core';
+import { ChamviError, ValidationError } from '@chamvi/errors';
 import { requestError } from '../client/asserts.ts';
 import { MAIL_STALE_ID_MESSAGE, MAIL_THREAD_MAX_REFERENCES } from '../client/constants.ts';
 import { isAllowedFolder } from '../client/folders.ts';
@@ -113,8 +113,8 @@ class MailWriteClient implements IMailWriteClient {
         const found = await findSentMail(this.pool, account as MailSmtpAccount, lookup, signal);
 
         return found ? {
-            account: account.id, 
-            messageId: lookup.messageId, 
+            account: account.id,
+            messageId: lookup.messageId,
             filed: true,
             refused: [],
         } : undefined;

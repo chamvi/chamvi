@@ -6,7 +6,7 @@
  */
 
 import type { Agent, ChannelSubscription } from '@chamvi/core';
-import { NotFoundError } from '@ebec/http';
+import { NotFoundError } from '@chamvi/errors';
 import { HTTP_CHANNEL_NAME } from '../../channels/constants.ts';
 
 /** The agent's `http.on()` subscription, else 404. */

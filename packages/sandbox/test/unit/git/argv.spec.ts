@@ -7,7 +7,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { EXEC_TIMEOUT_MS } from '@chamvi/sandbox';
-import { SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError } from '@chamvi/core';
 import { GIT_AUTH_REFUSED_EXIT, GIT_AUTH_SCRIPT } from '../../../src/git/constants.ts';
 import { credentialKey, credentialsFileContent } from '../../../src/git/helpers.ts';
 import { gitArgv, runGit } from '../../../src/git/module.ts';

@@ -5,13 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { isHTTPError } from '@ebec/http';
 import { defineCoreHandler } from 'routup';
 import type { App } from 'routup';
 import { REST_ROUTE_SUFFIX } from '../app/constants.ts';
 import type { HttpContext } from '../app/types.ts';
 import { routeSubpath } from '../routes/helpers.ts';
 import { CHANNELS_SEGMENT } from './constants.ts';
+import { isPayloadTooLarge } from './helpers.ts';
 
 /**
  * Mounts `POST /channels/<name>` and `POST /channels/<name>/...` for each
@@ -34,7 +34,7 @@ export function registerChannelRoutes(app: App, ctx: HttpContext): void {
                 }, channelCtx);
             } catch (error) {
                 // a body refused part-way (readRequestBody) leaves bytes unread that would stall a keep-alive socket
-                if (isHTTPError(error) && error.statusCode === 413) {
+                if (isPayloadTooLarge(error)) {
                     event.response.headers.set('connection', 'close');
                 }
 

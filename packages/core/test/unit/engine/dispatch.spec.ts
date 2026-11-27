@@ -6,6 +6,7 @@
  */
 
 /* eslint-disable max-classes-per-file */
+import { ValidationError } from '@chamvi/errors';
 import type { LanguageModel } from 'ai';
 import {
     afterEach,
@@ -19,7 +20,6 @@ import {
     AgentReplacedError,
     Engine,
     TRIGGER_KEY_MAX_LENGTH,
-    ValidationError,
     defineModelAgent,
 } from '@chamvi/core';
 import type {
@@ -621,9 +621,9 @@ describe('dispatch with the checked agent', () => {
         engines.push(engine);
 
         return {
-            store, 
-            engine, 
-            clock, 
+            store,
+            engine,
+            clock,
         };
     }
 
@@ -707,9 +707,9 @@ describe('dispatch with the checked agent', () => {
 
     it('refuses a checked dispatch while a replacement of a code agent sweeps its older runs', async () => {
         const {
-            engine, 
-            store, 
-            clock, 
+            engine,
+            store,
+            clock,
         } = makeChecked();
         const older = await engine.dispatch(env());
 
@@ -738,9 +738,9 @@ describe('dispatch with the checked agent', () => {
         const gated = createTestServices({ runService: (ctx) => new GatedInsertService(ctx) });
         const runs = gated.runService as GatedInsertService;
         const {
-            engine, 
-            store, 
-            clock, 
+            engine,
+            store,
+            clock,
         } = makeChecked(gated);
 
         await engine.dispatch(env());

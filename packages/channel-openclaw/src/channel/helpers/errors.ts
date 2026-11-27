@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import { ERROR_TEXT_MAX_LENGTH, OPENCLAW_REQUEST_ERROR_CODE } from '../constants.ts';
 import { cutText } from './message.ts';
 

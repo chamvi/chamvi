@@ -7,7 +7,7 @@
 
 import { appendQueryConditions } from '@authup/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import { BadRequestError } from '@ebec/http';
+import { BadRequestError } from '@chamvi/errors';
 import {
     Fields,
     Filters,

@@ -5,17 +5,17 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { ToolSet } from 'ai';
-import { 
-    afterEach, 
-    describe, 
-    expect, 
-    it, 
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
 } from 'vitest';
 import { z } from 'zod';
 import {
     InvalidRunStateError,
-    ValidationError,
     approve,
     defineModelAgent,
     defineTool,
@@ -211,9 +211,9 @@ describe('once()', () => {
 
     describe('within one frame', () => {
         function frameOf(): {
-            frame: ToolCallFrame; 
-            saved: string[]; 
-            ctx: ToolContext 
+            frame: ToolCallFrame;
+            saved: string[];
+            ctx: ToolContext
         } {
             const store = new Map<string, EffectResult>();
             const saved: string[] = [];
@@ -235,17 +235,17 @@ describe('once()', () => {
             };
 
             return {
-                frame, 
-                saved, 
-                ctx: { run: { runId: 'r1' } } as ToolContext, 
+                frame,
+                saved,
+                ctx: { run: { runId: 'r1' } } as ToolContext,
             };
         }
 
         it('shares one computation between overlapping calls of one name, then the stored value', async () => {
             const {
-                frame, 
-                saved, 
-                ctx, 
+                frame,
+                saved,
+                ctx,
             } = frameOf();
             let runs = 0;
             const gate = Promise.withResolvers<void>();
@@ -271,9 +271,9 @@ describe('once()', () => {
 
         it('leaves nothing shared after a rejection: the next call runs fn again', async () => {
             const {
-                frame, 
-                saved, 
-                ctx, 
+                frame,
+                saved,
+                ctx,
             } = frameOf();
             let runs = 0;
             const failing = async () => {
@@ -290,9 +290,9 @@ describe('once()', () => {
 
         it('saves nothing when the frame ended while fn ran', async () => {
             const {
-                frame, 
-                saved, 
-                ctx, 
+                frame,
+                saved,
+                ctx,
             } = frameOf();
             const result = runToolCall(frame, () => once(ctx, 'v', async () => {
                 frame.abandoned = true;

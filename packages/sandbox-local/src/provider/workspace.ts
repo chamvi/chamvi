@@ -25,7 +25,8 @@ import {
     sep,
 } from 'node:path';
 import type { ClockTimer, IClock } from '@chamvi/core';
-import { SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError } from '@chamvi/core';
 import {
     EXEC_TIMEOUT_MAX_MS,
     EXEC_TIMEOUT_MS,

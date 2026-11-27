@@ -8,7 +8,8 @@
 import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 import type { Tool } from 'ai';
-import { SandboxError, ValidationError, defineTool } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError, defineTool } from '@chamvi/core';
 import { absoluteWorkspacePath } from '@chamvi/sandbox';
 import type { ExecResult, IWorkspace } from '@chamvi/sandbox';
 import {

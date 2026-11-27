@@ -7,7 +7,8 @@
 
 import type { V1Pod } from '@kubernetes/client-node';
 import { describe, expect, it } from 'vitest';
-import { SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError } from '@chamvi/core';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import { POLL_MS, START_TIMEOUT_MS, createKubernetesSandbox } from '@chamvi/sandbox-k8s';
 import type { KubernetesSandboxOptions } from '@chamvi/sandbox-k8s';
@@ -158,9 +159,9 @@ describe('kubernetes suspension', () => {
 
     it('find rebuilds the pod of a claim without a running pod', async () => {
         const {
-            client, 
-            clock, 
-            provider, 
+            client,
+            clock,
+            provider,
         } = setup({ env: { A: '1' }, limits: { cpu: '2' } });
         const created = await provider.create({
             runId: 'r1',
@@ -185,9 +186,9 @@ describe('kubernetes suspension', () => {
         expect(pod.metadata!.annotations).toEqual(client.claims.get(name)!.metadata!.annotations);
         expect(pod.spec!.containers[0]!.image).toBe('custom');
         expect(envOf(pod)).toMatchObject({
-            A: '1', 
-            B: '2', 
-            C: '3', 
+            A: '1',
+            B: '2',
+            C: '3',
         });
         expect(pod.spec!.containers[0]!.resources!.limits).toMatchObject({ cpu: '2', memory: '4Gi' });
         expect(pod.spec!.activeDeadlineSeconds).toBe(Math.ceil((7 * DAY_MS - 10_500) / 1000));
@@ -197,9 +198,9 @@ describe('kubernetes suspension', () => {
 
     it('gives a rebuilt pod at least one second', async () => {
         const {
-            client, 
-            clock, 
-            provider, 
+            client,
+            clock,
+            provider,
         } = setup({ limits: { maxLifetimeMs: 60_000 } });
         const workspace = await provider.create({ runId: 'r1' });
 
@@ -286,9 +287,9 @@ describe('kubernetes suspension', () => {
 
     it('a rebuild that does not start in time throws SandboxError and leaves the claim', async () => {
         const {
-            client, 
-            clock, 
-            provider, 
+            client,
+            clock,
+            provider,
         } = setup();
         const workspace = await provider.create({ runId: 'r1' });
         const name = `chamvi-ws-${workspace.id}`;
@@ -306,9 +307,9 @@ describe('kubernetes suspension', () => {
 
     it('concurrent finds create one pod', async () => {
         const {
-            client, 
-            clock, 
-            provider, 
+            client,
+            clock,
+            provider,
         } = setup();
         const workspace = await provider.create({ runId: 'r1' });
         const name = `chamvi-ws-${workspace.id}`;
@@ -334,9 +335,9 @@ describe('kubernetes suspension', () => {
 
     it('an expired claim is never rebuilt', async () => {
         const {
-            client, 
-            clock, 
-            provider, 
+            client,
+            clock,
+            provider,
         } = setup({ limits: { maxLifetimeMs: 60_000 } });
         const workspace = await provider.create({ runId: 'r1' });
 
@@ -349,9 +350,9 @@ describe('kubernetes suspension', () => {
 
     it('a deleting pod is rebuilt once it is gone', async () => {
         const {
-            client, 
-            clock, 
-            provider, 
+            client,
+            clock,
+            provider,
         } = setup();
         const workspace = await provider.create({ runId: 'r1' });
         const name = `chamvi-ws-${workspace.id}`;
@@ -380,9 +381,9 @@ describe('kubernetes suspension', () => {
 
     it('gives up on a pod still being deleted after the start timeout', async () => {
         const {
-            client, 
-            clock, 
-            provider, 
+            client,
+            clock,
+            provider,
         } = setup();
         const workspace = await provider.create({ runId: 'r1' });
         const name = `chamvi-ws-${workspace.id}`;
@@ -399,9 +400,9 @@ describe('kubernetes suspension', () => {
 
     it('never rebuilds the pod of a create still in progress', async () => {
         const {
-            client, 
-            clock, 
-            provider, 
+            client,
+            clock,
+            provider,
         } = setup();
 
         client.statuses = [{ phase: 'Pending' }, { phase: 'Pending' }, { phase: 'Running' }];
@@ -465,9 +466,9 @@ describe('kubernetes suspension', () => {
     });
     it('the manager releases a suspended workspace of a settled run without rebuilding its pod', async () => {
         const {
-            client, 
-            clock, 
-            provider, 
+            client,
+            clock,
+            provider,
         } = setup();
         const manager = createWorkspaceManager({
             provider,
@@ -489,9 +490,9 @@ describe('kubernetes suspension', () => {
 
     it('a claim whose running pod cannot be read throws SandboxError and keeps claim and pod', async () => {
         const {
-            client, 
-            clock, 
-            provider, 
+            client,
+            clock,
+            provider,
         } = setup();
         const workspace = await provider.create({ runId: 'r1', repo: REPO });
         const name = `chamvi-ws-${workspace.id}`;
@@ -510,9 +511,9 @@ describe('kubernetes suspension', () => {
 
     it('a claim whose pod went while its checkout was read is rebuilt once', async () => {
         const {
-            client, 
-            clock, 
-            provider, 
+            client,
+            clock,
+            provider,
         } = setup();
         const workspace = await provider.create({ runId: 'r1', repo: REPO });
         const name = `chamvi-ws-${workspace.id}`;
@@ -539,9 +540,9 @@ describe('kubernetes suspension', () => {
 
     it('a rebuilt pod whose checkout cannot be read throws SandboxError and keeps the claim', async () => {
         const {
-            client, 
-            clock, 
-            provider, 
+            client,
+            clock,
+            provider,
         } = setup();
         const workspace = await provider.create({ runId: 'r1', repo: REPO });
         const name = `chamvi-ws-${workspace.id}`;
@@ -558,9 +559,9 @@ describe('kubernetes suspension', () => {
 
     it('a find with restore false answers a running claimed pod without reading its checkout', async () => {
         const {
-            client, 
-            clock, 
-            provider, 
+            client,
+            clock,
+            provider,
         } = setup();
         const workspace = await provider.create({ runId: 'r1', repo: REPO });
         const name = `chamvi-ws-${workspace.id}`;
@@ -612,9 +613,9 @@ describe('kubernetes suspension', () => {
         }],
     ])('after a restart, %s keeps the other claim-backed repository workspace reusable', async (_name, remove) => {
         const {
-            client, 
-            clock, 
-            provider, 
+            client,
+            clock,
+            provider,
         } = setup();
         const other = 'https://github.com/octo/other.git';
         const manage = (sandbox: typeof provider) => createWorkspaceManager({

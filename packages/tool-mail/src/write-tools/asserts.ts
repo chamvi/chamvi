@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import { inputObject, optionalString, requireString } from '../tools/asserts/index.ts';
 import {
     MAIL_ADDRESS_PATTERN,

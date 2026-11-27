@@ -7,10 +7,10 @@
 
 import type { ToolSet } from 'ai';
 import { isObject } from 'smob';
+import { ValidationError } from '@chamvi/errors';
 import {
     SandboxError,
     ToolDeniedError,
-    ValidationError,
     approve,
     defineTool,
     outboundApproved,

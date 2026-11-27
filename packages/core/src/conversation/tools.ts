@@ -5,12 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { jsonSchema } from 'ai';
 import type { ToolSet } from 'ai';
 import { isObject } from 'smob';
 import { currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
-import { ValidationError } from '../errors/index.ts';
 import { defineTool } from '../tool/define.ts';
 import type { ToolContext } from '../tool/types.ts';
 import { CONVERSATION_NOTE_KEY_MAX_LENGTH, CONVERSATION_NOTE_TEXT_MAX_BYTES, ConversationOperation  } from './constants.ts';

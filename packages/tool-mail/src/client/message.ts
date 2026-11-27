@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
 import type { FetchMessageObject, ImapFlow, MessageAddressObject } from 'imapflow';
 import { MAIL_ADDRESSES_MAX_CHARS, MAIL_SUBJECT_MAX_CHARS } from '../text/constants.ts';
 import { addresses, cutText, stripHtml } from '../text/module.ts';

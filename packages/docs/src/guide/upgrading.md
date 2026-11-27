@@ -2,6 +2,18 @@
 
 chamvi is pre-1.0: a minor release may break the API. Each section lists what changed and the exact replacement.
 
+## Upgrading to 0.13
+
+### Errors move to `@chamvi/errors`
+
+`ChamviError`, `ErrorCode` and `ValidationError` are no longer exported by `@chamvi/core`. Import them from `@chamvi/errors`, or from `@chamvi/app`, which re-exports it. Core's engine errors (`AgentNotFoundError`, `BudgetExceededError`, ...) stay in `@chamvi/core` and now extend the new `ChamviError`. Error codes, response bodies and statuses are unchanged.
+
+`@chamvi/errors` is a new package: the packages that use it peer on it, so install it next to core when you do not use `@chamvi/app`. `@chamvi/http` and `@chamvi/github` throw its generic built-ins (`BadRequestError`, `ForbiddenError`, ...) instead of `@ebec/http` errors; the HTTP error handler still renders `@ebec/http` errors thrown by your own controllers. Errors thrown by `authorizeRequest`, `assertGranted`, `usePrincipal` and `decodeQuery` (re-exported by `@chamvi/app`) are `@chamvi/errors` built-ins: they no longer carry `status`/`statusCode` and fail `isHTTPError()`; use `httpStatusOf()` or the `is<Name>Error` guards.
+
+| Before | After |
+|---|---|
+| `import { ChamviError, ErrorCode, ValidationError } from '@chamvi/core'` | `import { ChamviError, ErrorCode, ValidationError } from '@chamvi/errors'` (or `@chamvi/app`) |
+
 ## Upgrading to 0.12
 
 ### Env variable names

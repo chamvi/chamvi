@@ -17,7 +17,8 @@ import { execFileSync } from 'node:child_process';
 import { closeSync, constants, openSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
-import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import {
     afterEach,
     beforeEach,
@@ -132,16 +133,16 @@ describe('folder', () => {
         expect(errors).toEqual([]);
         expect(documents).toEqual([
             {
-                id: 'a.md', 
-                source: 'a.md', 
-                title: 'The Title', 
-                content: 'intro\n\n# The Title  \n\nbody', 
+                id: 'a.md',
+                source: 'a.md',
+                title: 'The Title',
+                content: 'intro\n\n# The Title  \n\nbody',
             },
             {
-                id: 'sub/b.txt', 
-                source: 'sub/b.txt', 
-                title: 'b', 
-                content: 'plain text', 
+                id: 'sub/b.txt',
+                source: 'sub/b.txt',
+                title: 'b',
+                content: 'plain text',
             },
         ]);
     });
@@ -218,9 +219,9 @@ describe('folder', () => {
 
         try {
             const {
-                documents, 
-                errors, 
-                incomplete, 
+                documents,
+                errors,
+                incomplete,
             } = await collect(folder(root));
 
             expect(documents.map((document) => document.id)).toEqual(['ok.md']);

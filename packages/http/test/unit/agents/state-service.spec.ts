@@ -86,12 +86,12 @@ describe('AgentStateService', () => {
         const query = new URLSearchParams();
 
         await expect(service.list('alfred', query, reader)).rejects.toMatchObject({
-            status: 403,
+            code: 'forbidden',
             message: 'State of agent "alfred" needs chamvi_agent_read.',
         });
-        await expect(service.get('alfred', 'k', reader)).rejects.toMatchObject({ status: 403 });
-        await expect(service.set('alfred', 'k', { value: 1 }, writer)).rejects.toMatchObject({ status: 403 });
-        await expect(service.documents('alfred', 'notes', query, reader)).rejects.toMatchObject({ status: 403 });
+        await expect(service.get('alfred', 'k', reader)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.set('alfred', 'k', { value: 1 }, writer)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.documents('alfred', 'notes', query, reader)).rejects.toMatchObject({ code: 'forbidden' });
 
         const granted = principalOf(Permission.STATE_READ, restricted(Permission.AGENT_READ, { name: 'alfred' }));
 
@@ -103,15 +103,15 @@ describe('AgentStateService', () => {
         const foreign = principalOf(restricted(Permission.STATE_READ, { name: 'intake' }));
 
         await expect(service.get('nope', 'k', foreign)).rejects.toMatchObject({
-            status: 403,
+            code: 'forbidden',
             message: 'Missing permission "chamvi_state_read".',
         });
         await expect(service.get('nope', 'k', reader)).rejects.toMatchObject({
-            status: 404,
+            code: 'not_found',
             message: 'Agent "nope" was not found.',
         });
-        await expect(service.set('nope', 'k', {} as never, reader)).rejects.toMatchObject({ status: 403 });
-        await expect(service.set('nope', 'k', {} as never, writer)).rejects.toMatchObject({ status: 404 });
+        await expect(service.set('nope', 'k', {} as never, reader)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.set('nope', 'k', {} as never, writer)).rejects.toMatchObject({ code: 'not_found' });
     });
 
     it('rejects a write without a value with a validation error', async () => {
@@ -141,9 +141,9 @@ describe('AgentStateService', () => {
         const { service } = setup();
 
         await expect(service.documents('intake', 'nope', new URLSearchParams(), reader)).rejects.toMatchObject({
-            status: 404,
+            code: 'not_found',
             message: 'Agent "intake" declares no state collection "nope".',
         });
-        await expect(service.documents('intake', 'issues', new URLSearchParams('filter[id]=i1'), reader)).rejects.toMatchObject({ status: 400 });
+        await expect(service.documents('intake', 'issues', new URLSearchParams('filter[id]=i1'), reader)).rejects.toMatchObject({ code: 'bad_request' });
     });
 });

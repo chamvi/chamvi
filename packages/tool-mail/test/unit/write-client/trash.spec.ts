@@ -6,8 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { ChamviError } from '@chamvi/core';
-import { ValidationError } from '@chamvi/core';
+import type { ChamviError } from '@chamvi/errors';
+import { ValidationError } from '@chamvi/errors';
 import { MAIL_REQUEST_ERROR_CODE, encodeMailId } from '@chamvi/tool-mail';
 import type { FakeFolder } from '../../utils/imap.ts';
 import { genericFolders, untagged } from '../../utils/mail.ts';
@@ -98,9 +98,9 @@ describe('the write client: describing mails to delete', () => {
 describe('the write client: moving mails to the trash', () => {
     it('moves INBOX and Archive mails to Trash once, and reports them missing on a second call', async () => {
         const {
-            client, 
-            folders, 
-            imap, 
+            client,
+            folders,
+            imap,
         } = await setupWrite(false);
         const ids = [idOf('INBOX', 1), idOf('Archive', 7), idOf('INBOX', 1)];
 
@@ -156,9 +156,9 @@ describe('the write client: moving mails to the trash', () => {
         ['trash', (client: Awaited<ReturnType<typeof setupWrite>>['client']) => client.trash([idOf('INBOX', 1)])],
     ])('refuses to %s on a server without MOVE before any SELECT', async (_, call) => {
         const {
-            client, 
-            folders, 
-            imap, 
+            client,
+            folders,
+            imap,
         } = await setupWrite(false, { fake: { noMove: true } });
         const error = await rejection(call(client));
 
@@ -173,9 +173,9 @@ describe('the write client: moving mails to the trash', () => {
         ['the only version', 'only'],
     ] as const)('moves without the MOVE capability in an active IMAP4rev2 session (%s)', async (_, rev2) => {
         const {
-            client, 
-            folders, 
-            imap, 
+            client,
+            folders,
+            imap,
         } = await setupWrite(false, { fake: { noMove: true, rev2 } });
         const result = await client.trash([idOf('INBOX', 1)]);
 
@@ -187,9 +187,9 @@ describe('the write client: moving mails to the trash', () => {
 
     it('refuses an IMAP4rev2 the server advertises but never enabled, without MOVE', async () => {
         const {
-            client, 
-            folders, 
-            imap, 
+            client,
+            folders,
+            imap,
         } = await setupWrite(false, { fake: { noMove: true, rev2: 'advertised' } });
         const error = await rejection(client.trash([idOf('INBOX', 1)]));
 
@@ -250,9 +250,9 @@ describe('the write client: delete input', () => {
         ['a string that is no mail id', ['work:INBOX:1']],
     ])('refuses %s before opening any folder', async (_, ids) => {
         const {
-            client, 
-            folders, 
-            imap, 
+            client,
+            folders,
+            imap,
         } = await setupWrite(false);
 
         for (const call of [client.describe(ids), client.trash(ids)]) {

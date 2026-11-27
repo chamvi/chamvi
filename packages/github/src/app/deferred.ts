@@ -6,7 +6,8 @@
  */
 
 import type { ToolSet } from 'ai';
-import { ChamviError, ConnectionNotConfiguredError, ErrorCode } from '@chamvi/core';
+import { ChamviError, ErrorCode } from '@chamvi/errors';
+import { ConnectionNotConfiguredError } from '@chamvi/core';
 import { normalizeProposals } from '../tools/proposals.ts';
 import { buildReadTools, buildWriteTools } from './tools.ts';
 import type {

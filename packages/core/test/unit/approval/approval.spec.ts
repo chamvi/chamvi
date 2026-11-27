@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { LanguageModel } from 'ai';
 import {
     afterEach,
@@ -18,7 +19,6 @@ import {
     FatalToolError,
     InvalidRunStateError,
     RunNotFoundError,
-    ValidationError,
     approve,
     defineModelAgent,
     defineTool,

@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
-import { ValidationError } from '../errors/index.ts';
 import type { ApprovalOption, ApprovalWaitPoint, Invoker } from '@chamvi/store';
 import {
     APPROVAL_ARTIFACTS_MAX,

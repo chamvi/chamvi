@@ -7,12 +7,8 @@
 
 import { describe, expect, it } from 'vitest';
 import type { ToolSet } from 'ai';
-import {
-    EFFECT,
-    SandboxError,
-    ValidationError,
-    toolContextSchema,
-} from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { EFFECT, SandboxError, toolContextSchema } from '@chamvi/core';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import type { WorkspaceToolResult } from '@chamvi/sandbox';
 import { DISCOVERY_SCRIPT } from '../../../src/instructions/constants.ts';

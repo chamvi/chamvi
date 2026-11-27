@@ -1,6 +1,6 @@
 # Errors
 
-Every error chamvi throws extends `ChamviError`, which extends ebec's `BaseError`. Each carries a `code`; the codes are exported as `ErrorCode`.
+Every error chamvi throws extends `ChamviError`, which extends ebec's `BaseError`. Each carries a `code`; the codes are exported as `ErrorCode`. `ChamviError`, `ErrorCode`, `ValidationError` and the generic HTTP errors (`BadRequestError`, `NotFoundError`, ..., `InternalError`) come from [`@chamvi/errors`](https://github.com/chamvi/chamvi/tree/master/packages/errors), which `@chamvi/app` re-exports; the engine errors below are in `@chamvi/core`. `httpStatusOf(error)` gives the HTTP status of an error (`ERROR_CODE_TO_STATUS` by code, else the built-in class), and `isChamviError()` and the `is<Name>Error()` guards also match an error that went through JSON.
 
 | Class | `ErrorCode` | Code | Thrown when |
 |---|---|---|---|
@@ -21,7 +21,7 @@ Every error chamvi throws extends `ChamviError`, which extends ebec's `BaseError
 | `ConnectionHeldError` | `CONNECTION_HELD` | `connection_held` | Opening a connection whose lease another owner holds (carries `connection`); the WhatsApp connector shows `held-elsewhere` and retries |
 | `DecryptionFailedError` | `DECRYPTION_FAILED` | `decryption_failed` | Sealed bytes do not open: a wrong or tampered value, or a data key wrapped under a key the keyring lacks (carries that `keyId`); the message never holds key material; http answers 409 |
 | `SandboxError` | `SANDBOX` | `sandbox_error` | A [workspace](/guide/workspaces) or its provider failed: a create, start or checkout (with git's stderr), a missing or oversized file, an unknown, expired or disposed workspace, a Docker or Kubernetes API error, a reached per-run workspace cap; a tool error, the run goes on |
-| `ValidationError` | `VALIDATION` | `validation_error` | A state document fails its schema (carries `issues`); an invalid attachment at `dispatch()` or `artifacts.put()`; a final answer that does not parse as the agent's [structured `output`](/guide/agents#structured-output) (the run fails); a workspace path, repository or ref the sandbox rules refuse (a tool error); an `emit()` without an address off the source channel (a tool error) |
+| `ValidationError` (`@chamvi/errors`) | `VALIDATION` | `validation_error` | A state document fails its schema (carries `issues`); an invalid attachment at `dispatch()` or `artifacts.put()`; a final answer that does not parse as the agent's [structured `output`](/guide/agents#structured-output) (the run fails); a workspace path, repository or ref the sandbox rules refuse (a tool error); an `emit()` without an address off the source channel (a tool error) |
 | `PeerStartBusyError` | `PEER_START_BUSY` | `peer_start_busy` | A [peer](/guide/remote-agents) start while another replica counts a start of the same calling run and role (`maxPerRun`); nothing is written and a resend is safe; `@chamvi/http` answers 503 with `Retry-After: 1` |
 | `RepositoryNotFoundError` | `REPOSITORY_NOT_FOUND` | `repository_not_found` | A repository `OrFail` query has no result; single run/artifact lookups use their specific not-found errors |
 

@@ -7,7 +7,8 @@
 
 import { jsonSchema } from 'ai';
 import type { JSONSchema7 } from 'ai';
-import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
 import { assertCollectionName } from '../collection/helpers.ts';
@@ -39,9 +40,9 @@ export function normalizeOptions(options: KnowledgeToolsOptions): KnowledgeTools
     }
 
     const {
-        collections, 
-        topK, 
-        minScore, 
+        collections,
+        topK,
+        minScore,
     } = options;
 
     if (!Array.isArray(collections) || collections.length === 0) {
@@ -82,9 +83,9 @@ export function readInput(input: unknown): KnowledgeSearchInput {
     }
 
     const {
-        query, 
-        collection, 
-        topK, 
+        query,
+        collection,
+        topK,
     } = input;
 
     if (typeof query !== 'string' || query.trim().length === 0 || query.length > KNOWLEDGE_QUERY_MAX_LENGTH) {

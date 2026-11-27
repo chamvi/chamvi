@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { isObject } from 'smob';
 import { APPROVAL_TIMEOUT_MAX_MS } from '../approval/constants.ts';
 import { SuspendSignal } from '../approval/request.ts';
@@ -12,7 +13,7 @@ import type { DispatchResult } from '../channel/types.ts';
 import { inject } from '../context/module.ts';
 import { assertFrameActive, currentToolCall } from '../effect/frame.ts';
 import type { DispatchWaitRequest } from '../engine/execute/types.ts';
-import { InvalidRunStateError, ValidationError } from '../errors/index.ts';
+import { InvalidRunStateError } from '../errors/index.ts';
 import type { StateSchema } from '../state/types.ts';
 import type { ToolContext } from '../tool/types.ts';
 import { markUntrusted } from '../trust/module.ts';

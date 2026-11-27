@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import { randomUUID } from 'node:crypto';
 import { flattenIssueItems } from '@ebec/core';
 import type { Issue } from '@ebec/core';
@@ -13,7 +14,6 @@ import type { ICondition, IFilters, IQuery } from '@rapiq/core';
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec';
 import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
 import type { JSONSchema7 } from 'ai';
-import { ValidationError } from '../errors/index.ts';
 import type { ToolContext } from '../tool/types.ts';
 import type { StateSchema } from './types.ts';
 

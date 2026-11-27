@@ -75,8 +75,8 @@ describe('AgentService', () => {
         const { service } = setup();
         const principal = principalOf({ permission: { name: Permission.STATE_READ } });
 
-        await expect(service.list(principal)).rejects.toMatchObject({ status: 403 });
-        await expect(service.schedules(principal)).rejects.toMatchObject({ status: 403 });
+        await expect(service.list(principal)).rejects.toMatchObject({ code: 'forbidden' });
+        await expect(service.schedules(principal)).rejects.toMatchObject({ code: 'forbidden' });
     });
 
     it('lists the schedules of the agents the principal reads', async () => {

@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import type { ConversationIdentity, ConversationScope, Run } from '@chamvi/store';
 import { conversationKey } from '../../agent/asserts.ts';
 import type {
@@ -25,7 +26,6 @@ import type {
     ConversationTarget,
     IConversations,
 } from '../../conversation/types.ts';
-import { ValidationError } from '../../errors/index.ts';
 import { toInvoker } from '../../trigger/helpers.ts';
 import { assertTriggerKey } from '../../trigger/key.ts';
 import type { EngineConversationsContext, IEngineConversations } from './types.ts';

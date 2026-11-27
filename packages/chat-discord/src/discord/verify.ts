@@ -6,7 +6,7 @@
  */
 
 import { CHAT_REQUEST_ERROR_CODE } from '@chamvi/chat';
-import { ChamviError } from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
 import { DISCORD_API_URL } from './constants.ts';
 
 function failure(message: string): ChamviError {
@@ -20,9 +20,9 @@ function failure(message: string): ChamviError {
 export async function verifyDiscordToken(
     token: string,
     options: {
-        signal: AbortSignal; 
-        apiUrl?: string; 
-        fetch?: typeof fetch 
+        signal: AbortSignal;
+        apiUrl?: string;
+        fetch?: typeof fetch
     },
 ): Promise<void> {
     const { signal } = options;

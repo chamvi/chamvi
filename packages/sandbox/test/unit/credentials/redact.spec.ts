@@ -6,7 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { SandboxError, ValidationError } from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { SandboxError } from '@chamvi/core';
 import { REDACTED, REDACT_GRACE_MS } from '@chamvi/sandbox';
 import { createRedactor } from '../../../src/credentials/helpers.ts';
 import { ControllableClock } from '../../utils/clock.ts';

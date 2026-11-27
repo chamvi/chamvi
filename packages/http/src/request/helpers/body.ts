@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { BadRequestError, RequestEntityTooLargeError, UnsupportedMediaTypeError } from '@ebec/http';
+import { BadRequestError, RequestEntityTooLargeError, UnsupportedMediaTypeError } from '@chamvi/errors';
 import type { IAppEvent } from 'routup';
 import type { ReadRequestBodyOptions } from '../types.ts';
 

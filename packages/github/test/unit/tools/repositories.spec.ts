@@ -6,10 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-    ValidationError,
-    wrapToolsForRun,
-} from '@chamvi/core';
+import { ValidationError } from '@chamvi/errors';
+import { wrapToolsForRun } from '@chamvi/core';
 import { createTestEngine } from '@chamvi/test-kit';
 import type { ToolSet } from 'ai';
 import type { GithubIssueList, GithubRepositoryList } from '@chamvi/github';

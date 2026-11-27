@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError, ValidationError } from '@chamvi/core';
+import { ChamviError, ValidationError } from '@chamvi/errors';
 import { CALENDAR_REQUEST_ERROR_CODE } from '../errors/constants.ts';
 import { CALENDAR_EVENTS_DEFAULT_LIMIT, CALENDAR_EVENTS_MAX_LIMIT, CALENDAR_RANGE_MAX_DAYS } from './constants.ts';
 

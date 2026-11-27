@@ -5,12 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ValidationError } from '@chamvi/errors';
 import {
     createCipheriv,
     createDecipheriv,
     randomBytes,
 } from 'node:crypto';
-import { DecryptionFailedError, InvalidAgentDefinitionError, ValidationError } from '../errors/index.ts';
+import { DecryptionFailedError, InvalidAgentDefinitionError } from '../errors/index.ts';
 import {
     KEYRING_KEY_LENGTH,
     SEAL_IV_LENGTH,

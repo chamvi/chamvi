@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ChamviError } from '@chamvi/core';
-import { ValidationError } from '@chamvi/core';
+import type { ChamviError } from '@chamvi/errors';
+import { ValidationError } from '@chamvi/errors';
 import { calendarError } from '../client/asserts.ts';
 import type { CalendarAccount } from '../client/types.ts';
 import { CALENDAR_EVENT_ID_MESSAGE } from '../event-id/constants.ts';

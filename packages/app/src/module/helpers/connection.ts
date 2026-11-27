@@ -5,12 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import {
-    ChamviError,
-    DecryptionFailedError,
-    InvalidAgentDefinitionError,
-    resolveConnection,
-} from '@chamvi/core';
+import { ChamviError } from '@chamvi/errors';
+import { DecryptionFailedError, InvalidAgentDefinitionError, resolveConnection } from '@chamvi/core';
 import type { ConnectionValues, ResolveConnectionInput, ResolvedConnection } from '@chamvi/core';
 import type { AgentIssue } from '@chamvi/http';
 import type { IContainer } from 'eldin';
@@ -96,9 +92,9 @@ async function readStoredConnection(
 
     if (!(first instanceof ChamviError)) {
         return first && {
-            values: first.values, 
-            revision: first.revision, 
-            id: first.generation, 
+            values: first.values,
+            revision: first.revision,
+            id: first.generation,
         };
     }
 
@@ -115,9 +111,9 @@ async function readStoredConnection(
 
     if (!(failure instanceof ChamviError)) {
         return failure && {
-            values: failure.values, 
-            revision: failure.revision, 
-            id: failure.generation, 
+            values: failure.values,
+            revision: failure.revision,
+            id: failure.generation,
         };
     }
 
