@@ -45,7 +45,7 @@ The six storage errors (`EntityNotFoundError`, ...) move from `@chamvi/store` to
 
 ### `@chamvi/http-kit`: path segments and stream options
 
-`path()` is no longer exported. Build a segment with `encodePathSegment(value)`: it percent-encodes like `encodeURIComponent` but keeps `@`, and refuses `''`, `.` and `..` with an `ApiError` (status 0, code `PATH_SEGMENT_INVALID_ERROR_CODE`, `path_segment_invalid`) before any request is sent. Every domain API builds its paths through it, so `client.run.getOne('..')` rejects instead of reading `/runs`; the URL of every other id is unchanged. Both stream methods end with `APIRequestOptions` like every other method, so a stream also takes `timeout` (for the answer only) and `token`.
+`path()` is no longer exported. Build a segment with `encodePathSegment(value)`: it percent-encodes like `encodeURIComponent` but keeps `@`, and refuses `''`, `.` and `..` with an `ApiError` (status 0, code `PATH_SEGMENT_INVALID_ERROR_CODE`, `path_segment_invalid`) before any request is sent. Every domain API builds its paths through it, so a refused segment rejects the promise the method returns (`client.run.getOne('..')` rejects instead of reading `/runs`). Other ids get the same URL as before, except that an `@` is now sent as is, not as `%40`; the server reads both the same way. Both stream methods end with `APIRequestOptions` like every other method, so a stream also takes `timeout` (for the answer only) and `token`.
 
 | Before | After |
 |---|---|

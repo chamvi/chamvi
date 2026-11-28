@@ -18,6 +18,15 @@ describe('encodePathSegment', () => {
         expect(encodePathSegment('@me')).toBe('@me');
     });
 
+    it.each([
+        ['a@b', 'a@b'],
+        ['a b', 'a%20b'],
+        ['grüße', 'gr%C3%BC%C3%9Fe'],
+        ['/', '%2F'],
+    ])('encodes %j as %j', (input, output) => {
+        expect(encodePathSegment(input)).toBe(output);
+    });
+
     it('takes a number', () => {
         expect(encodePathSegment(7)).toBe('7');
     });
