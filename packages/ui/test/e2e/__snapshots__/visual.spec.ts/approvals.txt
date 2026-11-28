@@ -1,0 +1,50 @@
+chamvi
+Operate
+Agents
+Runs
+Approvals
+1
+Schedules
+Components
+Connections
+Connect
+Demo page
+127.0.0.1:4173
+E2
+e2e
+token · 14 permissions
+operate
+/
+approvals
+Approvals
+Tool calls waiting for a person. Approving or denying queues the run again; the model sees your reason.
+polling · 5 s
+Deploy prod?
+waiting
+deploy
+· run
+<id>
+Expires in
+<time>
+then denied
+Rolls the demo release out to prod.
+tool
+deploy
+requested
+<rel>
+notified
+capture · ops
+Reason (optional, sent to the model)
+Approving or denying queues the run again.
+Deny
+Approve
+[aria-label=Main]
+[aria-label=1 waiting]
+[title=127.0.0.1:4173]
+[aria-label=Dark mode]
+[title=Dark mode]
+[aria-label=Sign out]
+[title=Sign out]
+[title=<rel>]
+[placeholder=Why, in one line]
+[aria-label=Notifications (F8)]

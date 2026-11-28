@@ -1,0 +1,77 @@
+chamvi
+Operate
+Agents
+Runs
+Approvals
+1
+Schedules
+Components
+Connections
+Connect
+Demo page
+127.0.0.1:4173
+E2
+e2e
+token · 14 permissions
+operate
+/
+runs
+Runs
+Every run of every agent, newest first. Refreshes every 5 s.
+polling · 5 s
+Running
+0
+right now
+Waiting
+1
+oldest asked
+<rel>
+Failed · 24 h
+0
+no failures
+Tokens · 24 h
+1.3k
+deploy 100%
+Agent
+all agents
+▾
+Status
+queued
+running
+waiting
+completed
+failed
+cancelled
+interrupted
+Created from
+Created until
+Today
+Last 7 days
+This month
+This year
+Run
+Agent · trigger
+Status
+Usage
+Started
+<id>
+—
+deploy
+http
+waiting
+1.2k in · 80 out
+1.3k tok
+<rel>
+1–1 of 1
+[aria-label=Main]
+[aria-label=1 waiting]
+[title=127.0.0.1:4173]
+[aria-label=Dark mode]
+[title=Dark mode]
+[aria-label=Sign out]
+[title=Sign out]
+[title=<rel>]
+[aria-label=Status filter]
+[aria-label=Created in]
+[title=<rel>]
+[aria-label=Notifications (F8)]

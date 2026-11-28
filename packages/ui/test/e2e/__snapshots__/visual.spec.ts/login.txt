@@ -1,0 +1,11 @@
+chamvi
+Dashboard
+Sign in
+Bearer token
+Use token
+A static token from
+staticTokens()
+. Kept in sessionStorage for this tab only.
+chamvi <version> · self-hosted at 127.0.0.1:4173
+[placeholder=paste a static token]
+[aria-label=Notifications (F8)]

@@ -1,0 +1,35 @@
+chamvi
+Operate
+Agents
+Runs
+Approvals
+1
+Schedules
+Components
+Connections
+Connect
+Demo page
+127.0.0.1:4173
+E2
+e2e
+token · 14 permissions
+operate
+/
+connections
+Connections
+The accounts this app's channels hold, their status and pairing.
+1 connection
+Connection
+Type
+Status
+whatsapp
+whatsapp
+pairing
+[aria-label=Main]
+[aria-label=1 waiting]
+[title=127.0.0.1:4173]
+[aria-label=Dark mode]
+[title=Dark mode]
+[aria-label=Sign out]
+[title=Sign out]
+[aria-label=Notifications (F8)]

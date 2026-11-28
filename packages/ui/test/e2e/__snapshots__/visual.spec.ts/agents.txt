@@ -1,0 +1,101 @@
+chamvi
+Operate
+Agents
+Runs
+Approvals
+1
+Schedules
+Components
+Connections
+Connect
+Demo page
+127.0.0.1:4173
+E2
+e2e
+token · 14 permissions
+operate
+/
+agents
+Agents
+Every agent this app runs, with what starts it and what it did in the last 24 h. Open one for its runs, state and schedules.
+3 agents
+Filter by name
+deploy
+http
+Running
+0
+Waiting
+1
+Next cron
+—
+Activity · 24 h
+1 runs
+−24 h
+−12 h
+now
+Last run
+waiting
+<id>
+<rel>
+Budget
+20 steps · 15 min
+State
+no collections
+release
+http
+Running
+0
+Waiting
+0
+Next cron
+—
+Activity · 24 h
+none
+no runs yet
+−24 h
+−12 h
+now
+Last run
+No runs yet.
+Start one from its page.
+Budget
+20 steps · 15 min
+State
+no collections
+digest
+cron
+0 8 * * 1-5
+Running
+0
+Waiting
+0
+Next cron
+<time>
+Activity · 24 h
+none
+no runs yet
+−24 h
+−12 h
+now
+Last run
+No runs yet.
+Budget
+20 steps · 15 min
+State
+sent
+[aria-label=Main]
+[aria-label=1 waiting]
+[title=127.0.0.1:4173]
+[aria-label=Dark mode]
+[title=Dark mode]
+[aria-label=Sign out]
+[title=Sign out]
+[placeholder=e.g. triage]
+[title=http]
+[aria-label=1 runs in the last 24 h: 1 waiting]
+[title=<rel>]
+[title=http]
+[aria-label=No runs in the last 24 h]
+[title=cron:0 8 * * 1-5]
+[aria-label=No runs in the last 24 h]
+[aria-label=Notifications (F8)]
