@@ -466,7 +466,8 @@ async function recordMcp(app: App, token: string | undefined, labels: Labels, ca
     await client.close();
 }
 
-describe('permission matrix', () => {
+// thousands of requests per test: room for slow CI runners
+describe('permission matrix', { timeout: 120_000 }, () => {
     for (const kind of ['full', 'listed'] as const) {
         it(`pins every route's outcome per principal (${kind})`, async () => {
             const {
