@@ -4,6 +4,15 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 
 ## Upgrading to 0.13
 
+### Uuid ids for steps, conversation items and lock tokens
+
+One store migration, `UuidIds1795856376161`, runs like any other (`CHAMVI_MIGRATE`, `chamvi migrate`). Steps and conversation items get a uuid v7 `id` and keep their old bigint as `sequence`, which orders every read. The lock token singleton gets a uuid v7 `id` and a unique `key`.
+
+- Stop every old replica and suspend run-job CronJobs before migrating: an old replica fails on step and conversation item inserts (`id` is `NOT NULL`) and on every lock acquisition. The `agent-app` chart's `Recreate` strategy stops the replicas.
+- The migration takes ACCESS EXCLUSIVE locks on `chamvi_steps`, `chamvi_conversation_items` and `chamvi_lock_tokens` for its whole transaction (no `lock_timeout`) and rewrites every row of the first two (about twice the table size on disk until vacuum). Plan a window on a large database.
+- PostgreSQL 13 or later is required.
+- To roll the app back, run `chamvi migration revert` first. A revert drops the uuid ids; a later migration mints new ones.
+
 ### Records move to `@chamvi/core-kit`
 
 The domain records, enums, constants, helpers and wire views are in the new browser-safe `@chamvi/core-kit`; `@chamvi/app` re-exports it. `@chamvi/store` keeps only the repository ports, so every record, enum, constant and helper it exported (`Run`, `Step`, `RunStatus`, `STEP_STORED_ORDER`, `normalizeEnvelope`, ...) is imported from `@chamvi/core-kit` (or `@chamvi/app`). Install core-kit next to core when you do not use `@chamvi/app`. These exports are also removed from their old package:
