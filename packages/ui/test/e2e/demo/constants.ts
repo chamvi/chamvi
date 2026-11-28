@@ -8,7 +8,11 @@
 /** The bearer token of the demo app's only principal (`*`). */
 export const E2E_TOKEN = 'e2e-token-0123456789';
 
-export const E2E_PORT = 4173;
+/** The demo server the other specs share; a running one is reused outside CI. */
+export const E2E_PORT = 4174;
+
+/** A demo server of the pins' own, never reused: what they count is only their own run. */
+export const E2E_PINS_PORT = 4173;
 
 export const E2E_ORIGIN = `http://127.0.0.1:${E2E_PORT}`;
 

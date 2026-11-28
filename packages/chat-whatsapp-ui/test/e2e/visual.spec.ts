@@ -7,7 +7,7 @@
 
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { E2E_ORIGIN, E2E_TOKEN } from './demo/constants.ts';
+import { E2E_TOKEN } from './demo/constants.ts';
 import {
     VOLATILE,
     freeze,
@@ -39,7 +39,7 @@ const PINS: Pin[] = [
 
 // a known start whatever ran before (a retry included): pairing with a QR
 test.beforeEach(async ({ request }) => {
-    const response = await request.post(`${E2E_ORIGIN}/connections/whatsapp/reset`, { headers: { authorization: `Bearer ${E2E_TOKEN}` } });
+    const response = await request.post('/connections/whatsapp/reset', { headers: { authorization: `Bearer ${E2E_TOKEN}` } });
 
     expect(response.status()).toBe(202);
 });

@@ -13,7 +13,7 @@ export default defineConfig({
     retries: process.env.CI ? 1 : 0,
     reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
     use: {
-        baseURL: 'http://127.0.0.1:4176',
+        baseURL: 'http://127.0.0.1:4178',
         trace: 'retain-on-failure',
     },
     // text pins hold on every platform; a screenshot is per platform (the baselines are Linux's: CI, the Playwright image)
@@ -34,6 +34,7 @@ export default defineConfig({
             testMatch: PINS,
             use: {
                 ...devices['Desktop Chrome'],
+                baseURL: 'http://127.0.0.1:4176',
                 viewport: { width: 1280, height: 800 },
                 locale: 'en-US',
                 timezoneId: 'UTC',
@@ -46,11 +47,21 @@ export default defineConfig({
             use: { ...devices['Desktop Chrome'] },
         },
     ],
-    webServer: {
-        // the demo app runs against the built packages (npm run build first)
-        command: 'node test/e2e/demo/server.ts',
-        url: 'http://127.0.0.1:4176/healthz',
-        reuseExistingServer: !process.env.CI,
-        stdout: 'pipe',
-    },
+    webServer: [
+        {
+            // the demo app runs against the built packages (npm run build first)
+            command: 'node test/e2e/demo/server.ts',
+            url: 'http://127.0.0.1:4178/healthz',
+            reuseExistingServer: !process.env.CI,
+            stdout: 'pipe',
+        },
+        // the pins' own server, started after the one above (its build included) and never reused
+        {
+            command: 'node test/e2e/demo/server.ts',
+            env: { E2E_SERVER_PORT: '4176' },
+            url: 'http://127.0.0.1:4176/healthz',
+            reuseExistingServer: false,
+            stdout: 'pipe',
+        },
+    ],
 });

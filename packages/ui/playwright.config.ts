@@ -13,7 +13,7 @@ export default defineConfig({
     retries: process.env.CI ? 1 : 0,
     reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
     use: {
-        baseURL: 'http://127.0.0.1:4173/ui/',
+        baseURL: 'http://127.0.0.1:4174/ui/',
         trace: 'retain-on-failure',
     },
     // text and style pins hold on every platform; a screenshot is per platform (the baselines are Linux's: CI, the Playwright image)
@@ -34,6 +34,7 @@ export default defineConfig({
             testMatch: PINS,
             use: {
                 ...devices['Desktop Chrome'],
+                baseURL: 'http://127.0.0.1:4173/ui/',
                 locale: 'en-US',
                 timezoneId: 'UTC',
             },
@@ -45,11 +46,21 @@ export default defineConfig({
             use: { ...devices['Desktop Chrome'] },
         },
     ],
-    webServer: {
-        // the demo app runs against the built packages (npm run build first); its *-ui page is built here
-        command: 'npx vite build -c test/e2e/demo/page/vite.config.ts && node test/e2e/demo/server.ts',
-        url: 'http://127.0.0.1:4173/healthz',
-        reuseExistingServer: !process.env.CI,
-        stdout: 'pipe',
-    },
+    webServer: [
+        {
+            // the demo app runs against the built packages (npm run build first); its *-ui page is built here
+            command: 'npx vite build -c test/e2e/demo/page/vite.config.ts && node test/e2e/demo/server.ts',
+            url: 'http://127.0.0.1:4174/healthz',
+            reuseExistingServer: !process.env.CI,
+            stdout: 'pipe',
+        },
+        // the pins' own server, started after the one above (its build included) and never reused
+        {
+            command: 'node test/e2e/demo/server.ts',
+            env: { E2E_SERVER_PORT: '4173' },
+            url: 'http://127.0.0.1:4173/healthz',
+            reuseExistingServer: false,
+            stdout: 'pipe',
+        },
+    ],
 });

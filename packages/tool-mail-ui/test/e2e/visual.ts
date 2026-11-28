@@ -59,17 +59,17 @@ const PATTERNS: Array<[RegExp, string]> = [
     [/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '<uuid>'],
     // ISO date-times and dates
     [/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?/g, '<date>'],
-    // Intl fire times: `Mon, Nov 30, 08:00 AM GMT+1`, `Thu 22 Oct, 08:00 CET`, `Mo., 30. Nov., 08:00 MEZ`
-    [/\b[A-Z][a-z]{1,2}\.?,? (?:[A-Z][a-z]{2,3}\.? \d{1,2}|\d{1,2}\.? [A-Z][a-z]{2,3}\.?),? \d{1,2}:\d{2}(?: ?[AP]M)?(?: [A-Z]{2,5}(?:[+-]\d{1,2}(?::\d{2})?)?)?/g, '<date>'],
+    // Intl fire times, any month spelling (`Mon, Nov 30, 08:00 AM GMT+1`, `Thu 22 Oct, 08:00 CET`, `Mo., 2. März, 08:00 MEZ`)
+    [/(?<!\p{L})\p{L}{2,}\.?,?\s(?:\p{L}+\.?\s\d{1,2}|\d{1,2}\.?\s\p{L}+\.?),?\s\d{1,2}:\d{2}(?:\s?[AP]M)?(?:\s\p{Lu}{2,5}(?:[+-]\d{1,2}(?::\d{2})?)?)?/gu, '<date>'],
     // toLocaleString: `11/28/2026, 10:03:12 AM`, `28.11.2026, 10:03:12`
-    [/\b\d{1,2}[./]\d{1,2}[./]\d{4},? \d{1,2}:\d{2}(?::\d{2})?(?: ?[AP]M)?/g, '<date>'],
+    [/\b\d{1,2}[./]\d{1,2}[./]\d{4},?\s\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AP]M)?/g, '<date>'],
     [/\b\d{4}-\d{2}-\d{2}\b/g, '<date>'],
     [/\b\d{1,2}[./]\d{1,2}[./]\d{4}\b/g, '<date>'],
     // date-fns distances: `less than a minute ago`, `in about 5 hours` (a span without either, `Last 7 days`, stays)
     [new RegExp(`\\bin ${DISTANCE}\\b|\\b${DISTANCE} ago\\b`, 'g'), '<rel>'],
     // countdowns `1d 02:03:04`: one form whatever is left, so a run that crosses a day boundary reads the same
-    [/\b(?:\d+d )?\d{1,2}:\d{2}:\d{2}(?: ?[AP]M)?\b/g, '<time>'],
-    [/\b\d{1,2}:\d{2}(?: ?[AP]M)?\b/g, '<time>'],
+    [/\b(?:\d+d )?\d{1,2}:\d{2}:\d{2}(?:\s?[AP]M)?\b/g, '<time>'],
+    [/\b\d{1,2}:\d{2}(?:\s?[AP]M)?\b/g, '<time>'],
     // measured durations: `350 ms`, `1.2 s` (a configured one, `polling · 5 s`, stays)
     [/\b\d+(?:\.\d+)? ?ms\b/g, '<dur>'],
     [/\b\d+\.\d+ ?s\b/g, '<dur>'],
@@ -120,51 +120,56 @@ export const VOLATILE = (page: Page): Locator[] => [
 /** How long no request may be open before the network counts as idle. */
 const IDLE_MS = 500;
 
-/** The requests each page has open, tracked from the first `settle()` on and kept for the page's life. */
-const OPEN_REQUESTS = new WeakMap<Page, Set<Request>>();
+/** A page's open requests and the time of its last request event. */
+type Traffic = { open: Set<Request>; last: number };
 
-function trackRequests(page: Page): Set<Request> {
-    let open = OPEN_REQUESTS.get(page);
+/** Each page's traffic, tracked from its first `settle()` on and kept for the page's life. */
+const TRAFFIC = new WeakMap<Page, Traffic>();
 
-    if (!open) {
-        const requests = new Set<Request>();
-        const onDone = (request: Request) => requests.delete(request);
+function trackTraffic(page: Page): Traffic {
+    let traffic = TRAFFIC.get(page);
+
+    if (!traffic) {
+        const tracked: Traffic = { open: new Set(), last: Date.now() };
+        const onDone = (request: Request) => {
+            tracked.open.delete(request);
+            tracked.last = Date.now();
+        };
 
         page.on('request', (request) => {
             // a stream stays open while the page shows
-            if (request.headers().accept !== 'text/event-stream') {
-                requests.add(request);
+            if (!(request.headers().accept !== 'text/event-stream')) {
+                return;
             }
+
+            tracked.open.add(request);
+            tracked.last = Date.now();
         });
         page.on('requestfinished', onDone);
         page.on('requestfailed', onDone);
-        OPEN_REQUESTS.set(page, requests);
-        open = requests;
+        TRAFFIC.set(page, tracked);
+        traffic = tracked;
     }
 
-    return open;
+    return traffic;
 }
 
 /**
- * Waits until the fonts loaded and the network is idle: no request open for
- * `IDLE_MS`. A stream (`text/event-stream`) stays open while the page shows,
- * so it does not count, which `waitForLoadState('networkidle')` cannot leave out.
- * The first call starts tracking the page's requests; a later call also sees
- * one that started before it (a poll `freeze()`'s clock jump fired).
+ * Waits until the fonts loaded and the network is idle: no request open and
+ * none started or ended for `IDLE_MS` (a request that starts and ends between
+ * two samples still resets it). A stream (`text/event-stream`) stays open
+ * while the page shows, so it does not count, which
+ * `waitForLoadState('networkidle')` cannot leave out. The first call starts
+ * tracking the page; a later call also sees a request that started before it
+ * (a poll `freeze()`'s clock jump fired).
  */
 export async function settle(page: Page): Promise<void> {
-    const open = trackRequests(page);
+    const traffic = trackTraffic(page);
 
     await page.waitForLoadState('load');
 
-    let quietSince = Date.now();
-
-    while (Date.now() - quietSince < IDLE_MS) {
+    while (traffic.open.size > 0 || Date.now() - traffic.last < IDLE_MS) {
         await page.waitForTimeout(50);
-
-        if (open.size > 0) {
-            quietSince = Date.now();
-        }
     }
 
     await page.evaluate(() => document.fonts.ready.then(() => undefined));

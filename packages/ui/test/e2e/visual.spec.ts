@@ -208,19 +208,39 @@ test.describe('pages in de-DE', () => {
     test.use({ locale: 'de-DE', viewport: { width: 1280, height: 800 } });
 
     for (const route of ROUTES) {
-        test(route.name, async ({ page }) => {
+        test(route.name, async ({ browser, page }) => {
             await open(page, route);
 
             const text = await renderedText(page);
 
             expect(text).not.toMatch(/\bchamvi[A-Z]\w*\.|\{\{/);
             expect(normalize(text)).toMatchSnapshot(`${route.name}.txt`);
-            // what the dashboard sets for a German browser today: no language of its own, one stored key (vc-color-mode)
+            // what the dashboard sets for a German browser today: no language of its own,
+            // and the same stored entries as an English browser (one: vc-color-mode)
             expect(await page.evaluate(() => document.documentElement.lang)).toBe('en');
-            expect(await page.evaluate(() => localStorage.length)).toBe(1);
+
+            const english = await browser.newContext({ locale: 'en-US', viewport: { width: 1280, height: 800 } });
+
+            try {
+                const reference = await english.newPage();
+
+                await open(reference, route);
+
+                const entries = await storedEntries(page);
+
+                expect(entries).toEqual(await storedEntries(reference));
+                expect(Object.keys(entries)).toHaveLength(1);
+            } finally {
+                await english.close();
+            }
         });
     }
 });
+
+/** Every localStorage entry of the page, by key. */
+async function storedEntries(page: Page): Promise<Record<string, string | null>> {
+    return page.evaluate(() => Object.fromEntries(Object.keys(localStorage).map((key) => [key, localStorage.getItem(key)])));
+}
 
 function watchErrors(page: Page): string[] {
     const errors: string[] = [];

@@ -237,7 +237,8 @@ const app = createHttpApp({
 
 await engine.start();
 serve(app, {
-    port: E2E_PORT,
+    // the pins' server is the same app on its own port
+    port: Number(process.env.E2E_SERVER_PORT ?? E2E_PORT),
     hostname: '127.0.0.1',
     gracefulShutdown: false,
 });
