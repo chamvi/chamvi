@@ -290,6 +290,12 @@ describe('public api', () => {
         'isActorGrantedSome',
         'forbidden',
         'AbstractEntityService',
+        'agentNotFound',
+        'requireAgent',
+        'agentResource',
+        'canReadAgentContent',
+        'readableAgents',
+        'isAgentContentProtected',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
         expect(core[name as keyof typeof core]).toBeTypeOf('function');
@@ -298,6 +304,8 @@ describe('public api', () => {
     it('exports the actor contract', () => {
         expectTypeOf<core.ActorContext['identity']>().toEqualTypeOf<kit.Invoker | undefined>();
         expectTypeOf<core.ActorContext<string>['identity']>().toEqualTypeOf<string | undefined>();
+        expectTypeOf<core.AgentScope['agents']>().toEqualTypeOf<core.IAgentRegistry>();
+        expectTypeOf<ReturnType<core.IAgentRegistry['get']>>().toEqualTypeOf<core.Agent | undefined>();
     });
 
     it('exports passive skill contracts', () => {

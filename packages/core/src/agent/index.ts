@@ -6,5 +6,6 @@
  */
 
 export { DEFAULT_MAX_STEPS, DEFAULT_TIMEOUT_MS } from './constants.ts';
+export * from './helpers.ts';
 export * from './module.ts';
 export type * from './types.ts';

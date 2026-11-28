@@ -309,3 +309,10 @@ export type RemoteAgent = {
 
 /** A registrable agent; `kind` tells them apart and narrows the definition. */
 export type Agent<S extends StateSchema = StateSchema> = ModelAgent<S> | SimpleAgent<S> | RemoteAgent;
+
+/** The agents a permission check reads by name (an app's view of the registered agents). */
+export interface IAgentRegistry {
+    get(name: string): Agent | undefined;
+    /** In registration order, a new array. */
+    names(): string[];
+}
