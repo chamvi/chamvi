@@ -111,6 +111,17 @@ async function setup(kind: 'full' | 'listed') {
         createdAt: new Date(1_000_000),
     }, new Uint8Array([104, 105]));
 
+    const vaultArtifactId = '00000000-0000-7000-8000-00000000a002';
+
+    await ctx.store.artifactService.create({
+        id: vaultArtifactId,
+        runId: runs.vault!,
+        agent: 'vault',
+        mediaType: 'text/plain',
+        size: 2,
+        createdAt: new Date(1_000_000),
+    }, new Uint8Array([104, 105]));
+
     for (const agent of ['echo', 'vault', 'outside']) {
         await ctx.store.stateService.set(agent, 'k', 'v');
     }
@@ -134,6 +145,7 @@ async function setup(kind: 'full' | 'listed') {
     const labels: [string, string][] = [
         ...Object.entries(runs).map(([agent, id]): [string, string] => [id, `<${agent}>`]),
         [artifactId, '<artifact>'],
+        [vaultArtifactId, '<vault-artifact>'],
         [UNKNOWN_RUN, '<unknown>'],
     ];
 
@@ -160,6 +172,8 @@ const PRINCIPALS: [string, string | undefined][] = [
     ['connection_write{name:other}', tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'other' }))],
     ['connection_create{type:mail}', tokenFor(restricted(Permission.CONNECTION_CREATE, { type: 'mail' }))],
     ['agent_run{name:echo}', tokenFor(restricted(Permission.AGENT_RUN, { name: 'echo' }))],
+    ['agent_approve{private:false}', tokenFor(restricted(Permission.AGENT_APPROVE, { private: false }))],
+    ['run_read+agent_read', tokenFor(Permission.RUN_READ, Permission.AGENT_READ)],
 ];
 
 type Request = {
@@ -188,11 +202,19 @@ const REQUESTS: Request[] = [
     { method: 'GET', path: '/runs/<echo>/artifacts' },
     { method: 'GET', path: '/runs/<echo>/artifacts/<artifact>' },
     { method: 'GET', path: '/runs/<vault>/artifacts' },
+    {
+        method: 'GET',
+        path: '/runs/<vault>/stream?after=999',
+        stream: true,
+    },
+    { method: 'GET', path: '/runs/<vault>/artifacts/<vault-artifact>' },
     { method: 'GET', path: '/agents/echo/state/kv' },
     { method: 'GET', path: '/agents/vault/state/kv' },
     { method: 'GET', path: '/agents/outside/state/kv' },
     { method: 'GET', path: '/agents/missing/state/kv' },
     { method: 'GET', path: '/agents/echo/state/kv/k' },
+    { method: 'GET', path: '/agents/vault/state/kv/k' },
+    { method: 'GET', path: '/agents/outside/state/kv/k' },
     { method: 'GET', path: '/agents/vault/state/collections/notes' },
     { method: 'GET', path: '/agents/vault/state/collections/none' },
     { method: 'GET', path: '/agents' },
@@ -215,17 +237,17 @@ const REQUESTS: Request[] = [
     },
     { method: 'GET', path: '/connection-types' },
     { method: 'GET', path: '/ui-pages' },
-    { method: 'POST', path: '/runs/<echo>/cancel' },
+    ...['echo', 'vault', 'outside', 'unknown'].map((run): Request => ({ method: 'POST', path: `/runs/<${run}>/cancel` })),
     {
         method: 'POST',
         path: '/agents/echo/runs',
         body: { role: 'review' },
     },
-    {
+    ...['gate', 'unknown', 'vault', 'outside'].map((run): Request => ({
         method: 'POST',
-        path: '/runs/<gate>/approve',
+        path: `/runs/<${run}>/approve`,
         body: { approvalId: 'stale', approved: true },
-    },
+    })),
     {
         method: 'POST',
         path: '/runs/<gate>/approve',
@@ -254,6 +276,12 @@ const REQUESTS: Request[] = [
         path: '/agents/echo/state/kv/matrix',
         body: { value: 1 },
     },
+    ...['outside', 'missing'].map((agent): Request => ({
+        method: 'PATCH',
+        path: `/agents/${agent}/state/kv/k`,
+        body: { value: 1 },
+        effect: true,
+    })),
     ...['echo', 'vault', 'outside'].map((agent): Request => ({
         method: 'POST',
         path: `/agents/${agent}/runs`,
@@ -271,6 +299,12 @@ const REQUESTS: Request[] = [
         body: {},
         effect: true,
     })),
+    // last: it cancels the waiting gate run every approve request above reads
+    {
+        method: 'POST',
+        path: '/runs/<gate>/cancel',
+        effect: true,
+    },
 ];
 
 /** Method and path, plus the body where two requests share a path. */
@@ -334,10 +368,14 @@ async function record(app: App, request: Request, token: string | undefined, lab
 }
 
 /** A success answer as its keys and row labels: no timestamp or generated id. */
-function summarize(json: (Row & { data?: Row[] }) | undefined) {
+function summarize(json: (Row & { data?: Row[]; meta?: Row }) | undefined) {
+    // a listing's total: `meta.total` over http, `total` from the MCP tools
+    const total = json?.meta?.total ?? json?.total;
+
     return {
         keys: json ? Object.keys(json).sort() : [],
         rows: Array.isArray(json?.data) ? json.data.map(rowLabel) : undefined,
+        ...(total === undefined ? {} : { total }),
     };
 }
 
@@ -350,41 +388,56 @@ function toolCell(isError: boolean, text: string) {
     return { isError, ...summarize(JSON.parse(text) as Row & { data?: Row[] }) };
 }
 
-async function recordMcp(app: App, token: string | undefined, labels: Labels) {
+type ToolCall = [label: string, name: string, args: Record<string, unknown>];
+
+/** The read and approve calls, then (in a second pass over every principal) one start, so no listing sees it. */
+function mcpCalls(labels: Labels): ToolCall[][] {
     const id = (label: string) => labels.find(([, l]) => l === label)![0];
-    const cells: Record<string, unknown> = {};
+
+    return [
+        [
+            ['get_run <echo>', 'get_run', { runId: id('<echo>') }],
+            ['get_run <vault>', 'get_run', { runId: id('<vault>') }],
+            ['get_run <outside>', 'get_run', { runId: id('<outside>') }],
+            ['get_run <unknown>', 'get_run', { runId: UNKNOWN_RUN }],
+            ['list_runs {}', 'list_runs', {}],
+            ['list_runs {agent:vault}', 'list_runs', { agent: 'vault' }],
+            ['list_runs {agent:outside}', 'list_runs', { agent: 'outside' }],
+            ['approve_run stale', 'approve_run', {
+                runId: id('<gate>'),
+                approvalId: 'stale',
+                approved: true,
+            }],
+        ],
+        [['run_echo', 'run_echo', {}]],
+    ];
+}
+
+async function recordMcp(app: App, token: string | undefined, labels: Labels, calls: ToolCall[], cells: Record<string, unknown>) {
     let client: Awaited<ReturnType<typeof connectMcp>>;
 
     try {
         client = await connectMcp(app, token);
     } catch {
-        return { connect: 'refused' };
+        cells.connect = 'refused';
+
+        return;
     }
 
     cells['tools/list'] = (await client.listTools()).tools.map((tool) => tool.name).sort();
 
-    const tools: [string, string, Record<string, unknown>][] = [
-        ['get_run <echo>', 'get_run', { runId: id('<echo>') }],
-        ['get_run <vault>', 'get_run', { runId: id('<vault>') }],
-        ['get_run <unknown>', 'get_run', { runId: UNKNOWN_RUN }],
-        ['list_runs {}', 'list_runs', {}],
-        ['list_runs {agent:vault}', 'list_runs', { agent: 'vault' }],
-        ['approve_run stale', 'approve_run', {
-            runId: id('<gate>'),
-            approvalId: 'stale',
-            approved: true,
-        }],
-    ];
+    for (const [label, name, args] of calls) {
+        try {
+            const result = await callTool(client, name, args);
 
-    for (const [label, name, args] of tools) {
-        const result = await callTool(client, name, args);
-
-        cells[label] = toolCell(result.isError ?? false, labelText(textOf(result), labels));
+            cells[label] = toolCell(result.isError ?? false, labelText(textOf(result), labels));
+        } catch (error) {
+            // a tool the principal is not offered is a protocol error
+            cells[label] = { rejected: (error as Error).message };
+        }
     }
 
     await client.close();
-
-    return cells;
 }
 
 describe('permission matrix', () => {
@@ -403,14 +456,18 @@ describe('permission matrix', () => {
         });
     }
 
-    it('pins the MCP read and approve tools per principal (full)', async () => {
-        const { app, labels } = await setup('full');
-        const cells: Record<string, unknown> = {};
+    for (const kind of ['full', 'listed'] as const) {
+        it(`pins the MCP read and approve tools per principal (${kind})`, async () => {
+            const { app, labels } = await setup(kind);
+            const cells: Record<string, Record<string, unknown>> = {};
 
-        for (const [principal, token] of PRINCIPALS) {
-            cells[`mcp ${principal}`] = await recordMcp(app, token, labels);
-        }
+            for (const calls of mcpCalls(labels)) {
+                for (const [principal, token] of PRINCIPALS) {
+                    await recordMcp(app, token, labels, calls, cells[`mcp ${principal}`] ??= {});
+                }
+            }
 
-        expect(cells).toMatchSnapshot();
-    });
+            expect(cells).toMatchSnapshot();
+        });
+    }
 });
