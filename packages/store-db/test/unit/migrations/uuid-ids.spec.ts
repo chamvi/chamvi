@@ -435,6 +435,11 @@ describePostgres('uuid ids migration', () => {
         await migrateStore(ds);
         await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
 
+        // park the surviving lease's token far above any clock floor (about 11 days of microseconds)
+        const surviving = first + 1e12;
+
+        await ds.query(`UPDATE "${TableName.LOCKS}" SET token = $1`, [surviving]);
+
         const second = (await store.lockService.acquire('b', 'o', 60_000))!;
         const reseeded: {
             id: string,
@@ -444,7 +449,8 @@ describePostgres('uuid ids migration', () => {
             `SELECT id, key, value FROM "${TableName.LOCK_TOKENS}"`,
         );
 
-        expect(second).toBeGreaterThan(first);
+        // the surviving lease decides: a clock-only reseed would issue about Date.now() * 1000, far below it
+        expect(second).toBe(surviving + 1);
         expect(reseeded).toEqual([{
             id: expect.stringMatching(UUID),
             key: 'lock',
