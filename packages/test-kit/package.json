@@ -1,6 +1,6 @@
 {
     "name": "@chamvi/test-kit",
-    "version": "0.12.0",
+    "version": "0.13.0",
     "type": "module",
     "description": "Test helpers for chamvi: a controllable clock, an engine on memory repositories, a test data source for an app's database, the store and workspace contract suites, a git fixture and a fake GitHub.",
     "author": {
@@ -59,23 +59,23 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
-        "@chamvi/core-kit": "^0.12.0",
-        "@chamvi/store": "^0.12.0",
-        "@chamvi/store-memory": "^0.12.0",
+        "@chamvi/core-kit": "^0.13.0",
+        "@chamvi/store": "^0.13.0",
+        "@chamvi/store-memory": "^0.13.0",
         "@rapiq/core": "^2.5.1",
         "smob": "^1.6.2"
     },
     "devDependencies": {
-        "@chamvi/core": "^0.12.0",
-        "@chamvi/errors": "^0.12.0",
+        "@chamvi/core": "^0.13.0",
+        "@chamvi/errors": "^0.13.0",
         "ai": "^7.0.181",
         "better-sqlite3": "^12.11.1",
         "pg": "^8.23.1",
         "typeorm": "^1.1.3"
     },
     "peerDependencies": {
-        "@chamvi/core": "^0.12.0",
-        "@chamvi/errors": "^0.12.0",
+        "@chamvi/core": "^0.13.0",
+        "@chamvi/errors": "^0.13.0",
         "ai": "^7",
         "better-sqlite3": "^12.11.1",
         "pg": "^8",

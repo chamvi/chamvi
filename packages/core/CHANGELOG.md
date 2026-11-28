@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.13.0](https://github.com/chamvi/chamvi/compare/v0.12.0...v0.13.0) (2026-11-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* **http-kit:** encode path segments and end every method with request options ([#327](https://github.com/chamvi/chamvi/issues/327))
+* **core:** check run, state and connection permissions in core's services ([#326](https://github.com/chamvi/chamvi/issues/326))
+* **store-db:** uuid v7 primary keys for steps, conversation items and lock tokens ([#324](https://github.com/chamvi/chamvi/issues/324))
+* **core:** move the domain rules to @chamvi/core-kit ([#322](https://github.com/chamvi/chamvi/issues/322))
+* add @chamvi/core-kit ([#321](https://github.com/chamvi/chamvi/issues/321))
+* add @chamvi/errors ([#319](https://github.com/chamvi/chamvi/issues/319))
+
+### Features
+
+* add @chamvi/core-kit ([#321](https://github.com/chamvi/chamvi/issues/321)) ([f1df1cd](https://github.com/chamvi/chamvi/commit/f1df1cdac762082478aea30182cbbf9002e18da5))
+* add @chamvi/errors ([#319](https://github.com/chamvi/chamvi/issues/319)) ([4eef92f](https://github.com/chamvi/chamvi/commit/4eef92f2501207a86e605431e19f55337dfcaac5))
+* **core-kit:** validate request bodies with zod validators ([#323](https://github.com/chamvi/chamvi/issues/323)) ([cdc5246](https://github.com/chamvi/chamvi/commit/cdc52467f00eb5d1d0d058328d06b738b6a87579))
+* **core:** add ActorContext, the system actor and AbstractEntityService ([#325](https://github.com/chamvi/chamvi/issues/325)) ([32383b8](https://github.com/chamvi/chamvi/commit/32383b858c9bc4d421160151cfa42c42c76dde97))
+* **core:** check run, state and connection permissions in core's services ([#326](https://github.com/chamvi/chamvi/issues/326)) ([f70d918](https://github.com/chamvi/chamvi/commit/f70d91862643b789fa07cd99269166914b24376e))
+* **http-kit:** encode path segments and end every method with request options ([#327](https://github.com/chamvi/chamvi/issues/327)) ([9e2dfec](https://github.com/chamvi/chamvi/commit/9e2dfeca1adf734ce19334de6627af84ad4c93e9))
+* **store-db:** uuid v7 primary keys for steps, conversation items and lock tokens ([#324](https://github.com/chamvi/chamvi/issues/324)) ([9c20832](https://github.com/chamvi/chamvi/commit/9c20832eb8fe24006f9e463d75006353daed4994))
+
+
+### Code Refactoring
+
+* **core:** move the domain rules to @chamvi/core-kit ([#322](https://github.com/chamvi/chamvi/issues/322)) ([0ceb9ca](https://github.com/chamvi/chamvi/commit/0ceb9ca3c42bb2faf5757a0580ad11f415e590dd))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @chamvi/access bumped from ^0.12.0 to ^0.12.1
+    * @chamvi/core-kit bumped from ^0.12.0 to ^0.13.0
+    * @chamvi/errors bumped from ^0.12.0 to ^0.13.0
+    * @chamvi/store bumped from ^0.12.0 to ^0.13.0
+  * devDependencies
+    * @chamvi/store-memory bumped from ^0.12.0 to ^0.13.0
+
 ## [0.12.0](https://github.com/chamvi/chamvi/compare/v0.11.0...v0.12.0) (2026-11-25)
 
 

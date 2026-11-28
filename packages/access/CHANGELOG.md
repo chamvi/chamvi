@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/chamvi/chamvi/compare/v0.12.0...v0.12.1) (2026-11-28)
+
+
+### Features
+
+* **core:** add ActorContext, the system actor and AbstractEntityService ([#325](https://github.com/chamvi/chamvi/issues/325)) ([32383b8](https://github.com/chamvi/chamvi/commit/32383b858c9bc4d421160151cfa42c42c76dde97))
+
 ## [0.12.0](https://github.com/chamvi/chamvi/compare/v0.11.0...v0.12.0) (2026-11-25)
 
 

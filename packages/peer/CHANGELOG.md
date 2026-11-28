@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.13.0](https://github.com/chamvi/chamvi/compare/v0.12.0...v0.13.0) (2026-11-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* **core:** move the domain rules to @chamvi/core-kit ([#322](https://github.com/chamvi/chamvi/issues/322))
+* add @chamvi/core-kit ([#321](https://github.com/chamvi/chamvi/issues/321))
+* add @chamvi/errors ([#319](https://github.com/chamvi/chamvi/issues/319))
+
+### Features
+
+* add @chamvi/core-kit ([#321](https://github.com/chamvi/chamvi/issues/321)) ([f1df1cd](https://github.com/chamvi/chamvi/commit/f1df1cdac762082478aea30182cbbf9002e18da5))
+* add @chamvi/errors ([#319](https://github.com/chamvi/chamvi/issues/319)) ([4eef92f](https://github.com/chamvi/chamvi/commit/4eef92f2501207a86e605431e19f55337dfcaac5))
+
+
+### Code Refactoring
+
+* **core:** move the domain rules to @chamvi/core-kit ([#322](https://github.com/chamvi/chamvi/issues/322)) ([0ceb9ca](https://github.com/chamvi/chamvi/commit/0ceb9ca3c42bb2faf5757a0580ad11f415e590dd))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @chamvi/http-kit bumped from ^0.12.0 to ^0.13.0
+  * devDependencies
+    * @chamvi/app bumped from ^0.12.0 to ^0.13.0
+    * @chamvi/core bumped from ^0.12.0 to ^0.13.0
+    * @chamvi/core-kit bumped from ^0.12.0 to ^0.13.0
+    * @chamvi/errors bumped from ^0.12.0 to ^0.13.0
+    * @chamvi/test-kit bumped from ^0.12.0 to ^0.13.0
+  * peerDependencies
+    * @chamvi/app bumped from ^0.12.0 to ^0.13.0
+    * @chamvi/core bumped from ^0.12.0 to ^0.13.0
+    * @chamvi/core-kit bumped from ^0.12.0 to ^0.13.0
+    * @chamvi/errors bumped from ^0.12.0 to ^0.13.0
+
 ## [0.12.0](https://github.com/chamvi/chamvi/compare/v0.11.0...v0.12.0) (2026-11-25)
 
 

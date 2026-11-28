@@ -1,6 +1,6 @@
 {
     "name": "@chamvi/store",
-    "version": "0.12.0",
+    "version": "0.13.0",
     "type": "module",
     "description": "The storage contract of chamvi: the generic entity repository port, a port per aggregate.",
     "author": {
@@ -48,7 +48,7 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
-        "@chamvi/core-kit": "^0.12.0",
+        "@chamvi/core-kit": "^0.13.0",
         "@rapiq/core": "^2.5.1"
     }
 }

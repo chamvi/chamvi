@@ -1,6 +1,6 @@
 {
     "name": "@chamvi/ui-kit",
-    "version": "0.12.0",
+    "version": "0.13.0",
     "type": "module",
     "description": "The shared base of the chamvi dashboard and its *-ui pages: session, shell pieces, connection components and the page bootstrap, over @chamvi/http-kit.",
     "author": {
@@ -66,9 +66,9 @@
     },
     "devDependencies": {
         "@authup/client-web-kit": "1.0.0-beta.77",
-        "@chamvi/access": "^0.12.0",
-        "@chamvi/core-kit": "^0.12.0",
-        "@chamvi/http-kit": "^0.12.0",
+        "@chamvi/access": "^0.12.1",
+        "@chamvi/core-kit": "^0.13.0",
+        "@chamvi/http-kit": "^0.13.0",
         "@iconify/types": "^2.0.0",
         "@iconify/vue": "^5.0.5",
         "@ilingo/validup": "^1.2.2",
@@ -103,9 +103,9 @@
     },
     "peerDependencies": {
         "@authup/client-web-kit": "1.0.0-beta.77",
-        "@chamvi/access": "^0.12.0",
-        "@chamvi/core-kit": "^0.12.0",
-        "@chamvi/http-kit": "^0.12.0",
+        "@chamvi/access": "^0.12.1",
+        "@chamvi/core-kit": "^0.13.0",
+        "@chamvi/http-kit": "^0.13.0",
         "@iconify/vue": "^5.0.5",
         "@ilingo/validup": "^1.2.2",
         "@ilingo/validup-vue": "^1.2.3",
