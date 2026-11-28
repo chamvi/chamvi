@@ -26,6 +26,21 @@ export function testUuid(label: string): string {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+/** A uuid v7: the version and variant nibbles of RFC 9562. */
+export const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+/**
+ * A deterministic uuid v7 of the unix millisecond `ms` and a counter within
+ * it (`rand_a`, 12 bits), as `uuidv7` issues them: ids of one millisecond
+ * order by `counter`.
+ */
+export function testUuidV7(ms: number, counter: number): string {
+    const time = ms.toString(16).padStart(12, '0');
+    const sequence = counter.toString(16).padStart(3, '0');
+
+    return `${time.slice(0, 8)}-${time.slice(8)}-7${sequence}-8000-000000000000`;
+}
+
 export function makeRun(id: string, overrides: Partial<Run> = {}): Run {
     const createdAt = new Date(1_000);
 

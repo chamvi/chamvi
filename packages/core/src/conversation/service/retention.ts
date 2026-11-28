@@ -279,7 +279,7 @@ export async function trimConversationItemCount(
     max: number,
 ): Promise<void> {
     const { meta } = await repository.items.findMany(defineQuery({
-        fields: [CONVERSATION_ITEM_STORED_ORDER],
+        fields: ['id'],
         filters: and(eq('scopeId', scopeId), eq('generation', generation)),
         pagination: { limit: 1 },
     }));
@@ -304,7 +304,7 @@ async function removeConversationItemPages(repository: IConversationRepository, 
 
     while (left > 0) {
         const { data } = await repository.items.findMany(defineQuery({
-            fields: [CONVERSATION_ITEM_STORED_ORDER],
+            fields: ['id'],
             filters: and(...conditions),
             sorts: { [CONVERSATION_ITEM_STORED_ORDER]: 'ASC' },
             pagination: { limit: Math.min(left, TRIM_PAGE) },

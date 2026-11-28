@@ -7,10 +7,12 @@
 
 import { EntityRelationError } from '@chamvi/errors';
 import { defineQuery, eq } from '@rapiq/core';
+import { uuidv7 } from 'uuidv7';
 import { STEP_STORED_ORDER } from '@chamvi/core-kit';
 import type { Step } from '@chamvi/core-kit';
 import type { IStepRepository } from '@chamvi/store';
 import { RepositoryNotFoundError, RunNotFoundError } from '../errors/index.ts';
+import { readStep } from './helpers.ts';
 import type { IStepService, StepServiceContext } from './types.ts';
 
 /** The steps of runs over an `IStepRepository`: appended, listed by index, then in the order they were stored. */
@@ -24,7 +26,7 @@ export class StepService implements IStepService {
     async create(step: Step): Promise<void> {
         try {
             await this.repository.transaction(async (repository) => {
-                await repository.save(repository.create(step));
+                await repository.save(repository.create({ ...step, id: uuidv7() }));
             });
         } catch (error) {
             if (error instanceof EntityRelationError && error.relation === 'run') {
@@ -41,7 +43,7 @@ export class StepService implements IStepService {
             sorts: { index: 'ASC', [STEP_STORED_ORDER]: 'ASC' },
         }));
 
-        return data;
+        return data.map((record) => readStep(record));
     }
 
     async findOrFail(runId: string): Promise<Step[]> {

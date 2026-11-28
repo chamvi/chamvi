@@ -45,7 +45,7 @@ A repository stores, reads, locks a row and runs a query; it decides nothing. Th
 2. **No aliasing.** Values are copied in and out. Mutating an object after passing it to a repository, or one a repository returned, never changes what it holds.
 3. **Transactions.** `transaction(fn)` hands `fn` a repository bound to the transaction; a single-row read there (`findOneById`, `findOneBy`) locks the row until the transaction ends, so two callers never interleave between a read and its save, also across processes. A throw rolls everything back.
 4. **Six storage errors**, each with the entity's label and a fixed message, never a value: `EntityNotFoundError`, `EntityConflictError` (a taken key or unique value), `EntityRelationError` (a missing referenced row, or a removed row another references), `EntityDeadlockError`, `EntityQueryError` (a where with an `undefined` value, an empty `removeManyBy`, an operation the port does not offer), `EntityInvalidError` (a value the table refuses: a missing required column, a failed check, a value too long).
-5. **Orderings the storage owns.** `findMany` sorts strings by code point (case sensitive); steps and conversation items keep a storage key in the order they were stored (`STEP_STORED_ORDER`, `CONVERSATION_ITEM_STORED_ORDER`).
+5. **Orderings the storage owns.** `findMany` sorts strings by code point (case sensitive); steps and conversation items carry a service-assigned uuid v7 `id` and a store-assigned `sequence` in the order they were stored (`STEP_STORED_ORDER`, `CONVERSATION_ITEM_STORED_ORDER` sort by it; step reads never return it, item reads do).
 
 ## Rules the services keep
 

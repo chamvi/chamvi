@@ -106,6 +106,31 @@ describe('GET /runs/:id/stream', () => {
         expect(events).toHaveLength(1 + steps.length);
     });
 
+    it('step events carry no row id, replayed or live; neither do the steps of GET /runs/:id', async () => {
+        const { app, runId } = await completedRun();
+        const replayed = await readEvents(await call(app, 'GET', `/runs/${runId}/stream`, { token: READER_TOKEN }));
+        const detail = await (await call(app, 'GET', `/runs/${runId}`, { token: READER_TOKEN })).json() as { steps: object[] };
+
+        const live = createRunTestApp();
+        const liveRunId = await start(live.app);
+        const reader = new SseReader(await call(live.app, 'GET', `/runs/${liveRunId}/stream`, { token: READER_TOKEN }));
+
+        await live.engine.start();
+        await live.engine.idle();
+
+        const steps = [...replayed, ...await reader.rest()]
+            .filter((e) => e.event === 'step.appended')
+            .map((e) => JSON.parse(e.data) as object);
+
+        expect(steps.length).toBeGreaterThan(1);
+        expect(detail.steps.length).toBeGreaterThan(0);
+
+        for (const step of [...steps, ...detail.steps]) {
+            expect(step).toHaveProperty('index');
+            expect(step).not.toHaveProperty('id');
+        }
+    });
+
     it('follows a run live and ends once it settled', async () => {
         const { app, engine } = createRunTestApp();
         const runId = await start(app);

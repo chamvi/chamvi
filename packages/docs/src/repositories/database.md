@@ -33,16 +33,16 @@ The baseline `1794096000000-uuid-baseline.ts` (`UuidBaseline1794096000000`) crea
 | Table | Holds | Keys and indexes |
 |---|---|---|
 | `chamvi_runs` | Runs; JSON columns for trigger, output, error, usage, subtree usage, wait point and `taint`; the run's `address` in the `thread` column; claim owner and expiry; the conversation binding; `parent_run_id` | PK `id` (uuid v7); `(agent, status, concurrency_key)`; `(status, created_at, id)`; `conversation_scope_id`; `parent_run_id` (FK to `id`) |
-| `chamvi_steps` | Append-only steps | PK `id` (bigint); `(run_id, step_index)` |
+| `chamvi_steps` | Append-only steps | PK `id` (uuid v7); `sequence` (bigserial, database-assigned); `(run_id, step_index, sequence)` |
 | `chamvi_checkpoints` | The latest checkpoint per run | PK `id`; unique `run_id`; `conversation_scope_id` |
 | `chamvi_conversations` | Conversation identities, generation, active owner and its snapshot | PK `id` (uuid v7); unique `key` (the identity's sha256); `active_run_id` |
-| `chamvi_conversation_items` | Transcript items and the send journal, each with the UTF-8 byte length of its text (`bytes`), which the recall selects by | PK `id` (bigint); unique `(scope_id, generation, key)`; `(scope_id, generation, created_at, id)`; `run_id` |
+| `chamvi_conversation_items` | Transcript items and the send journal, each with the UTF-8 byte length of its text (`bytes`), which the recall selects by | PK `id` (uuid v7); `sequence` (bigserial, database-assigned); unique `(scope_id, generation, key)`; `(scope_id, generation, sequence)`; `run_id` |
 | `chamvi_conversation_notes` | Explicit notes | PK `id`; unique `(scope_id, generation, key)`; `expires_at`; `run_id` |
 | `chamvi_conversation_operations` | Note operation receipts | PK `id`; unique `(scope_id, generation, operation_id)`; `(scope_id, created_at, operation_id)`; `run_id` |
 | `chamvi_idempotency_keys` | Intake keys | PK `id`; unique `(scope, key)`; `expires_at` |
 | `chamvi_limit_uses` | Counted tool-limit uses | PK `id`; unique `(scope, key)`; index `(scope, created_at)`; `created_at` |
 | `chamvi_locks` | Keyed leases | PK `id`; unique `key`; `expires_at`; `token` (bigint) |
-| `chamvi_lock_tokens` | The last fencing token issued | PK `id` (the one row `1`); `value` (bigint) |
+| `chamvi_lock_tokens` | The last fencing token issued | PK `id` (uuid v7, minted once); unique `key` (the constant `lock`, which finds the one row); `value` (bigint) |
 | `chamvi_effects` | Recorded effect results | PK `id`; unique `key` |
 | `chamvi_kv` | Agent key-value state | PK `id`; unique `(agent, key)`, `key` `COLLATE "C"` |
 | `chamvi_docs` | Agent document collections | PK `id`; unique `(agent, collection, document_id)`; GIN index on `doc` |
@@ -50,7 +50,7 @@ The baseline `1794096000000-uuid-baseline.ts` (`UuidBaseline1794096000000`) crea
 | `chamvi_agent_revisions` | One revision marker per folder agent: `hash` varchar(128), `changed_at` | PK `id`; unique `agent` varchar(64) `COLLATE "C"` |
 | `chamvi_connections`, `chamvi_connection_entries` | Sealed connection entries and the key that wraps them | PK `id`; unique `name`, unique `(connection_id, key)` (foreign key `ON DELETE CASCADE`) |
 
-Every table has a single `id` primary key, uuid v7 except the bigint `id` of the append-only steps and conversation items. What identifies a row to the store is the unique key listed, and an upsert overwrites its other columns but keeps the stored `id`. A value that is not a UUID is simply not found by `findOne`, `read` or `find({ ids })` (and a step, checkpoint or conversation turn of such a run id fails with `RunNotFoundError`), never a Postgres error.
+Every table has a single `id` primary key, uuid v7. The append-only steps and conversation items also carry a database-assigned `sequence` (bigserial), which every ordered read uses and an upsert keeps; step reads return `id`, never `sequence`. What identifies a row to the store is the unique key listed, and an upsert overwrites its other columns but keeps the stored `id`. A value that is not a UUID is simply not found by `findOne`, `read` or `find({ ids })` (and a step, checkpoint or conversation turn of such a run id fails with `RunNotFoundError`), never a Postgres error.
 
 Conversation rows, active owners, transcript items, notes and operation receipts use foreign keys to their local runs and identities. Steps and checkpoints also require an existing run. Use the same DataSource for every built-in TypeORM role; these relationships do not create a transaction spanning run dispatch, conversation mutation and generic effects. See [Conversation memory](/guide/conversations).
 

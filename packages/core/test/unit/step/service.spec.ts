@@ -11,7 +11,8 @@ import {
     expect,
     it,
 } from 'vitest';
-import { RunStatus } from '@chamvi/core-kit';
+import { defineQuery } from '@rapiq/core';
+import { RunStatus, STEP_STORED_ORDER } from '@chamvi/core-kit';
 import type { Step } from '@chamvi/core-kit';
 import { MemoryRegistry, MemoryRunRepository, MemoryStepRepository } from '@chamvi/store-memory';
 import {
@@ -22,6 +23,7 @@ import {
 } from '../../../src/index.ts';
 
 const RUN_ID = '00000000-0000-4000-8000-000000000001';
+const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 function stepOf(index: number, patch: Partial<Step> = {}): Step {
     return {
@@ -36,6 +38,7 @@ function stepOf(index: number, patch: Partial<Step> = {}): Step {
 
 describe('StepService', () => {
     let service: IStepService;
+    let repository: MemoryStepRepository;
 
     beforeEach(async () => {
         const registry = new MemoryRegistry();
@@ -57,7 +60,8 @@ describe('StepService', () => {
             createdAt: new Date(0),
             updatedAt: new Date(0),
         }));
-        service = new StepService({ repository: new MemoryStepRepository({ registry }) });
+        repository = new MemoryStepRepository({ registry });
+        service = new StepService({ repository });
     });
 
     it('appends steps and lists a run\'s steps by index, then in the order they were appended', async () => {
@@ -81,6 +85,22 @@ describe('StepService', () => {
 
         expect(await service.find(RUN_ID)).toEqual([steps[1], steps[0], steps[2]]);
         expect(await service.findOrFail(RUN_ID)).toEqual([steps[1], steps[0], steps[2]]);
+    });
+
+    it('stores each step under a distinct uuid v7 row id in append order, and never returns it', async () => {
+        await service.create(stepOf(0, { name: 'a' }));
+        await service.create(stepOf(0, { name: 'b' }));
+
+        const { data } = await repository.findMany(defineQuery({ sorts: { [STEP_STORED_ORDER]: 'ASC' } }));
+
+        expect(data.map((record) => record.name)).toEqual(['a', 'b']);
+        expect(data[0]!.id).toMatch(UUID_V7);
+        expect(data[1]!.id).toMatch(UUID_V7);
+        expect(data[0]!.id < data[1]!.id).toBe(true);
+
+        for (const step of await service.find(RUN_ID)) {
+            expect(step).not.toHaveProperty('id');
+        }
     });
 
     it('a step of a missing or malformed run is RunNotFoundError naming the run, and nothing is appended', async () => {

@@ -132,13 +132,15 @@ export type ConversationRecord = {
 
 /**
  * One stored transcript item: the item (its `id` stored as `key`), the
- * scope and generation it belongs to, the row's storage key `id`,
+ * scope and generation it belongs to, the row id, the row's `sequence`,
  * assigned when the row is stored, in the order rows are stored
  * (`CONVERSATION_ITEM_STORED_ORDER`), and the byte length of its text.
  */
 export type ConversationItemRecord = Omit<ConversationItem, 'id'> & {
-    /** The storage key: a positive integer, increasing in the order rows are stored. */
-    id: number;
+    /** The row id: a uuid v7 the conversation service assigns when it creates the item. */
+    id: string;
+    /** A positive integer the store assigns, increasing in the order rows are stored; an upsert keeps a replaced row's. */
+    sequence: number;
     /** The item's id (`ConversationItem.id`), unique within its scope and generation. */
     key: string;
     /** The conversation row's id. */

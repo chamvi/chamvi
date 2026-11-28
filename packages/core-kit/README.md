@@ -47,7 +47,7 @@ One folder per domain under `src/domains/`, each with its record types and, wher
 | `peer` | `PeerStartInput`, `PeerRunView` |
 | `run` | `Run`, `RunView`, `InvokerView`, `RunStatus`, `RunStatusLiteral`, `Usage`, `Budget`, `RunTaint`, the `WaitPoint`s, `RemoteApproval`, `normalizeWaitPoint()` |
 | `state` | `StateEntry`, `StateDocument` |
-| `step` | `Step`, `STEP_STORED_ORDER` |
+| `step` | `Step`, `StepRecord`, `STEP_STORED_ORDER` |
 | `trigger` | `TriggerEnvelope`, `Invoker`, `TriggerParent` (`DispatchParent`, `PeerParent`), `TriggerSource`, `normalizeEnvelope()` |
 | `ui-page` | `UiPage` |
 

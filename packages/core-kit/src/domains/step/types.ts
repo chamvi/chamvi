@@ -16,3 +16,8 @@ export type Step = {
     startedAt: Date;
     finishedAt: Date;
 };
+
+/** A stored step: the step and the row's id (a uuid v7 the step service assigns when it appends the step). */
+export type StepRecord = Step & {
+    id: string;
+};

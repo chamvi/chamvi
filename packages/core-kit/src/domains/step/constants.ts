@@ -7,7 +7,8 @@
 
 /**
  * The field a step query sorts by for the order steps were saved in: a
- * storage key every step repository assigns when it stores a row (not
- * when the entity object is created) and no read returns.
+ * sequence every step repository assigns when it stores a row (not when
+ * the entity object is created) and no read returns. Never the `id`: two
+ * uuid v7 ids of one millisecond need not order as their rows were stored.
  */
-export const STEP_STORED_ORDER = 'id';
+export const STEP_STORED_ORDER = 'sequence';

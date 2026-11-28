@@ -11,7 +11,7 @@ import {
     Index,
     JoinColumn,
     ManyToOne,
-    PrimaryGeneratedColumn,
+    PrimaryColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
 import type { ConversationItem } from '@chamvi/core-kit';
@@ -20,12 +20,21 @@ import { ConversationEntity } from './conversation.ts';
 import { RunEntity } from './run.ts';
 
 @Index(['scopeId', 'generation', 'key'], { unique: true })
-@Index(['scopeId', 'generation', 'createdAt', 'id'])
+@Index(['scopeId', 'generation', 'sequence'])
 @Index(['runId'])
 @Entity({ name: TableName.CONVERSATION_ITEMS })
 export class ConversationItemEntity {
-    @PrimaryGeneratedColumn('increment', { type: 'bigint' })
+    @PrimaryColumn({ type: 'uuid' })
     id!: string;
+
+    /** The order items were stored in, assigned by the database; an upsert keeps a replaced row's. */
+    @Column({
+        type: 'bigint',
+        generated: 'increment',
+        insert: false,
+        update: false,
+    })
+    sequence!: string;
 
     @Column({
         name: 'scope_id',

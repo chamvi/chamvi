@@ -370,6 +370,22 @@ describe.skipIf(!document)('the generated openapi document', () => {
         expect([...OPEN_VALUES].filter((label) => !found.has(label)).toSorted()).toEqual([]);
     });
 
+    it('declares a step without a row id', () => {
+        const step = doc.components.schemas.Step;
+
+        expect(Object.keys(step?.properties ?? {}).toSorted()).toEqual([
+            'error',
+            'finishedAt',
+            'index',
+            'input',
+            'kind',
+            'name',
+            'output',
+            'runId',
+            'startedAt',
+        ]);
+    });
+
     it('declares the error response and the bearer scheme', () => {
         const error = doc.components.schemas.ErrorResponse;
 

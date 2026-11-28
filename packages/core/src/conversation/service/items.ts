@@ -10,6 +10,7 @@ import {
     defineQuery,
     eq,
 } from '@rapiq/core';
+import { uuidv7 } from 'uuidv7';
 import { CONVERSATION_ITEM_STORED_ORDER } from '@chamvi/core-kit';
 import type { ConversationItem, ConversationItemRecord, ConversationScope } from '@chamvi/core-kit';
 import type { IConversationRepository } from '@chamvi/store';
@@ -35,13 +36,18 @@ export async function findConversationItems(
 }
 
 /**
- * A new item of the handed-in repository with its stored byte length:
- * every item the service stores is created here, so `bytes` is always
- * the size the recall budgets its text with.
+ * A new item of the handed-in repository with a new uuid v7 `id` and its
+ * stored byte length: every item the service stores is created here, so
+ * `bytes` is always the size the recall budgets its text with. The store
+ * assigns its `sequence`.
  */
 export function createConversationItem(
     repository: IConversationRepository,
-    value: Omit<ConversationItemRecord, 'id' | 'bytes'>,
+    value: Omit<ConversationItemRecord, 'id' | 'sequence' | 'bytes'>,
 ): ConversationItemRecord {
-    return repository.items.create({ ...value, bytes: itemBytes(value.text) });
+    return repository.items.create({
+        ...value,
+        id: uuidv7(),
+        bytes: itemBytes(value.text),
+    });
 }

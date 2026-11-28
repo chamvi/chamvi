@@ -7,7 +7,8 @@
 
 /**
  * The field a conversation item query sorts by for the order items were
- * stored in (the transcript's order): the storage key every item
- * repository assigns when it stores a row, which reads return.
+ * stored in (the transcript's order): the sequence every item repository
+ * assigns when it stores a row, which reads return. Never the `id`: two
+ * uuid v7 ids of one millisecond need not order as their rows were stored.
  */
-export const CONVERSATION_ITEM_STORED_ORDER = 'id';
+export const CONVERSATION_ITEM_STORED_ORDER = 'sequence';

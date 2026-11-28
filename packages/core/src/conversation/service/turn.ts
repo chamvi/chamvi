@@ -183,7 +183,7 @@ async function recallConversation(
     now: Date,
 ): Promise<Omit<ConversationSnapshot, 'scope' | 'runId' | 'createdAt'>> {
     const where = { scopeId: record.id, generation: record.generation };
-    let chosen: Pick<ConversationItemRecord, 'id' | 'bytes'>[] = [];
+    let chosen: Pick<ConversationItemRecord, 'id' | 'sequence' | 'bytes'>[] = [];
     let bytes = 0;
     let seen = 0;
     let total: number | undefined;
@@ -202,7 +202,7 @@ async function recallConversation(
 
         const limit = before === undefined ? RECALL_FIRST_PAGE : RECALL_PAGE;
         const { data, meta } = await repository.items.findMany(defineQuery({
-            fields: [CONVERSATION_ITEM_STORED_ORDER, 'bytes'],
+            fields: ['id', CONVERSATION_ITEM_STORED_ORDER, 'bytes'],
             filters: and(...conditions),
             sorts: { [CONVERSATION_ITEM_STORED_ORDER]: 'DESC' },
             pagination: { limit },
@@ -214,7 +214,7 @@ async function recallConversation(
             break;
         }
 
-        before = data[data.length - 1]!.id;
+        before = data[data.length - 1]!.sequence;
         seen += data.length;
 
         // newer chosen items keep their priority: the page is older than every chosen item

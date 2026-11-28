@@ -6,6 +6,7 @@
  */
 
 import type { DataSource } from 'typeorm';
+import { uuidv7 } from 'uuidv7';
 import {
     afterEach,
     expect,
@@ -126,6 +127,7 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
         await s.seed(testUuid('writer'), 'completed');
 
         const items = Array.from({ length: 250 }, (_value, index) => ({
+            id: uuidv7(),
             scopeId: s.scope.id,
             generation: s.scope.generation,
             key: `item-${index}`,

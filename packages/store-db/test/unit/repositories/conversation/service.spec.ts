@@ -6,6 +6,7 @@
  */
 
 import type { DataSource } from 'typeorm';
+import { uuidv7 } from 'uuidv7';
 import {
     afterAll,
     beforeAll,
@@ -106,6 +107,7 @@ describePostgres('postgres conversation service: batches', () => {
         await seedRun(dataSource, testUuid('writer'));
         await seedRun(dataSource, testUuid('turn'));
         await dataSource.getRepository(ConversationItemEntity).insert(Array.from({ length: 5000 }, (_value, index) => ({
+            id: uuidv7(),
             scopeId: scope.id,
             generation: scope.generation,
             key: `item-${index}`,

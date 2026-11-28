@@ -7,6 +7,7 @@
 
 import { In } from 'typeorm';
 import type { DataSource, EntitySubscriberInterface } from 'typeorm';
+import { uuidv7 } from 'uuidv7';
 import {
     afterEach,
     expect,
@@ -66,8 +67,8 @@ describePostgres('conversation query bounds', () => {
         const sizes = Array.from({ length: count }, (_value, index) => sizeOf(index));
 
         await dataSource.query(
-            `INSERT INTO chamvi_conversation_items (scope_id, generation, key, run_id, created_at, role, text, bytes, status)
-             SELECT $1, $2, 'item-' || i, $3, now(), 'assistant', repeat(chr((97 + i % 26)::int), size), size, 'sent'
+            `INSERT INTO chamvi_conversation_items (id, scope_id, generation, key, run_id, created_at, role, text, bytes, status)
+             SELECT gen_random_uuid(), $1, $2, 'item-' || i, $3, now(), 'assistant', repeat(chr((97 + i % 26)::int), size), size, 'sent'
              FROM unnest($4::int[]) WITH ORDINALITY AS seeded(size, i)
              ORDER BY i`,
             [scope.id, scope.generation, runId, sizes],
@@ -85,6 +86,7 @@ describePostgres('conversation query bounds', () => {
         await seedRun(dataSource, testUuid('next'));
 
         const rows = Array.from({ length: 250 }, (_value, index) => ({
+            id: uuidv7(),
             scopeId: scope.id,
             generation: scope.generation,
             key: `item-${index}`,
@@ -99,6 +101,7 @@ describePostgres('conversation query bounds', () => {
         await dataSource.getRepository(ConversationItemEntity).insert(rows);
         await dataSource.getRepository(ConversationItemEntity).insert({
             ...rows[0]!,
+            id: uuidv7(),
             key: 'unknown',
             text: 'u',
             bytes: 1,
@@ -207,6 +210,7 @@ describePostgres('conversation query bounds', () => {
         await store.endTurn(scope, testUuid('writer'), []);
 
         const rows = Array.from({ length: 205 }, (_value, index) => ({
+            id: uuidv7(),
             scopeId: scope.id,
             generation: scope.generation,
             key: `item-${index}`,

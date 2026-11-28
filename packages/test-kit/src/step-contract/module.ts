@@ -14,9 +14,14 @@ import {
     it,
 } from 'vitest';
 import { STEP_STORED_ORDER } from '@chamvi/core-kit';
-import type { Step } from '@chamvi/core-kit';
+import type { StepRecord } from '@chamvi/core-kit';
 import type { IRunRepository, IStepRepository } from '@chamvi/store';
-import { makeRun, testUuid } from '../fixture/helpers.ts';
+import {
+    UUID_V7,
+    makeRun,
+    testUuid,
+    testUuidV7,
+} from '../fixture/helpers.ts';
 import type { StepRepositoryContractInput } from './types.ts';
 
 function pause(ms: number): Promise<void> {
@@ -25,8 +30,14 @@ function pause(ms: number): Promise<void> {
     });
 }
 
-function stepOf(runId: string, index: number, patch: Partial<Step> = {}): Step {
+/** The counter of the uuid v7 `stepOf` gives a step without one: unique across a spec file. */
+let lastStepId = 0;
+
+function stepOf(runId: string, index: number, patch: Partial<StepRecord> = {}): StepRecord {
+    lastStepId++;
+
     return {
+        id: testUuidV7(1_000, lastStepId),
         runId,
         index,
         kind: 'llm',
@@ -57,7 +68,7 @@ export function describeStepRepositoryContract(input: StepRepositoryContractInpu
             await runs.save(runs.create(makeRun(testUuid('r2'))));
         });
 
-        it('stores every field, reads absent ones as absent and returns no storage key', async () => {
+        it('stores every field and the uuid v7 id as given, reads absent ones as absent and returns no storage order', async () => {
             const full = stepOf(testUuid('r1'), 0, {
                 kind: 'tool',
                 name: 'deploy',
@@ -65,19 +76,34 @@ export function describeStepRepositoryContract(input: StepRepositoryContractInpu
                 output: 'done',
                 error: { code: 'x', message: 'y' },
             });
+            const bare = stepOf(testUuid('r1'), 1);
 
-            await steps.save(steps.create(full));
-            await steps.save(steps.create(stepOf(testUuid('r1'), 1)));
+            expect(await steps.save(steps.create(full))).toEqual(full);
+            await steps.save(steps.create(bare));
 
             const { data } = await steps.findMany(stepsOf(testUuid('r1')));
 
-            expect(data).toEqual([full, stepOf(testUuid('r1'), 1)]);
+            expect(data).toEqual([full, bare]);
+            expect(data[0]!.id).toMatch(UUID_V7);
             expect(data[0]!.startedAt).toBeInstanceOf(Date);
-            expect(data[0]).not.toHaveProperty('id');
+            expect(data[0]).not.toHaveProperty(STEP_STORED_ORDER);
 
-            for (const field of ['name', 'input', 'output', 'error', 'id']) {
+            for (const field of ['name', 'input', 'output', 'error', STEP_STORED_ORDER]) {
                 expect(data[1]).not.toHaveProperty(field);
             }
+        });
+
+        it('steps of one index read in the order they were stored, not by id: two ids of one millisecond stored in reverse', async () => {
+            const first = stepOf(testUuid('r1'), 0, { id: testUuidV7(5_000, 2), name: 'first' });
+            const second = stepOf(testUuid('r1'), 0, { id: testUuidV7(5_000, 1), name: 'second' });
+
+            await steps.save(steps.create(first));
+            await steps.save(steps.create(second));
+
+            const { data } = await steps.findMany(stepsOf(testUuid('r1')));
+
+            expect(data.map((step) => step.id)).toEqual([first.id, second.id]);
+            expect(await steps.findOneById(second.id)).toEqual(second);
         });
 
         it('lists one run\'s steps by index, then in the order they were stored', async () => {

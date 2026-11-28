@@ -6,10 +6,11 @@
  */
 
 import type { EntityManager } from 'typeorm';
+import { uuidv7 } from 'uuidv7';
 import { LockEntity, LockTokenEntity } from '../../entities/index.ts';
 
-/** The id of the counter row in `chamvi_lock_tokens`. */
-const LOCK_TOKEN_ROW = 1;
+/** The key of the counter row in `chamvi_lock_tokens`. */
+const LOCK_TOKEN_KEY = 'lock';
 
 /**
  * One atomic `UPDATE ... SET value = GREATEST(value + 1, floor) RETURNING
@@ -20,7 +21,8 @@ const LOCK_TOKEN_ROW = 1;
  * query calls the database's clock. A missing row (a truncated or
  * synchronized table) is inserted first at the floor or the highest token
  * a stored lease holds, whichever is greater, so the next token is above
- * every surviving lease.
+ * every surviving lease, under a new uuid v7 `id` (a concurrent insert
+ * that lost on the key leaves the winner's row).
  */
 export async function issueLockToken(manager: EntityManager): Promise<number> {
     for (;;) {
@@ -29,7 +31,7 @@ export async function issueLockToken(manager: EntityManager): Promise<number> {
             .update(LockTokenEntity)
             .set({ value: () => 'GREATEST("value" + 1, :floor)' })
             .setParameters({ floor })
-            .where({ id: LOCK_TOKEN_ROW })
+            .where({ key: LOCK_TOKEN_KEY })
             .returning(['value'])
             .execute();
         const [row] = result.raw as { value: string | number }[];
@@ -46,7 +48,11 @@ export async function issueLockToken(manager: EntityManager): Promise<number> {
         await manager.createQueryBuilder()
             .insert()
             .into(LockTokenEntity)
-            .values({ id: LOCK_TOKEN_ROW, value: Math.max(floor, highest) })
+            .values({
+                id: uuidv7(),
+                key: LOCK_TOKEN_KEY,
+                value: Math.max(floor, highest),
+            })
             .orIgnore()
             .execute();
     }
