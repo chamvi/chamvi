@@ -12,6 +12,7 @@ import { STEP_STORED_ORDER } from '@chamvi/core-kit';
 import type { Step } from '@chamvi/core-kit';
 import type { IStepRepository } from '@chamvi/store';
 import { RepositoryNotFoundError, RunNotFoundError } from '../errors/index.ts';
+import { readStep } from './helpers.ts';
 import type { IStepService, StepServiceContext } from './types.ts';
 
 /** The steps of runs over an `IStepRepository`: appended, listed by index, then in the order they were stored. */
@@ -22,9 +23,11 @@ export class StepService implements IStepService {
         this.repository = ctx.repository;
     }
 
-    async create(step: Omit<Step, 'id'>): Promise<Step> {
+    async create(step: Step): Promise<void> {
         try {
-            return await this.repository.transaction(async (repository) => repository.save(repository.create({ ...step, id: uuidv7() })));
+            await this.repository.transaction(async (repository) => {
+                await repository.save(repository.create({ ...step, id: uuidv7() }));
+            });
         } catch (error) {
             if (error instanceof EntityRelationError && error.relation === 'run') {
                 throw new RunNotFoundError(step.runId);
@@ -40,7 +43,7 @@ export class StepService implements IStepService {
             sorts: { index: 'ASC', [STEP_STORED_ORDER]: 'ASC' },
         }));
 
-        return data;
+        return data.map((record) => readStep(record));
     }
 
     async findOrFail(runId: string): Promise<Step[]> {

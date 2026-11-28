@@ -125,7 +125,6 @@ describe('serializeRun', () => {
 describe('serializeStep', () => {
     const now = new Date(0);
     const base: Step = {
-        id: '019a0000-0000-7000-8000-000000000002',
         runId: 'r1',
         index: 2,
         kind: 'wait',

@@ -6,7 +6,6 @@
  */
 
 import { jsonSchema } from 'ai';
-import { uuidv7 } from 'uuidv7';
 import {
     describe,
     expect,
@@ -54,11 +53,7 @@ function plainStepService(steps: Step[]): IStepService {
 
     return {
         create: async (step) => {
-            const stored = { ...step, id: uuidv7() };
-
-            steps.push(stored);
-
-            return stored;
+            steps.push(step);
         },
         find,
         findOrFail: async (runId) => {

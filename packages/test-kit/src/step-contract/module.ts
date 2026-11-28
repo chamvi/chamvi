@@ -14,7 +14,7 @@ import {
     it,
 } from 'vitest';
 import { STEP_STORED_ORDER } from '@chamvi/core-kit';
-import type { Step } from '@chamvi/core-kit';
+import type { StepRecord } from '@chamvi/core-kit';
 import type { IRunRepository, IStepRepository } from '@chamvi/store';
 import {
     UUID_V7,
@@ -33,7 +33,7 @@ function pause(ms: number): Promise<void> {
 /** The counter of the uuid v7 `stepOf` gives a step without one: unique across a spec file. */
 let lastStepId = 0;
 
-function stepOf(runId: string, index: number, patch: Partial<Step> = {}): Step {
+function stepOf(runId: string, index: number, patch: Partial<StepRecord> = {}): StepRecord {
     lastStepId++;
 
     return {

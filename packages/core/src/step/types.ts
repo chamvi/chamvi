@@ -17,11 +17,8 @@ export type StepServiceContext = {
  * for the service: the engine, the channels and the HTTP API take this type.
  */
 export interface IStepService {
-    /**
-     * Appends the step under a new uuid v7 `id` and resolves the stored step;
-     * a run the store does not hold is RunNotFoundError and nothing is written.
-     */
-    create(step: Omit<Step, 'id'>): Promise<Step>;
+    /** Appends the step under a new uuid v7 row id; a run the store does not hold is RunNotFoundError and nothing is written. */
+    create(step: Step): Promise<void>;
 
     find(runId: string): Promise<Step[]>;
 

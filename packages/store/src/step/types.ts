@@ -5,11 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Step } from '@chamvi/core-kit';
+import type { StepRecord } from '@chamvi/core-kit';
 import type { IEntityRepository } from '../entity/types.ts';
 
 /**
- * The step port: the generic entity port on `Step` (key `id`, stored as
+ * The step port: the generic entity port on `StepRecord` (key `id`, stored as
  * given), `runId` referencing a run (labelled `step`, a missing run is
  * `EntityRelationError` naming `run`). Each row also gets a sequence in
  * the order rows are saved (`STEP_STORED_ORDER`), assigned when the row is
@@ -17,4 +17,4 @@ import type { IEntityRepository } from '../entity/types.ts';
  * `STEP_STORED_ORDER` for the order steps were saved in. Steps are
  * appended and listed; a read step cannot be saved again.
  */
-export interface IStepRepository extends IEntityRepository<Step> {}
+export interface IStepRepository extends IEntityRepository<StepRecord> {}

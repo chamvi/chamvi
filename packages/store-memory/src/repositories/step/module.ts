@@ -7,7 +7,7 @@
 
 import { EntityQueryError } from '@chamvi/errors';
 import { STEP_STORED_ORDER } from '@chamvi/core-kit';
-import type { Step } from '@chamvi/core-kit';
+import type { StepRecord } from '@chamvi/core-kit';
 import type { EntityRecord, IStepRepository } from '@chamvi/store';
 import type { MemoryRegistry } from '../../registry/module.ts';
 import { MemoryEntityRepository } from '../../entity/module.ts';
@@ -22,7 +22,7 @@ const sequences = new WeakMap<MemoryRegistry, number>();
  * in the order steps are saved, as a database's identity column; reads
  * never return it.
  */
-export class MemoryStepRepository extends MemoryEntityRepository<Step> implements IStepRepository {
+export class MemoryStepRepository extends MemoryEntityRepository<StepRecord> implements IStepRepository {
     constructor(options: MemoryRepositoryOptions) {
         super({
             entity: 'step',
@@ -32,7 +32,7 @@ export class MemoryStepRepository extends MemoryEntityRepository<Step> implement
         });
     }
 
-    override async save(entity: Step): Promise<Step> {
+    override async save(entity: StepRecord): Promise<StepRecord> {
         if (this.created.has(entity)) {
             const sequence = (sequences.get(this.registry) ?? 0) + 1;
 
@@ -44,16 +44,16 @@ export class MemoryStepRepository extends MemoryEntityRepository<Step> implement
     }
 
     /** Steps are append-only: refused with EntityQueryError. */
-    override async upsert(): Promise<Step> {
+    override async upsert(): Promise<StepRecord> {
         throw new EntityQueryError({ entity: this.entity });
     }
 
     /** Steps are append-only: refused with EntityQueryError. */
-    override async upsertMany(): Promise<Step[]> {
+    override async upsertMany(): Promise<StepRecord[]> {
         throw new EntityQueryError({ entity: this.entity });
     }
 
-    protected override toEntity(row: EntityRecord): Step {
+    protected override toEntity(row: EntityRecord): StepRecord {
         const step = { ...row };
 
         delete step[STEP_STORED_ORDER];

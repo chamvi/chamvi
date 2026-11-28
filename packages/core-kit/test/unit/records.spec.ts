@@ -258,8 +258,8 @@ describe('domain records', () => {
     });
 
     it('keeps the step record', () => {
+        expectTypeOf<kit.StepRecord>().toEqualTypeOf<kit.Step & { id: string }>();
         expectTypeOf<kit.Step>().toEqualTypeOf<{
-            id: string;
             runId: string;
             index: number;
             kind: 'llm' | 'tool' | 'wait';
