@@ -38,6 +38,8 @@ export default defineConfig({
                 viewport: { width: 1280, height: 800 },
                 locale: 'en-US',
                 timezoneId: 'UTC',
+                // grayscale text: LCD (subpixel) text flips per glyph when a layer is promoted, which differs from run to run
+                launchOptions: { args: ['--disable-lcd-text'] },
             },
         },
         {

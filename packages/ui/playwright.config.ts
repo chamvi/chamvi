@@ -37,6 +37,8 @@ export default defineConfig({
                 baseURL: 'http://127.0.0.1:4173/ui/',
                 locale: 'en-US',
                 timezoneId: 'UTC',
+                // grayscale text: LCD (subpixel) text flips per glyph when a layer is promoted, which differs from run to run
+                launchOptions: { args: ['--disable-lcd-text'] },
             },
         },
         {
