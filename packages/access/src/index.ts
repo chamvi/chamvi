@@ -7,4 +7,5 @@
 
 // The package entry composes the folder barrels.
 export * from './check/index.ts';
+export * from './evaluator/index.ts';
 export * from './permission/index.ts';
