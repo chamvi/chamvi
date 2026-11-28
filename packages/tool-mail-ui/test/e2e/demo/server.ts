@@ -13,7 +13,8 @@ import { E2E_PORT, E2E_TOKEN } from './constants.ts';
 
 const env = {
     HOST: '127.0.0.1',
-    PORT: String(E2E_PORT),
+    // the pins' server is the same app on its own port
+    PORT: process.env.E2E_SERVER_PORT ?? String(E2E_PORT),
     TOKENS: JSON.stringify([{
         value: E2E_TOKEN,
         id: 'e2e',

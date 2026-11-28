@@ -7,7 +7,12 @@
 
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { E2E_PAGE_LABEL, E2E_PAGE_SLUG, E2E_TOKEN } from './demo/constants.ts';
+import {
+    E2E_ORIGIN,
+    E2E_PAGE_LABEL,
+    E2E_PAGE_SLUG,
+    E2E_TOKEN,
+} from './demo/constants.ts';
 
 const PAGE_PATH = `/ui/ext/${E2E_PAGE_SLUG}`;
 
@@ -98,6 +103,6 @@ test('an off-site return path stays in the dashboard', async ({ page }) => {
     await page.goto(`login?redirect=${encodeURIComponent('//evil.example/x')}`);
     await signIn(page);
     await expect(page.getByTestId('principal')).toHaveText('e2e');
-    expect(new URL(page.url()).origin).toBe('http://127.0.0.1:4173');
+    expect(new URL(page.url()).origin).toBe(E2E_ORIGIN);
     expect(new URL(page.url()).pathname).toBe('/ui/agents');
 });

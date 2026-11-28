@@ -11,7 +11,7 @@ import {
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
-import type { IChannel, IConnectionHandle } from '@chamvi/core';
+import type { IChannel, IConnectionHandle, IEngine } from '@chamvi/core';
 import type { ConnectionStatus, ConnectionWidget } from '@chamvi/core-kit';
 import { cron, cronChannel } from '@chamvi/channel-cron';
 import {
@@ -36,7 +36,7 @@ import {
     E2E_TOKEN,
 } from './constants.ts';
 import { createDemoModel } from './model.ts';
-import { createTestEngine } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 
 /** A 1x1 PNG, the release preview the `release` agent shows on its option. */
 const PREVIEW_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -81,6 +81,35 @@ function createDemoConnection() {
     };
 
     return { handle, connect: () => change('connected', []) };
+}
+
+/**
+ * The cron channel on a clock that never moves: its schedule is listed as
+ * usual, but no tick ever fires, so a suite that runs at 08:00 on a weekday
+ * sees the same pages (the pins count the runs) as at any other time.
+ */
+function createDemoCron(): IChannel {
+    const channel = cronChannel();
+    const clock = new ControllableClock(Date.now());
+    const start = channel.start!.bind(channel);
+
+    // in place, not a copy: the channel keeps the mark cronChannel() set on it
+    channel.start = (ctx) => start({
+        ...ctx,
+        engine: new Proxy(ctx.engine, {
+            get(target, key) {
+                if (key === 'clock') {
+                    return clock;
+                }
+
+                const value: unknown = Reflect.get(target, key, target);
+
+                return typeof value === 'function' ? value.bind(target) : value;
+            },
+        }) as IEngine,
+    });
+
+    return channel;
 }
 
 const connection = createDemoConnection();
@@ -151,7 +180,7 @@ const engine = createTestEngine({
             state: { sent: z.object({ issues: z.number(), channel: z.string() }) },
         }),
     ],
-    channels: [httpChannel(), mcpChannel(), cronChannel(), capture],
+    channels: [httpChannel(), mcpChannel(), createDemoCron(), capture],
     claimTtlMs: 3000,
 });
 
@@ -208,7 +237,8 @@ const app = createHttpApp({
 
 await engine.start();
 serve(app, {
-    port: E2E_PORT,
+    // the pins' server is the same app on its own port
+    port: Number(process.env.E2E_SERVER_PORT ?? E2E_PORT),
     hostname: '127.0.0.1',
     gracefulShutdown: false,
 });

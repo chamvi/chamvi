@@ -6,6 +6,7 @@
  */
 
 import { globSync, readFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -14,8 +15,16 @@ const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 /** What no walk reads: installed and built files. */
 const IGNORED = ['**/node_modules/**', '**/dist/**', '**/.vitepress/cache/**'];
 
+/** The files (never a directory, e.g. a snapshot folder named `visual.spec.ts`) the patterns match, relative to ROOT. */
 function filesOf(patterns: string[]): string[] {
-    return globSync(patterns, { cwd: ROOT, exclude: IGNORED }).map((path) => path.split('\\').join('/')).sort();
+    return globSync(patterns, {
+        cwd: ROOT,
+        exclude: IGNORED,
+        withFileTypes: true,
+    })
+        .filter((entry) => entry.isFile())
+        .map((entry) => relative(ROOT, join(entry.parentPath, entry.name)).split('\\').join('/'))
+        .sort();
 }
 
 function read(path: string): string {

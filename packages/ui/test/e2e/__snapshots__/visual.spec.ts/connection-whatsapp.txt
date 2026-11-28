@@ -1,0 +1,33 @@
+chamvi
+Operate
+Agents
+Runs
+Approvals
+1
+Schedules
+Components
+Connections
+Connect
+Demo page
+127.0.0.1:4173
+E2
+e2e
+token · 14 permissions
+connections / whatsapp
+whatsapp
+pairing
+type
+whatsapp
+This connection waits to be paired. Its QR shows on its page in the sidebar. No page there? Add the dashboard module of its type's
+-ui
+package to the app.
+Reset clears the stored session and connects again, so a new pairing starts.
+Reset session
+[aria-label=Main]
+[aria-label=1 waiting]
+[title=127.0.0.1:4173]
+[aria-label=Dark mode]
+[title=Dark mode]
+[aria-label=Sign out]
+[title=Sign out]
+[aria-label=Notifications (F8)]

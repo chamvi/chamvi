@@ -1,0 +1,24 @@
+chamvi
+Operate
+Agents
+Runs
+Approvals
+Schedules
+Components
+Connect
+Mail
+127.0.0.1:4175
+E2
+e2e
+token · 14 permissions
+Accounts
+No accounts yet.
++ Add account
+No accounts yet.
+[aria-label=Main]
+[title=127.0.0.1:4175]
+[aria-label=Dark mode]
+[title=Dark mode]
+[aria-label=Sign out]
+[title=Sign out]
+[aria-label=Accounts]

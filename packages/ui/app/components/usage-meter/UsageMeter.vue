@@ -17,7 +17,10 @@ const width = computed(() => `${Math.round(Math.min(1, Math.max(0, props.ratio ?
 </script>
 
 <template>
-    <div class="meter">
+    <div
+        class="meter"
+        data-testid="usage-meter"
+    >
         <div class="meter-top">
             <span class="muted">{{ label }}</span>
             <span>{{ value }}</span>
