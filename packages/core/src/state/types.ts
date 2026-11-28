@@ -43,6 +43,13 @@ export type StateEntryValue = { key: string; value: unknown };
 export type StateDocumentValue = { id: string; doc: unknown };
 
 /**
+ * The rapiq query of an actor listing, or a function that builds it: a
+ * function runs only after the checks pass, so a caller's malformed-query
+ * 400 never precedes the 403 or 404.
+ */
+export type StateQueryInput = IQuery | (() => IQuery);
+
+/**
  * The operations of `StateService`. Anything that satisfies it can stand in
  * for the service: the engine, the channels and the HTTP API take this type.
  */
@@ -110,7 +117,7 @@ export interface IStateService {
      * `chamvi_state_write`) for `{ name }` (403), the agent in
      * `options.agents` (404), then for a private agent `chamvi_agent_read` (403).
      */
-    getMany(agent: string, query: IQuery, actor: ActorContext, options: AgentScope): Promise<StateEntryValue[]>;
+    getMany(agent: string, query: StateQueryInput, actor: ActorContext, options: AgentScope): Promise<StateEntryValue[]>;
 
     /** The value of the key (`findOne`), for the actor, after the checks of `getMany`. */
     getOne(agent: string, key: string, actor: ActorContext, options: AgentScope): Promise<unknown>;
@@ -122,5 +129,5 @@ export interface IStateService {
     save(agent: string, key: string, data: unknown, actor: ActorContext, options: AgentScope): Promise<unknown>;
 
     /** A collection's documents (`listDocuments`) after the checks of `getMany`; 404 for a collection the agent does not declare. */
-    getDocuments(agent: string, collection: string, query: IQuery, actor: ActorContext, options: AgentScope): Promise<StateDocumentValue[]>;
+    getDocuments(agent: string, collection: string, query: StateQueryInput, actor: ActorContext, options: AgentScope): Promise<StateDocumentValue[]>;
 }

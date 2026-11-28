@@ -29,9 +29,9 @@ function registryOf(...agents: Agent[]): IAgentRegistry {
 
 function agentOf(name: string, isPrivate = false): Agent {
     return defineSimpleAgent({
-        name, 
-        run: () => undefined, 
-        ...(isPrivate ? { private: true } : {}), 
+        name,
+        run: () => undefined,
+        ...(isPrivate ? { private: true } : {}),
     });
 }
 

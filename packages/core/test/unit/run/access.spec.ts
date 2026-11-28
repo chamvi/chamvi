@@ -132,6 +132,12 @@ describe('RunService actor methods', () => {
             expect((error as Error).message).toBe('Missing permission "chamvi_run_read".');
         });
 
+        it('hides a run behind the 404 when the registry holds no agent', async () => {
+            const empty = { agents: registryOf() };
+
+            await expect(service.getOne(ECHO, actorOf(grant(Permission.RUN_READ)), empty)).rejects.toBeInstanceOf(RunNotFoundError);
+        });
+
         it('passes the 404 of a missing run', async () => {
             await expect(service.getOne(uuid('none'), actorOf(grant(Permission.AGENT_READ)), scope)).rejects.toBeInstanceOf(RunNotFoundError);
         });
@@ -169,6 +175,26 @@ describe('RunService actor methods', () => {
             expect(list).toHaveBeenCalledTimes(1);
             expect(conditionsOf(list.mock.calls[0]![0].filters)).toEqual([]);
             expect(meta.total).toBe(2);
+        });
+
+        it('limits a chamvi_agent_run-only holder to the public agents', async () => {
+            const list = vi.spyOn(service, 'list');
+
+            const { data } = await service.getMany(LIST, actorOf(grant(Permission.AGENT_RUN)), scope);
+
+            expect(list).toHaveBeenCalledTimes(1);
+            expect(conditionsOf(list.mock.calls[0]![0].filters)).toContainEqual(inArray('agent', ['echo']));
+            expect(data.map((run) => run.id)).toEqual([ECHO]);
+        });
+
+        it('limits a restricted chamvi_agent_read to its agents', async () => {
+            const list = vi.spyOn(service, 'list');
+
+            const { data } = await service.getMany(LIST, actorOf(restricted(Permission.AGENT_READ, { name: 'vault' })), scope);
+
+            expect(list).toHaveBeenCalledTimes(1);
+            expect(conditionsOf(list.mock.calls[0]![0].filters)).toContainEqual(inArray('agent', ['vault']));
+            expect(data.map((run) => run.id)).toEqual([VAULT]);
         });
 
         it('refuses a protected agent without its grant', async () => {
@@ -232,6 +258,15 @@ describe('RunService actor methods', () => {
                 .rejects.toThrow('Missing permission "chamvi_agent_approve".');
             await expect(service.getAnswerable(uuid('none'), actorOf(grant(Permission.AGENT_APPROVE)), scope))
                 .rejects.toBeInstanceOf(RunNotFoundError);
+        });
+
+        it('refuses a private agent\'s run to a grant restricted to public agents', async () => {
+            const actor = actorOf(restricted(Permission.AGENT_APPROVE, { private: false }));
+            const error = await service.getAnswerable(VAULT, actor, scope).catch((e: unknown) => e);
+
+            expect(error).toBeInstanceOf(ForbiddenError);
+            expect((error as Error).message).toBe('Missing permission "chamvi_agent_approve".');
+            await expect(service.getAnswerable(ECHO, actor, scope)).resolves.toMatchObject({ id: ECHO });
         });
     });
 });

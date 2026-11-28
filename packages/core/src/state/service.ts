@@ -27,6 +27,7 @@ import type {
     StateDocumentValue,
     StateEntryValue,
     StateFindOptions,
+    StateQueryInput,
     StateServiceContext,
 } from './types.ts';
 
@@ -204,10 +205,10 @@ export class StateService extends AbstractEntityService implements IStateService
         });
     }
 
-    async getMany(agent: string, query: IQuery, actor: ActorContext, options: AgentScope): Promise<StateEntryValue[]> {
+    async getMany(agent: string, query: StateQueryInput, actor: ActorContext, options: AgentScope): Promise<StateEntryValue[]> {
         const { name } = await this.readableAgent(agent, Permission.STATE_READ, actor, options);
 
-        return this.list(name, query);
+        return this.list(name, typeof query === 'function' ? query() : query);
     }
 
     async getOne(agent: string, key: string, actor: ActorContext, options: AgentScope): Promise<unknown> {
@@ -228,7 +229,7 @@ export class StateService extends AbstractEntityService implements IStateService
     async getDocuments(
         agent: string,
         collection: string,
-        query: IQuery,
+        query: StateQueryInput,
         actor: ActorContext,
         options: AgentScope,
     ): Promise<StateDocumentValue[]> {
@@ -236,7 +237,7 @@ export class StateService extends AbstractEntityService implements IStateService
 
         assertCollection(readable, collection);
 
-        return this.listDocuments(readable.name, collection, query);
+        return this.listDocuments(readable.name, collection, typeof query === 'function' ? query() : query);
     }
 
     /** `permission` for `{ name }` (403), the agent (404), then `chamvi_agent_read` for a private one (403). */

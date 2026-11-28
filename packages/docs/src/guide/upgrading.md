@@ -25,6 +25,10 @@ The domain records, enums, constants, helpers and wire views are in the new brow
 | `import type { Run, RunStatus } from '@chamvi/store'` | `import type { Run, RunStatus } from '@chamvi/core-kit'` (or `@chamvi/app`) |
 | `import type { RunView, Budget } from '@chamvi/http'` / `'@chamvi/core'` | `import type { RunView, Budget } from '@chamvi/core-kit'` (or `@chamvi/app`) |
 
+### Permission checks in the run and state services
+
+`RunService` and `StateService` check the permissions of the HTTP API's run and state routes themselves. A custom `IRunService` adds `getOne`, `getMany`, `getCancelable` and `getAnswerable`; a custom `IStateService` adds `getMany`, `getOne`, `save` and `getDocuments`. Delegate them to the built-in `RunService` and `StateService` (or extend those classes). Routes, statuses and error bodies are unchanged.
+
 ### Errors move to `@chamvi/errors`
 
 `ChamviError`, `ErrorCode` and `ValidationError` are no longer exported by `@chamvi/core`. Import them from `@chamvi/errors`, or from `@chamvi/app`, which re-exports it. Core's engine errors (`AgentNotFoundError`, `BudgetExceededError`, ...) stay in `@chamvi/core` and now extend the new `ChamviError`. Error codes, response bodies and statuses are unchanged.

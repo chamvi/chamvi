@@ -7,7 +7,7 @@
 
 import { can, canSome } from '@chamvi/access';
 import { forbidden } from '@chamvi/core';
-import type { Agent, IClock } from '@chamvi/core';
+import type { IClock } from '@chamvi/core';
 import type { IAppEvent } from 'routup';
 import { useHttpContext } from '../../app/helpers/index.ts';
 import type { HttpContext } from '../../app/types.ts';
@@ -20,14 +20,6 @@ import { authenticate } from './principal.ts';
  */
 export function isGranted(principal: Principal, permission: string, clock: IClock, attributes?: Record<string, unknown>): Promise<boolean> {
     return can(principal, permission, { ...(attributes !== undefined ? { attributes } : {}), now: new Date(clock.now()) });
-}
-
-/**
- * The resource attributes of the agent `name` (`{ name, private }`): an
- * agent the app does not hold counts as private, so a check fails closed.
- */
-export function agentResource(name: string, agent: Agent | undefined): { name: string; private: boolean } {
-    return { name, private: agent ? agent.definition.private === true : true };
 }
 
 /** Whether the principal holds `permission` for some resource (a collection gate). */

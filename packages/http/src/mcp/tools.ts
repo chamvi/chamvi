@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { InvalidAgentDefinitionError, agentResource, canReadAgentContent } from '@chamvi/core';
 import {
     APPROVAL_ID_MAX_LENGTH,
     APPROVAL_OPTIONS_MAX,
@@ -23,14 +23,10 @@ import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../app/constants.ts';
 import { acquireStreamSlot } from '../app/helpers/index.ts';
 import type { HttpContext } from '../app/types.ts';
 import { Permission } from '@chamvi/access';
-import { agentResource, isGranted } from '../auth/helpers/index.ts';
+import { buildActorContext, isGranted } from '../auth/helpers/index.ts';
 import type { Principal } from '../auth/types.ts';
 import { MCP_CHANNEL_NAME } from '../channels/constants.ts';
-import {
-    canReadAgentContent,
-    findHttpSubscription,
-    serializeRun,
-} from '../runs/helpers/index.ts';
+import { findHttpSubscription, serializeRun } from '../runs/helpers/index.ts';
 import {
     DEFAULT_MCP_MAX_WAIT_SECONDS,
     DEFAULT_MCP_NAME,
@@ -370,8 +366,9 @@ async function registerRunTool(
             });
 
             // the result carries content of the run and of a descendant waiting on an approval
-            const readable = await canReadAgentContent(extra.principal, run.agent, ctx.agents, ctx.clock) &&
-                (!approval || await canReadAgentContent(extra.principal, approval.agent, ctx.agents, ctx.clock));
+            const actor = buildActorContext(extra.principal, ctx.clock);
+            const readable = await canReadAgentContent(actor, run.agent, ctx.agents) &&
+                (!approval || await canReadAgentContent(actor, approval.agent, ctx.agents));
 
             return toolResult(toRunToolResult(run, deduplicated, readable, approval));
         } finally {

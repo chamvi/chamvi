@@ -19,7 +19,8 @@ import { parseFilterScalar } from '@rapiq/parser-simple';
 import { isObject } from 'smob';
 import { DEFAULT_PAGE_LIMIT } from '../../app/constants.ts';
 import { decodeFlatQuery } from '../../query/helpers.ts';
-import type { RunFindFilter, RunListRequest } from '../types.ts';
+import type { RunListInput } from '@chamvi/core';
+import type { RunFindFilter } from '../types.ts';
 
 const RUN_LIST_SCHEMA = defineSchema({
     filters: { allowed: ['agent', 'createdAt', 'parent', 'status', 'waiting'] },
@@ -157,7 +158,7 @@ function assertCreatedAtRange(filters: readonly IFilter[]): void {
  * with `and`; a page; `sort=createdAt` only. `agentNames` (the app's agents)
  * resolve an agent name the wire coerced.
  */
-export function parseRunListQuery(searchParams: URLSearchParams, agentNames: Iterable<string> = []): RunListRequest {
+export function parseRunListQuery(searchParams: URLSearchParams, agentNames: Iterable<string> = []): RunListInput {
     const decoded = decodeFlatQuery(searchParams, RUN_LIST_SCHEMA);
     const seen = new Set<string>();
     const filters: IFilter[] = [];
@@ -207,7 +208,7 @@ export function parseRunListQuery(searchParams: URLSearchParams, agentNames: Ite
  * A run listing's request from an already validated filter (MCP
  * `list_runs`): the same rapiq filters `parseRunListQuery` builds.
  */
-export function toRunListRequest(filter: RunFindFilter): RunListRequest {
+export function toRunListInput(filter: RunFindFilter): RunListInput {
     const filters: IFilter[] = [];
 
     if (filter.agent !== undefined) {

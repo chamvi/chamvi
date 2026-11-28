@@ -5,21 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { Permission } from '@chamvi/access';
-import { validateBody } from '@chamvi/core';
-import type { Agent } from '@chamvi/core';
-import { StateValidator } from '@chamvi/core-kit';
+import type { ActorContext, AgentScope } from '@chamvi/core';
 import type { KvWriteBody } from '@chamvi/core-kit';
-import { assertGranted } from '../../auth/helpers/index.ts';
+import { buildActorContext } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
-import {
-    assertCanReadState,
-    assertCollection,
-    parseCollectionQuery,
-    parseKvListQuery,
-    requireAgent,
-    serializeDoc,
-} from '../helpers/index.ts';
+import { parseCollectionQuery, parseKvListQuery, serializeDoc } from '../helpers/index.ts';
 import type {
     AgentStateServiceContext,
     IAgentStateService,
@@ -28,61 +18,50 @@ import type {
     StateDocumentView,
 } from '../types.ts';
 
-/** An agent's kv entries and document collections. */
+/** An agent's kv entries and document collections, checked by core's `StateService`. */
 export class AgentStateService implements IAgentStateService {
     protected ctx: AgentStateServiceContext;
 
-    protected kvValidator: StateValidator;
-
     constructor(ctx: AgentStateServiceContext) {
         this.ctx = ctx;
-        this.kvValidator = new StateValidator();
     }
 
     async list(name: string, query: URLSearchParams, principal: Principal): Promise<{ data: KvEntry[] }> {
-        const agent = await this.readableAgent(name, principal, Permission.STATE_READ);
-
-        return { data: await this.ctx.stateService.list(agent.name, parseKvListQuery(query)) };
+        // the query is parsed after the checks, so its 400 follows the 403 and 404
+        return { data: await this.ctx.stateService.getMany(name, () => parseKvListQuery(query), this.actor(principal), this.scope()) };
     }
 
     async get(name: string, key: string, principal: Principal): Promise<KvView> {
-        const agent = await this.readableAgent(name, principal, Permission.STATE_READ);
-        const value = await this.ctx.stateService.findOne(agent.name, key);
+        const value = await this.ctx.stateService.getOne(name, key, this.actor(principal), this.scope());
 
         return { key, value: value ?? null };
     }
 
     async set(name: string, key: string, data: KvWriteBody, principal: Principal): Promise<KvView> {
-        const agent = await this.readableAgent(name, principal, Permission.STATE_WRITE);
-        const body = await validateBody(this.kvValidator, data);
+        const value = await this.ctx.stateService.save(name, key, data, this.actor(principal), this.scope());
 
-        await this.ctx.stateService.set(agent.name, key, body.value);
-
-        return { key, value: body.value };
+        return { key, value };
     }
 
     async documents(name: string, collection: string, query: URLSearchParams, principal: Principal): Promise<{ data: StateDocumentView[] }> {
-        const agent = await this.readableAgent(name, principal, Permission.STATE_READ);
-
-        assertCollection(agent, collection);
-
-        const docs = await this.ctx.stateService.listDocuments(agent.name, collection, parseCollectionQuery(query));
+        const docs = await this.ctx.stateService.getDocuments(
+            name,
+            collection,
+            () => parseCollectionQuery(query),
+            this.actor(principal),
+            this.scope(),
+        );
 
         return { data: docs.map(serializeDoc) };
     }
 
-    /** `permission` for `{ name }` (403), the agent (404), then `chamvi_agent_read` for a private one (403). */
-    protected async readableAgent(
-        name: string,
-        principal: Principal,
-        permission: typeof Permission.STATE_READ | typeof Permission.STATE_WRITE,
-    ): Promise<Agent> {
-        await assertGranted(principal, this.ctx.clock, permission, { name });
+    /** The actor core's state service checks the principal with. */
+    protected actor(principal: Principal): ActorContext {
+        return buildActorContext(principal, this.ctx.clock);
+    }
 
-        const agent = requireAgent(this.ctx.agents, name);
-
-        await assertCanReadState(principal, agent, this.ctx.clock);
-
-        return agent;
+    /** The app's allowlisted agents: an agent outside them counts as private. */
+    protected scope(): AgentScope {
+        return { agents: this.ctx.agents };
     }
 }

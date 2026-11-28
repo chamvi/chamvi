@@ -126,6 +126,20 @@ describe('StateService actor methods', () => {
         expect(listDocuments).toHaveBeenCalledTimes(1);
     });
 
+    it('builds a query function only after the checks passed', async () => {
+        const failing = () => {
+            throw new Error('malformed query');
+        };
+        const reader = actorOf(grant(Permission.STATE_READ), grant(Permission.AGENT_READ));
+
+        // 403 for the private agent, 404 for the undeclared collection: the function never runs
+        await expect(service.getMany('vault', failing, actorOf(grant(Permission.STATE_READ)), scope)).rejects.toThrow('needs chamvi_agent_read');
+        await expect(service.getDocuments('vault', 'none', failing, reader, scope)).rejects.toThrow('declares no state collection');
+
+        await expect(service.getMany('vault', failing, reader, scope)).rejects.toThrow('malformed query');
+        expect(await service.getDocuments('vault', 'notes', () => QUERY, reader, scope)).toEqual([{ id: 'n1', doc: { t: 'x' } }]);
+    });
+
     it('refuses an invalid save body of a private agent with 403 before 400', async () => {
         const error = await errorOf(service.save('vault', 'k', 'x', actorOf(grant(Permission.STATE_WRITE)), scope));
 
