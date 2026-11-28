@@ -44,6 +44,16 @@ describe('RunAPI', () => {
         expect(JSON.parse(requests[2]!.body!)).toEqual(body);
     });
 
+    it('refuses a dot segment before any request is sent', async () => {
+        const { client, requests } = createKitClient([json({ id: 'x', steps: [] })]);
+
+        await expect(client.run.getOne('..')).rejects.toMatchObject({ status: 0, code: 'path_segment_invalid' });
+        await expect(client.run.cancel('.')).rejects.toMatchObject({ code: 'path_segment_invalid' });
+        await expect(client.run.getPeerView('')).rejects.toMatchObject({ code: 'path_segment_invalid' });
+
+        expect(requests).toEqual([]);
+    });
+
     it('reads a run as a peer view', async () => {
         const view: PeerRunViewWire = {
             id: 'r1',

@@ -36,11 +36,11 @@ export class RunAPI extends BaseAPI implements IRunAPI {
         return this.request<RunPage>({ url: `/runs${buildQueryString<RunListFields>(withDefaultSort(query))}`, method: 'GET' }, options);
     }
 
-    getOne(id: string, options?: APIRequestOptions): Promise<RunDetail> {
+    async getOne(id: string, options?: APIRequestOptions): Promise<RunDetail> {
         return this.request<RunDetail>({ url: path('runs', id), method: 'GET' }, options);
     }
 
-    getPeerView(id: string, options?: APIRequestOptions): Promise<PeerRunViewWire> {
+    async getPeerView(id: string, options?: APIRequestOptions): Promise<PeerRunViewWire> {
         return this.request<PeerRunViewWire>({ url: path('runs', id), method: 'GET' }, options);
     }
 

@@ -199,7 +199,8 @@ Per call (`APIRequestOptions`):
 | `toApiError`, `asApiError`, `retryDelayOf` | function | Build an `ApiError` from a response or any error; the retry delay of one |
 | `openConnectionStream` | function | A reconnecting reader of a connection's events |
 | `parseEventStream`, `sleep` | function | An SSE parser over a response body; an abortable wait |
-| `buildQueryString`, `decodeRunListQuery`, `path` | function | Encode a rapiq query; decode a run list query; join encoded path segments |
+| `buildQueryString`, `decodeRunListQuery`, `encodePathSegment` | function | Encode a rapiq query; decode a run list query; encode one path segment (`''`, `.`, `..` refused with `ApiError` `path_segment_invalid`) |
+| `PATH_SEGMENT_INVALID_ERROR_CODE` | constant | `'path_segment_invalid'` |
 | `buildRequestConfig`, `FIXED_TOKEN` | function, constant | The request config of `APIRequestOptions`; the marker of a fixed-token request the hook leaves alone |
 | `REQUEST_TIMEOUT_MS`, `RATE_LIMIT_BACKOFF_MS`, `RECONNECT_DELAYS_MS`, `FATAL_STREAM_STATUSES`, `RUN_LIST_QUERY_SCHEMA` | constant | `45_000`, `60_000`, `[1000, 2000, 5000, 10_000]`, `[400, 401, 403, 404]`, the `GET /runs` schema |
 

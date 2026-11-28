@@ -29,7 +29,7 @@ export class AgentAPI extends BaseAPI implements IAgentAPI {
         };
     }
 
-    startRun(name: string, body: StartRunBody, options?: APIRequestOptions): Promise<StartRunResult> {
+    async startRun(name: string, body: StartRunBody, options?: APIRequestOptions): Promise<StartRunResult> {
         return this.request<StartRunResult>({
             url: `${path('agents', name)}/runs`, 
             method: 'POST', 

@@ -43,6 +43,14 @@ The six storage errors (`EntityNotFoundError`, ...) move from `@chamvi/store` to
 | `import { EntityNotFoundError, StoreErrorCode } from '@chamvi/store'` | `import { EntityNotFoundError, ErrorCode } from '@chamvi/errors'` (or `@chamvi/app`) |
 | `new EntityNotFoundError('run')`, `new EntityRelationError('step', 'run')`, `new EntityInvalidError('run', 'save', 'status')` | `new EntityNotFoundError({ entity: 'run' })`, `new EntityRelationError({ entity: 'step', relation: 'run' })`, `new EntityInvalidError({ entity: 'run', operation: 'save', field: 'status' })` |
 
+### `@chamvi/http-kit`: path segments
+
+`path()` is no longer exported. Build a segment with `encodePathSegment(value)`: it percent-encodes like `encodeURIComponent` but keeps `@`, and refuses `''`, `.` and `..` with an `ApiError` (status 0, code `PATH_SEGMENT_INVALID_ERROR_CODE`, `path_segment_invalid`) before any request is sent. Every domain API builds its paths through it, so `client.run.getOne('..')` rejects instead of reading `/runs`; the URL of every other id is unchanged.
+
+| Before | After |
+|---|---|
+| `` path('runs', id) `` | `` `/runs/${encodePathSegment(id)}` `` |
+
 ## Upgrading to 0.12
 
 ### Env variable names

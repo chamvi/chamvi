@@ -33,7 +33,7 @@ Read before changing `@chamvi/ui` (serving, SPA, approvals), `@chamvi/http-kit` 
 | `ui-kit/src/config/` | `readConfig()`, `DEV_CONFIG` |
 | `app/router/` | `createUiRouter()`, `RouteName` |
 | `ui-kit/src/context/` | `AppContext` (config, `client: IClient`, session, storage), `APP_CONTEXT`, `useAppContext()` |
-| `http-kit/src/` | `client/` (`Client`, `createClient()`, `IClient`), `domains/` (`BaseAPI`: deadline and error mapping; one folder per domain with its wire types), `hook/` (`ClientAuthenticationHook`), `error/` (`ApiError`, `toApiError()`, `asApiError()`, `retryDelayOf()`, `RATE_LIMIT_BACKOFF_MS`), `helpers/` (`path()`, `buildQueryString()`), `sse/` (`parseEventStream()` over hapic's, `sleep()`, `RECONNECT_DELAYS_MS`) |
+| `http-kit/src/` | `client/` (`Client`, `createClient()`, `IClient`), `domains/` (`BaseAPI`: deadline and error mapping; one folder per domain with its wire types), `hook/` (`ClientAuthenticationHook`), `error/` (`ApiError`, `toApiError()`, `asApiError()`, `retryDelayOf()`, `RATE_LIMIT_BACKOFF_MS`), `helpers/` (`encodePathSegment()`: `''`, `.`, `..` refused as `ApiError` `path_segment_invalid` before any request, the only `encodeURIComponent`; a package-internal `path()` over it that every domain builds its URLs with; `buildQueryString()`), `sse/` (`parseEventStream()` over hapic's, `sleep()`, `RECONNECT_DELAYS_MS`) |
 | `app/sse/` | `openRunStream()` |
 | `ui-kit/src/auth/` | `createSession()`, `createAuthGuard()` (`guard.ts`), `createAuthupAdapter()` (`authup.ts`, lazily imported), `safeReturnPath()`, `clearStorage()`, `createSessionCookies()` (`asserts.ts`), storage keys |
 | `ui-kit/src/polling/` | `createPoller()`, `documentVisibility()` (`asserts.ts`), `IPageVisibility` |
