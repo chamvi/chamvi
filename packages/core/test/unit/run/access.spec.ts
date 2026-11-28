@@ -167,6 +167,31 @@ describe('RunService actor methods', () => {
             expect(conditions).toContainEqual(inArray('agent', ['echo']));
         });
 
+        it('scopes an explicit agent without its filter to that agent', async () => {
+            const list = vi.spyOn(service, 'list');
+            const actor = actorOf(restricted(Permission.RUN_READ, { agent: 'echo' }));
+
+            const { data, meta } = await service.getMany({ ...LIST, agent: 'echo' }, actor, scope);
+
+            expect(conditionsOf(list.mock.calls[0]![0].filters)).toEqual([eq('agent', 'echo')]);
+            expect(data.map((run) => run.id)).toEqual([ECHO]);
+            expect(meta.total).toBe(1);
+        });
+
+        it('keeps one agent condition when the filters name the agent', async () => {
+            const list = vi.spyOn(service, 'list');
+            const actor = actorOf(grant(Permission.AGENT_READ));
+
+            const { meta } = await service.getMany({
+                ...LIST, 
+                agent: 'vault', 
+                filters: [eq('agent', 'vault')], 
+            }, actor, scope);
+
+            expect(conditionsOf(list.mock.calls[0]![0].filters)).toEqual([eq('agent', 'vault')]);
+            expect(meta.total).toBe(1);
+        });
+
         it('adds no agent filter for an unrestricted chamvi_agent_read', async () => {
             const list = vi.spyOn(service, 'list');
 

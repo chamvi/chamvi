@@ -14,7 +14,7 @@ import {
     inArray,
     ne,
 } from '@rapiq/core';
-import type { ICondition, IQuery } from '@rapiq/core';
+import type { ICondition, IFilter, IQuery } from '@rapiq/core';
 import type { EntityFindManyResult, IRunRepository } from '@chamvi/store';
 import type { Run } from '@chamvi/core-kit';
 import { forbidden } from '../actor/helpers.ts';
@@ -46,6 +46,11 @@ import type {
     RunServiceContext,
     RunUpdateOptions,
 } from './types.ts';
+
+/** Whether the filter is `agent eq <name>`. */
+function isAgentFilter(filter: IFilter, name: string): boolean {
+    return filter.field === 'agent' && filter.operator === 'eq' && filter.value === name;
+}
 
 /** The grants that read some agent's runs: any one of them opens the listing. */
 const RUN_LISTING_PERMISSIONS = [Permission.RUN_READ, Permission.AGENT_READ, Permission.AGENT_RUN] as const;
@@ -308,7 +313,22 @@ export class RunService extends AbstractEntityService implements IRunService {
 
     async getMany(input: RunListInput, actor: ActorContext, options: AgentScope): Promise<EntityFindManyResult<Run>> {
         const agents = await this.listableAgents(input.agent, actor, options);
-        const filters = agents === undefined ? input.filters : [...input.filters, inArray('agent', [...agents])];
+        const filters = [...input.filters];
+
+        if (agents !== undefined) {
+            filters.push(inArray('agent', [...agents]));
+        }
+
+        // the agent the check passed for scopes the listing, whatever the filters say
+        const { agent } = input;
+
+        if (agent !== undefined) {
+            const named = filters.some((filter) => isAgentFilter(filter, agent));
+
+            if (!named) {
+                filters.push(eq('agent', agent));
+            }
+        }
 
         // one query with the scope joined in, so `total` and the page stay exact
         return this.list(defineQuery({
