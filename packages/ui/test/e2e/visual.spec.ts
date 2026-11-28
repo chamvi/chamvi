@@ -11,11 +11,11 @@ import {
     VOLATILE,
     freeze,
     normalize,
-    pinRun,
     renderedText,
     settle,
     signInBeforeLoad,
 } from './visual.ts';
+import { pinRun } from './pins.ts';
 
 /** Pixels only on Linux: the baselines are rendered there (CI and the Playwright image). */
 const SCREENSHOTS = process.platform === 'linux';

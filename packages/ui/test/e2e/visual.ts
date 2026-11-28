@@ -5,14 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { expect } from '@playwright/test';
-import type {
-    APIRequestContext,
-    Locator,
-    Page,
-    Request,
-} from '@playwright/test';
-import { E2E_ORIGIN, E2E_TOKEN } from './demo/constants.ts';
+import type { Locator, Page, Request } from '@playwright/test';
+import { E2E_TOKEN } from './demo/constants.ts';
+
+// The same file in every Playwright suite of a dashboard package (ui, tool-mail-ui, chat-whatsapp-ui):
+// each suite's `demo/constants.ts` exports its `E2E_TOKEN`.
 
 /** The attributes `renderedText()` lists after the text: what a screen reader or a tooltip shows. */
 const TEXT_ATTRIBUTES = ['aria-label', 'title', 'placeholder', 'alt'];
@@ -105,13 +102,15 @@ export async function freeze(page: Page): Promise<void> {
 }
 
 /**
- * What a screenshot masks: values that change with the clock. A relative
- * time, and a 24 h strip with run marks (a mark moves left as time passes;
- * an empty strip stays in the picture).
+ * What a screenshot masks: values that change with the clock or the run. A
+ * relative time, a 24 h strip with run marks (a mark moves left as time
+ * passes; an empty strip stays in the picture) and a pairing QR (a new code
+ * per pairing).
  */
 export const VOLATILE = (page: Page): Locator[] => [
     page.locator('time'),
     page.getByTestId('activity').filter({ has: page.locator('i') }),
+    page.getByTestId('connection-qr'),
 ];
 
 /** How long no request may be open before the network counts as idle. */
@@ -155,31 +154,6 @@ export async function settle(page: Page): Promise<void> {
         page.off('requestfinished', onDone);
         page.off('requestfailed', onDone);
     }
-}
-
-const AUTH = { authorization: `Bearer ${E2E_TOKEN}` };
-
-/**
- * The one waiting `deploy` run every pin shows, its id. Keyed, so each pin
- * spec and a retry find the same run: what the pages count stays one run.
- */
-export async function pinRun(request: APIRequestContext): Promise<string> {
-    const response = await request.post(`${E2E_ORIGIN}/agents/deploy/runs`, {
-        headers: { ...AUTH, 'idempotency-key': 'ui-pins' },
-        data: { payload: { env: 'prod' } },
-    });
-
-    expect(response.status()).toBe(202);
-
-    const { runId } = await response.json() as { runId: string };
-
-    await expect.poll(async () => {
-        const run = await request.get(`${E2E_ORIGIN}/runs/${runId}`, { headers: AUTH });
-
-        return (await run.json() as { status: string }).status;
-    }, { timeout: 15_000 }).toBe('waiting');
-
-    return runId;
 }
 
 /** Signs the page in before it loads: the token the login page would keep. */

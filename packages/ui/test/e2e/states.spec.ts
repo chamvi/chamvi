@@ -7,7 +7,8 @@
 
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
-import { pinRun, settle, signInBeforeLoad } from './visual.ts';
+import { pinRun } from './pins.ts';
+import { settle, signInBeforeLoad } from './visual.ts';
 
 /** What a control's look is made of (Chromium reads the `font` shorthand as empty). */
 const PROPERTIES = [
