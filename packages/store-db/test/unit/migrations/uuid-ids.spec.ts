@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { DataSource, Table } from 'typeorm';
+import { Table } from 'typeorm';
+import type { DataSource } from 'typeorm';
 import { assertSchemaMatchesMetadata } from 'typeorm-extension';
 import { uuidv7 } from 'uuidv7';
 import {
@@ -111,22 +112,56 @@ describePostgres('uuid ids migration', () => {
         }
     };
 
-    /** A database on the released chain only, built by its own `up()`s: the schema `down()` must restore. */
-    const releasedSchema = async () => {
+    /**
+     * A database on the released chain only, built by the released
+     * migrations' own `up()`s and recorded in the migrations table, so the
+     * start never depends on the migration under test.
+     */
+    const releasedDatabase = async () => {
         const ds = await create({ migrate: false });
         const runner = ds.createQueryRunner();
-        const released = STORE_MIGRATIONS.findIndex((migration) => migration.name === RELEASED);
+        const released = STORE_MIGRATIONS.slice(0, STORE_MIGRATIONS.findIndex((migration) => migration.name === RELEASED) + 1);
 
         try {
-            for (const Migration of STORE_MIGRATIONS.slice(0, released + 1)) {
+            for (const Migration of released) {
                 await new Migration().up(runner);
+            }
+
+            // the table TypeORM's migration executor creates, with a row per applied migration
+            await runner.createTable(new Table({
+                name: 'migrations',
+                columns: [
+                    {
+                        name: 'id',
+                        type: 'integer',
+                        isGenerated: true,
+                        generationStrategy: 'increment',
+                        isPrimary: true,
+                    },
+                    { name: 'timestamp', type: 'bigint' },
+                    { name: 'name', type: 'varchar' },
+                ],
+            }));
+
+            for (const Migration of released) {
+                const { name } = new Migration();
+
+                await runner.query('INSERT INTO "migrations" ("timestamp", "name") VALUES ($1, $2)', [name!.slice(-13), name]);
             }
         } finally {
             await runner.release();
         }
 
-        return describeTables(ds);
+        expect(await pendingMigrations(ds)).toEqual([UUID_IDS]);
+
+        return ds;
     };
+
+    /** The schema `down()` must restore: the released `up()`s alone. */
+    const releasedSchema = async () => describeTables(await releasedDatabase());
+
+    /** The millisecond timestamp a uuid v7 carries in its first 48 bits. */
+    const uuidTime = (id: string) => Number.parseInt(id.replaceAll('-', '').slice(0, 12), 16);
 
     const toReleased = async (ds: DataSource) => {
         await ds.undoLastMigration({ transaction: 'each' });
@@ -193,9 +228,8 @@ describePostgres('uuid ids migration', () => {
     });
 
     it('moves stored steps, items and the lock token to uuid ids with every row, foreign key and read order, and reverts', async () => {
-        const ds = await create();
+        const ds = await releasedDatabase();
 
-        await toReleased(ds);
         await seed(ds);
 
         const steps = await stepRows(ds, 'id');
@@ -219,6 +253,18 @@ describePostgres('uuid ids migration', () => {
         expect(new Set(stepIds).size).toBe(steps.length);
         expect(itemIds.every((id) => UUID.test(id))).toBe(true);
         expect(new Set(itemIds).size).toBe(items.length);
+
+        // each backfilled uuid carries its row's time
+        const timed: { id: string, at: Date }[] = [
+            ...await ds.query(`SELECT id, started_at AS at FROM "${TableName.STEPS}"`),
+            ...await ds.query(`SELECT id, created_at AS at FROM "${TableName.CONVERSATION_ITEMS}"`),
+        ];
+
+        expect(timed).toHaveLength(steps.length + items.length);
+
+        for (const row of timed) {
+            expect(uuidTime(row.id), row.id).toBe(row.at.getTime());
+        }
 
         const migratedToken: {
             id: string,
@@ -284,6 +330,25 @@ describePostgres('uuid ids migration', () => {
             status: 'sent',
         });
 
+        // a created item's given sequence is ignored too: the insert takes the next one and returns it
+        const saved = await repository.save(repository.create({
+            id: uuidv7(),
+            sequence: 1,
+            scopeId,
+            generation: 0,
+            key: 'user:saved',
+            runId,
+            createdAt: new Date('2026-01-01T00:00:00Z'),
+            role: 'user',
+            text: 'saved',
+            bytes: 5,
+            status: 'sent',
+        }));
+
+        expect(saved.sequence).toBeGreaterThan(added.sequence);
+        expect((await repository.findOneById(saved.id))?.sequence).toBe(saved.sequence);
+        await repository.remove(saved);
+
         expect(replaced.id).toBe(itemIds[0]);
         expect(replaced.sequence).toBe(Number(items[0]!.id));
         expect(added.sequence).toBeGreaterThan(Number(items.at(-1)!.id));
@@ -335,5 +400,56 @@ describePostgres('uuid ids migration', () => {
         expect((await store.conversationService.findItems(scope, { limit: 10, offset: 0 })).data.map((item) => item.id))
             .toEqual(['user:z', 'assistant:a:0', 'user:m', 'user:new']);
         expect(await store.lockService.acquire('b', 'o', 60_000)).toBeGreaterThan(Number(before.token));
+    });
+
+    it('migrates an empty lock token table both ways, and the next token reseeds the counter row', async () => {
+        const ds = await releasedDatabase();
+
+        await ds.query(`TRUNCATE "${TableName.LOCK_TOKENS}"`);
+        await migrateStore(ds);
+        await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
+        expect(await ds.query(`SELECT id FROM "${TableName.LOCK_TOKENS}"`)).toEqual([]);
+
+        const store = createTestServices({ dataSource: ds });
+        const floor = Date.now() * 1000;
+        const first = (await store.lockService.acquire('a', 'o', 60_000))!;
+        const seeded: {
+            id: string,
+            key: string,
+            value: string
+        }[] = await ds.query(
+            `SELECT id, key, value FROM "${TableName.LOCK_TOKENS}"`,
+        );
+
+        expect(first).toBeGreaterThanOrEqual(floor);
+        expect(seeded).toEqual([{
+            id: expect.stringMatching(UUID),
+            key: 'lock',
+            value: String(first),
+        }]);
+
+        // down and up again on an empty table: the next token reseeds above the stored lease
+        await ds.query(`TRUNCATE "${TableName.LOCK_TOKENS}"`);
+        await toReleased(ds);
+        expect(await ds.query(`SELECT id FROM "${TableName.LOCK_TOKENS}"`)).toEqual([]);
+        await migrateStore(ds);
+        await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
+
+        const second = (await store.lockService.acquire('b', 'o', 60_000))!;
+        const reseeded: {
+            id: string,
+            key: string,
+            value: string
+        }[] = await ds.query(
+            `SELECT id, key, value FROM "${TableName.LOCK_TOKENS}"`,
+        );
+
+        expect(second).toBeGreaterThan(first);
+        expect(reseeded).toEqual([{
+            id: expect.stringMatching(UUID),
+            key: 'lock',
+            value: String(second),
+        }]);
+        expect(reseeded[0]!.id).not.toBe(seeded[0]!.id);
     });
 });

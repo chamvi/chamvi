@@ -28,6 +28,7 @@ export class StepEntity {
     @Column({
         type: 'bigint',
         generated: 'increment',
+        insert: false,
         update: false,
     })
     sequence!: string;

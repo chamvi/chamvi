@@ -31,6 +31,7 @@ export class ConversationItemEntity {
     @Column({
         type: 'bigint',
         generated: 'increment',
+        insert: false,
         update: false,
     })
     sequence!: string;

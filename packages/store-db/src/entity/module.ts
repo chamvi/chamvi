@@ -174,13 +174,6 @@ export abstract class EntityRepositoryAdapter<T extends EntityRecord, E extends 
         const values = this.toEntity(entity);
 
         if (this.marks.created.has(entity)) {
-            // a generated column (a storage order) is the database's: the insert fills it in
-            for (const column of this.metadata.columns) {
-                if (column.isGenerated && !column.isPrimary) {
-                    delete values[column.propertyName];
-                }
-            }
-
             await this.persist(async () => {
                 await this.assertReferences(values);
                 await this.repository.insert(values as never);
