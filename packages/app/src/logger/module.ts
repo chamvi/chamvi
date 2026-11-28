@@ -6,10 +6,11 @@
  */
 
 import { systemClock } from '@chamvi/core';
+import type { ILogger } from '@chamvi/core';
 import type { LogLevel } from '../config/types.ts';
 import { LOG_LEVEL_RANK } from './constants.ts';
 import { serializeError, toLine } from './helpers.ts';
-import type { ILogger, LoggerOptions } from './types.ts';
+import type { LoggerOptions } from './types.ts';
 
 function writeStderr(line: string): void {
     process.stderr.write(`${line}\n`);

@@ -15,13 +15,14 @@ import type {
     ChannelSubscription,
     ConversationRef,
     IConnectionHandle,
+    ILogger,
 } from '@chamvi/core';
 import {
     AppToken,
     ModuleName,
     approvalUrlOf,
 } from '@chamvi/app';
-import type { IContainer, ILogger, IModule } from '@chamvi/app';
+import type { IContainer, IModule } from '@chamvi/app';
 import type {
     ChatApprovalRef,
     ChatChannel,

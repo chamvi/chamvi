@@ -5,9 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IClock } from '@chamvi/core';
+import type { IClock, ILogger } from '@chamvi/core';
 import { createLogger } from '../../src/logger/module.ts';
-import type { ILogger } from '../../src/logger/types.ts';
 
 export type LogEntry = {
     level: string;

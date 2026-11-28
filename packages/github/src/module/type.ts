@@ -6,7 +6,7 @@
  */
 
 import { envSecret, resolveStoredConnection } from '@chamvi/app';
-import type { Env, ILogger, StoredConnection } from '@chamvi/app';
+import type { Env, StoredConnection } from '@chamvi/app';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type {
     ConnectionField,
@@ -14,6 +14,7 @@ import type {
     ConnectionValue,
     ConnectionValues,
     DeclaredConnection,
+    ILogger,
     ResolvedConnection,
 } from '@chamvi/core';
 import type { ConnectionFieldSource } from '@chamvi/core-kit';

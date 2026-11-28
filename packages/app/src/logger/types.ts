@@ -8,13 +8,6 @@
 import type { IClock } from '@chamvi/core';
 import type { LogLevel } from '../config/types.ts';
 
-export interface ILogger {
-    error(message: string, error?: unknown, fields?: Record<string, unknown>): void;
-    warn(message: string, fields?: Record<string, unknown>): void;
-    info(message: string, fields?: Record<string, unknown>): void;
-    debug(message: string, fields?: Record<string, unknown>): void;
-}
-
 export type LoggerOptions = {
     /** Entries below it are dropped; default `info`. */
     level?: LogLevel;

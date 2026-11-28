@@ -7,6 +7,7 @@
 
 import { ChamviError } from '@chamvi/errors';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
+import type { ILogger } from '@chamvi/core';
 import type * as storeDb from '@chamvi/store-db';
 import type { DatabaseKind } from '@chamvi/store-db';
 import type { IContainer } from 'eldin';
@@ -15,7 +16,6 @@ import type { ListSchema } from '@chamvi/http';
 import type { DataSource } from 'typeorm';
 import type { AppConfig } from '../../config/types.ts';
 import type { Env } from '../../env/types.ts';
-import type { ILogger } from '../../logger/types.ts';
 import { APP_ERROR_CODE, AppToken, ModuleName } from '../../module/constants.ts';
 import { throwIfStopped } from '../../module/helpers/index.ts';
 import type { AppContext } from '../../module/types.ts';

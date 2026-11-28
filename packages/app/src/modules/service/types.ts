@@ -5,8 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IClock } from '@chamvi/core';
-import type { ILogger } from '../../logger/types.ts';
+import type { IClock, ILogger } from '@chamvi/core';
 
 /** A service with expired records to remove (the lock, idempotency and limit services). */
 export type PurgingService = {
