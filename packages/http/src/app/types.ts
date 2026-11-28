@@ -7,6 +7,7 @@
 
 import type {
     Agent,
+    IAgentRegistry,
     IChannel,
     IClock,
     IConnectionConfigStore,
@@ -233,11 +234,9 @@ export type HttpRoute = {
 // #endregion routes
 
 /** The app's live view of the engine's agents (filtered by `HttpAppOptions.agents`); internal. */
-export type HttpAgents = {
-    get(name: string): Agent | undefined;
+export type HttpAgents = IAgentRegistry & {
     /** In registration order, a new array. */
     list(): Agent[];
-    names(): string[];
 };
 
 /** Shared by every route module; internal. */

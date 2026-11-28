@@ -13,7 +13,7 @@ import type {
     Step,
 } from '@chamvi/core-kit';
 import { isObject } from 'smob';
-import { agentResource } from '../../auth/helpers/index.ts';
+import { agentResource } from '@chamvi/core';
 import type { HttpAgents } from '../../app/types.ts';
 
 /** An invoker without its `bindings` and `authorization`: a reader must not learn another principal's grants. */

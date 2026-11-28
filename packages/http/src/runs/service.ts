@@ -10,12 +10,19 @@ import {
     AGENT_CHANNEL_NAME,
     AgentNotFoundError,
     RunNotFoundError,
+    agentNotFound,
+    agentResource,
     forbidden,
+    requireAgent,
+    validateBody,
 } from '@chamvi/core';
 import type {
+    ActorContext,
     Agent,
+    AgentScope,
     ChannelSubscription,
     DispatchEnvelope,
+    RunListInput,
 } from '@chamvi/core';
 import { ApprovalValidator, PeerStartValidator, RunValidator } from '@chamvi/core-kit';
 import type {
@@ -26,33 +33,23 @@ import type {
     StartRunBody,
 } from '@chamvi/core-kit';
 import { BadRequestError } from '@chamvi/errors';
-import { and, defineQuery, inArray } from '@rapiq/core';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Container } from 'validup';
-import { agentNotFound, requireAgent } from '../agents/helpers/index.ts';
-import {
-    agentResource,
-    assertGranted,
-    isGranted,
-    toInvoker,
-} from '../auth/helpers/index.ts';
+import { buildActorContext, isGranted, toInvoker } from '../auth/helpers/index.ts';
 import type { Principal } from '../auth/types.ts';
 import { HTTP_CHANNEL_NAME } from '../channels/constants.ts';
-import { readIdempotencyHeader, validateBody, validatePayload } from '../request/helpers/index.ts';
+import { readIdempotencyHeader, validatePayload } from '../request/helpers/index.ts';
 import {
-    assertCanListRuns,
     decodeAttachments,
     hasPeerFields,
-    loadApprovableRun,
     loadPeerRun,
-    loadReadableRun,
     loadRunArtifact,
     parseRunListQuery,
     requireHttpSubscription,
     serializeRun,
     serializeStep,
     toPeerRunView,
-    toRunListRequest,
+    toRunListInput,
 } from './helpers/index.ts';
 import type {
     ApproveRunView,
@@ -63,7 +60,6 @@ import type {
     RunFindFilter,
     RunFindView,
     RunHttpServiceContext,
-    RunListRequest,
     RunListView,
     RunReadView,
     StartRunInput,
@@ -147,29 +143,18 @@ export class RunHttpService implements IRunHttpService {
     }
 
     async find(filter: RunFindFilter, principal: Principal): Promise<RunFindView> {
-        return this.findRuns(toRunListRequest(filter), principal);
+        return this.findRuns(toRunListInput(filter), principal);
     }
 
-    /**
-     * The runs of a checked listing request the principal may list (403
-     * otherwise): one rapiq query to core's run service, the permission
-     * scope (`assertCanListRuns()`) joined to its filters, so `total` and
-     * the page stay exact.
-     */
-    protected async findRuns(request: RunListRequest, principal: Principal): Promise<RunFindView> {
-        const agents = await assertCanListRuns(this.ctx, principal, request.agent);
-        const filters = agents === undefined ? request.filters : [...request.filters, inArray('agent', [...agents])];
-        const { data, meta } = await this.ctx.runService.list(defineQuery({
-            ...(filters.length > 0 ? { filters: and(...filters) } : {}),
-            sorts: request.sorts,
-            pagination: { limit: request.limit, offset: request.offset },
-        }));
+    /** The runs of a checked listing request the principal may list (403 otherwise), by core's `RunService.getMany()`. */
+    protected async findRuns(request: RunListInput, principal: Principal): Promise<RunFindView> {
+        const { data, meta } = await this.ctx.runService.getMany(request, this.actor(principal), this.scope());
 
         return { data, total: meta.total };
     }
 
     getReadable(id: string, principal: Principal): Promise<Run> {
-        return loadReadableRun(this.ctx, principal, id);
+        return this.ctx.runService.getOne(id, this.actor(principal), this.scope());
     }
 
     async get(id: string, principal: Principal): Promise<RunReadView> {
@@ -209,15 +194,8 @@ export class RunHttpService implements IRunHttpService {
             return { runId: id, status: (await this.ctx.engine.getRun(id))?.status };
         }
 
-        await assertGranted(principal, this.ctx.clock, Permission.RUN_CANCEL);
-
-        const target = await this.ctx.runService.findOne(id);
-
         // a missing run is the engine's 404
-        if (target && !await isGranted(principal, Permission.RUN_CANCEL, this.ctx.clock, { agent: target.agent })) {
-            throw forbidden(Permission.RUN_CANCEL);
-        }
-
+        await this.ctx.runService.getCancelable(id, this.actor(principal));
         await this.ctx.engine.cancel(id);
 
         const run = await this.ctx.engine.getRun(id);
@@ -243,29 +221,31 @@ export class RunHttpService implements IRunHttpService {
     async approve(id: string, data: ApproveBody, principal: Principal): Promise<ApproveRunView> {
         this.refusePeerAnswer(id, principal);
 
+        const actor = this.actor(principal);
         // authorize against the run's agent before validating the body
-        const run = await loadApprovableRun(this.ctx, principal, id);
+        const run = await this.ctx.runService.getAnswerable(id, actor, this.scope());
         const body = await validateBody(this.approveValidator, data);
 
-        return this.applyAnswer(run.id, body, principal);
+        return this.applyAnswer(run.id, body, actor);
     }
 
     async answer(id: string, answer: ApproveBody, principal: Principal): Promise<ApproveRunView> {
         this.refusePeerAnswer(id, principal);
 
-        const run = await loadApprovableRun(this.ctx, principal, id);
+        const actor = this.actor(principal);
+        const run = await this.ctx.runService.getAnswerable(id, actor, this.scope());
 
-        return this.applyAnswer(run.id, answer, principal);
+        return this.applyAnswer(run.id, answer, actor);
     }
 
-    /** The engine call of an answer whose run the principal may approve (the engine's 404, 409). */
-    protected async applyAnswer(runId: string, answer: ApproveBody, principal: Principal): Promise<ApproveRunView> {
+    /** The engine call of an answer whose run the actor may approve (the engine's 404, 409). */
+    protected async applyAnswer(runId: string, answer: ApproveBody, actor: ActorContext): Promise<ApproveRunView> {
         await this.ctx.engine.approve(runId, {
             approvalId: answer.approvalId,
             approved: answer.approved,
             ...(answer.reason !== undefined ? { reason: answer.reason } : {}),
             ...(answer.selected !== undefined ? { selected: answer.selected } : {}),
-            approver: toInvoker(principal),
+            approver: actor.identity,
         });
 
         return { runId, status: 'queued' };
@@ -294,6 +274,16 @@ export class RunHttpService implements IRunHttpService {
         }
 
         return { ...body, attachments: decodeAttachments(body.attachments) };
+    }
+
+    /** The app's allowlisted agents: an agent outside them counts as private. */
+    protected scope(): AgentScope {
+        return { agents: this.ctx.agents };
+    }
+
+    /** The actor core's run service checks the principal with. */
+    protected actor(principal: Principal): ActorContext {
+        return buildActorContext(principal, this.ctx.clock);
     }
 
     /** The peer `principal` authenticates as (`engine.peers.recognize()`), if any. */

@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export * from './access.ts';
 export * from './artifact.ts';
 export * from './attachments.ts';
 export * from './list-query.ts';

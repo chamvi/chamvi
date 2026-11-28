@@ -6,14 +6,16 @@
  */
 
 import type { EntityFindManyResult, IRunRepository } from '@chamvi/store';
+import type { IFilter, IQuery } from '@rapiq/core';
 import type {
     Run,
     RunStatusLiteral,
     TriggerEnvelope,
     WaitPoint,
 } from '@chamvi/core-kit';
+import type { ActorContext } from '../actor/types.ts';
 import type { IClock } from '../clock/index.ts';
-import type { IQuery } from '@rapiq/core';
+import type { AgentScope } from '../permission/types.ts';
 
 
 export type RunContext = {
@@ -48,6 +50,15 @@ export type RunFindOptions = {
     limit?: number;
     offset?: number;
     order?: 'asc' | 'desc';
+};
+
+/** A checked run listing (an API query, decoded): its filters, an optional agent, the page and the sorts. */
+export type RunListInput = {
+    filters: IFilter[];
+    agent?: string;
+    limit: number;
+    offset: number;
+    sorts: Record<string, 'ASC' | 'DESC'>;
 };
 
 export type RunUpdateOptions = {
@@ -119,4 +130,31 @@ export interface IRunService {
 
     /** Extends the lease to now + ttlMs; only for the current, unexpired owner. */
     renewClaim(id: string, owner: string, ttlMs: number): Promise<boolean>;
+
+    /**
+     * The run for the actor: RunNotFoundError for a missing run and for one
+     * of an agent the actor may not read under the private-agent rule (the
+     * same error, so run ids are not probed), else 403 `chamvi_run_read`.
+     */
+    getOne(id: string, actor: ActorContext, options: AgentScope): Promise<Run>;
+
+    /**
+     * The runs of a checked listing the actor may list, else 403: one
+     * `list()` query with the permission scope (an `agent` filter) joined
+     * to the input's filters, so `total` and the page stay exact.
+     */
+    getMany(input: RunListInput, actor: ActorContext, options: AgentScope): Promise<EntityFindManyResult<Run>>;
+
+    /**
+     * The run the actor may cancel: 403 without `chamvi_run_cancel` for some
+     * run, then for the found run's `{ agent }`; `undefined` for a missing run.
+     */
+    getCancelable(id: string, actor: ActorContext): Promise<Run | undefined>;
+
+    /**
+     * The run the actor may answer approvals of: RunNotFoundError for a
+     * missing run (no read permission needed), 403 without
+     * `chamvi_agent_approve` for its agent.
+     */
+    getAnswerable(id: string, actor: ActorContext, options: AgentScope): Promise<Run>;
 }

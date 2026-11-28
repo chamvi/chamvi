@@ -8,6 +8,8 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { IStateDocumentRepository, IStateRepository } from '@chamvi/store';
 import type { IQuery } from '@rapiq/core';
+import type { ActorContext } from '../actor/types.ts';
+import type { AgentScope } from '../permission/types.ts';
 
 export type StateSchema = Record<string, StandardSchemaV1>;
 export type Infer<T extends StandardSchemaV1> = StandardSchemaV1.InferOutput<T>;
@@ -39,6 +41,13 @@ export type StateEntryValue = { key: string; value: unknown };
 
 /** One document of a collection: its id and the document. */
 export type StateDocumentValue = { id: string; doc: unknown };
+
+/**
+ * The rapiq query of an actor listing, or a function that builds it: a
+ * function runs only after the checks pass, so a caller's malformed-query
+ * 400 never precedes the 403 or 404.
+ */
+export type StateQueryInput = IQuery | (() => IQuery);
 
 /**
  * The operations of `StateService`. Anything that satisfies it can stand in
@@ -101,4 +110,24 @@ export interface IStateService {
 
     /** Removes the document; a missing one is a no-op. */
     deleteDocument(agent: string, collection: string, id: string): Promise<void>;
+
+    /**
+     * The agent's keys by a rapiq query (`list`), for the actor. Each actor
+     * method checks, in this order: `chamvi_state_read` (`save`:
+     * `chamvi_state_write`) for `{ name }` (403), the agent in
+     * `options.agents` (404), then for a private agent `chamvi_agent_read` (403).
+     */
+    getMany(agent: string, query: StateQueryInput, actor: ActorContext, options: AgentScope): Promise<StateEntryValue[]>;
+
+    /** The value of the key (`findOne`), for the actor, after the checks of `getMany`. */
+    getOne(agent: string, key: string, actor: ActorContext, options: AgentScope): Promise<unknown>;
+
+    /**
+     * Validates the untrusted body (`{ value }`, 400) after the checks of `getMany`, then
+     * `set`s its value; resolves the validated value.
+     */
+    save(agent: string, key: string, data: unknown, actor: ActorContext, options: AgentScope): Promise<unknown>;
+
+    /** A collection's documents (`listDocuments`) after the checks of `getMany`; 404 for a collection the agent does not declare. */
+    getDocuments(agent: string, collection: string, query: StateQueryInput, actor: ActorContext, options: AgentScope): Promise<StateDocumentValue[]>;
 }

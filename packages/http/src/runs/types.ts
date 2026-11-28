@@ -19,7 +19,6 @@ import type {
     Step,
     WaitPoint,
 } from '@chamvi/core-kit';
-import type { IFilter } from '@rapiq/core';
 import type { HttpContext } from '../app/types.ts';
 import type { Principal } from '../auth/types.ts';
 import type { HTTP_CHANNEL_NAME, MCP_CHANNEL_NAME } from '../channels/constants.ts';
@@ -51,20 +50,6 @@ export type StartRunRequestBody = {
     role?: string;
     /** Peer starts only: the caller's lineage. Any other principal sending it gets 400. */
     peer?: PeerStartBody;
-};
-
-/**
- * `GET /runs` after decoding and validation; internal: rapiq filters on the
- * run's fields (`agent`, `parentRunId`, `status`, `waiting`), the name
- * `filter[agent]` gave (the permission check reads it), the page and the
- * sorts (`createdAt` only).
- */
-export type RunListRequest = {
-    filters: IFilter[];
-    agent?: string;
-    limit: number;
-    offset: number;
-    sorts: Record<string, 'ASC' | 'DESC'>;
 };
 
 // #region services
@@ -162,7 +147,7 @@ export interface IRunHttpService {
      */
     dispatch(input: DispatchRunInput, principal: Principal): Promise<StartRunView>;
     list(query: URLSearchParams, principal: Principal): Promise<RunListView>;
-    /** The runs the principal may list (403 otherwise, see `assertCanListRuns()`), as stored. */
+    /** The runs the principal may list (403 otherwise, see core's `RunService.getMany()`), as stored. */
     find(filter: RunFindFilter, principal: Principal): Promise<RunFindView>;
     /** The run once the principal may read it: 404 for a missing or protected agent's run, else 403. */
     getReadable(id: string, principal: Principal): Promise<Run>;

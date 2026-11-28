@@ -5,14 +5,17 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IConnectionHandle } from '@chamvi/core';
-import { ConflictError, NotFoundError } from '@chamvi/errors';
-import type { Principal } from '../../auth/types.ts';
 import {
     assertConnectionAccess,
-    canRead,
-    canWrite,
+    canReadConnection,
+    canWriteConnection,
     connectionResource,
+} from '@chamvi/core';
+import type { ActorContext, IConnectionHandle } from '@chamvi/core';
+import { ConflictError, NotFoundError } from '@chamvi/errors';
+import { buildActorContext } from '../../auth/helpers/index.ts';
+import type { Principal } from '../../auth/types.ts';
+import {
     listConnections,
     requireHandle,
     serializeConnection,
@@ -29,25 +32,27 @@ export class ConnectionHttpService implements IConnectionHttpService {
     }
 
     async list(principal: Principal): Promise<{ data: ConnectionView[] }> {
+        const actor = this.actor(principal);
         const views = await listConnections(this.ctx);
-        const readable = await Promise.all(views.map((view) => canRead(this.ctx, principal, connectionResource(view.name, view.type))));
+        const readable = await Promise.all(views.map((view) => canReadConnection(actor, connectionResource(view.name, view.type))));
 
         return { data: views.filter((_view, index) => readable[index]) };
     }
 
     async get(name: string, principal: Principal): Promise<ConnectionDetailView> {
+        const actor = this.actor(principal);
         // the handle's status joined with what is declared and stored
         const view = (await listConnections(this.ctx)).find((candidate) => candidate.name === name);
         const handle = this.ctx.connections().find((candidate) => candidate.name === name);
         const resource = connectionResource(name, view?.type);
 
-        await assertConnectionAccess(this.ctx, principal, resource);
+        await assertConnectionAccess(actor, resource);
 
         if (!view) {
             throw new NotFoundError({ message: `The connection "${name}" does not exist.` });
         }
 
-        if (!await canWrite(this.ctx, principal, resource)) {
+        if (!await canWriteConnection(actor, resource)) {
             return view;
         }
 
@@ -60,11 +65,11 @@ export class ConnectionHttpService implements IConnectionHttpService {
     }
 
     async requireWritable(name: string, principal: Principal): Promise<IConnectionHandle> {
-        return requireHandle(this.ctx, principal, name, true);
+        return requireHandle(this.ctx, this.actor(principal), name, true);
     }
 
     async reset(name: string, principal: Principal): Promise<ConnectionView> {
-        const handle = await requireHandle(this.ctx, principal, name, true);
+        const handle = await requireHandle(this.ctx, this.actor(principal), name, true);
         const { reset } = handle.actions;
 
         if (!reset) {
@@ -82,5 +87,10 @@ export class ConnectionHttpService implements IConnectionHttpService {
         });
 
         return serializeConnection(handle);
+    }
+
+    /** The actor core's connection rule checks the principal with. */
+    protected actor(principal: Principal): ActorContext {
+        return buildActorContext(principal, this.ctx.clock);
     }
 }

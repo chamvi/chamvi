@@ -5,5 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+export * from './agent.ts';
+export * from './connection.ts';
 export * from './policy.ts';
 export type * from './types.ts';
