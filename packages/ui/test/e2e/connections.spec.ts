@@ -52,7 +52,7 @@ test('a registered page link does a full navigation and the session survives', a
 
     // the shell's fixed items lead back to the dashboard
     await page.getByRole('link', { name: 'Runs' }).click();
-    await expect(page.getByRole('heading', { name: 'Runs' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Runs', exact: true })).toBeVisible();
     await expect(page.getByTestId('principal')).toHaveText('e2e');
     expect(errors).toEqual([]);
 });

@@ -284,9 +284,20 @@ describe('public api', () => {
         'ConnectionNotConfiguredError',
         'resolveConnection',
         'storedConnectionName',
+        'createSystemActor',
+        'isSystemActor',
+        'isActorGranted',
+        'isActorGrantedSome',
+        'forbidden',
+        'AbstractEntityService',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
         expect(core[name as keyof typeof core]).toBeTypeOf('function');
+    });
+
+    it('exports the actor contract', () => {
+        expectTypeOf<core.ActorContext['identity']>().toEqualTypeOf<kit.Invoker | undefined>();
+        expectTypeOf<core.ActorContext<string>['identity']>().toEqualTypeOf<string | undefined>();
     });
 
     it('exports passive skill contracts', () => {

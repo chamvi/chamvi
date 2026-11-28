@@ -6,10 +6,15 @@
  */
 
 import { Permission } from '@chamvi/access';
-import { ConnectionChangedError, assertConnectionName, storedConnectionName } from '@chamvi/core';
+import {
+    ConnectionChangedError,
+    assertConnectionName,
+    forbidden,
+    storedConnectionName,
+} from '@chamvi/core';
 import type { ConnectionConfigUpdate, ConnectionValues, IConnectionConfigStore } from '@chamvi/core';
 import { ConflictError, NotFoundError } from '@chamvi/errors';
-import { forbidden, isGranted } from '../../auth/helpers/index.ts';
+import { isGranted } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
 import { validateBody } from '../../request/helpers/index.ts';
 import { ConnectionValidator, ValidatorGroup } from '@chamvi/core-kit';

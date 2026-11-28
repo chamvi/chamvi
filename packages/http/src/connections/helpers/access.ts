@@ -6,9 +6,10 @@
  */
 
 import { Permission } from '@chamvi/access';
+import { forbidden } from '@chamvi/core';
 import type { IConnectionHandle } from '@chamvi/core';
 import { NotFoundError } from '@chamvi/errors';
-import { forbidden, isGranted } from '../../auth/helpers/index.ts';
+import { isGranted } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
 import type { ConnectionHttpServiceContext } from '../types.ts';
 

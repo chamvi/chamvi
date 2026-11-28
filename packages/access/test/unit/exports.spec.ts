@@ -9,8 +9,9 @@ import { describe, expect, it } from 'vitest';
 import * as access from '@chamvi/access';
 
 describe('public api', () => {
-    it('exports exactly the check, the helpers and the names', () => {
+    it('exports exactly the check, the evaluator, the helpers and the names', () => {
         expect(Object.keys(access).sort()).toEqual([
+            'HolderPermissionEvaluator',
             'PERMISSION_NAMES',
             'Permission',
             'allPermissions',
@@ -23,6 +24,7 @@ describe('public api', () => {
     });
 
     it.each([
+        'HolderPermissionEvaluator',
         'allPermissions',
         'can',
         'canSome',

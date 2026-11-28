@@ -6,7 +6,7 @@
  */
 
 import { Permission } from '@chamvi/access';
-import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { InvalidAgentDefinitionError, forbidden } from '@chamvi/core';
 import type { ChannelContext, ChannelRequest } from '@chamvi/core';
 import {
     BadRequestError,
@@ -17,7 +17,6 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { DEFAULT_BODY_LIMIT } from '../app/constants.ts';
 import {
     agentResource,
-    forbidden,
     isGranted,
     resolvePrincipal,
 } from '../auth/helpers/index.ts';
