@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { PERMISSION_NAMES, Permission } from '@chamvi/access';
 import { defineModelAgent } from '@chamvi/core';
 import type { IConnectionHandle } from '@chamvi/core';
-import { createHttpApp, http } from '@chamvi/http';
+import { createHttpApp, http, webhook } from '@chamvi/http';
 import type { App } from 'routup';
 import {
     ADMIN_TOKEN,
@@ -51,13 +51,13 @@ function matrixAgents() {
             name: 'echo',
             model: textModel(),
             instructions: 'Echo.',
-            channels: [http.on()],
+            channels: [http.on(), webhook.on('/hook')],
         }),
         defineModelAgent({
             name: 'vault',
             model: textModel(),
             instructions: 'Vault.',
-            channels: [http.on()],
+            channels: [http.on(), webhook.on('/hook')],
             private: true,
             state: { notes: z.object({ t: z.string() }) },
         }),
@@ -127,6 +127,7 @@ async function setup(kind: 'full' | 'listed') {
             rateLimit: false,
             openapi: false,
             connections,
+            channels: [engine.getChannel('webhook')!],
         });
 
     // ids to fixture labels, so the snapshot holds no generated value
@@ -158,6 +159,7 @@ const PRINCIPALS: [string, string | undefined][] = [
     ['connection_read{type:mail}', tokenFor(restricted(Permission.CONNECTION_READ, { type: 'mail' }))],
     ['connection_write{name:other}', tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'other' }))],
     ['connection_create{type:mail}', tokenFor(restricted(Permission.CONNECTION_CREATE, { type: 'mail' }))],
+    ['agent_run{name:echo}', tokenFor(restricted(Permission.AGENT_RUN, { name: 'echo' }))],
 ];
 
 type Request = {
@@ -165,6 +167,8 @@ type Request = {
     path: string;
     body?: unknown;
     stream?: boolean;
+    /** Changes state: only the status and an error body are recorded, a success varies. */
+    effect?: boolean;
 };
 
 /** Paths name runs and the artifact by label; reads first, then the writes that change nothing, then the one that does. */
@@ -204,8 +208,19 @@ const REQUESTS: Request[] = [
     { method: 'GET', path: '/connections/mail-work' },
     { method: 'GET', path: '/connections/unknown' },
     { method: 'GET', path: '/connections/mail-work/config' },
+    {
+        method: 'GET',
+        path: '/connections/mail-work/events',
+        stream: true,
+    },
     { method: 'GET', path: '/connection-types' },
+    { method: 'GET', path: '/ui-pages' },
     { method: 'POST', path: '/runs/<echo>/cancel' },
+    {
+        method: 'POST',
+        path: '/agents/echo/runs',
+        body: { role: 'review' },
+    },
     {
         method: 'POST',
         path: '/runs/<gate>/approve',
@@ -239,6 +254,23 @@ const REQUESTS: Request[] = [
         path: '/agents/echo/state/kv/matrix',
         body: { value: 1 },
     },
+    ...['echo', 'vault', 'outside'].map((agent): Request => ({
+        method: 'POST',
+        path: `/agents/${agent}/runs`,
+        body: {},
+        effect: true,
+    })),
+    {
+        method: 'POST',
+        path: '/runs/<echo>/wake',
+        effect: true,
+    },
+    ...['echo', 'vault'].map((agent): Request => ({
+        method: 'POST',
+        path: `/channels/webhook/${agent}/hook`,
+        body: {},
+        effect: true,
+    })),
 ];
 
 /** Method and path, plus the body where two requests share a path. */
@@ -275,6 +307,12 @@ async function record(app: App, request: Request, token: string | undefined, lab
     if (request.stream) {
         controller.abort();
         await response.body?.cancel().catch(() => undefined);
+
+        return { status: response.status };
+    }
+
+    if (request.effect && response.status >= 200 && response.status < 300) {
+        await response.body?.cancel();
 
         return { status: response.status };
     }
@@ -322,6 +360,8 @@ async function recordMcp(app: App, token: string | undefined, labels: Labels) {
     } catch {
         return { connect: 'refused' };
     }
+
+    cells['tools/list'] = (await client.listTools()).tools.map((tool) => tool.name).sort();
 
     const tools: [string, string, Record<string, unknown>][] = [
         ['get_run <echo>', 'get_run', { runId: id('<echo>') }],

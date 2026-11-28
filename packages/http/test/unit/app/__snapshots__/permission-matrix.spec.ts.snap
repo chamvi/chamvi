@@ -146,6 +146,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 404,
   },
+  "full admin GET /connections/mail-work/events": {
+    "status": 200,
+  },
   "full admin GET /connections/unknown": {
     "body": {
       "code": "not_found",
@@ -310,6 +313,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 200,
   },
+  "full admin GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full admin PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "keys": [
@@ -328,6 +340,23 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 400,
   },
+  "full admin POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full admin POST /agents/echo/runs {}": {
+    "status": 202,
+  },
+  "full admin POST /agents/outside/runs {}": {
+    "status": 202,
+  },
+  "full admin POST /agents/vault/runs {}": {
+    "status": 202,
+  },
   "full admin POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -336,6 +365,12 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full admin POST /channels/webhook/echo/hook {}": {
+    "status": 202,
+  },
+  "full admin POST /channels/webhook/vault/hook {}": {
+    "status": 202,
   },
   "full admin POST /connection-types/mail/connections {}": {
     "body": {
@@ -368,6 +403,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 409,
     },
     "status": 409,
+  },
+  "full admin POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full admin POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -525,6 +568,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full agent_approve{name:gate} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full agent_approve{name:gate} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -634,6 +680,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full agent_approve{name:gate} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full agent_approve{name:gate} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -650,6 +705,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full agent_approve{name:gate} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full agent_approve{name:gate} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_approve{name:gate} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_approve{name:gate} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full agent_approve{name:gate} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -658,6 +745,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full agent_approve{name:gate} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_approve{name:gate} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full agent_approve{name:gate} POST /connection-types/mail/connections {}": {
     "body": {
@@ -690,6 +793,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full agent_approve{name:gate} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full agent_approve{name:gate} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -847,6 +958,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full agent_read{name:vault} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full agent_read{name:vault} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -977,6 +1091,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full agent_read{name:vault} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full agent_read{name:vault} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -993,6 +1116,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full agent_read{name:vault} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full agent_read{name:vault} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_read{name:vault} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_read{name:vault} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full agent_read{name:vault} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -1001,6 +1156,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full agent_read{name:vault} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_read{name:vault} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full agent_read{name:vault} POST /connection-types/mail/connections {}": {
     "body": {
@@ -1033,6 +1204,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full agent_read{name:vault} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full agent_read{name:vault} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -1170,6 +1349,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "message": "Missing permission "chamvi_connection_read".",
       "status": 403,
     },
+    "status": 403,
+  },
+  "full agent_read{private:false} GET /connections/mail-work/events": {
     "status": 403,
   },
   "full agent_read{private:false} GET /connections/unknown": {
@@ -1317,6 +1499,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full agent_read{private:false} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full agent_read{private:false} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -1333,6 +1524,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full agent_read{private:false} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full agent_read{private:false} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_read{private:false} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_read{private:false} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full agent_read{private:false} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -1341,6 +1564,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full agent_read{private:false} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_read{private:false} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full agent_read{private:false} POST /connection-types/mail/connections {}": {
     "body": {
@@ -1374,6 +1613,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full agent_read{private:false} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
+  },
   "full agent_read{private:false} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
       "code": "forbidden",
@@ -1391,6 +1638,386 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     "status": 403,
   },
   "full agent_read{private:false} PUT /connections/mail-work/config {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_write".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} DELETE /connections/mail-work": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_write".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /agents": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_run_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /agents/echo/state/kv": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /agents/echo/state/kv/k": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /agents/missing/state/kv": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /agents/outside/state/kv": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /agents/vault/state/collections/none": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /agents/vault/state/collections/notes": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /agents/vault/state/kv": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /components": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_component_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /connection-types": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
+  "full agent_run{name:echo} GET /connections": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
+  "full agent_run{name:echo} GET /connections/mail-work": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /connections/mail-work/config": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /connections/mail-work/events": {
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /connections/unknown": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /me": {
+    "body": {
+      "keys": [
+        "id",
+        "kind",
+      ],
+      "rows": undefined,
+    },
+    "status": 200,
+  },
+  "full agent_run{name:echo} GET /runs": {
+    "body": {
+      "keys": [
+        "data",
+        "meta",
+      ],
+      "rows": [
+        "echo",
+      ],
+    },
+    "status": 200,
+  },
+  "full agent_run{name:echo} GET /runs/<echo>": {
+    "body": {
+      "keys": [
+        "agent",
+        "agentPrivate",
+        "createdAt",
+        "finishedAt",
+        "id",
+        "output",
+        "startedAt",
+        "status",
+        "steps",
+        "trigger",
+        "updatedAt",
+        "usage",
+      ],
+      "rows": undefined,
+    },
+    "status": 200,
+  },
+  "full agent_run{name:echo} GET /runs/<echo>/artifacts": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [
+        "echo",
+      ],
+    },
+    "status": 200,
+  },
+  "full agent_run{name:echo} GET /runs/<echo>/artifacts/<artifact>": {
+    "body": {
+      "contentType": "text/plain",
+      "size": 2,
+    },
+    "status": 200,
+  },
+  "full agent_run{name:echo} GET /runs/<echo>/stream?after=999": {
+    "status": 200,
+  },
+  "full agent_run{name:echo} GET /runs/<outside>": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_run_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /runs/<unknown>": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<unknown>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
+  },
+  "full agent_run{name:echo} GET /runs/<vault>": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<vault>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
+  },
+  "full agent_run{name:echo} GET /runs/<vault>/artifacts": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<vault>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
+  },
+  "full agent_run{name:echo} GET /runs?filter[agent]=outside": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_run_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /runs?filter[agent]=vault": {
+    "body": {
+      "code": "forbidden",
+      "message": "Reading runs of agent "vault" needs chamvi_agent_read.",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /schedules": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_run_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
+  "full agent_run{name:echo} PATCH /agents/echo/state/kv/matrix {"value":1}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_write".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} PATCH /agents/vault/state/kv/k []": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_write".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full agent_run{name:echo} POST /agents/echo/runs {}": {
+    "status": 202,
+  },
+  "full agent_run{name:echo} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} POST /authorization/check {}": {
+    "body": {
+      "keys": [
+        "permissions",
+      ],
+      "rows": undefined,
+    },
+    "status": 200,
+  },
+  "full agent_run{name:echo} POST /channels/webhook/echo/hook {}": {
+    "status": 202,
+  },
+  "full agent_run{name:echo} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} POST /connection-types/mail/connections {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_create".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} POST /connections/mail-work/reset": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_write".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} POST /connections/mail-work/test": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_write".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} POST /runs/<echo>/cancel": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_run_cancel".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
+  },
+  "full agent_run{name:echo} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_approve".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} POST /runs/<gate>/approve {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_approve".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full agent_run{name:echo} PUT /connections/mail-work/config {}": {
     "body": {
       "code": "forbidden",
       "message": "Missing permission "chamvi_connection_write".",
@@ -1510,6 +2137,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 401,
   },
+  "full anonymous GET /connections/mail-work/events": {
+    "status": 401,
+  },
   "full anonymous GET /connections/unknown": {
     "body": {
       "code": "unauthorized",
@@ -1617,6 +2247,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 401,
   },
+  "full anonymous GET /ui-pages": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
   "full anonymous PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "unauthorized",
@@ -1633,7 +2271,55 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 401,
   },
+  "full anonymous POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
+  "full anonymous POST /agents/echo/runs {}": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
+  "full anonymous POST /agents/outside/runs {}": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
+  "full anonymous POST /agents/vault/runs {}": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
   "full anonymous POST /authorization/check {}": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
+  "full anonymous POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
+  "full anonymous POST /channels/webhook/vault/hook {}": {
     "body": {
       "code": "unauthorized",
       "message": "Authentication required.",
@@ -1666,6 +2352,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     "status": 401,
   },
   "full anonymous POST /runs/<echo>/cancel": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
+  "full anonymous POST /runs/<echo>/wake": {
     "body": {
       "code": "unauthorized",
       "message": "Authentication required.",
@@ -1811,6 +2505,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_agent_approve GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full chamvi_agent_approve GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -1920,6 +2617,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_agent_approve GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full chamvi_agent_approve PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -1936,6 +2642,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_agent_approve POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full chamvi_agent_approve POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_agent_approve POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_agent_approve POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full chamvi_agent_approve POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -1944,6 +2682,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full chamvi_agent_approve POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_agent_approve POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full chamvi_agent_approve POST /connection-types/mail/connections {}": {
     "body": {
@@ -1976,6 +2730,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full chamvi_agent_approve POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full chamvi_agent_approve POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -2131,6 +2893,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "message": "Missing permission "chamvi_connection_read".",
       "status": 403,
     },
+    "status": 403,
+  },
+  "full chamvi_agent_read GET /connections/mail-work/events": {
     "status": 403,
   },
   "full chamvi_agent_read GET /connections/unknown": {
@@ -2296,6 +3061,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_agent_read GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full chamvi_agent_read PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -2312,6 +3086,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_agent_read POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full chamvi_agent_read POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_agent_read POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_agent_read POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full chamvi_agent_read POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -2320,6 +3126,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full chamvi_agent_read POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_agent_read POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full chamvi_agent_read POST /connection-types/mail/connections {}": {
     "body": {
@@ -2352,6 +3174,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full chamvi_agent_read POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full chamvi_agent_read POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -2489,6 +3319,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "message": "Missing permission "chamvi_connection_read".",
       "status": 403,
     },
+    "status": 403,
+  },
+  "full chamvi_agent_run GET /connections/mail-work/events": {
     "status": 403,
   },
   "full chamvi_agent_run GET /connections/unknown": {
@@ -2636,6 +3469,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_agent_run GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full chamvi_agent_run PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -2652,6 +3494,23 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_agent_run POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full chamvi_agent_run POST /agents/echo/runs {}": {
+    "status": 202,
+  },
+  "full chamvi_agent_run POST /agents/outside/runs {}": {
+    "status": 202,
+  },
+  "full chamvi_agent_run POST /agents/vault/runs {}": {
+    "status": 202,
+  },
   "full chamvi_agent_run POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -2660,6 +3519,12 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full chamvi_agent_run POST /channels/webhook/echo/hook {}": {
+    "status": 202,
+  },
+  "full chamvi_agent_run POST /channels/webhook/vault/hook {}": {
+    "status": 202,
   },
   "full chamvi_agent_run POST /connection-types/mail/connections {}": {
     "body": {
@@ -2692,6 +3557,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full chamvi_agent_run POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full chamvi_agent_run POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -2832,6 +3705,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_component_read GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full chamvi_component_read GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -2941,6 +3817,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_component_read GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full chamvi_component_read PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -2957,6 +3842,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_component_read POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full chamvi_component_read POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_component_read POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_component_read POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full chamvi_component_read POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -2965,6 +3882,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full chamvi_component_read POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_component_read POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full chamvi_component_read POST /connection-types/mail/connections {}": {
     "body": {
@@ -2997,6 +3930,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full chamvi_component_read POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full chamvi_component_read POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -3136,6 +4077,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_connection_create GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full chamvi_connection_create GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -3245,6 +4189,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_connection_create GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full chamvi_connection_create PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -3261,6 +4214,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_connection_create POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full chamvi_connection_create POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_connection_create POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_connection_create POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full chamvi_connection_create POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -3269,6 +4254,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full chamvi_connection_create POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_connection_create POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full chamvi_connection_create POST /connection-types/mail/connections {}": {
     "body": {
@@ -3301,6 +4302,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full chamvi_connection_create POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full chamvi_connection_create POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -3445,6 +4454,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 404,
   },
+  "full chamvi_connection_read GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full chamvi_connection_read GET /connections/unknown": {
     "body": {
       "code": "not_found",
@@ -3554,6 +4566,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_connection_read GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full chamvi_connection_read PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -3570,6 +4591,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_connection_read POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full chamvi_connection_read POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_connection_read POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_connection_read POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full chamvi_connection_read POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -3578,6 +4631,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full chamvi_connection_read POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_connection_read POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full chamvi_connection_read POST /connection-types/mail/connections {}": {
     "body": {
@@ -3610,6 +4679,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full chamvi_connection_read POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full chamvi_connection_read POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -3757,6 +4834,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 404,
   },
+  "full chamvi_connection_write GET /connections/mail-work/events": {
+    "status": 200,
+  },
   "full chamvi_connection_write GET /connections/unknown": {
     "body": {
       "code": "not_found",
@@ -3866,6 +4946,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_connection_write GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full chamvi_connection_write PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -3882,6 +4971,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_connection_write POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full chamvi_connection_write POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_connection_write POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_connection_write POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full chamvi_connection_write POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -3890,6 +5011,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full chamvi_connection_write POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_connection_write POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full chamvi_connection_write POST /connection-types/mail/connections {}": {
     "body": {
@@ -3922,6 +5059,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full chamvi_connection_write POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full chamvi_connection_write POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -4061,6 +5206,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_knowledge_read GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full chamvi_knowledge_read GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -4170,6 +5318,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_knowledge_read GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full chamvi_knowledge_read PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -4186,6 +5343,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_knowledge_read POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full chamvi_knowledge_read POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_knowledge_read POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_knowledge_read POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full chamvi_knowledge_read POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -4194,6 +5383,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full chamvi_knowledge_read POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_knowledge_read POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full chamvi_knowledge_read POST /connection-types/mail/connections {}": {
     "body": {
@@ -4226,6 +5431,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full chamvi_knowledge_read POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full chamvi_knowledge_read POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -4365,6 +5578,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_knowledge_write GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full chamvi_knowledge_write GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -4474,6 +5690,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_knowledge_write GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full chamvi_knowledge_write PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -4490,6 +5715,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_knowledge_write POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full chamvi_knowledge_write POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_knowledge_write POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_knowledge_write POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full chamvi_knowledge_write POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -4498,6 +5755,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full chamvi_knowledge_write POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_knowledge_write POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full chamvi_knowledge_write POST /connection-types/mail/connections {}": {
     "body": {
@@ -4530,6 +5803,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full chamvi_knowledge_write POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full chamvi_knowledge_write POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -4669,6 +5950,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_run_cancel GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full chamvi_run_cancel GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -4778,6 +6062,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_run_cancel GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full chamvi_run_cancel PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -4794,6 +6087,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_run_cancel POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full chamvi_run_cancel POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_run_cancel POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_run_cancel POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full chamvi_run_cancel POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -4802,6 +6127,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full chamvi_run_cancel POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_run_cancel POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full chamvi_run_cancel POST /connection-types/mail/connections {}": {
     "body": {
@@ -4834,6 +6175,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 409,
     },
     "status": 409,
+  },
+  "full chamvi_run_cancel POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full chamvi_run_cancel POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -4978,6 +6327,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "message": "Missing permission "chamvi_connection_read".",
       "status": 403,
     },
+    "status": 403,
+  },
+  "full chamvi_run_read GET /connections/mail-work/events": {
     "status": 403,
   },
   "full chamvi_run_read GET /connections/unknown": {
@@ -5126,6 +6478,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 200,
   },
+  "full chamvi_run_read GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full chamvi_run_read PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -5142,6 +6503,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_run_read POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full chamvi_run_read POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_run_read POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_run_read POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full chamvi_run_read POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -5150,6 +6543,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full chamvi_run_read POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_run_read POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full chamvi_run_read POST /connection-types/mail/connections {}": {
     "body": {
@@ -5182,6 +6591,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full chamvi_run_read POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full chamvi_run_read POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -5329,6 +6746,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_state_read GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full chamvi_state_read GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -5438,6 +6858,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_state_read GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full chamvi_state_read PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -5454,6 +6883,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_state_read POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full chamvi_state_read POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_state_read POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_state_read POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full chamvi_state_read POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -5462,6 +6923,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full chamvi_state_read POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_state_read POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full chamvi_state_read POST /connection-types/mail/connections {}": {
     "body": {
@@ -5494,6 +6971,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full chamvi_state_read POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full chamvi_state_read POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -5633,6 +7118,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_state_write GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full chamvi_state_write GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -5742,6 +7230,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_state_write GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full chamvi_state_write PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "keys": [
@@ -5760,6 +7257,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_state_write POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full chamvi_state_write POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_state_write POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_state_write POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full chamvi_state_write POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -5768,6 +7297,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full chamvi_state_write POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_state_write POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full chamvi_state_write POST /connection-types/mail/connections {}": {
     "body": {
@@ -5800,6 +7345,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full chamvi_state_write POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full chamvi_state_write POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -5939,6 +7492,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_tool_use GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full chamvi_tool_use GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -6048,6 +7604,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_tool_use GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full chamvi_tool_use PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -6064,6 +7629,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full chamvi_tool_use POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full chamvi_tool_use POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_tool_use POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_tool_use POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full chamvi_tool_use POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -6072,6 +7669,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full chamvi_tool_use POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full chamvi_tool_use POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full chamvi_tool_use POST /connection-types/mail/connections {}": {
     "body": {
@@ -6104,6 +7717,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full chamvi_tool_use POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full chamvi_tool_use POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -6243,6 +7864,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full connection_create{type:mail} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full connection_create{type:mail} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -6352,6 +7976,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full connection_create{type:mail} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full connection_create{type:mail} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -6368,6 +8001,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full connection_create{type:mail} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full connection_create{type:mail} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full connection_create{type:mail} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full connection_create{type:mail} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full connection_create{type:mail} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -6376,6 +8041,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full connection_create{type:mail} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full connection_create{type:mail} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full connection_create{type:mail} POST /connection-types/mail/connections {}": {
     "body": {
@@ -6408,6 +8089,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full connection_create{type:mail} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full connection_create{type:mail} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -6552,6 +8241,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full connection_read{type:mail} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full connection_read{type:mail} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -6661,6 +8353,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full connection_read{type:mail} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full connection_read{type:mail} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -6677,6 +8378,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full connection_read{type:mail} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full connection_read{type:mail} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full connection_read{type:mail} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full connection_read{type:mail} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full connection_read{type:mail} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -6685,6 +8418,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full connection_read{type:mail} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full connection_read{type:mail} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full connection_read{type:mail} POST /connection-types/mail/connections {}": {
     "body": {
@@ -6717,6 +8466,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full connection_read{type:mail} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full connection_read{type:mail} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -6856,6 +8613,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full connection_write{name:other} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full connection_write{name:other} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -6965,6 +8725,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full connection_write{name:other} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full connection_write{name:other} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -6981,6 +8750,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full connection_write{name:other} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full connection_write{name:other} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full connection_write{name:other} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full connection_write{name:other} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full connection_write{name:other} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -6989,6 +8790,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full connection_write{name:other} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full connection_write{name:other} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full connection_write{name:other} POST /connection-types/mail/connections {}": {
     "body": {
@@ -7021,6 +8838,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full connection_write{name:other} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full connection_write{name:other} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -7160,6 +8985,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full none GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full none GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -7269,6 +9097,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full none GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full none PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -7285,6 +9122,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full none POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full none POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full none POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full none POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full none POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -7293,6 +9162,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full none POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full none POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full none POST /connection-types/mail/connections {}": {
     "body": {
@@ -7325,6 +9210,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full none POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full none POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -7464,6 +9357,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full run_cancel{agent:echo} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full run_cancel{agent:echo} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -7573,6 +9469,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full run_cancel{agent:echo} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full run_cancel{agent:echo} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -7589,6 +9494,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full run_cancel{agent:echo} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full run_cancel{agent:echo} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full run_cancel{agent:echo} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full run_cancel{agent:echo} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full run_cancel{agent:echo} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -7597,6 +9534,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full run_cancel{agent:echo} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full run_cancel{agent:echo} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full run_cancel{agent:echo} POST /connection-types/mail/connections {}": {
     "body": {
@@ -7629,6 +9582,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 409,
     },
     "status": 409,
+  },
+  "full run_cancel{agent:echo} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full run_cancel{agent:echo} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -7772,6 +9733,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full run_read{agent:echo} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full run_read{agent:echo} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -7900,6 +9864,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 200,
   },
+  "full run_read{agent:echo} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full run_read{agent:echo} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -7916,6 +9889,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full run_read{agent:echo} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full run_read{agent:echo} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full run_read{agent:echo} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full run_read{agent:echo} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full run_read{agent:echo} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -7924,6 +9929,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full run_read{agent:echo} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full run_read{agent:echo} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full run_read{agent:echo} POST /connection-types/mail/connections {}": {
     "body": {
@@ -7956,6 +9977,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full run_read{agent:echo} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full run_read{agent:echo} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -8100,6 +10129,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full state_read{name:echo} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full state_read{name:echo} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -8209,6 +10241,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full state_read{name:echo} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full state_read{name:echo} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -8225,6 +10266,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full state_read{name:echo} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full state_read{name:echo} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full state_read{name:echo} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full state_read{name:echo} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full state_read{name:echo} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -8233,6 +10306,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full state_read{name:echo} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full state_read{name:echo} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full state_read{name:echo} POST /connection-types/mail/connections {}": {
     "body": {
@@ -8265,6 +10354,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full state_read{name:echo} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full state_read{name:echo} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -8404,6 +10501,9 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full state_write{name:vault} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "full state_write{name:vault} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -8513,6 +10613,15 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full state_write{name:vault} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "full state_write{name:vault} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -8529,6 +10638,38 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     },
     "status": 403,
   },
+  "full state_write{name:vault} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "full state_write{name:vault} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full state_write{name:vault} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full state_write{name:vault} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "full state_write{name:vault} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -8537,6 +10678,22 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "rows": undefined,
     },
     "status": 200,
+  },
+  "full state_write{name:vault} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "full state_write{name:vault} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "full state_write{name:vault} POST /connection-types/mail/connections {}": {
     "body": {
@@ -8569,6 +10726,14 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
       "status": 403,
     },
     "status": 403,
+  },
+  "full state_write{name:vault} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "full state_write{name:vault} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -8739,6 +10904,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 404,
   },
+  "listed admin GET /connections/mail-work/events": {
+    "status": 200,
+  },
   "listed admin GET /connections/unknown": {
     "body": {
       "code": "not_found",
@@ -8903,6 +11071,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 200,
   },
+  "listed admin GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed admin PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "keys": [
@@ -8921,6 +11098,28 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 400,
   },
+  "listed admin POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed admin POST /agents/echo/runs {}": {
+    "status": 202,
+  },
+  "listed admin POST /agents/outside/runs {}": {
+    "body": {
+      "code": "not_found",
+      "message": "Agent "outside" was not found.",
+      "status": 404,
+    },
+    "status": 404,
+  },
+  "listed admin POST /agents/vault/runs {}": {
+    "status": 202,
+  },
   "listed admin POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -8929,6 +11128,12 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed admin POST /channels/webhook/echo/hook {}": {
+    "status": 202,
+  },
+  "listed admin POST /channels/webhook/vault/hook {}": {
+    "status": 202,
   },
   "listed admin POST /connection-types/mail/connections {}": {
     "body": {
@@ -8961,6 +11166,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 409,
     },
     "status": 409,
+  },
+  "listed admin POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed admin POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -9118,6 +11331,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed agent_approve{name:gate} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed agent_approve{name:gate} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -9227,6 +11443,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed agent_approve{name:gate} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed agent_approve{name:gate} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -9243,6 +11468,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed agent_approve{name:gate} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed agent_approve{name:gate} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_approve{name:gate} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_approve{name:gate} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed agent_approve{name:gate} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -9251,6 +11508,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed agent_approve{name:gate} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_approve{name:gate} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed agent_approve{name:gate} POST /connection-types/mail/connections {}": {
     "body": {
@@ -9283,6 +11556,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed agent_approve{name:gate} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed agent_approve{name:gate} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -9440,6 +11721,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed agent_read{name:vault} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed agent_read{name:vault} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -9570,6 +11854,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed agent_read{name:vault} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed agent_read{name:vault} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -9586,6 +11879,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed agent_read{name:vault} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed agent_read{name:vault} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_read{name:vault} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_read{name:vault} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed agent_read{name:vault} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -9594,6 +11919,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed agent_read{name:vault} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_read{name:vault} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed agent_read{name:vault} POST /connection-types/mail/connections {}": {
     "body": {
@@ -9626,6 +11967,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed agent_read{name:vault} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed agent_read{name:vault} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -9765,6 +12114,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed agent_read{private:false} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed agent_read{private:false} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -9893,6 +12245,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed agent_read{private:false} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed agent_read{private:false} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -9909,6 +12270,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed agent_read{private:false} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed agent_read{private:false} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_read{private:false} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_read{private:false} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed agent_read{private:false} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -9917,6 +12310,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed agent_read{private:false} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_read{private:false} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed agent_read{private:false} POST /connection-types/mail/connections {}": {
     "body": {
@@ -9950,6 +12359,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed agent_read{private:false} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
+  },
   "listed agent_read{private:false} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
       "code": "forbidden",
@@ -9967,6 +12384,386 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     "status": 403,
   },
   "listed agent_read{private:false} PUT /connections/mail-work/config {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_write".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} DELETE /connections/mail-work": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_write".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /agents": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_run_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /agents/echo/state/kv": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /agents/echo/state/kv/k": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /agents/missing/state/kv": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /agents/outside/state/kv": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /agents/vault/state/collections/none": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /agents/vault/state/collections/notes": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /agents/vault/state/kv": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /components": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_component_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /connection-types": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
+  "listed agent_run{name:echo} GET /connections": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
+  "listed agent_run{name:echo} GET /connections/mail-work": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /connections/mail-work/config": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /connections/mail-work/events": {
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /connections/unknown": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /me": {
+    "body": {
+      "keys": [
+        "id",
+        "kind",
+      ],
+      "rows": undefined,
+    },
+    "status": 200,
+  },
+  "listed agent_run{name:echo} GET /runs": {
+    "body": {
+      "keys": [
+        "data",
+        "meta",
+      ],
+      "rows": [
+        "echo",
+      ],
+    },
+    "status": 200,
+  },
+  "listed agent_run{name:echo} GET /runs/<echo>": {
+    "body": {
+      "keys": [
+        "agent",
+        "agentPrivate",
+        "createdAt",
+        "finishedAt",
+        "id",
+        "output",
+        "startedAt",
+        "status",
+        "steps",
+        "trigger",
+        "updatedAt",
+        "usage",
+      ],
+      "rows": undefined,
+    },
+    "status": 200,
+  },
+  "listed agent_run{name:echo} GET /runs/<echo>/artifacts": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [
+        "echo",
+      ],
+    },
+    "status": 200,
+  },
+  "listed agent_run{name:echo} GET /runs/<echo>/artifacts/<artifact>": {
+    "body": {
+      "contentType": "text/plain",
+      "size": 2,
+    },
+    "status": 200,
+  },
+  "listed agent_run{name:echo} GET /runs/<echo>/stream?after=999": {
+    "status": 200,
+  },
+  "listed agent_run{name:echo} GET /runs/<outside>": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<outside>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
+  },
+  "listed agent_run{name:echo} GET /runs/<unknown>": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<unknown>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
+  },
+  "listed agent_run{name:echo} GET /runs/<vault>": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<vault>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
+  },
+  "listed agent_run{name:echo} GET /runs/<vault>/artifacts": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<vault>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
+  },
+  "listed agent_run{name:echo} GET /runs?filter[agent]=outside": {
+    "body": {
+      "code": "forbidden",
+      "message": "Reading runs of agent "outside" needs chamvi_agent_read.",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /runs?filter[agent]=vault": {
+    "body": {
+      "code": "forbidden",
+      "message": "Reading runs of agent "vault" needs chamvi_agent_read.",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /schedules": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_run_read".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
+  "listed agent_run{name:echo} PATCH /agents/echo/state/kv/matrix {"value":1}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_write".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} PATCH /agents/vault/state/kv/k []": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_state_write".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed agent_run{name:echo} POST /agents/echo/runs {}": {
+    "status": 202,
+  },
+  "listed agent_run{name:echo} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} POST /authorization/check {}": {
+    "body": {
+      "keys": [
+        "permissions",
+      ],
+      "rows": undefined,
+    },
+    "status": 200,
+  },
+  "listed agent_run{name:echo} POST /channels/webhook/echo/hook {}": {
+    "status": 202,
+  },
+  "listed agent_run{name:echo} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} POST /connection-types/mail/connections {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_create".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} POST /connections/mail-work/reset": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_write".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} POST /connections/mail-work/test": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_connection_write".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} POST /runs/<echo>/cancel": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_run_cancel".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
+  },
+  "listed agent_run{name:echo} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_approve".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} POST /runs/<gate>/approve {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_approve".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed agent_run{name:echo} PUT /connections/mail-work/config {}": {
     "body": {
       "code": "forbidden",
       "message": "Missing permission "chamvi_connection_write".",
@@ -10086,6 +12883,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 401,
   },
+  "listed anonymous GET /connections/mail-work/events": {
+    "status": 401,
+  },
   "listed anonymous GET /connections/unknown": {
     "body": {
       "code": "unauthorized",
@@ -10193,6 +12993,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 401,
   },
+  "listed anonymous GET /ui-pages": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
   "listed anonymous PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "unauthorized",
@@ -10209,7 +13017,55 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 401,
   },
+  "listed anonymous POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
+  "listed anonymous POST /agents/echo/runs {}": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
+  "listed anonymous POST /agents/outside/runs {}": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
+  "listed anonymous POST /agents/vault/runs {}": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
   "listed anonymous POST /authorization/check {}": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
+  "listed anonymous POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
+  "listed anonymous POST /channels/webhook/vault/hook {}": {
     "body": {
       "code": "unauthorized",
       "message": "Authentication required.",
@@ -10242,6 +13098,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     "status": 401,
   },
   "listed anonymous POST /runs/<echo>/cancel": {
+    "body": {
+      "code": "unauthorized",
+      "message": "Authentication required.",
+      "status": 401,
+    },
+    "status": 401,
+  },
+  "listed anonymous POST /runs/<echo>/wake": {
     "body": {
       "code": "unauthorized",
       "message": "Authentication required.",
@@ -10387,6 +13251,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_agent_approve GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed chamvi_agent_approve GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -10496,6 +13363,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_agent_approve GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed chamvi_agent_approve PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -10512,6 +13388,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_agent_approve POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed chamvi_agent_approve POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_agent_approve POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_agent_approve POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed chamvi_agent_approve POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -10520,6 +13428,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed chamvi_agent_approve POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_agent_approve POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed chamvi_agent_approve POST /connection-types/mail/connections {}": {
     "body": {
@@ -10552,6 +13476,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed chamvi_agent_approve POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed chamvi_agent_approve POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -10707,6 +13639,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "message": "Missing permission "chamvi_connection_read".",
       "status": 403,
     },
+    "status": 403,
+  },
+  "listed chamvi_agent_read GET /connections/mail-work/events": {
     "status": 403,
   },
   "listed chamvi_agent_read GET /connections/unknown": {
@@ -10872,6 +13807,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_agent_read GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed chamvi_agent_read PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -10888,6 +13832,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_agent_read POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed chamvi_agent_read POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_agent_read POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_agent_read POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed chamvi_agent_read POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -10896,6 +13872,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed chamvi_agent_read POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_agent_read POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed chamvi_agent_read POST /connection-types/mail/connections {}": {
     "body": {
@@ -10928,6 +13920,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed chamvi_agent_read POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed chamvi_agent_read POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -11067,6 +14067,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_agent_run GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed chamvi_agent_run GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -11195,6 +14198,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_agent_run GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed chamvi_agent_run PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -11211,6 +14223,28 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_agent_run POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed chamvi_agent_run POST /agents/echo/runs {}": {
+    "status": 202,
+  },
+  "listed chamvi_agent_run POST /agents/outside/runs {}": {
+    "body": {
+      "code": "not_found",
+      "message": "Agent "outside" was not found.",
+      "status": 404,
+    },
+    "status": 404,
+  },
+  "listed chamvi_agent_run POST /agents/vault/runs {}": {
+    "status": 202,
+  },
   "listed chamvi_agent_run POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -11219,6 +14253,12 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed chamvi_agent_run POST /channels/webhook/echo/hook {}": {
+    "status": 202,
+  },
+  "listed chamvi_agent_run POST /channels/webhook/vault/hook {}": {
+    "status": 202,
   },
   "listed chamvi_agent_run POST /connection-types/mail/connections {}": {
     "body": {
@@ -11251,6 +14291,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed chamvi_agent_run POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed chamvi_agent_run POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -11391,6 +14439,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_component_read GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed chamvi_component_read GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -11500,6 +14551,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_component_read GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed chamvi_component_read PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -11516,6 +14576,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_component_read POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed chamvi_component_read POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_component_read POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_component_read POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed chamvi_component_read POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -11524,6 +14616,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed chamvi_component_read POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_component_read POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed chamvi_component_read POST /connection-types/mail/connections {}": {
     "body": {
@@ -11556,6 +14664,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed chamvi_component_read POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed chamvi_component_read POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -11695,6 +14811,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_connection_create GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed chamvi_connection_create GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -11804,6 +14923,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_connection_create GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed chamvi_connection_create PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -11820,6 +14948,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_connection_create POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed chamvi_connection_create POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_connection_create POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_connection_create POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed chamvi_connection_create POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -11828,6 +14988,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed chamvi_connection_create POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_connection_create POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed chamvi_connection_create POST /connection-types/mail/connections {}": {
     "body": {
@@ -11860,6 +15036,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed chamvi_connection_create POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed chamvi_connection_create POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -12004,6 +15188,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 404,
   },
+  "listed chamvi_connection_read GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed chamvi_connection_read GET /connections/unknown": {
     "body": {
       "code": "not_found",
@@ -12113,6 +15300,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_connection_read GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed chamvi_connection_read PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -12129,6 +15325,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_connection_read POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed chamvi_connection_read POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_connection_read POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_connection_read POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed chamvi_connection_read POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -12137,6 +15365,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed chamvi_connection_read POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_connection_read POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed chamvi_connection_read POST /connection-types/mail/connections {}": {
     "body": {
@@ -12169,6 +15413,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed chamvi_connection_read POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed chamvi_connection_read POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -12316,6 +15568,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 404,
   },
+  "listed chamvi_connection_write GET /connections/mail-work/events": {
+    "status": 200,
+  },
   "listed chamvi_connection_write GET /connections/unknown": {
     "body": {
       "code": "not_found",
@@ -12425,6 +15680,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_connection_write GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed chamvi_connection_write PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -12441,6 +15705,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_connection_write POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed chamvi_connection_write POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_connection_write POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_connection_write POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed chamvi_connection_write POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -12449,6 +15745,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed chamvi_connection_write POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_connection_write POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed chamvi_connection_write POST /connection-types/mail/connections {}": {
     "body": {
@@ -12481,6 +15793,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed chamvi_connection_write POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed chamvi_connection_write POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -12620,6 +15940,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_knowledge_read GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed chamvi_knowledge_read GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -12729,6 +16052,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_knowledge_read GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed chamvi_knowledge_read PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -12745,6 +16077,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_knowledge_read POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed chamvi_knowledge_read POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_knowledge_read POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_knowledge_read POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed chamvi_knowledge_read POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -12753,6 +16117,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed chamvi_knowledge_read POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_knowledge_read POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed chamvi_knowledge_read POST /connection-types/mail/connections {}": {
     "body": {
@@ -12785,6 +16165,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed chamvi_knowledge_read POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed chamvi_knowledge_read POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -12924,6 +16312,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_knowledge_write GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed chamvi_knowledge_write GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -13033,6 +16424,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_knowledge_write GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed chamvi_knowledge_write PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -13049,6 +16449,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_knowledge_write POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed chamvi_knowledge_write POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_knowledge_write POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_knowledge_write POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed chamvi_knowledge_write POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -13057,6 +16489,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed chamvi_knowledge_write POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_knowledge_write POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed chamvi_knowledge_write POST /connection-types/mail/connections {}": {
     "body": {
@@ -13089,6 +16537,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed chamvi_knowledge_write POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed chamvi_knowledge_write POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -13228,6 +16684,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_run_cancel GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed chamvi_run_cancel GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -13337,6 +16796,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_run_cancel GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed chamvi_run_cancel PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -13353,6 +16821,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_run_cancel POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed chamvi_run_cancel POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_run_cancel POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_run_cancel POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed chamvi_run_cancel POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -13361,6 +16861,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed chamvi_run_cancel POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_run_cancel POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed chamvi_run_cancel POST /connection-types/mail/connections {}": {
     "body": {
@@ -13393,6 +16909,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 409,
     },
     "status": 409,
+  },
+  "listed chamvi_run_cancel POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed chamvi_run_cancel POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -13538,6 +17062,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_run_read GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed chamvi_run_read GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -13667,6 +17194,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 200,
   },
+  "listed chamvi_run_read GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed chamvi_run_read PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -13683,6 +17219,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_run_read POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed chamvi_run_read POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_run_read POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_run_read POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed chamvi_run_read POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -13691,6 +17259,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed chamvi_run_read POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_run_read POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed chamvi_run_read POST /connection-types/mail/connections {}": {
     "body": {
@@ -13723,6 +17307,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed chamvi_run_read POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed chamvi_run_read POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -13867,6 +17459,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_state_read GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed chamvi_state_read GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -13976,6 +17571,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_state_read GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed chamvi_state_read PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -13992,6 +17596,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_state_read POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed chamvi_state_read POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_state_read POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_state_read POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed chamvi_state_read POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -14000,6 +17636,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed chamvi_state_read POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_state_read POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed chamvi_state_read POST /connection-types/mail/connections {}": {
     "body": {
@@ -14032,6 +17684,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed chamvi_state_read POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed chamvi_state_read POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -14171,6 +17831,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_state_write GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed chamvi_state_write GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -14280,6 +17943,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_state_write GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed chamvi_state_write PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "keys": [
@@ -14298,6 +17970,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_state_write POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed chamvi_state_write POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_state_write POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_state_write POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed chamvi_state_write POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -14306,6 +18010,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed chamvi_state_write POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_state_write POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed chamvi_state_write POST /connection-types/mail/connections {}": {
     "body": {
@@ -14338,6 +18058,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed chamvi_state_write POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed chamvi_state_write POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -14477,6 +18205,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_tool_use GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed chamvi_tool_use GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -14586,6 +18317,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_tool_use GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed chamvi_tool_use PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -14602,6 +18342,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed chamvi_tool_use POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed chamvi_tool_use POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_tool_use POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_tool_use POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed chamvi_tool_use POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -14610,6 +18382,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed chamvi_tool_use POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed chamvi_tool_use POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed chamvi_tool_use POST /connection-types/mail/connections {}": {
     "body": {
@@ -14642,6 +18430,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed chamvi_tool_use POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed chamvi_tool_use POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -14781,6 +18577,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed connection_create{type:mail} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed connection_create{type:mail} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -14890,6 +18689,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed connection_create{type:mail} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed connection_create{type:mail} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -14906,6 +18714,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed connection_create{type:mail} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed connection_create{type:mail} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed connection_create{type:mail} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed connection_create{type:mail} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed connection_create{type:mail} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -14914,6 +18754,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed connection_create{type:mail} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed connection_create{type:mail} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed connection_create{type:mail} POST /connection-types/mail/connections {}": {
     "body": {
@@ -14946,6 +18802,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed connection_create{type:mail} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed connection_create{type:mail} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -15090,6 +18954,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed connection_read{type:mail} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed connection_read{type:mail} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -15199,6 +19066,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed connection_read{type:mail} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed connection_read{type:mail} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -15215,6 +19091,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed connection_read{type:mail} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed connection_read{type:mail} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed connection_read{type:mail} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed connection_read{type:mail} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed connection_read{type:mail} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -15223,6 +19131,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed connection_read{type:mail} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed connection_read{type:mail} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed connection_read{type:mail} POST /connection-types/mail/connections {}": {
     "body": {
@@ -15255,6 +19179,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed connection_read{type:mail} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed connection_read{type:mail} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -15394,6 +19326,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed connection_write{name:other} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed connection_write{name:other} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -15503,6 +19438,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed connection_write{name:other} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed connection_write{name:other} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -15519,6 +19463,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed connection_write{name:other} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed connection_write{name:other} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed connection_write{name:other} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed connection_write{name:other} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed connection_write{name:other} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -15527,6 +19503,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed connection_write{name:other} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed connection_write{name:other} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed connection_write{name:other} POST /connection-types/mail/connections {}": {
     "body": {
@@ -15559,6 +19551,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed connection_write{name:other} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed connection_write{name:other} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -15698,6 +19698,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed none GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed none GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -15807,6 +19810,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed none GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed none PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -15823,6 +19835,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed none POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed none POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed none POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed none POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed none POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -15831,6 +19875,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed none POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed none POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed none POST /connection-types/mail/connections {}": {
     "body": {
@@ -15863,6 +19923,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed none POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed none POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -16002,6 +20070,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed run_cancel{agent:echo} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed run_cancel{agent:echo} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -16111,6 +20182,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed run_cancel{agent:echo} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed run_cancel{agent:echo} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -16127,6 +20207,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed run_cancel{agent:echo} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed run_cancel{agent:echo} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed run_cancel{agent:echo} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed run_cancel{agent:echo} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed run_cancel{agent:echo} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -16135,6 +20247,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed run_cancel{agent:echo} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed run_cancel{agent:echo} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed run_cancel{agent:echo} POST /connection-types/mail/connections {}": {
     "body": {
@@ -16167,6 +20295,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 409,
     },
     "status": 409,
+  },
+  "listed run_cancel{agent:echo} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed run_cancel{agent:echo} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -16310,6 +20446,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed run_read{agent:echo} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed run_read{agent:echo} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -16438,6 +20577,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 200,
   },
+  "listed run_read{agent:echo} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed run_read{agent:echo} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -16454,6 +20602,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed run_read{agent:echo} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed run_read{agent:echo} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed run_read{agent:echo} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed run_read{agent:echo} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed run_read{agent:echo} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -16462,6 +20642,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed run_read{agent:echo} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed run_read{agent:echo} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed run_read{agent:echo} POST /connection-types/mail/connections {}": {
     "body": {
@@ -16494,6 +20690,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed run_read{agent:echo} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed run_read{agent:echo} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -16638,6 +20842,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed state_read{name:echo} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed state_read{name:echo} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -16747,6 +20954,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed state_read{name:echo} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed state_read{name:echo} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -16763,6 +20979,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed state_read{name:echo} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed state_read{name:echo} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed state_read{name:echo} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed state_read{name:echo} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed state_read{name:echo} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -16771,6 +21019,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed state_read{name:echo} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed state_read{name:echo} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed state_read{name:echo} POST /connection-types/mail/connections {}": {
     "body": {
@@ -16803,6 +21067,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed state_read{name:echo} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed state_read{name:echo} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -16942,6 +21214,9 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed state_write{name:vault} GET /connections/mail-work/events": {
+    "status": 403,
+  },
   "listed state_write{name:vault} GET /connections/unknown": {
     "body": {
       "code": "forbidden",
@@ -17051,6 +21326,15 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed state_write{name:vault} GET /ui-pages": {
+    "body": {
+      "keys": [
+        "data",
+      ],
+      "rows": [],
+    },
+    "status": 200,
+  },
   "listed state_write{name:vault} PATCH /agents/echo/state/kv/matrix {"value":1}": {
     "body": {
       "code": "forbidden",
@@ -17067,6 +21351,38 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     },
     "status": 403,
   },
+  "listed state_write{name:vault} POST /agents/echo/runs {"role":"review"}": {
+    "body": {
+      "code": "bad_request",
+      "message": "The peer and role fields need a peer credential.",
+      "status": 400,
+    },
+    "status": 400,
+  },
+  "listed state_write{name:vault} POST /agents/echo/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed state_write{name:vault} POST /agents/outside/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed state_write{name:vault} POST /agents/vault/runs {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
   "listed state_write{name:vault} POST /authorization/check {}": {
     "body": {
       "keys": [
@@ -17075,6 +21391,22 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "rows": undefined,
     },
     "status": 200,
+  },
+  "listed state_write{name:vault} POST /channels/webhook/echo/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
+  },
+  "listed state_write{name:vault} POST /channels/webhook/vault/hook {}": {
+    "body": {
+      "code": "forbidden",
+      "message": "Missing permission "chamvi_agent_run".",
+      "status": 403,
+    },
+    "status": 403,
   },
   "listed state_write{name:vault} POST /connection-types/mail/connections {}": {
     "body": {
@@ -17107,6 +21439,14 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
       "status": 403,
     },
     "status": 403,
+  },
+  "listed state_write{name:vault} POST /runs/<echo>/wake": {
+    "body": {
+      "code": "run_not_found",
+      "message": "Run "<echo>" was not found.",
+      "status": 404,
+    },
+    "status": 404,
   },
   "listed state_write{name:vault} POST /runs/<gate>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -17203,6 +21543,15 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
         "gate",
       ],
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+      "run_echo",
+      "run_gate",
+      "run_outside",
+      "run_vault",
+    ],
   },
   "mcp agent_approve{name:gate}": {
     "approve_run stale": {
@@ -17229,6 +21578,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp agent_read{name:vault}": {
     "approve_run stale": {
@@ -17280,6 +21634,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
         "vault",
       ],
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp agent_read{private:false}": {
     "approve_run stale": {
@@ -17327,6 +21686,62 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
         "gate",
       ],
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
+  },
+  "mcp agent_run{name:echo}": {
+    "approve_run stale": {
+      "isError": true,
+      "text": "Missing permission "chamvi_agent_approve".",
+    },
+    "get_run <echo>": {
+      "isError": false,
+      "keys": [
+        "agent",
+        "agentPrivate",
+        "createdAt",
+        "finishedAt",
+        "id",
+        "output",
+        "startedAt",
+        "status",
+        "trigger",
+        "updatedAt",
+        "usage",
+      ],
+      "rows": undefined,
+    },
+    "get_run <unknown>": {
+      "isError": true,
+      "text": "Run "<unknown>" was not found.",
+    },
+    "get_run <vault>": {
+      "isError": true,
+      "text": "Run "<vault>" was not found.",
+    },
+    "list_runs {agent:vault}": {
+      "isError": true,
+      "text": "Reading runs of agent "vault" needs chamvi_agent_read.",
+    },
+    "list_runs {}": {
+      "isError": false,
+      "keys": [
+        "data",
+        "total",
+      ],
+      "rows": [
+        "echo",
+      ],
+    },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+      "run_echo",
+    ],
   },
   "mcp anonymous": {
     "connect": "refused",
@@ -17356,6 +21771,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp chamvi_agent_read": {
     "approve_run stale": {
@@ -17423,6 +21843,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
         "gate",
       ],
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp chamvi_agent_run": {
     "approve_run stale": {
@@ -17470,6 +21895,15 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
         "gate",
       ],
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+      "run_echo",
+      "run_gate",
+      "run_outside",
+      "run_vault",
+    ],
   },
   "mcp chamvi_component_read": {
     "approve_run stale": {
@@ -17496,6 +21930,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp chamvi_connection_create": {
     "approve_run stale": {
@@ -17522,6 +21961,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp chamvi_connection_read": {
     "approve_run stale": {
@@ -17548,6 +21992,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp chamvi_connection_write": {
     "approve_run stale": {
@@ -17574,6 +22023,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp chamvi_knowledge_read": {
     "approve_run stale": {
@@ -17600,6 +22054,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp chamvi_knowledge_write": {
     "approve_run stale": {
@@ -17626,6 +22085,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp chamvi_run_cancel": {
     "approve_run stale": {
@@ -17652,6 +22116,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp chamvi_run_read": {
     "approve_run stale": {
@@ -17699,6 +22168,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
         "gate",
       ],
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp chamvi_state_read": {
     "approve_run stale": {
@@ -17725,6 +22199,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp chamvi_state_write": {
     "approve_run stale": {
@@ -17751,6 +22230,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp chamvi_tool_use": {
     "approve_run stale": {
@@ -17777,6 +22261,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp connection_create{type:mail}": {
     "approve_run stale": {
@@ -17803,6 +22292,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp connection_read{type:mail}": {
     "approve_run stale": {
@@ -17829,6 +22323,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp connection_write{name:other}": {
     "approve_run stale": {
@@ -17855,6 +22354,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp none": {
     "approve_run stale": {
@@ -17881,6 +22385,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp run_cancel{agent:echo}": {
     "approve_run stale": {
@@ -17907,6 +22416,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp run_read{agent:echo}": {
     "approve_run stale": {
@@ -17952,6 +22466,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
         "echo",
       ],
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp state_read{name:echo}": {
     "approve_run stale": {
@@ -17978,6 +22497,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
   "mcp state_write{name:vault}": {
     "approve_run stale": {
@@ -18004,6 +22528,11 @@ exports[`permission matrix > pins the MCP read and approve tools per principal (
       "isError": true,
       "text": "Missing permission "chamvi_run_read".",
     },
+    "tools/list": [
+      "approve_run",
+      "get_run",
+      "list_runs",
+    ],
   },
 }
 `;
