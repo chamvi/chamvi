@@ -53,7 +53,7 @@ export async function prepareConversationEmit(
             return;
         }
 
-        const value: Omit<ConversationItemRecord, 'id' | 'bytes'> = {
+        const value: Omit<ConversationItemRecord, 'id' | 'sequence' | 'bytes'> = {
             ...where,
             key: item.id,
             role: 'assistant',

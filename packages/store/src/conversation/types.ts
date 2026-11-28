@@ -15,13 +15,14 @@ import type { IEntityRepository } from '../entity/types.ts';
 
 /**
  * The items of conversations: the generic entity port on
- * `ConversationItemRecord` (key `id`, assigned when a row is stored and
- * increasing in that order: sort by `CONVERSATION_ITEM_STORED_ORDER` for
- * the transcript's order; `(scopeId, generation, key)` unique, and
- * `upsert` replaces by it, keeping the stored storage key). `scopeId`
- * references a conversation (`EntityRelationError` naming
- * `conversation`), `runId` a run (naming `run`). `findMany` honours a
- * query's `fields`: the recall reads ids and `bytes` without the text.
+ * `ConversationItemRecord` (key `id`, stored as given; `sequence`
+ * assigned when a row is stored and increasing in that order: sort by
+ * `CONVERSATION_ITEM_STORED_ORDER` for the transcript's order;
+ * `(scopeId, generation, key)` unique, and `upsert` replaces by it,
+ * keeping the stored `id` and `sequence`). `scopeId` references a
+ * conversation (`EntityRelationError` naming `conversation`), `runId` a
+ * run (naming `run`). `findMany` honours a query's `fields`: the recall
+ * reads ids, sequences and `bytes` without the text.
  */
 export interface IConversationItemRepository extends IEntityRepository<ConversationItemRecord> {}
 

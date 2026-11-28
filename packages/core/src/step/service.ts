@@ -7,6 +7,7 @@
 
 import { EntityRelationError } from '@chamvi/errors';
 import { defineQuery, eq } from '@rapiq/core';
+import { uuidv7 } from 'uuidv7';
 import { STEP_STORED_ORDER } from '@chamvi/core-kit';
 import type { Step } from '@chamvi/core-kit';
 import type { IStepRepository } from '@chamvi/store';
@@ -21,11 +22,9 @@ export class StepService implements IStepService {
         this.repository = ctx.repository;
     }
 
-    async create(step: Step): Promise<void> {
+    async create(step: Omit<Step, 'id'>): Promise<Step> {
         try {
-            await this.repository.transaction(async (repository) => {
-                await repository.save(repository.create(step));
-            });
+            return await this.repository.transaction(async (repository) => repository.save(repository.create({ ...step, id: uuidv7() })));
         } catch (error) {
             if (error instanceof EntityRelationError && error.relation === 'run') {
                 throw new RunNotFoundError(step.runId);

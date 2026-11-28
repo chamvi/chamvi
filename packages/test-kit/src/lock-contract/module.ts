@@ -16,7 +16,7 @@ import { LockService } from '@chamvi/core';
 import type { ILockRepository } from '@chamvi/store';
 import type { Lock } from '@chamvi/core-kit';
 import { ControllableClock } from '../clock/index.ts';
-import { testUuid } from '../fixture/helpers.ts';
+import { UUID_V7, testUuid } from '../fixture/helpers.ts';
 import type { LockRepositoryContractInput } from './types.ts';
 
 /** Tolerance for a database whose clock lags the process clock a little (microseconds). */
@@ -209,11 +209,12 @@ export function describeLockRepositoryContract(input: LockRepositoryContractInpu
                 service = new LockService({ repository: locks, clock });
             });
 
-            it('acquire resolves the stored token, at or above the wall clock in microseconds; a refusal resolves undefined', async () => {
+            it('acquire stores a uuid v7 id and resolves the stored token, at or above the wall clock in microseconds; a refusal resolves undefined', async () => {
                 const floor = Date.now() * 1000 - CLOCK_TOLERANCE_US;
                 const token = await service.acquire('k', 'a', 1_000);
 
                 expect(token).toBeTypeOf('number');
+                expect((await locks.findOneBy({ key: 'k' }))!.id).toMatch(UUID_V7);
                 expect(token).toBeGreaterThanOrEqual(floor);
                 expect(await tokenOf('k')).toBe(token);
                 expect(await service.acquire('k', 'b', 1_000)).toBeUndefined();

@@ -12,23 +12,24 @@ import type { MemoryRegistry } from '../../registry/module.ts';
 import { MemoryEntityRepository } from '../../entity/module.ts';
 import type { MemoryRepositoryOptions } from '../../entity/types.ts';
 
-/** The last storage key handed out per registry, like a database sequence. */
+/** The last sequence handed out per registry, like a database sequence. */
 const sequences = new WeakMap<MemoryRegistry, number>();
 
 /**
  * Conversation items in the registry (entity `conversation_item`, key
  * `id`, `(scopeId, generation, key)` unique, `scopeId` referencing a
- * conversation, `runId` a run). An item saved from `create()` without an
- * `id` gets the next storage key (`CONVERSATION_ITEM_STORED_ORDER`), in
- * the order items are saved, as a database's identity column; `upsert`
- * replaces by `(scopeId, generation, key)` and keeps the storage key.
+ * conversation, `runId` a run). An item saved from `create()` or
+ * inserted by `upsert` gets the next sequence
+ * (`CONVERSATION_ITEM_STORED_ORDER`), in the order items are stored, as
+ * a database's identity column; `upsert` replaces by `(scopeId,
+ * generation, key)` and keeps the stored `id` and sequence.
  */
 export class MemoryConversationItemRepository extends MemoryEntityRepository<ConversationItemRecord> implements IConversationItemRepository {
     constructor(options: MemoryRepositoryOptions) {
         super({
             entity: 'conversation_item',
             registry: options.registry,
-            key: [CONVERSATION_ITEM_STORED_ORDER],
+            key: ['id'],
             unique: [['scopeId', 'generation', 'key']],
             references: [
                 { field: 'scopeId', entity: 'conversation' },
@@ -39,15 +40,30 @@ export class MemoryConversationItemRepository extends MemoryEntityRepository<Con
     }
 
     override async save(entity: ConversationItemRecord): Promise<ConversationItemRecord> {
-        const row = entity as EntityRecord;
-
-        if (this.created.has(entity) && row[CONVERSATION_ITEM_STORED_ORDER] === undefined) {
-            const key = (sequences.get(this.registry) ?? 0) + 1;
-
-            sequences.set(this.registry, key);
-            row[CONVERSATION_ITEM_STORED_ORDER] = key;
+        if (this.created.has(entity)) {
+            (entity as EntityRecord)[CONVERSATION_ITEM_STORED_ORDER] = this.nextSequence();
         }
 
         return super.save(entity);
+    }
+
+    /** The replaced row's sequence for a stored item, the next one for a new item. */
+    protected override async keepReplacedKey(row: EntityRecord, group: string[]): Promise<boolean> {
+        const replacing = await super.keepReplacedKey(row, group);
+        const stored = replacing ?
+            this.registry.read(this.entity, this.registry.keyOf(this.entity, row), this.tx) :
+            undefined;
+
+        row[CONVERSATION_ITEM_STORED_ORDER] = stored ? stored[CONVERSATION_ITEM_STORED_ORDER] : this.nextSequence();
+
+        return replacing;
+    }
+
+    protected nextSequence(): number {
+        const sequence = (sequences.get(this.registry) ?? 0) + 1;
+
+        sequences.set(this.registry, sequence);
+
+        return sequence;
     }
 }

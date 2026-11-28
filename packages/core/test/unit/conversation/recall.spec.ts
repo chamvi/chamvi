@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { uuidv7 } from 'uuidv7';
 import { describe, expect, it } from 'vitest';
 import { MemoryConversationRepository, MemoryRegistry, MemoryRunRepository } from '@chamvi/store-memory';
 import { ConversationService, DEFAULT_CONVERSATION_LIMITS } from '@chamvi/core';
@@ -117,6 +118,7 @@ describe('the recall budget', () => {
         for (const key of ['i1', 'i2']) {
             clock.advance(1);
             await repository.items.save(repository.items.create({
+                id: uuidv7(),
                 key,
                 scopeId: scope.id,
                 generation: scope.generation,

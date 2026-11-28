@@ -123,15 +123,12 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
                 return;
             }
 
-            const stored: Step = {
+            ctx.onStepAppended(await stepService.create({
                 runId: run.id,
                 index: (await stepService.find(run.id)).length,
                 kind: 'tool',
                 ...step,
-            };
-
-            await stepService.create(stored);
-            ctx.onStepAppended(stored);
+            }));
         });
 
         steps = write.catch(() => {});
@@ -229,7 +226,7 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
     await steps;
 
     if (!ctx.ownsRun || await ctx.ownsRun()) {
-        const step: Step = {
+        const step: Omit<Step, 'id'> = {
             runId: run.id,
             index: (await stepService.find(run.id)).length,
             kind: 'tool',
@@ -240,8 +237,7 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
             finishedAt: new Date(clock.now()),
         };
 
-        await stepService.create(step);
-        ctx.onStepAppended(step);
+        ctx.onStepAppended(await stepService.create(step));
     }
 
     if ('error' in outcome) {

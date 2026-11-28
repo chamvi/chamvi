@@ -11,7 +11,7 @@ import type {
     ConversationOperationRecord,
     ConversationRecord,
 } from '@chamvi/core-kit';
-import { testUuid } from '../fixture/helpers.ts';
+import { testUuid, testUuidV7 } from '../fixture/helpers.ts';
 import { KEY } from './constants.ts';
 
 export function conversationOf(label: string, overrides: Partial<ConversationRecord> = {}): ConversationRecord {
@@ -30,13 +30,20 @@ export function conversationOf(label: string, overrides: Partial<ConversationRec
     };
 }
 
+/** The counter of the uuid v7 `itemOf` gives an item without one: unique across a spec file. */
+let lastItemId = 0;
+
+/** An item as the service stores it: its uuid v7 `id` set, its `sequence` left to the store. */
 export function itemOf(
     scopeId: string,
     runId: string,
     key: string,
-    overrides: Partial<Omit<ConversationItemRecord, 'id'>> = {},
-): Omit<ConversationItemRecord, 'id'> {
+    overrides: Partial<Omit<ConversationItemRecord, 'sequence'>> = {},
+): Omit<ConversationItemRecord, 'sequence'> {
+    lastItemId++;
+
     return {
+        id: testUuidV7(1_000, lastItemId),
         scopeId,
         generation: 0,
         key,

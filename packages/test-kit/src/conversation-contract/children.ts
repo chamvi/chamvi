@@ -15,7 +15,12 @@ import {
 import { expect, it } from 'vitest';
 import { CONVERSATION_ITEM_STORED_ORDER } from '@chamvi/core-kit';
 import type { CheckpointRecord, ConversationItemRecord } from '@chamvi/core-kit';
-import { makeRun, testUuid } from '../fixture/helpers.ts';
+import {
+    UUID_V7,
+    makeRun,
+    testUuid,
+    testUuidV7,
+} from '../fixture/helpers.ts';
 import type { ConversationContractContext } from './context.ts';
 import { KEY } from './constants.ts';
 import {
@@ -27,7 +32,7 @@ import {
 
 /** The item, note and operation cases of the conversation contract, and the references between conversations, runs and checkpoints. */
 export function registerConversationChildCases(context: ConversationContractContext): void {
-    it('items get storage keys in the order they are stored; a sort by CONVERSATION_ITEM_STORED_ORDER is the transcript order', async () => {
+    it('items keep their uuid v7 id and get a sequence in the order they are stored; a sort by CONVERSATION_ITEM_STORED_ORDER is the transcript order', async () => {
         const {
             conversations,
             insert,
@@ -49,9 +54,10 @@ export function registerConversationChildCases(context: ConversationContractCont
         }));
         const third = await insertItem(itemOf(scopeId, runId, 'assistant:a:1', { role: 'assistant', status: 'unknown' }));
 
-        expect(Number.isSafeInteger(first.id)).toBe(true);
-        expect(first.id).toBeLessThan(second.id);
-        expect(second.id).toBeLessThan(third.id);
+        expect(first.id).toMatch(UUID_V7);
+        expect(Number.isSafeInteger(first.sequence)).toBe(true);
+        expect(first.sequence).toBeLessThan(second.sequence);
+        expect(second.sequence).toBeLessThan(third.sequence);
         expect(second).toStrictEqual({
             ...itemOf(scopeId, runId, 'assistant:a:0', {
                 role: 'assistant',
@@ -60,6 +66,7 @@ export function registerConversationChildCases(context: ConversationContractCont
                 target: { channel: 'chat', address: 'room' },
             }),
             id: second.id,
+            sequence: second.sequence,
         });
 
         const ascending = await conversations.items.findMany(defineQuery({
@@ -70,7 +77,7 @@ export function registerConversationChildCases(context: ConversationContractCont
         expect(ascending.data).toStrictEqual([first, second, third]);
 
         const older = await conversations.items.findMany(defineQuery({
-            filters: and(eq('scopeId', scopeId), lt(CONVERSATION_ITEM_STORED_ORDER, third.id)),
+            filters: and(eq('scopeId', scopeId), lt(CONVERSATION_ITEM_STORED_ORDER, third.sequence)),
             sorts: { [CONVERSATION_ITEM_STORED_ORDER]: 'DESC' },
             pagination: { limit: 1 },
         }));
@@ -80,13 +87,17 @@ export function registerConversationChildCases(context: ConversationContractCont
 
         // the sizes of the sent items, newest first, without their text
         const sizes = await conversations.items.findMany(defineQuery({
-            fields: [CONVERSATION_ITEM_STORED_ORDER, 'bytes'],
+            fields: ['id', CONVERSATION_ITEM_STORED_ORDER, 'bytes'],
             filters: and(eq('scopeId', scopeId), eq('generation', 0), eq('status', 'sent')),
             sorts: { [CONVERSATION_ITEM_STORED_ORDER]: 'DESC' },
             pagination: { limit: 10 },
         }));
 
-        expect(sizes.data).toStrictEqual([{ id: first.id, bytes: first.bytes }]);
+        expect(sizes.data).toStrictEqual([{
+            id: first.id,
+            sequence: first.sequence,
+            bytes: first.bytes,
+        }]);
         expect(first.bytes).toBe(1000 + 'user:a'.length);
 
         expect(await conversations.items.findOneBy({
@@ -94,6 +105,60 @@ export function registerConversationChildCases(context: ConversationContractCont
             generation: 0,
             key: 'user:a',
         })).toStrictEqual(first);
+    });
+
+    it('items read in the order they were stored, not by id: two ids of one millisecond stored in reverse', async () => {
+        const {
+            conversations,
+            insert,
+            insertRun,
+            insertItem,
+        } = context;
+
+        const runId = await insertRun('run-a');
+
+        await insert(conversationOf('c1'));
+
+        const scopeId = testUuid('c1');
+        const first = await insertItem(itemOf(scopeId, runId, 'first', { id: testUuidV7(5_000, 2) }));
+        const second = await insertItem(itemOf(scopeId, runId, 'second', { id: testUuidV7(5_000, 1) }));
+
+        const { data } = await conversations.items.findMany(defineQuery({
+            filters: eq('scopeId', scopeId),
+            sorts: { [CONVERSATION_ITEM_STORED_ORDER]: 'ASC' },
+        }));
+
+        expect(data).toStrictEqual([first, second]);
+        expect(await conversations.items.findOneById(second.id)).toStrictEqual(second);
+    });
+
+    it('upsert leaves the sequence to the store: a new item gets the next one, a replaced item keeps its stored one', async () => {
+        const {
+            conversations,
+            insert,
+            insertRun,
+            insertItem,
+        } = context;
+
+        const runId = await insertRun('run-a');
+
+        await insert(conversationOf('c1'));
+
+        const scopeId = testUuid('c1');
+        const stored = await insertItem(itemOf(scopeId, runId, 'k0', { status: 'pending' }));
+        const added = itemOf(scopeId, runId, 'k1');
+        const [replaced, inserted] = await conversations.items.upsertMany([
+            { ...itemOf(scopeId, runId, 'k0', { id: stored.id }), status: 'sent' } as ConversationItemRecord,
+            added as ConversationItemRecord,
+        ]);
+
+        expect(replaced).toStrictEqual({ ...stored, status: 'sent' });
+        expect(inserted).toStrictEqual({ ...added, sequence: inserted!.sequence });
+        expect(inserted!.sequence).toBeGreaterThan(stored.sequence);
+        expect((await conversations.items.findMany(defineQuery({
+            filters: eq('scopeId', scopeId),
+            sorts: { [CONVERSATION_ITEM_STORED_ORDER]: 'ASC' },
+        }))).data).toStrictEqual([replaced, inserted]);
     });
 
     it('an item, note or operation of a stored natural key is EntityConflictError; another generation may hold it', async () => {

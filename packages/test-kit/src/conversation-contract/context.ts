@@ -25,5 +25,5 @@ export class ConversationContractContext {
         return testUuid(label);
     };
 
-    insertItem = (value: Omit<ConversationItemRecord, 'id'>) => this.conversations.items.save(this.conversations.items.create(value as ConversationItemRecord));
+    insertItem = (value: Omit<ConversationItemRecord, 'sequence'>) => this.conversations.items.save(this.conversations.items.create(value as ConversationItemRecord));
 }

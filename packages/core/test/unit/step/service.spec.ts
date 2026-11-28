@@ -22,8 +22,9 @@ import {
 } from '../../../src/index.ts';
 
 const RUN_ID = '00000000-0000-4000-8000-000000000001';
+const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-function stepOf(index: number, patch: Partial<Step> = {}): Step {
+function stepOf(index: number, patch: Partial<Omit<Step, 'id'>> = {}): Omit<Step, 'id'> {
     return {
         runId: RUN_ID,
         index,
@@ -75,12 +76,25 @@ describe('StepService', () => {
             }),
         ];
 
+        const stored: Step[] = [];
+
         for (const step of steps) {
-            await service.create(step);
+            stored.push(await service.create(step));
         }
 
-        expect(await service.find(RUN_ID)).toEqual([steps[1], steps[0], steps[2]]);
-        expect(await service.findOrFail(RUN_ID)).toEqual([steps[1], steps[0], steps[2]]);
+        expect(stored).toEqual(steps.map((step, index) => ({ ...step, id: stored[index]!.id })));
+        expect(await service.find(RUN_ID)).toEqual([stored[1], stored[0], stored[2]]);
+        expect(await service.findOrFail(RUN_ID)).toEqual([stored[1], stored[0], stored[2]]);
+    });
+
+    it('assigns each step a distinct uuid v7 id in the order they are appended', async () => {
+        const first = await service.create(stepOf(0));
+        const second = await service.create(stepOf(0));
+
+        expect(first.id).toMatch(UUID_V7);
+        expect(second.id).toMatch(UUID_V7);
+        expect(first.id < second.id).toBe(true);
+        expect((await service.find(RUN_ID)).map((step) => step.id)).toEqual([first.id, second.id]);
     });
 
     it('a step of a missing or malformed run is RunNotFoundError naming the run, and nothing is appended', async () => {

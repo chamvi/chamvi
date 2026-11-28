@@ -6,6 +6,8 @@
  */
 
 export type Step = {
+    /** The step's id: a uuid v7, assigned when the step is appended. */
+    id: string;
     runId: string;
     index: number;
     kind: 'llm' | 'tool' | 'wait';

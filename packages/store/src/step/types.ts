@@ -9,10 +9,10 @@ import type { Step } from '@chamvi/core-kit';
 import type { IEntityRepository } from '../entity/types.ts';
 
 /**
- * The step port: the generic entity port on `Step`, `runId` referencing a
- * run (labelled `step`, a missing run is `EntityRelationError` naming
- * `run`). A step has no public key: each row gets a storage key in the
- * order rows are saved (`STEP_STORED_ORDER`), assigned when the row is
+ * The step port: the generic entity port on `Step` (key `id`, stored as
+ * given), `runId` referencing a run (labelled `step`, a missing run is
+ * `EntityRelationError` naming `run`). Each row also gets a sequence in
+ * the order rows are saved (`STEP_STORED_ORDER`), assigned when the row is
  * stored, never returned by a read; a query sorts by `index`, then
  * `STEP_STORED_ORDER` for the order steps were saved in. Steps are
  * appended and listed; a read step cannot be saved again.

@@ -319,19 +319,24 @@ export class RunExecution {
         return true;
     }
 
-    async append(step: Omit<Step, 'runId' | 'index'>): Promise<void> {
-        const full: Step = {
-            ...step,
-            runId: this.ctx.run.id,
-            index: this.stepSeq,
-        };
+    async append(step: Omit<Step, 'id' | 'runId' | 'index'>): Promise<void> {
+        let stored: Step | undefined;
 
-        if (!await this.guarded(() => this.ctx.stepService.create(full))) {
+        await this.guarded(async () => {
+            stored = await this.ctx.stepService.create({
+                ...step,
+                runId: this.ctx.run.id,
+                index: this.stepSeq,
+            });
+        });
+
+        // a write guarded() skipped stores and emits nothing
+        if (!stored) {
             return;
         }
 
         this.stepSeq++;
-        this.ctx.onStepAppended(full);
+        this.ctx.onStepAppended(stored);
     }
 
     onStepEnd(step: StepResult<ToolSet>): Promise<void> {

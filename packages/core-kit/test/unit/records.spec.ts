@@ -32,8 +32,8 @@ describe('domain records', () => {
     });
 
     it('keeps the stored order fields', () => {
-        expect(kit.STEP_STORED_ORDER).toBe('id');
-        expect(kit.CONVERSATION_ITEM_STORED_ORDER).toBe('id');
+        expect(kit.STEP_STORED_ORDER).toBe('sequence');
+        expect(kit.CONVERSATION_ITEM_STORED_ORDER).toBe('sequence');
     });
 
     it('keeps the agent revision records', () => {
@@ -186,7 +186,8 @@ describe('domain records', () => {
             snapshot?: kit.ConversationRecordSnapshot;
         }>();
         expectTypeOf<kit.ConversationItemRecord>().toEqualTypeOf<Omit<kit.ConversationItem, 'id'> & {
-            id: number;
+            id: string;
+            sequence: number;
             key: string;
             scopeId: string;
             generation: number;
@@ -258,6 +259,7 @@ describe('domain records', () => {
 
     it('keeps the step record', () => {
         expectTypeOf<kit.Step>().toEqualTypeOf<{
+            id: string;
             runId: string;
             index: number;
             kind: 'llm' | 'tool' | 'wait';

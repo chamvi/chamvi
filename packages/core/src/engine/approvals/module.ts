@@ -10,7 +10,6 @@ import type {
     ApprovalWaitPoint,
     Invoker,
     Run,
-    Step,
     Usage,
 } from '@chamvi/core-kit';
 import { approvalDecisionKey, assertSelectionShape, toSelection } from '../../approval/helpers.ts';
@@ -231,7 +230,7 @@ export class EngineApprovals implements IEngineApprovals {
             await runService.update(run.id, { claim: { owner: this.ctx.owner, expiresAt: new Date(clock.now() + this.ctx.claimTtlMs) } }, ours);
             await this.ctx.effectService.save(record.key, record.value);
 
-            const appended: Step = {
+            const appended = await this.ctx.stepService.create({
                 runId: run.id,
                 index: (await this.ctx.stepService.find(run.id)).length,
                 kind: 'wait',
@@ -240,9 +239,8 @@ export class EngineApprovals implements IEngineApprovals {
                 output: step.output,
                 startedAt: run.updatedAt,
                 finishedAt: now,
-            };
+            });
 
-            await this.ctx.stepService.create(appended);
             this.ctx.emit({ type: 'step.appended', step: appended });
             queued = await runService.update(run.id, {
                 waiting: undefined,

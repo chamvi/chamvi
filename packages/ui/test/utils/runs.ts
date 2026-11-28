@@ -35,6 +35,7 @@ export function wireRun(overrides: Partial<RunWire> = {}): RunWire {
 
 export function wireStep(index: number, kind: StepWire['kind'] = 'llm', overrides: Partial<StepWire> = {}): StepWire {
     return {
+        id: `019a0000-0000-7000-8000-${String(index).padStart(12, '0')}`,
         runId: 'r1',
         index,
         kind,
