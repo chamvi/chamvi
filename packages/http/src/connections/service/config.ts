@@ -5,17 +5,18 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { Permission } from '@chamvi/access';
 import {
     ConnectionChangedError,
+    assertConnectionAccess,
+    assertConnectionCreate,
     assertConnectionName,
-    forbidden,
+    connectionResource,
     storedConnectionName,
     validateBody,
 } from '@chamvi/core';
 import type { ConnectionConfigUpdate, ConnectionValues, IConnectionConfigStore } from '@chamvi/core';
 import { ConflictError, NotFoundError } from '@chamvi/errors';
-import { isGranted } from '../../auth/helpers/index.ts';
+import { buildActorContext } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
 import { ConnectionValidator, ValidatorGroup } from '@chamvi/core-kit';
 import type {
@@ -28,11 +29,9 @@ import type {
 } from '@chamvi/core-kit';
 import { NO_STORE_MESSAGE } from '../constants.ts';
 import {
-    assertConnectionAccess,
     assertSecretsRebound,
     assertUnique,
     buildSettingsView,
-    connectionResource,
     findDeclared,
     findTarget,
     identityValues,
@@ -86,9 +85,7 @@ export class ConnectionConfigService implements IConnectionConfigService {
 
     async create(type: string, data: ConnectionCreateBody, principal: Principal): Promise<ConnectionSettingsView & { name: string }> {
         // before the 404, so an unknown type is refused like a foreign one
-        if (!await isGranted(principal, Permission.CONNECTION_CREATE, this.ctx.clock, { type })) {
-            throw forbidden(Permission.CONNECTION_CREATE);
-        }
+        await assertConnectionCreate(buildActorContext(principal, this.ctx.clock), type);
 
         const provider = this.ctx.connectionTypes().find((candidate) => candidate.definition.type === type);
 
@@ -254,7 +251,7 @@ export class ConnectionConfigService implements IConnectionConfigService {
             failure = { error };
         }
 
-        await assertConnectionAccess(this.ctx, principal, connectionResource(name, target?.definition.type), write);
+        await assertConnectionAccess(buildActorContext(principal, this.ctx.clock), connectionResource(name, target?.definition.type), write);
 
         if (failure) {
             throw failure.error;

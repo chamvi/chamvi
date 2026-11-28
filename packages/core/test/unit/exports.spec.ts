@@ -296,6 +296,11 @@ describe('public api', () => {
         'canReadAgentContent',
         'readableAgents',
         'isAgentContentProtected',
+        'connectionResource',
+        'canReadConnection',
+        'canWriteConnection',
+        'assertConnectionAccess',
+        'assertConnectionCreate',
         'validateBody',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
