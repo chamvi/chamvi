@@ -67,7 +67,7 @@ export function openRunStream(options: RunStreamOptions): IRunStream {
             let delay: number | undefined;
 
             try {
-                const body = await options.client.run.stream(options.runId, { lastEventId: lastStep, signal });
+                const body = await options.client.run.stream(options.runId, { lastEventId: lastStep }, { signal });
 
                 for await (const event of parseEventStream(body)) {
                     if (signal.aborted) {

@@ -5,11 +5,22 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { describe, expect, it } from 'vitest';
-import { ApiError, RECONNECT_DELAYS_MS, createClient } from '@chamvi/http-kit';
+import {
+    describe,
+    expect,
+    it,
+    vi,
+} from 'vitest';
+import {
+    ApiError,
+    Client,
+    RECONNECT_DELAYS_MS,
+    createClient,
+} from '@chamvi/http-kit';
 import type { ConnectionStreamEvent } from '@chamvi/http-kit';
 import { openConnectionStream } from '../../../src/domains/connection/helpers.ts';
 import { json, sse } from '../../utils/responses.ts';
+import { SilentTransport } from '../../utils/silent-transport.ts';
 import { FakeTransport } from '../../utils/transport.ts';
 import type { FakeAnswer } from '../../utils/transport.ts';
 
@@ -92,9 +103,30 @@ describe('ConnectionAPI', () => {
         const { api, requests } = setup([sse([])]);
         const controller = new AbortController();
 
-        await expect(api.stream('whatsapp', controller.signal)).resolves.toBeInstanceOf(ReadableStream);
+        await expect(api.stream('whatsapp', { signal: controller.signal })).resolves.toBeInstanceOf(ReadableStream);
         expect(requests[0]!.url).toBe('/api/connections/whatsapp/events');
         expect(requests[0]!.headers.get('accept')).toBe('text/event-stream');
+        expect(requests[0]!.signal!.aborted).toBe(false);
+
+        controller.abort();
+
+        expect(requests[0]!.signal!.aborted).toBe(true);
+    });
+
+    it('times out the event stream with the timeout option', async () => {
+        vi.useFakeTimers();
+
+        try {
+            const client = new Client({ baseURL: '/api', transport: new SilentTransport() });
+            const outcome = client.connection.stream('whatsapp', { timeout: 5 }).catch((e: unknown) => e);
+
+            await vi.advanceTimersByTimeAsync(5);
+
+            expect(await outcome).toBeInstanceOf(ApiError);
+            expect(await outcome).toMatchObject({ status: 0, code: 'timeout' });
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('reads, creates, saves, deletes and tests an account\'s configuration', async () => {

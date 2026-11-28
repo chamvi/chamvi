@@ -142,8 +142,8 @@ describe('useConnection', () => {
         const scope = effectScope();
         const state = scope.run(() => useConnection(fakeApi({
             getOne: async () => DETAIL,
-            stream: async (_name, s) => {
-                signal = s;
+            stream: async (_name, options) => {
+                signal = options?.signal;
 
                 return live.response.body!;
             },

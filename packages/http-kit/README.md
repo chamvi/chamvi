@@ -83,7 +83,7 @@ try {
 
 ## Domains
 
-The client has one API per domain. Every method takes a last `options` argument `{ signal, timeout, token }` (see [Options](#options)); the streams take their signal directly.
+The client has one API per domain. Every method takes a last `options` argument `{ signal, timeout, token }` (see [Options](#options)), the streams included.
 
 | Property | Methods | Routes |
 |---|---|---|
@@ -148,13 +148,13 @@ The query is encoded in rapiq's bracket dialect, falling back to the expression 
 
 ## Streams
 
-`client.run.stream()` answers the `text/event-stream` body of `GET /runs/:id/stream`, sent with the bearer header that browser `EventSource` cannot set; `parseEventStream()` reads its events:
+`client.run.stream(id, { lastEventId }, options)` answers the `text/event-stream` body of `GET /runs/:id/stream` (resumed after `lastEventId`, sent as `Last-Event-ID`), sent with the bearer header that browser `EventSource` cannot set; `timeout` bounds the answer only, `signal` also ends the read. `parseEventStream()` reads its events:
 
 ```ts
 import { parseEventStream } from '@chamvi/http-kit';
 
 const controller = new AbortController();
-const body = await client.run.stream(runId, { signal: controller.signal });
+const body = await client.run.stream(runId, {}, { signal: controller.signal });
 
 for await (const event of parseEventStream(body)) {
     if (event.event === 'step.appended') {
@@ -204,7 +204,7 @@ Per call (`APIRequestOptions`):
 | `buildRequestConfig`, `FIXED_TOKEN` | function, constant | The request config of `APIRequestOptions`; the marker of a fixed-token request the hook leaves alone |
 | `REQUEST_TIMEOUT_MS`, `RATE_LIMIT_BACKOFF_MS`, `RECONNECT_DELAYS_MS`, `FATAL_STREAM_STATUSES`, `RUN_LIST_QUERY_SCHEMA` | constant | `45_000`, `60_000`, `[1000, 2000, 5000, 10_000]`, `[400, 401, 403, 404]`, the `GET /runs` schema |
 
-Types: `ClientOptions`, `CreateClientOptions`, `ClientAuthenticationHookOptions`, `APIRequestOptions`, `Wire`, `EntityQueryInput`, `SseEvent`, `RunWire`, `StepWire`, `RunDetail`, `RunPage`, `RunListFields`, `RunListQuery`, `ApproveBody`, `RunStreamInit`, `AgentWire`, `AgentIssueWire`, `AgentList`, `StartRunBody`, `StartRunResult`, `ArtifactWire`, `MeWire`, `AuthorizationCheckWire`, `ComponentWire`, `ScheduleWire`, `KvEntry`, `DocEntry`, `UiPageWire`, `ConnectionWire`, `ConnectionDetailWire`, `ConnectionWidgetWire`, `ConnectionSettingsWire`, `ConnectionTestWire`, `ConnectionTypeWire`, `ConnectionStreamEvent`, `ConnectionStreamOptions`, `IConnectionStream`.
+Types: `ClientOptions`, `CreateClientOptions`, `ClientAuthenticationHookOptions`, `APIRequestOptions`, `Wire`, `EntityQueryInput`, `SseEvent`, `RunWire`, `StepWire`, `RunDetail`, `RunPage`, `RunListFields`, `RunListQuery`, `ApproveBody`, `RunStreamQuery`, `AgentWire`, `AgentIssueWire`, `AgentList`, `StartRunBody`, `StartRunResult`, `ArtifactWire`, `MeWire`, `AuthorizationCheckWire`, `ComponentWire`, `ScheduleWire`, `KvEntry`, `DocEntry`, `UiPageWire`, `ConnectionWire`, `ConnectionDetailWire`, `ConnectionWidgetWire`, `ConnectionSettingsWire`, `ConnectionTestWire`, `ConnectionTypeWire`, `ConnectionStreamEvent`, `ConnectionStreamOptions`, `IConnectionStream`.
 
 ## Notes
 

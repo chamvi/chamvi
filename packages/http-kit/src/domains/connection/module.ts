@@ -32,13 +32,13 @@ export class ConnectionAPI extends BaseAPI implements IConnectionAPI {
         return this.request<ConnectionWire>({ url: `${path('connections', name)}/reset`, method: 'POST' }, options);
     }
 
-    async stream(name: string, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+    async stream(name: string, options?: APIRequestOptions): Promise<ReadableStream<Uint8Array>> {
         const response = await this.requestRaw({
             url: `${path('connections', name)}/events`,
             method: 'GET',
             responseType: 'stream',
             headers: { accept: 'text/event-stream' },
-        }, { signal });
+        }, options);
 
         if (!response.data) {
             throw new ApiError(response.status, 'empty_stream', 'The stream has no body.');

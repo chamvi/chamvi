@@ -19,7 +19,7 @@ import type {
     RunListFields,
     RunListQuery,
     RunPage,
-    RunStreamInit,
+    RunStreamQuery,
 } from './types.ts';
 
 /** The query, sorted newest first when it names no order. */
@@ -60,16 +60,16 @@ export class RunAPI extends BaseAPI implements IRunAPI {
         }, options);
     }
 
-    async stream(id: string, init: RunStreamInit): Promise<ReadableStream<Uint8Array>> {
+    async stream(id: string, query?: RunStreamQuery, options?: APIRequestOptions): Promise<ReadableStream<Uint8Array>> {
         const response = await this.requestRaw({
             url: `${path('runs', id)}/stream`,
             method: 'GET',
             responseType: 'stream',
             headers: {
                 accept: 'text/event-stream',
-                ...(init.lastEventId === undefined ? {} : { 'last-event-id': String(init.lastEventId) }),
+                ...(query?.lastEventId === undefined ? {} : { 'last-event-id': String(query.lastEventId) }),
             },
-        }, { signal: init.signal });
+        }, options);
 
         if (!response.data) {
             throw new ApiError(response.status, 'empty_stream', 'The stream has no body.');

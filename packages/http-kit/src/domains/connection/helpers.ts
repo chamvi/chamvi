@@ -55,7 +55,7 @@ export function openConnectionStream(options: ConnectionStreamOptions): IConnect
             let delay: number | undefined;
 
             try {
-                const body = await options.api.stream(options.name, signal);
+                const body = await options.api.stream(options.name, { signal });
 
                 for await (const event of parseEventStream(body)) {
                     if (signal.aborted) {
