@@ -11,12 +11,12 @@ import {
     assertConnectionName,
     forbidden,
     storedConnectionName,
+    validateBody,
 } from '@chamvi/core';
 import type { ConnectionConfigUpdate, ConnectionValues, IConnectionConfigStore } from '@chamvi/core';
 import { ConflictError, NotFoundError } from '@chamvi/errors';
 import { isGranted } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
-import { validateBody } from '../../request/helpers/index.ts';
 import { ConnectionValidator, ValidatorGroup } from '@chamvi/core-kit';
 import type {
     ConnectionCreateBody,

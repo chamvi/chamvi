@@ -6,11 +6,11 @@
  */
 
 import { PERMISSION_NAMES } from '@chamvi/access';
+import { validateBody } from '@chamvi/core';
 import type { IClock } from '@chamvi/core';
 import { AuthorizationValidator } from '@chamvi/core-kit';
 import { isGrantedSome } from '../auth/helpers/index.ts';
 import type { Principal } from '../auth/types.ts';
-import { validateBody } from '../request/helpers/index.ts';
 import type { AuthorizationServiceContext, IAuthorizationService } from './types.ts';
 import type { AuthorizationCheckBody, AuthorizationCheckView } from '@chamvi/core-kit';
 

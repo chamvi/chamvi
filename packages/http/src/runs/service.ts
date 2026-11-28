@@ -11,6 +11,7 @@ import {
     AgentNotFoundError,
     RunNotFoundError,
     forbidden,
+    validateBody,
 } from '@chamvi/core';
 import type {
     Agent,
@@ -38,7 +39,7 @@ import {
 } from '../auth/helpers/index.ts';
 import type { Principal } from '../auth/types.ts';
 import { HTTP_CHANNEL_NAME } from '../channels/constants.ts';
-import { readIdempotencyHeader, validateBody, validatePayload } from '../request/helpers/index.ts';
+import { readIdempotencyHeader, validatePayload } from '../request/helpers/index.ts';
 import {
     assertCanListRuns,
     decodeAttachments,

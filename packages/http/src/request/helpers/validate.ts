@@ -10,29 +10,6 @@ import type { Issue } from '@ebec/core';
 import { BadRequestError } from '@chamvi/errors';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
-import { isObject } from 'smob';
-import type { Container } from 'validup';
-
-/**
- * Validates a JSON object body with a validup container (in the given
- * `group`, e.g. a core-kit ValidatorGroup). A missing body reads as `{}`;
- * unknown keys are dropped.
- */
-export async function validateBody<T extends Record<string, any>>(
-    container: Container<T>,
-    body: unknown,
-    options: { group?: string } = {},
-): Promise<T> {
-    if (body === undefined) {
-        body = {};
-    }
-
-    if (!isObject(body)) {
-        throw new BadRequestError({ message: 'The request body must be a JSON object.' });
-    }
-
-    return container.run(body as Partial<T>, options);
-}
 
 function describeIssues(issues: readonly Issue[]): string {
     return flattenIssueItems(issues).map((issue) => {

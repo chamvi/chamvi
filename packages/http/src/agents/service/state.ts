@@ -6,12 +6,12 @@
  */
 
 import { Permission } from '@chamvi/access';
+import { validateBody } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { StateValidator } from '@chamvi/core-kit';
 import type { KvWriteBody } from '@chamvi/core-kit';
 import { assertGranted } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
-import { validateBody } from '../../request/helpers/index.ts';
 import {
     assertCanReadState,
     assertCollection,

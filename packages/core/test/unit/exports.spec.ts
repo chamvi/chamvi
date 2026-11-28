@@ -296,6 +296,7 @@ describe('public api', () => {
         'canReadAgentContent',
         'readableAgents',
         'isAgentContentProtected',
+        'validateBody',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
         expect(core[name as keyof typeof core]).toBeTypeOf('function');
