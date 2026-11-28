@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.13.0](https://github.com/chamvi/chamvi/compare/v0.12.0...v0.13.0) (2026-11-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* **store-db:** uuid v7 primary keys for steps, conversation items and lock tokens ([#324](https://github.com/chamvi/chamvi/issues/324))
+* add @chamvi/core-kit ([#321](https://github.com/chamvi/chamvi/issues/321))
+
+### Features
+
+* add @chamvi/core-kit ([#321](https://github.com/chamvi/chamvi/issues/321)) ([f1df1cd](https://github.com/chamvi/chamvi/commit/f1df1cdac762082478aea30182cbbf9002e18da5))
+* **store-db:** uuid v7 primary keys for steps, conversation items and lock tokens ([#324](https://github.com/chamvi/chamvi/issues/324)) ([9c20832](https://github.com/chamvi/chamvi/commit/9c20832eb8fe24006f9e463d75006353daed4994))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @chamvi/core-kit bumped from ^0.12.0 to ^0.13.0
+
 ## [0.12.0](https://github.com/chamvi/chamvi/compare/v0.11.0...v0.12.0) (2026-11-25)
 
 

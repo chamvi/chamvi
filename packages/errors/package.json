@@ -1,6 +1,6 @@
 {
     "name": "@chamvi/errors",
-    "version": "0.12.0",
+    "version": "0.13.0",
     "type": "module",
     "description": "chamvi's error classes, error codes and code-to-HTTP-status mapping, with guards that survive JSON.",
     "author": {
