@@ -7,7 +7,7 @@
 
 import { isObject } from 'smob';
 import type { DataSource } from 'typeorm';
-import type { ILogger } from '../../logger/types.ts';
+import type { ILogger } from '@chamvi/core';
 import { MASKED_PAIR } from './constants.ts';
 
 function passwordsOf(url: string): string[] {

@@ -24,6 +24,7 @@ export * from './extract/index.ts';
 export * from './idempotency/index.ts';
 export * from './keyring/index.ts';
 export * from './limit/index.ts';
+export * from './logger/index.ts';
 export * from './lock/index.ts';
 export * from './message/index.ts';
 export * from './model/index.ts';

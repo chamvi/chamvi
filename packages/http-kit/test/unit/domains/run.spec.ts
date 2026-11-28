@@ -5,13 +5,29 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { describe, expect, it } from 'vitest';
-import { buildQueryString, decodeRunListQuery } from '@chamvi/http-kit';
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
+    vi,
+} from 'vitest';
+import {
+    ApiError,
+    Client,
+    buildQueryString,
+    decodeRunListQuery,
+} from '@chamvi/http-kit';
 import type { PeerRunViewWire, RunListFields } from '@chamvi/http-kit';
 import { json, sse } from '../../utils/responses.ts';
 import { createKitClient, linesOf } from '../../utils/kit.ts';
+import { SilentTransport } from '../../utils/silent-transport.ts';
 
 describe('RunAPI', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     it('lists runs newest first unless the query sorts', async () => {
         const page = {
             data: [],
@@ -42,6 +58,16 @@ describe('RunAPI', () => {
 
         expect(linesOf(requests)).toEqual(['GET /api/runs/a%2Fb', 'POST /api/runs/a%2Fb/cancel', 'POST /api/runs/a%2Fb/approve']);
         expect(JSON.parse(requests[2]!.body!)).toEqual(body);
+    });
+
+    it('refuses a dot segment before any request is sent', async () => {
+        const { client, requests } = createKitClient([json({ id: 'x', steps: [] })]);
+
+        await expect(client.run.getOne('..')).rejects.toMatchObject({ status: 0, code: 'path_segment_invalid' });
+        await expect(client.run.cancel('.')).rejects.toMatchObject({ code: 'path_segment_invalid' });
+        await expect(client.run.getPeerView('')).rejects.toMatchObject({ code: 'path_segment_invalid' });
+
+        expect(requests).toEqual([]);
     });
 
     it('reads a run as a peer view', async () => {
@@ -75,20 +101,58 @@ describe('RunAPI', () => {
         expect(requests[0]!.body).toBeUndefined();
     });
 
-    it('opens the run stream with the last event id', async () => {
+    it('opens the run stream with the last event id and the caller\'s signal', async () => {
+        const controller = new AbortController();
         const { client, requests } = createKitClient([sse(['data: 1\n\n'])]);
-        const body = await client.run.stream('r1', { lastEventId: 4, signal: new AbortController().signal });
+        const body = await client.run.stream('r1', { lastEventId: 3 }, { signal: controller.signal });
 
         expect(body).toBeInstanceOf(ReadableStream);
         expect(requests[0]!.url).toBe('/api/runs/r1/stream');
         expect(requests[0]!.headers.get('accept')).toBe('text/event-stream');
-        expect(requests[0]!.headers.get('last-event-id')).toBe('4');
+        expect(requests[0]!.headers.get('last-event-id')).toBe('3');
+        expect(requests[0]!.signal!.aborted).toBe(false);
+
+        controller.abort();
+
+        expect(requests[0]!.signal!.aborted).toBe(true);
+    });
+
+    it('opens the run stream without a query or options', async () => {
+        const { client, requests } = createKitClient([sse([])]);
+
+        await expect(client.run.stream('r1')).resolves.toBeInstanceOf(ReadableStream);
+        expect(requests[0]!.headers.has('last-event-id')).toBe(false);
+    });
+
+    it('rejects with the caller\'s abort reason before the answer', async () => {
+        const controller = new AbortController();
+        const transport = new SilentTransport();
+        const client = new Client({ baseURL: '/api', transport });
+        const outcome = client.run.stream('r1', {}, { signal: controller.signal }).catch((e: unknown) => e);
+        const reason = new Error('left');
+
+        await vi.waitFor(() => expect(transport.signals).toHaveLength(1));
+        controller.abort(reason);
+
+        expect(await outcome).toBe(reason);
+    });
+
+    it('times out the run stream with the timeout option', async () => {
+        vi.useFakeTimers();
+
+        const client = new Client({ baseURL: '/api', transport: new SilentTransport() });
+        const outcome = client.run.stream('r1', {}, { timeout: 5 }).catch((e: unknown) => e);
+
+        await vi.advanceTimersByTimeAsync(5);
+
+        expect(await outcome).toBeInstanceOf(ApiError);
+        expect(await outcome).toMatchObject({ status: 0, code: 'timeout' });
     });
 
     it('maps a stream refusal to ApiError', async () => {
         const { client } = createKitClient([json({ code: 'forbidden', message: 'no' }, 403)]);
 
-        await expect(client.run.stream('r1', { signal: new AbortController().signal })).rejects.toMatchObject({ status: 403, code: 'forbidden' });
+        await expect(client.run.stream('r1')).rejects.toMatchObject({ status: 403, code: 'forbidden' });
     });
 });
 

@@ -15,6 +15,7 @@ import type {
     ConnectionTypeDefinition,
     ConversationRef,
     IChannel,
+    ILogger,
     ResolvedConnection,
 } from '@chamvi/core';
 import {
@@ -28,7 +29,6 @@ import {
 import type {
     Env,
     IContainer,
-    ILogger,
     IModule,
     StoredConnection,
 } from '@chamvi/app';

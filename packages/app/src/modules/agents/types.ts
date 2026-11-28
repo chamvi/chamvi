@@ -5,10 +5,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Agent, IClock, IEngine } from '@chamvi/core';
+import type {
+    Agent,
+    IClock,
+    IEngine,
+    ILogger,
+} from '@chamvi/core';
 import type { AgentIssue } from '@chamvi/core-kit';
 import type { IScheduledComponent } from 'hubwire';
-import type { ILogger } from '../../logger/types.ts';
 import type { AgentCheck } from '../../module/types.ts';
 
 export type AgentsModuleOptions = {

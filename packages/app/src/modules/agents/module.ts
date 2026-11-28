@@ -7,7 +7,7 @@
 
 import { ChamviError } from '@chamvi/errors';
 import { InvalidAgentDefinitionError, InvalidRunStateError, formatRevision } from '@chamvi/core';
-import type { IEngine } from '@chamvi/core';
+import type { IEngine, ILogger } from '@chamvi/core';
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
 import { readConfigFileAgents } from '../../models/file.ts';
@@ -24,7 +24,6 @@ import {
     UNRESOLVED_PACKAGE_RESERVED_MESSAGE,
 } from './constants.ts';
 import { isDirectory, removeOrphanAgents, resolveAgentsRoot } from './helpers.ts';
-import type { ILogger } from '../../logger/types.ts';
 import type { AgentCheck } from '../../module/types.ts';
 import { createPackageAgents } from './packages.ts';
 import type {

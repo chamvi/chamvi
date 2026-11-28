@@ -22,6 +22,7 @@ import type {
     AppStartOptions,
     IApp,
 } from '@chamvi/app';
+import type * as core from '@chamvi/core';
 import type { AgentIssue } from '@chamvi/core-kit';
 import type { PermissionBinding } from '@chamvi/access';
 import * as kit from '@chamvi/core-kit';
@@ -116,6 +117,10 @@ describe('public api', () => {
         expect(app.agent.on).toBeTypeOf('function');
         expect(app.agent.on()).toMatchObject({ channel: 'agent', id: 'default' });
         expect(app.AGENT_CHANNEL_NAME).toBe('agent');
+    });
+
+    it('exports the logger interface of @chamvi/core', () => {
+        expectTypeOf<app.ILogger>().toEqualTypeOf<core.ILogger>();
     });
 
     it('exports the stored record types and the read normalizers of @chamvi/core-kit', () => {

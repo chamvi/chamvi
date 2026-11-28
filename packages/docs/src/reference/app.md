@@ -281,4 +281,8 @@ function createLogger(options?: LoggerOptions): ILogger;
 
 One JSON line per entry (`{ level, time, msg, ...fields, error? }`, the error as `{ name, code, message, stack }` only, never its `cause`) on stderr, or through `write`. The engine's, the cron channel's and the HTTP app's `onError` all go through it.
 
+`ILogger` is `@chamvi/core`'s (re-exported by `@chamvi/app`), so a feature package types its logger without importing the app:
+
+<<< ../../../core/src/logger/types.ts{ts}
+
 <<< ../../../app/src/logger/types.ts{ts}

@@ -13,7 +13,7 @@ import {
     lte,
 } from '@rapiq/core';
 import { describe, expect, it } from 'vitest';
-import { buildQueryString, path } from '@chamvi/http-kit';
+import { buildQueryString } from '@chamvi/http-kit';
 import { parseRunListQuery } from '../../../../http/src/runs/helpers/index.ts';
 
 /** What the server decodes from a client-built query (http cannot devDepend on http-kit: a cycle). */
@@ -86,11 +86,5 @@ describe('buildQueryString', () => {
             expect.objectContaining({ value: 'r1' }),
             expect.objectContaining({ value: 'approval' }),
         ]));
-    });
-});
-
-describe('path', () => {
-    it('encodes every segment', () => {
-        expect(path('runs', 'a/b', 'c d')).toBe('/runs/a%2Fb/c%20d');
     });
 });

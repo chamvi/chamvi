@@ -36,7 +36,7 @@ export interface IConnectionAPI {
     getOne(name: string, options?: APIRequestOptions): Promise<ConnectionDetailWire>;
     reset(name: string, options?: APIRequestOptions): Promise<ConnectionWire>;
     /** The `text/event-stream` body of `GET /connections/:name/events`. */
-    stream(name: string, signal: AbortSignal): Promise<ReadableStream<Uint8Array>>;
+    stream(name: string, options?: APIRequestOptions): Promise<ReadableStream<Uint8Array>>;
     getConfig(name: string, options?: APIRequestOptions): Promise<ConnectionSettingsWire>;
     /** `POST /connection-types/:type/connections`. */
     create(type: string, body: ConnectionCreateBody, options?: APIRequestOptions): Promise<ConnectionSettingsWire & { name: string }>;

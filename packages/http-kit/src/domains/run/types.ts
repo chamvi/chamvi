@@ -50,10 +50,9 @@ export type ApproveBody = {
     selected?: string[]
 };
 
-export type RunStreamInit = {
+export type RunStreamQuery = {
     /** Resumes after this event id (`Last-Event-ID`). */
     lastEventId?: number;
-    signal: AbortSignal;
 };
 
 export interface IRunAPI {
@@ -67,5 +66,5 @@ export interface IRunAPI {
     wake(id: string, options?: APIRequestOptions): Promise<void>;
     approve(id: string, body: ApproveBody, options?: APIRequestOptions): Promise<void>;
     /** The `text/event-stream` body of `GET /runs/:id/stream` (an ApiError for a non-2xx answer). */
-    stream(id: string, init: RunStreamInit): Promise<ReadableStream<Uint8Array>>;
+    stream(id: string, query?: RunStreamQuery, options?: APIRequestOptions): Promise<ReadableStream<Uint8Array>>;
 }

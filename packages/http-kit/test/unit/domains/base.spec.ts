@@ -207,3 +207,41 @@ describe('buildRequestConfig', () => {
         expect(FIXED_TOKEN in buildRequestConfig({})).toBe(false);
     });
 });
+
+describe('domain APIs', () => {
+    const { client } = createTestClient([]);
+
+    // the documented arguments, `options?: APIRequestOptions` last: `fn.length` counts every declared parameter
+    it.each([
+        ['account.getMe', client.account.getMe, 1],
+        ['agent.getMany', client.agent.getMany, 1],
+        ['agent.startRun', client.agent.startRun, 3],
+        ['artifact.getMany', client.artifact.getMany, 2],
+        ['artifact.read', client.artifact.read, 3],
+        ['authorization.check', client.authorization.check, 2],
+        ['component.getMany', client.component.getMany, 1],
+        ['connection.getMany', client.connection.getMany, 1],
+        ['connection.getOne', client.connection.getOne, 2],
+        ['connection.reset', client.connection.reset, 2],
+        ['connection.stream', client.connection.stream, 2],
+        ['connection.getConfig', client.connection.getConfig, 2],
+        ['connection.create', client.connection.create, 3],
+        ['connection.save', client.connection.save, 3],
+        ['connection.delete', client.connection.delete, 2],
+        ['connection.test', client.connection.test, 2],
+        ['connectionType.getMany', client.connectionType.getMany, 1],
+        ['run.getMany', client.run.getMany, 2],
+        ['run.getOne', client.run.getOne, 2],
+        ['run.getPeerView', client.run.getPeerView, 2],
+        ['run.cancel', client.run.cancel, 2],
+        ['run.wake', client.run.wake, 2],
+        ['run.approve', client.run.approve, 3],
+        ['run.stream', client.run.stream, 3],
+        ['schedule.getMany', client.schedule.getMany, 1],
+        ['state.getKv', client.state.getKv, 3],
+        ['state.getDocs', client.state.getDocs, 4],
+        ['uiPage.getMany', client.uiPage.getMany, 1],
+    ] as const)('%s ends with the request options', (_name, fn, arity) => {
+        expect(fn.length).toBe(arity);
+    });
+});

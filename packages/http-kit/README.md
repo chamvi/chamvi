@@ -83,19 +83,19 @@ try {
 
 ## Domains
 
-The client has one API per domain. Every method takes a last `options` argument `{ signal, timeout, token }` (see [Options](#options)); the streams take their signal directly.
+The client has one API per domain. Every method takes a last `options` argument `{ signal, timeout, token }` (see [Options](#options)), the streams included.
 
 | Property | Methods | Routes |
 |---|---|---|
 | `account` | `getMe()` | `GET /me`: `{ id, kind, name?, identity? }` |
 | `authorization` | `check(names?)` | `POST /authorization/check`: which `chamvi_*` permissions the principal may attempt |
 | `agent` | `getMany()`, `startRun(name, { payload, idempotencyKey? })` | `GET /agents` (`{ data, issues }`), `POST /agents/:name/runs` (`{ runId, deduplicated }`) |
-| `run` | `getMany(query?)`, `getOne(id)`, `cancel(id)`, `approve(id, body)`, `stream(id, { signal, lastEventId? })` | `/runs`, `/runs/:id` (with its steps), `/runs/:id/cancel`, `/runs/:id/approve`, `/runs/:id/stream` |
+| `run` | `getMany(query?)`, `getOne(id)`, `cancel(id)`, `approve(id, body)`, `stream(id, { lastEventId? }, options?)` | `/runs`, `/runs/:id` (with its steps), `/runs/:id/cancel`, `/runs/:id/approve`, `/runs/:id/stream` |
 | `artifact` | `getMany(runId)`, `read(runId, artifactId)` | `/runs/:id/artifacts`, `/runs/:id/artifacts/:artifactId` (a `Blob`) |
 | `state` | `getKv(agent, query?)`, `getDocs(agent, collection, query?)` | `/agents/:name/state/kv`, `/agents/:name/state/collections/:collection` |
 | `schedule` | `getMany()` | `GET /schedules`: the cron subscriptions |
 | `component` | `getMany()` | `GET /components`: the background jobs |
-| `connection` | `getMany()`, `getOne(name)`, `getConfig(name)`, `create(type, body)`, `save(name, body)`, `test(name)`, `reset(name)`, `delete(name)`, `stream(name, signal)` | `/connections`, `/connections/:name` with `/config`, `/test`, `/reset`, `/events`; `create` posts to `/connection-types/:type/connections` |
+| `connection` | `getMany()`, `getOne(name)`, `getConfig(name)`, `create(type, body)`, `save(name, body)`, `test(name)`, `reset(name)`, `delete(name)`, `stream(name, options?)` | `/connections`, `/connections/:name` with `/config`, `/test`, `/reset`, `/events`; `create` posts to `/connection-types/:type/connections` |
 | `connectionType` | `getMany()` | `GET /connection-types`: the connection types the app knows |
 | `uiPage` | `getMany()` | `GET /ui-pages`: the dashboard pages (`*-ui` packages) the app serves |
 
@@ -148,13 +148,13 @@ The query is encoded in rapiq's bracket dialect, falling back to the expression 
 
 ## Streams
 
-`client.run.stream()` answers the `text/event-stream` body of `GET /runs/:id/stream`, sent with the bearer header that browser `EventSource` cannot set; `parseEventStream()` reads its events:
+`client.run.stream(id, { lastEventId }, options)` answers the `text/event-stream` body of `GET /runs/:id/stream` (resumed after `lastEventId`, sent as `Last-Event-ID`), sent with the bearer header that browser `EventSource` cannot set; `timeout` bounds the answer only, `signal` also ends the read. `parseEventStream()` reads its events:
 
 ```ts
 import { parseEventStream } from '@chamvi/http-kit';
 
 const controller = new AbortController();
-const body = await client.run.stream(runId, { signal: controller.signal });
+const body = await client.run.stream(runId, {}, { signal: controller.signal });
 
 for await (const event of parseEventStream(body)) {
     if (event.event === 'step.appended') {
@@ -199,11 +199,12 @@ Per call (`APIRequestOptions`):
 | `toApiError`, `asApiError`, `retryDelayOf` | function | Build an `ApiError` from a response or any error; the retry delay of one |
 | `openConnectionStream` | function | A reconnecting reader of a connection's events |
 | `parseEventStream`, `sleep` | function | An SSE parser over a response body; an abortable wait |
-| `buildQueryString`, `decodeRunListQuery`, `path` | function | Encode a rapiq query; decode a run list query; join encoded path segments |
+| `buildQueryString`, `decodeRunListQuery`, `encodePathSegment` | function | Encode a rapiq query; decode a run list query; encode one path segment (`''`, `.`, `..` refused with `ApiError` `path_segment_invalid`) |
+| `PATH_SEGMENT_INVALID_ERROR_CODE` | constant | `'path_segment_invalid'` |
 | `buildRequestConfig`, `FIXED_TOKEN` | function, constant | The request config of `APIRequestOptions`; the marker of a fixed-token request the hook leaves alone |
 | `REQUEST_TIMEOUT_MS`, `RATE_LIMIT_BACKOFF_MS`, `RECONNECT_DELAYS_MS`, `FATAL_STREAM_STATUSES`, `RUN_LIST_QUERY_SCHEMA` | constant | `45_000`, `60_000`, `[1000, 2000, 5000, 10_000]`, `[400, 401, 403, 404]`, the `GET /runs` schema |
 
-Types: `ClientOptions`, `CreateClientOptions`, `ClientAuthenticationHookOptions`, `APIRequestOptions`, `Wire`, `EntityQueryInput`, `SseEvent`, `RunWire`, `StepWire`, `RunDetail`, `RunPage`, `RunListFields`, `RunListQuery`, `ApproveBody`, `RunStreamInit`, `AgentWire`, `AgentIssueWire`, `AgentList`, `StartRunBody`, `StartRunResult`, `ArtifactWire`, `MeWire`, `AuthorizationCheckWire`, `ComponentWire`, `ScheduleWire`, `KvEntry`, `DocEntry`, `UiPageWire`, `ConnectionWire`, `ConnectionDetailWire`, `ConnectionWidgetWire`, `ConnectionSettingsWire`, `ConnectionTestWire`, `ConnectionTypeWire`, `ConnectionStreamEvent`, `ConnectionStreamOptions`, `IConnectionStream`.
+Types: `ClientOptions`, `CreateClientOptions`, `ClientAuthenticationHookOptions`, `APIRequestOptions`, `Wire`, `EntityQueryInput`, `SseEvent`, `RunWire`, `StepWire`, `RunDetail`, `RunPage`, `RunListFields`, `RunListQuery`, `ApproveBody`, `RunStreamQuery`, `AgentWire`, `AgentIssueWire`, `AgentList`, `StartRunBody`, `StartRunResult`, `ArtifactWire`, `MeWire`, `AuthorizationCheckWire`, `ComponentWire`, `ScheduleWire`, `KvEntry`, `DocEntry`, `UiPageWire`, `ConnectionWire`, `ConnectionDetailWire`, `ConnectionWidgetWire`, `ConnectionSettingsWire`, `ConnectionTestWire`, `ConnectionTypeWire`, `ConnectionStreamEvent`, `ConnectionStreamOptions`, `IConnectionStream`.
 
 ## Notes
 

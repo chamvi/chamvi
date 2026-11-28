@@ -911,4 +911,11 @@ describe('public api', () => {
             selected?: string[];
         }>();
     });
+
+    it('exports the logger interface', () => {
+        expectTypeOf<core.ILogger>().toHaveProperty('error');
+        expectTypeOf<core.ILogger>().toHaveProperty('warn');
+        expectTypeOf<core.ILogger>().toHaveProperty('info');
+        expectTypeOf<core.ILogger>().toHaveProperty('debug');
+    });
 });

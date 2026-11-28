@@ -24,6 +24,7 @@ import type {
     IKeyring,
     ILimitService,
     ILockService,
+    ILogger,
     IModelResolver,
     IPeerResolver,
     IRunService,
@@ -54,7 +55,6 @@ import type { DataSource } from 'typeorm';
 import type { AppOptions } from '../app/types.ts';
 import type { AppConfig } from '../config/types.ts';
 import type { Env } from '../env/types.ts';
-import type { ILogger } from '../logger/types.ts';
 import type { ModelProviders, ProviderConfig } from '../models/types.ts';
 
 export type AppMode = 'start' | 'job' | 'migrate';

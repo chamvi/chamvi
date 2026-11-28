@@ -24,21 +24,21 @@ export class ConnectionAPI extends BaseAPI implements IConnectionAPI {
         return dataOf<ConnectionWire>(await this.request({ url: '/connections', method: 'GET' }, options));
     }
 
-    getOne(name: string, options?: APIRequestOptions): Promise<ConnectionDetailWire> {
+    async getOne(name: string, options?: APIRequestOptions): Promise<ConnectionDetailWire> {
         return this.request<ConnectionDetailWire>({ url: path('connections', name), method: 'GET' }, options);
     }
 
-    reset(name: string, options?: APIRequestOptions): Promise<ConnectionWire> {
+    async reset(name: string, options?: APIRequestOptions): Promise<ConnectionWire> {
         return this.request<ConnectionWire>({ url: `${path('connections', name)}/reset`, method: 'POST' }, options);
     }
 
-    async stream(name: string, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+    async stream(name: string, options?: APIRequestOptions): Promise<ReadableStream<Uint8Array>> {
         const response = await this.requestRaw({
             url: `${path('connections', name)}/events`,
             method: 'GET',
             responseType: 'stream',
             headers: { accept: 'text/event-stream' },
-        }, { signal });
+        }, options);
 
         if (!response.data) {
             throw new ApiError(response.status, 'empty_stream', 'The stream has no body.');
@@ -47,11 +47,11 @@ export class ConnectionAPI extends BaseAPI implements IConnectionAPI {
         return response.data as ReadableStream<Uint8Array>;
     }
 
-    getConfig(name: string, options?: APIRequestOptions): Promise<ConnectionSettingsWire> {
+    async getConfig(name: string, options?: APIRequestOptions): Promise<ConnectionSettingsWire> {
         return this.request<ConnectionSettingsWire>({ url: `${path('connections', name)}/config`, method: 'GET' }, options);
     }
 
-    create(type: string, body: ConnectionCreateBody, options?: APIRequestOptions): Promise<ConnectionSettingsWire & { name: string }> {
+    async create(type: string, body: ConnectionCreateBody, options?: APIRequestOptions): Promise<ConnectionSettingsWire & { name: string }> {
         return this.request({
             url: `${path('connection-types', type)}/connections`,
             method: 'POST',
@@ -59,7 +59,7 @@ export class ConnectionAPI extends BaseAPI implements IConnectionAPI {
         }, options);
     }
 
-    save(name: string, body: ConnectionSaveBody, options?: APIRequestOptions): Promise<ConnectionSettingsWire> {
+    async save(name: string, body: ConnectionSaveBody, options?: APIRequestOptions): Promise<ConnectionSettingsWire> {
         return this.request({
             url: `${path('connections', name)}/config`,
             method: 'PUT',
@@ -67,11 +67,11 @@ export class ConnectionAPI extends BaseAPI implements IConnectionAPI {
         }, options);
     }
 
-    delete(name: string, options?: APIRequestOptions): Promise<{ restartRequired: boolean }> {
+    async delete(name: string, options?: APIRequestOptions): Promise<{ restartRequired: boolean }> {
         return this.request({ url: path('connections', name), method: 'DELETE' }, options);
     }
 
-    test(name: string, options?: APIRequestOptions): Promise<ConnectionTestWire> {
+    async test(name: string, options?: APIRequestOptions): Promise<ConnectionTestWire> {
         return this.request<ConnectionTestWire>({ url: `${path('connections', name)}/test`, method: 'POST' }, options);
     }
 }

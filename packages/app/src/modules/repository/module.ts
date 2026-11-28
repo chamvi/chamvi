@@ -7,13 +7,13 @@
 
 import { ChamviError } from '@chamvi/errors';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
+import type { ILogger } from '@chamvi/core';
 import { MemoryRegistry } from '@chamvi/store-memory';
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
 import type { DataSource } from 'typeorm';
 import { APP_ERROR_CODE, AppToken, ModuleName } from '../../module/constants.ts';
 import { throwIfStopped } from '../../module/helpers/index.ts';
-import type { ILogger } from '../../logger/types.ts';
 import type { AppContext } from '../../module/types.ts';
 import {
     MEMORY_CONVERSATION_WARNING,
