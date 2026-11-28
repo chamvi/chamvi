@@ -58,22 +58,10 @@ jobs:
             - name: Install Chromium system dependencies
               if: steps.browser-cache.outputs.cache-hit == 'true'
               run: npx playwright install-deps chromium
-            # TEMPORARY (reverted in the next commit): record the Linux baselines, then compare against them once, retries off
-            - name: Record the Linux baselines
-              run: npm run test:e2e -w @chamvi/ui -w @chamvi/tool-mail-ui -w @chamvi/chat-whatsapp-ui -- --update-snapshots=missing
+            - name: Smoke test
+              run: npm run test:e2e -w @chamvi/ui -w @chamvi/tool-mail-ui -w @chamvi/chat-whatsapp-ui
               env:
                   CI: true
-            - name: Compare against the new baselines
-              run: npm run test:e2e -w @chamvi/ui -w @chamvi/tool-mail-ui -w @chamvi/chat-whatsapp-ui -- --retries=0
-              env:
-                  CI: true
-            - name: Upload the baselines
-              if: always()
-              uses: actions/upload-artifact@v7
-              with:
-                  name: linux-baselines
-                  path: packages/*/test/e2e/__snapshots__
-                  retention-days: 7
             - name: Upload the report
               if: failure()
               uses: actions/upload-artifact@v7
