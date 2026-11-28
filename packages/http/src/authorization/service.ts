@@ -7,14 +7,12 @@
 
 import { PERMISSION_NAMES } from '@chamvi/access';
 import type { IClock } from '@chamvi/core';
-import { Container } from 'validup';
+import { AuthorizationValidator } from '@chamvi/core-kit';
 import { isGrantedSome } from '../auth/helpers/index.ts';
 import type { Principal } from '../auth/types.ts';
 import { validateBody } from '../request/helpers/index.ts';
-import { isStringArray } from '../request/validators.ts';
-import { AUTHORIZATION_CHECK_MAX_NAMES, AUTHORIZATION_CHECK_NAME_MAX_LENGTH } from './constants.ts';
-import type { AuthorizationCheckBody, AuthorizationServiceContext, IAuthorizationService } from './types.ts';
-import type { AuthorizationCheckView } from '@chamvi/core-kit';
+import type { AuthorizationServiceContext, IAuthorizationService } from './types.ts';
+import type { AuthorizationCheckBody, AuthorizationCheckView } from '@chamvi/core-kit';
 
 /**
  * Which permission names a principal may attempt: the verdict per name is
@@ -23,19 +21,15 @@ import type { AuthorizationCheckView } from '@chamvi/core-kit';
 export class AuthorizationService implements IAuthorizationService {
     protected clock: IClock;
 
-    protected container: Container<AuthorizationCheckBody>;
+    protected validator: AuthorizationValidator;
 
     constructor(ctx: AuthorizationServiceContext) {
         this.clock = ctx.clock;
-        this.container = new Container<AuthorizationCheckBody>();
-        this.container.mount('names', { optional: true }, isStringArray({
-            max: AUTHORIZATION_CHECK_MAX_NAMES,
-            item: { min: 1, max: AUTHORIZATION_CHECK_NAME_MAX_LENGTH },
-        }));
+        this.validator = new AuthorizationValidator();
     }
 
     async check(data: AuthorizationCheckBody | undefined, principal: Principal): Promise<AuthorizationCheckView> {
-        const body = await validateBody(this.container, data);
+        const body = await validateBody(this.validator, data);
         const names = [...new Set(body.names ?? PERMISSION_NAMES)];
         const verdicts = await Promise.all(names.map((name) => isGrantedSome(principal, name, this.clock)));
 

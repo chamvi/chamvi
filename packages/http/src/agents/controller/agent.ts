@@ -15,6 +15,7 @@ import {
     DSecurity,
     DTags,
 } from '@routup/decorators';
+import type { KvWriteBody } from '@chamvi/core-kit';
 import type { IAppEvent } from 'routup';
 import { usePrincipal } from '../../auth/helpers/index.ts';
 import { DQuerySchema } from '../../decorators/index.ts';
@@ -26,7 +27,6 @@ import type {
     IAgentStateService,
     KvEntry,
     KvView,
-    KvWriteBody,
     StateDocumentView,
 } from '../types.ts';
 

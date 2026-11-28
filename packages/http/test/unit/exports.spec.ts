@@ -137,16 +137,16 @@ describe('public api', () => {
         expect(http.DEFAULT_SHUTDOWN_CLOSE_TIMEOUT_MS).toBe(5_000);
     });
 
-    it('exports the MeView, AuthorizationCheckBody, AuthorizationCheckView and ApproveBody types', () => {
+    it('uses the MeView, AuthorizationCheckBody, AuthorizationCheckView and ApproveBody types of core-kit', () => {
         expectTypeOf<kit.MeView>().toEqualTypeOf<{
             id: string;
             kind: string;
             name?: string;
             identity?: PermissionIdentity;
         }>();
-        expectTypeOf<http.AuthorizationCheckBody>().toEqualTypeOf<{ names?: string[] }>();
+        expectTypeOf<kit.AuthorizationCheckBody>().toEqualTypeOf<{ names?: string[] }>();
         expectTypeOf<kit.AuthorizationCheckView>().toEqualTypeOf<{ permissions: string[] }>();
-        expectTypeOf<http.ApproveBody>().toEqualTypeOf<{
+        expectTypeOf<kit.ApproveBody>().toEqualTypeOf<{
             approvalId: string;
             approved: boolean;
             reason?: string;

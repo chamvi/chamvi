@@ -5,6 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+// Upstream: tada5hi/validup#525 (hand-built until @validup/zod can carry the codes `required` and `numeric`)
+
 import { IssueCode } from '@ebec/core';
 import { Container, createValidupError, defineValidator } from 'validup';
 import type { ValidatorDescriptor } from 'validup';

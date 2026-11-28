@@ -6,7 +6,14 @@
  */
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import { APPROVAL_OPTIONS_MAX, RunStatus } from '@chamvi/core-kit';
+import {
+    APPROVAL_ID_MAX_LENGTH,
+    APPROVAL_OPTIONS_MAX,
+    APPROVAL_OPTION_ID_MAX_LENGTH,
+    APPROVAL_REASON_MAX_LENGTH,
+    RunStatus,
+    TRIGGER_KEY_MAX_LENGTH,
+} from '@chamvi/core-kit';
 import type { RunStatusLiteral } from '@chamvi/core-kit';
 import type { Agent } from '@chamvi/core';
 import { fromJsonSchema } from '@modelcontextprotocol/server';
@@ -18,12 +25,6 @@ import type { HttpContext } from '../app/types.ts';
 import { Permission } from '@chamvi/access';
 import { agentResource, isGranted } from '../auth/helpers/index.ts';
 import type { Principal } from '../auth/types.ts';
-import { KEY_MAX_LENGTH } from '../request/constants.ts';
-import {
-    APPROVAL_ID_MAX_LENGTH,
-    APPROVAL_OPTION_ID_MAX_LENGTH,
-    APPROVAL_REASON_MAX_LENGTH,
-} from '../runs/constants.ts';
 import { MCP_CHANNEL_NAME } from '../channels/constants.ts';
 import {
     canReadAgentContent,
@@ -224,14 +225,14 @@ export function buildRunTool(agent: Agent, options: McpEndpointOptions): McpRunT
                 idempotencyKey: {
                     type: 'string',
                     minLength: 1,
-                    maxLength: KEY_MAX_LENGTH,
+                    maxLength: TRIGGER_KEY_MAX_LENGTH,
                     pattern: NO_NUL,
                     description: 'Dedupes starts over MCP; a key used over REST is a different scope.',
                 },
                 address: {
                     type: 'string',
                     minLength: 1,
-                    maxLength: KEY_MAX_LENGTH,
+                    maxLength: TRIGGER_KEY_MAX_LENGTH,
                     pattern: NO_NUL,
                 },
                 waitSeconds: {

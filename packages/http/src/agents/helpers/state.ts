@@ -14,11 +14,9 @@ import {
 } from '@rapiq/core';
 import type { IFilter, IQuery } from '@rapiq/core';
 import { isObject } from 'smob';
-import { Container } from 'validup';
 import { DEFAULT_PAGE_LIMIT } from '../../app/constants.ts';
 import { decodeFlatQuery } from '../../query/helpers.ts';
-import { isDefined } from '../../request/validators.ts';
-import type { KvWriteBody, StateDocumentView } from '../types.ts';
+import type { StateDocumentView } from '../types.ts';
 
 /**
  * Any top-level filter key, no sort; values are coerced by rapiq (`2` ->
@@ -31,14 +29,6 @@ const KV_LIST_QUERY_SCHEMA = defineSchema({
     sorts: { allowed: [] },
     throwOnFailure: true,
 });
-
-export function createKvContainer(): Container<KvWriteBody> {
-    const container = new Container<KvWriteBody>();
-
-    container.mount('value', isDefined());
-
-    return container;
-}
 
 /**
  * A collection filter value: rapiq coerces `42`, `007`, `true` and `null`

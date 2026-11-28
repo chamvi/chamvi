@@ -6,6 +6,7 @@
  */
 
 import type { ApprovalOption } from '../approval/types.ts';
+import type { AttachmentRequestBody } from '../artifact/types.ts';
 import type { ConversationBinding } from '../conversation/types.ts';
 import type { Invoker, TriggerEnvelope } from '../trigger/types.ts';
 import type { RunStatus } from './constants.ts';
@@ -173,4 +174,13 @@ export type RunView = Omit<Run, 'claim' | 'trigger' | 'conversation'> & {
      * run is serialized.
      */
     agentPrivate: boolean;
+};
+
+/** `POST /agents/{name}/runs` after validation: unknown keys dropped, attachment data still base64. */
+export type StartRunBody = {
+    payload?: unknown;
+    idempotencyKey?: string;
+    /** Where the run came from on the http channel (a caller-defined thread or conversation). */
+    address?: string;
+    attachments?: AttachmentRequestBody[];
 };

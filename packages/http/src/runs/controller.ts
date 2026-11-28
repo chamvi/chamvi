@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Artifact } from '@chamvi/core-kit';
+import type { ApproveBody, Artifact } from '@chamvi/core-kit';
 import {
     DBody,
     DContext,
@@ -29,7 +29,6 @@ import { ForceLoggedInMiddleware, JsonBodyMiddleware, RequiredJsonBodyMiddleware
 import { toBody } from './helpers/index.ts';
 import { streamRun } from './stream/module.ts';
 import type {
-    ApproveBody,
     ApproveRunView,
     CancelRunView,
     IRunHttpService,

@@ -5,7 +5,4 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export type {
-    ApproveBody,
-    RunListQuery,
-} from './types.ts';
+export type { RunListQuery } from './types.ts';

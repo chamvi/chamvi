@@ -17,3 +17,13 @@ export type ApprovalOption = {
      */
     artifacts?: string[];
 };
+
+/** `POST /runs/{id}/approve`. */
+export type ApproveBody = {
+    /** The wait point being answered. */
+    approvalId: string;
+    approved: boolean;
+    reason?: string;
+    /** The chosen option ids of a wait point with options; none on a denial. */
+    selected?: string[];
+};

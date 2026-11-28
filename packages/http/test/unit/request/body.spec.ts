@@ -7,12 +7,11 @@
 
 import { BadRequestError } from '@chamvi/errors';
 import { App, defineCoreHandler } from 'routup';
-import { Container } from 'validup';
+import { Container, defineValidator } from 'validup';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { buildContext, createErrorHandler } from '../../../src/app/helpers/index.ts';
 import { readJsonBody, validateBody, validatePayload } from '../../../src/request/helpers/index.ts';
-import { isDefined } from '../../../src/request/validators.ts';
 import { createTestApp, testAuth } from '../../utils/app.ts';
 
 function echoApp() {
@@ -157,7 +156,7 @@ describe('validateBody', () => {
     const container = () => {
         const c = new Container<{ a?: unknown }>();
 
-        c.mount('a', { optional: true }, isDefined());
+        c.mount('a', { optional: true }, defineValidator({ run: ({ value }) => value }));
 
         return c;
     };

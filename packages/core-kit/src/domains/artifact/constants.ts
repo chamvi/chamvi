@@ -7,3 +7,9 @@
 
 /** A media type an artifact may carry: RFC 6838 restricted names, `type/subtype` without parameters. */
 export const ARTIFACT_MEDIA_TYPE_PATTERN = /^[a-z0-9][\w!#$&^.+-]{0,126}\/[a-z0-9][\w!#$&^.+-]{0,126}$/i;
+
+/** The most attachments of one `POST /agents/{name}/runs`. */
+export const MAX_ATTACHMENTS = 16;
+
+/** The longest attachment filename. */
+export const ATTACHMENT_FILENAME_MAX_LENGTH = 255;

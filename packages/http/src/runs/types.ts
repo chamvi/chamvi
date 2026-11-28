@@ -7,9 +7,12 @@
 
 import type { Agent, ChannelSubscription } from '@chamvi/core';
 import type {
+    ApproveBody,
     Artifact,
     ArtifactInput,
+    AttachmentRequestBody,
     PeerRunView,
+    PeerStartBody,
     Run,
     RunStatusLiteral,
     RunView,
@@ -37,49 +40,6 @@ export type RunListQuery = {
     order: 'asc' | 'desc';
 };
 
-/** Body of `POST /agents/{name}/runs`; internal. */
-export type StartRunBody = {
-    payload?: unknown;
-    idempotencyKey?: string;
-    /** Where the run came from on the http channel (a caller-defined thread or conversation). */
-    address?: string;
-    /** Decoded from base64 by the validator; unknown item keys are dropped by the route. */
-    attachments?: ArtifactInput[];
-};
-
-/** The caller's lineage on a peer start (`peer` of `POST /agents/{name}/runs`). */
-export type PeerStartBody = {
-    /** The caller's stand-in run, the target of this app's wake-up ping. */
-    standIn: string;
-    /** The calling run on the peer. */
-    parent: {
-        runId: string;
-        agent: string;
-        depth: number;
-    };
-    /** Whether the calling run is tainted: the started run is tainted from the start. */
-    taint: boolean;
-    /** The name of the person behind the call, for display only (never a grant). */
-    origin?: string;
-};
-
-/** Body of a peer's `POST /agents/{name}/runs`; internal. */
-export type PeerStartRunBody = Omit<StartRunBody, 'idempotencyKey'> & {
-    idempotencyKey?: string;
-    /** The receiving `agent.on()` role. */
-    role: string;
-    peer: PeerStartBody;
-};
-
-/** One attachment of `POST /agents/{name}/runs` as sent. */
-export type AttachmentRequestBody = {
-    /** `type/subtype`, e.g. `image/png`. */
-    mediaType: string;
-    filename?: string;
-    /** The bytes in base64. */
-    data: string;
-};
-
 /** The body of `POST /agents/{name}/runs`. */
 export type StartRunRequestBody = {
     payload?: unknown;
@@ -91,16 +51,6 @@ export type StartRunRequestBody = {
     role?: string;
     /** Peer starts only: the caller's lineage. Any other principal sending it gets 400. */
     peer?: PeerStartBody;
-};
-
-/** Body of `POST /runs/{id}/approve`. */
-export type ApproveBody = {
-    /** The wait point being answered; another one than the run's current is 409. */
-    approvalId: string;
-    approved: boolean;
-    reason?: string;
-    /** The chosen option ids of a wait point with options (one, or one or more with `multiple`); none on a denial. */
-    selected?: string[];
 };
 
 /**

@@ -6,17 +6,8 @@
  */
 
 import type { IClock } from '@chamvi/core';
-import type { AuthorizationCheckView } from '@chamvi/core-kit';
+import type { AuthorizationCheckBody, AuthorizationCheckView } from '@chamvi/core-kit';
 import type { Principal } from '../auth/types.ts';
-
-/**
- * `POST /authorization/check`: the permission names to ask, each 1 to 255
- * characters, at most 64; absent means every `chamvi_*` name.
- */
-export type AuthorizationCheckBody = {
-    names?: string[];
-};
-
 
 /** What `AuthorizationService` needs of the http context. */
 export type AuthorizationServiceContext = {

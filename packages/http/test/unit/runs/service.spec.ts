@@ -16,12 +16,11 @@ import { Permission } from '@chamvi/access';
 import { ErrorCode } from '@chamvi/errors';
 import { defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
+import { TRIGGER_KEY_MAX_LENGTH } from '@chamvi/core-kit';
 import { http } from '@chamvi/http';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { createLiveAgents } from '../../../src/app/helpers/index.ts';
-import { KEY_MAX_LENGTH } from '../../../src/request/constants.ts';
 import { RunHttpService } from '../../../src/runs/service.ts';
-import type { StartRunBody } from '../../../src/runs/types.ts';
 import { createRunAgents, createTestApp, restricted } from '../../utils/app.ts';
 import { textModel } from '../../utils/model.ts';
 import { principalOf } from '../../utils/principal.ts';
@@ -145,7 +144,7 @@ describe('RunHttpService.start', () => {
         await expect(service.start({
             agent: 'echo',
             data: {},
-            idempotencyHeader: 'k'.repeat(KEY_MAX_LENGTH + 1),
+            idempotencyHeader: 'k'.repeat(TRIGGER_KEY_MAX_LENGTH + 1),
         }, admin))
             .rejects.toMatchObject({ code: 'bad_request' });
         await expect(service.start({
@@ -163,8 +162,8 @@ describe('RunHttpService.start', () => {
         await service.start({ agent: 'echo', data: { attachments: [] } }, admin);
         await service.start({
             agent: 'echo',
-            // the untrusted body carries base64, the validator decodes it
-            data: { attachments: [{ mediaType: 'text/plain', data: 'aGk=' }] as unknown as StartRunBody['attachments'] },
+            // the untrusted body carries base64, the service decodes it
+            data: { attachments: [{ mediaType: 'text/plain', data: 'aGk=' }] },
         }, admin);
 
         expect(dispatch.mock.calls[0]?.[0]).not.toHaveProperty('attachments');

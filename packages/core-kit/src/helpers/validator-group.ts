@@ -5,4 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export type { AuthorizationCheckBody } from './types.ts';
+/** The validator group of a write: a field mounted for one group only is stripped from the other. */
+export enum ValidatorGroup {
+    CREATE = 'create',
+    UPDATE = 'update',
+}

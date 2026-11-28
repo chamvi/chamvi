@@ -13,3 +13,8 @@
 export type AuthorizationCheckView = {
     permissions: string[];
 };
+
+/** `POST /authorization/check`: the permission names to check, all of them when absent. */
+export type AuthorizationCheckBody = {
+    names?: string[];
+};
