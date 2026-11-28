@@ -60,7 +60,7 @@ export function definedSchema() {
         if (ctx.value === undefined) {
             // an `invalid_type` on an undefined value is the one zod issue `@validup/zod` maps to `required`;
             // no `expected`, which it would pass through to the issue
-            // Upstream: pending
+            // Upstream: tada5hi/validup#525 (a typed invalid_type stands in for a custom issue carrying code `required`)
             ctx.issues.push({
                 code: 'invalid_type',
                 input: ctx.value,
