@@ -11,7 +11,7 @@ import {
     canWriteConnection,
     connectionResource,
 } from '@chamvi/core';
-import type { IConnectionHandle } from '@chamvi/core';
+import type { ActorContext, IConnectionHandle } from '@chamvi/core';
 import { ConflictError, NotFoundError } from '@chamvi/errors';
 import { buildActorContext } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
@@ -32,7 +32,7 @@ export class ConnectionHttpService implements IConnectionHttpService {
     }
 
     async list(principal: Principal): Promise<{ data: ConnectionView[] }> {
-        const actor = buildActorContext(principal, this.ctx.clock);
+        const actor = this.actor(principal);
         const views = await listConnections(this.ctx);
         const readable = await Promise.all(views.map((view) => canReadConnection(actor, connectionResource(view.name, view.type))));
 
@@ -40,7 +40,7 @@ export class ConnectionHttpService implements IConnectionHttpService {
     }
 
     async get(name: string, principal: Principal): Promise<ConnectionDetailView> {
-        const actor = buildActorContext(principal, this.ctx.clock);
+        const actor = this.actor(principal);
         // the handle's status joined with what is declared and stored
         const view = (await listConnections(this.ctx)).find((candidate) => candidate.name === name);
         const handle = this.ctx.connections().find((candidate) => candidate.name === name);
@@ -65,11 +65,11 @@ export class ConnectionHttpService implements IConnectionHttpService {
     }
 
     async requireWritable(name: string, principal: Principal): Promise<IConnectionHandle> {
-        return requireHandle(this.ctx, buildActorContext(principal, this.ctx.clock), name, true);
+        return requireHandle(this.ctx, this.actor(principal), name, true);
     }
 
     async reset(name: string, principal: Principal): Promise<ConnectionView> {
-        const handle = await requireHandle(this.ctx, buildActorContext(principal, this.ctx.clock), name, true);
+        const handle = await requireHandle(this.ctx, this.actor(principal), name, true);
         const { reset } = handle.actions;
 
         if (!reset) {
@@ -87,5 +87,10 @@ export class ConnectionHttpService implements IConnectionHttpService {
         });
 
         return serializeConnection(handle);
+    }
+
+    /** The actor core's connection rule checks the principal with. */
+    protected actor(principal: Principal): ActorContext {
+        return buildActorContext(principal, this.ctx.clock);
     }
 }

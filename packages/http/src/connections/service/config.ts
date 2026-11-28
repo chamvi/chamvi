@@ -14,7 +14,12 @@ import {
     storedConnectionName,
     validateBody,
 } from '@chamvi/core';
-import type { ConnectionConfigUpdate, ConnectionValues, IConnectionConfigStore } from '@chamvi/core';
+import type {
+    ActorContext,
+    ConnectionConfigUpdate,
+    ConnectionValues,
+    IConnectionConfigStore,
+} from '@chamvi/core';
 import { ConflictError, NotFoundError } from '@chamvi/errors';
 import { buildActorContext } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
@@ -85,7 +90,7 @@ export class ConnectionConfigService implements IConnectionConfigService {
 
     async create(type: string, data: ConnectionCreateBody, principal: Principal): Promise<ConnectionSettingsView & { name: string }> {
         // before the 404, so an unknown type is refused like a foreign one
-        await assertConnectionCreate(buildActorContext(principal, this.ctx.clock), type);
+        await assertConnectionCreate(this.actor(principal), type);
 
         const provider = this.ctx.connectionTypes().find((candidate) => candidate.definition.type === type);
 
@@ -251,7 +256,7 @@ export class ConnectionConfigService implements IConnectionConfigService {
             failure = { error };
         }
 
-        await assertConnectionAccess(buildActorContext(principal, this.ctx.clock), connectionResource(name, target?.definition.type), write);
+        await assertConnectionAccess(this.actor(principal), connectionResource(name, target?.definition.type), write);
 
         if (failure) {
             throw failure.error;
@@ -262,6 +267,11 @@ export class ConnectionConfigService implements IConnectionConfigService {
         }
 
         return target;
+    }
+
+    /** The actor core's connection rule checks the principal with. */
+    protected actor(principal: Principal): ActorContext {
+        return buildActorContext(principal, this.ctx.clock);
     }
 
     protected requireConfigs(): IConnectionConfigStore {

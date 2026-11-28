@@ -19,6 +19,7 @@ import {
 import type {
     ActorContext,
     Agent,
+    AgentScope,
     ChannelSubscription,
     DispatchEnvelope,
     RunListInput,
@@ -147,13 +148,13 @@ export class RunHttpService implements IRunHttpService {
 
     /** The runs of a checked listing request the principal may list (403 otherwise), by core's `RunService.getMany()`. */
     protected async findRuns(request: RunListInput, principal: Principal): Promise<RunFindView> {
-        const { data, meta } = await this.ctx.runService.getMany(request, this.actor(principal), { agents: this.ctx.agents });
+        const { data, meta } = await this.ctx.runService.getMany(request, this.actor(principal), this.scope());
 
         return { data, total: meta.total };
     }
 
     getReadable(id: string, principal: Principal): Promise<Run> {
-        return this.ctx.runService.getOne(id, this.actor(principal), { agents: this.ctx.agents });
+        return this.ctx.runService.getOne(id, this.actor(principal), this.scope());
     }
 
     async get(id: string, principal: Principal): Promise<RunReadView> {
@@ -222,7 +223,7 @@ export class RunHttpService implements IRunHttpService {
 
         const actor = this.actor(principal);
         // authorize against the run's agent before validating the body
-        const run = await this.ctx.runService.getAnswerable(id, actor, { agents: this.ctx.agents });
+        const run = await this.ctx.runService.getAnswerable(id, actor, this.scope());
         const body = await validateBody(this.approveValidator, data);
 
         return this.applyAnswer(run.id, body, actor);
@@ -232,7 +233,7 @@ export class RunHttpService implements IRunHttpService {
         this.refusePeerAnswer(id, principal);
 
         const actor = this.actor(principal);
-        const run = await this.ctx.runService.getAnswerable(id, actor, { agents: this.ctx.agents });
+        const run = await this.ctx.runService.getAnswerable(id, actor, this.scope());
 
         return this.applyAnswer(run.id, answer, actor);
     }
@@ -273,6 +274,11 @@ export class RunHttpService implements IRunHttpService {
         }
 
         return { ...body, attachments: decodeAttachments(body.attachments) };
+    }
+
+    /** The app's allowlisted agents: an agent outside them counts as private. */
+    protected scope(): AgentScope {
+        return { agents: this.ctx.agents };
     }
 
     /** The actor core's run service checks the principal with. */

@@ -7,6 +7,7 @@
 
 import { HolderPermissionEvaluator } from '@chamvi/access';
 import type { ActorContext, IClock } from '@chamvi/core';
+import type { Invoker } from '@chamvi/core-kit';
 import type { Principal } from '../types.ts';
 import { toInvoker } from './principal.ts';
 
@@ -14,10 +15,18 @@ import { toInvoker } from './principal.ts';
  * The actor a core service checks a request's principal with (authup's
  * `buildActorContext`): an evaluator over the principal itself, at the
  * clock's time, and the principal as an invoker. Never the system actor.
+ * `identity` is built on first read only (`toInvoker()` copies the
+ * authorization), so a check never depends on it.
  */
 export function buildActorContext(principal: Principal, clock: IClock): ActorContext {
+    let identity: Invoker | undefined;
+
     return {
         permissionEvaluator: new HolderPermissionEvaluator(principal, { now: () => new Date(clock.now()) }),
-        identity: toInvoker(principal),
+        get identity(): Invoker {
+            identity ??= toInvoker(principal);
+
+            return identity;
+        },
     };
 }

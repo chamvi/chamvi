@@ -75,6 +75,27 @@ describe('buildActorContext', () => {
         expect(buildActorContext(principal, new ControllableClock()).identity).toEqual(toInvoker(principal));
     });
 
+    it('builds the identity once, on first read', () => {
+        const principal = PRINCIPALS[1]![1];
+        const actor = buildActorContext(principal, new ControllableClock());
+
+        expect(actor.identity).toBe(actor.identity);
+        expect(actor.identity).toEqual(toInvoker(principal));
+    });
+
+    it('builds an actor for an uncloneable authorization without reading it', () => {
+        const principal = {
+            id: 'odd',
+            kind: 'custom',
+            bindings: [],
+            authorization: { ...AUTHORIZATION, hook: () => undefined },
+        } as Principal;
+        const actor = buildActorContext(principal, new ControllableClock());
+
+        expect(isSystemActor(actor)).toBe(false);
+        expect(() => actor.identity).toThrow();
+    });
+
     it('decides as isGranted at the clock time, with a date policy', async () => {
         const principal: Principal = {
             id: 'dated',
