@@ -29,6 +29,11 @@ type Route = {
     phone?: boolean;
     /** What shows once the page has loaded its data. */
     ready: (page: Page) => Promise<void>;
+    /**
+     * An overlay is open: masks would be drawn over it, and the page under it
+     * needs none (`freeze()` normalized its text and stopped its clock).
+     */
+    overlay?: boolean;
 };
 
 const heading = (name: string) => async (page: Page) => {
@@ -59,6 +64,16 @@ const ROUTES: Route[] = [
         path: () => 'agents/deploy',
         ready: async (page) => {
             await expect(page.getByTestId('recent-runs').locator('a').first()).toBeVisible();
+        },
+    },
+    {
+        name: 'agent-deploy-start-run',
+        path: () => 'agents/deploy',
+        overlay: true,
+        ready: async (page) => {
+            await expect(page.getByTestId('recent-runs').locator('a').first()).toBeVisible();
+            await page.getByRole('button', { name: 'Start run' }).first().click();
+            await expect(page.getByRole('dialog')).toBeVisible();
         },
     },
     {
@@ -144,8 +159,8 @@ async function open(page: Page, route: Route): Promise<void> {
     await settle(page);
 }
 
-async function screenshot(page: Page, file: string): Promise<void> {
-    await expect(page).toHaveScreenshot(file, { fullPage: true, mask: VOLATILE(page) });
+async function screenshot(page: Page, route: Route, file: string): Promise<void> {
+    await expect(page).toHaveScreenshot(file, { fullPage: true, mask: route.overlay ? [] : VOLATILE(page) });
 }
 
 test.describe('pages', () => {
@@ -166,7 +181,7 @@ test.describe('pages', () => {
 
             if (SCREENSHOTS) {
                 await freeze(page);
-                await screenshot(page, `${route.name}-light.png`);
+                await screenshot(page, route, `${route.name}-light.png`);
 
                 for (const scheme of ['dark', 'phone'] as const) {
                     if (scheme === 'phone' && !route.phone) {
@@ -180,7 +195,7 @@ test.describe('pages', () => {
                     await route.ready(page);
                     await settle(page);
                     await freeze(page);
-                    await screenshot(page, `${route.name}-${scheme}.png`);
+                    await screenshot(page, route, `${route.name}-${scheme}.png`);
                 }
             }
 
@@ -200,6 +215,9 @@ test.describe('pages in de-DE', () => {
 
             expect(text).not.toMatch(/\bchamvi[A-Z]\w*\.|\{\{/);
             expect(normalize(text)).toMatchSnapshot(`${route.name}.txt`);
+            // what the dashboard sets for a German browser today: no language of its own, one stored key (vc-color-mode)
+            expect(await page.evaluate(() => document.documentElement.lang)).toBe('en');
+            expect(await page.evaluate(() => localStorage.length)).toBe(1);
         });
     }
 });

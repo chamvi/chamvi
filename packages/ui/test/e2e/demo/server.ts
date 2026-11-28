@@ -91,24 +91,25 @@ function createDemoConnection() {
 function createDemoCron(): IChannel {
     const channel = cronChannel();
     const clock = new ControllableClock(Date.now());
+    const start = channel.start!.bind(channel);
 
-    return {
-        ...channel,
-        start: (ctx) => channel.start!({
-            ...ctx,
-            engine: new Proxy(ctx.engine, {
-                get(target, key) {
-                    if (key === 'clock') {
-                        return clock;
-                    }
+    // in place, not a copy: the channel keeps the mark cronChannel() set on it
+    channel.start = (ctx) => start({
+        ...ctx,
+        engine: new Proxy(ctx.engine, {
+            get(target, key) {
+                if (key === 'clock') {
+                    return clock;
+                }
 
-                    const value: unknown = Reflect.get(target, key, target);
+                const value: unknown = Reflect.get(target, key, target);
 
-                    return typeof value === 'function' ? value.bind(target) : value;
-                },
-            }) as IEngine,
-        }),
-    };
+                return typeof value === 'function' ? value.bind(target) : value;
+            },
+        }) as IEngine,
+    });
+
+    return channel;
 }
 
 const connection = createDemoConnection();

@@ -84,11 +84,14 @@ export function normalize(text: string): string {
 /**
  * Stops the page's clock (no countdown, relative time or poll changes the
  * page any more; it needs `page.clock.install()` before the page loaded) and
- * writes the `normalize()`d form into every text node, so a value that
- * differs from run to run cannot shift the layout around it.
+ * writes the `normalize()`d form into every text node once the requests the
+ * jump fired have settled, so a value that differs from run to run cannot
+ * shift the layout around it.
  */
 export async function freeze(page: Page): Promise<void> {
     await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+    // a poll the jump fired would answer after the rewrite and bring the raw text back
+    await settle(page);
     await page.evaluate((patterns) => {
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
 
@@ -104,56 +107,67 @@ export async function freeze(page: Page): Promise<void> {
 /**
  * What a screenshot masks: values that change with the clock or the run. A
  * relative time, a 24 h strip with run marks (a mark moves left as time
- * passes; an empty strip stays in the picture) and a pairing QR (a new code
- * per pairing).
+ * passes; an empty strip stays in the picture), a run's Time meter bar (it
+ * fills with the run's age) and a pairing QR (a new code per pairing).
  */
 export const VOLATILE = (page: Page): Locator[] => [
     page.locator('time'),
     page.getByTestId('activity').filter({ has: page.locator('i') }),
+    page.getByTestId('usage-meter').filter({ hasText: /^Time/ }).locator('i').locator('..'),
     page.getByTestId('connection-qr'),
 ];
 
 /** How long no request may be open before the network counts as idle. */
 const IDLE_MS = 500;
 
+/** The requests each page has open, tracked from the first `settle()` on and kept for the page's life. */
+const OPEN_REQUESTS = new WeakMap<Page, Set<Request>>();
+
+function trackRequests(page: Page): Set<Request> {
+    let open = OPEN_REQUESTS.get(page);
+
+    if (!open) {
+        const requests = new Set<Request>();
+        const onDone = (request: Request) => requests.delete(request);
+
+        page.on('request', (request) => {
+            // a stream stays open while the page shows
+            if (request.headers().accept !== 'text/event-stream') {
+                requests.add(request);
+            }
+        });
+        page.on('requestfinished', onDone);
+        page.on('requestfailed', onDone);
+        OPEN_REQUESTS.set(page, requests);
+        open = requests;
+    }
+
+    return open;
+}
+
 /**
  * Waits until the fonts loaded and the network is idle: no request open for
  * `IDLE_MS`. A stream (`text/event-stream`) stays open while the page shows,
  * so it does not count, which `waitForLoadState('networkidle')` cannot leave out.
+ * The first call starts tracking the page's requests; a later call also sees
+ * one that started before it (a poll `freeze()`'s clock jump fired).
  */
 export async function settle(page: Page): Promise<void> {
-    const open = new Set<Request>();
-    const isStream = (request: Request) => request.headers().accept === 'text/event-stream';
-    const onRequest = (request: Request) => {
-        if (!isStream(request)) {
-            open.add(request);
+    const open = trackRequests(page);
+
+    await page.waitForLoadState('load');
+
+    let quietSince = Date.now();
+
+    while (Date.now() - quietSince < IDLE_MS) {
+        await page.waitForTimeout(50);
+
+        if (open.size > 0) {
+            quietSince = Date.now();
         }
-    };
-    const onDone = (request: Request) => open.delete(request);
-
-    page.on('request', onRequest);
-    page.on('requestfinished', onDone);
-    page.on('requestfailed', onDone);
-
-    try {
-        await page.waitForLoadState('load');
-
-        let quietSince = Date.now();
-
-        while (Date.now() - quietSince < IDLE_MS) {
-            await page.waitForTimeout(50);
-
-            if (open.size > 0) {
-                quietSince = Date.now();
-            }
-        }
-
-        await page.evaluate(() => document.fonts.ready.then(() => undefined));
-    } finally {
-        page.off('request', onRequest);
-        page.off('requestfinished', onDone);
-        page.off('requestfailed', onDone);
     }
+
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
 }
 
 /** Signs the page in before it loads: the token the login page would keep. */

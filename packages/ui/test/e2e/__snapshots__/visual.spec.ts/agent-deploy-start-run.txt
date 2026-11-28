@@ -1,0 +1,88 @@
+chamvi
+Operate
+Agents
+Runs
+Approvals
+1
+Schedules
+Components
+Connections
+Connect
+Demo page
+127.0.0.1:4173
+E2
+e2e
+token · 14 permissions
+agents / deploy
+deploy
+Start run
+View all runs
+http
+max steps
+20
+timeout
+15 min
+max tokens
+no limit
+state
+no collections
+Tools appear here only when they need approval: an agent can build its tool set per run, so the full list is not known ahead of time.
+Overview
+Runs
+1
+State
+0
+Schedules
+0
+Runs · 24 h
+1
+0 running now
+Failed · 24 h
+0
+no failures
+Waiting
+1
+oldest asked
+<rel>
+Tokens · 24 h
+1.3k
+no per-run cap
+Recent runs
+All runs of deploy
+waiting
+<id>
+http · by e2e
+<rel>
+Waiting for approval
+1
+Open approvals
+deploy
+<time>
+run <id>
+Channels
+1
+http
+route
+POST /agents/deploy/runs
+Start a run of deploy
+Dispatches through the http trigger
+as e2e
+. The payload becomes the run's first message, checked against the trigger's schema if it has one.
+Payload (JSON)
+Empty sends {}.
+Cancel
+Start run
+[aria-label=Main]
+[aria-label=1 waiting]
+[title=127.0.0.1:4173]
+[aria-label=Dark mode]
+[title=Dark mode]
+[aria-label=Sign out]
+[title=Sign out]
+[title=http]
+[aria-label=Agent sections]
+[title=<rel>]
+[title=<rel>]
+[title=http]
+[aria-label=Notifications (F8)]
+[placeholder=...]
