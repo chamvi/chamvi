@@ -13,10 +13,10 @@ import { EntityRepositoryAdapter } from '../../entity/module.ts';
 import { fromConversationItemEntity, toConversationItemEntity } from './helpers.ts';
 
 /**
- * Conversation items in `chamvi_conversation_items` (the bigint identity
- * `id` is the storage key, assigned in the order rows are inserted;
- * `(scope_id, generation, key)` unique), stored as given; `upsert`
- * replaces by `(scopeId, generation, key)` and keeps the storage key.
+ * Conversation items in `chamvi_conversation_items` under their uuid `id`
+ * (`(scope_id, generation, key)` unique; the generated bigint `sequence`
+ * in the order rows are inserted), stored as given; `upsert` replaces by
+ * `(scopeId, generation, key)` and keeps the stored `id` and `sequence`.
  */
 export class DatabaseConversationItemRepository
     extends EntityRepositoryAdapter<ConversationItemRecord, ConversationItemEntity>

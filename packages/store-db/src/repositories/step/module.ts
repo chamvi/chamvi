@@ -8,13 +8,14 @@
 import { EntityQueryError } from '@chamvi/errors';
 import type { DataSource, DeepPartial, EntityManager } from 'typeorm';
 import type { IStepRepository } from '@chamvi/store';
-import type { Step } from '@chamvi/core-kit';
+import type { StepRecord } from '@chamvi/core-kit';
 import { RunEntity, StepEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 
-/** The columns of a (partial) step; the generated `id` is never written. */
-function toStepEntity(value: Partial<Step>): DeepPartial<StepEntity> {
+/** The columns of a (partial) step; the generated `sequence` is never written. */
+function toStepEntity(value: Partial<StepRecord>): DeepPartial<StepEntity> {
     return {
+        id: value.id,
         runId: value.runId,
         index: value.index,
         kind: value.kind,
@@ -27,9 +28,10 @@ function toStepEntity(value: Partial<Step>): DeepPartial<StepEntity> {
     } as DeepPartial<StepEntity>;
 }
 
-/** The step of a row: a NULL column is an absent property, the storage key is left out. */
-function fromStepEntity(entity: StepEntity): Step {
-    const step: Step = {
+/** The step of a row: a NULL column is an absent property, the storage order is left out. */
+function fromStepEntity(entity: StepEntity): StepRecord {
+    const step: StepRecord = {
+        id: entity.id,
         runId: entity.runId,
         index: entity.index,
         kind: entity.kind,
@@ -56,8 +58,8 @@ function fromStepEntity(entity: StepEntity): Step {
     return step;
 }
 
-/** Steps in `chamvi_steps`; the bigint identity `id` orders the steps of one index. */
-export class DatabaseStepRepository extends EntityRepositoryAdapter<Step, StepEntity> implements IStepRepository {
+/** Steps in `chamvi_steps` under their uuid `id`; the generated bigint `sequence` orders the steps of one index. */
+export class DatabaseStepRepository extends EntityRepositoryAdapter<StepRecord, StepEntity> implements IStepRepository {
     constructor(source: DataSource | EntityManager) {
         super(source.getRepository(StepEntity), {
             entity: 'step',
@@ -73,13 +75,13 @@ export class DatabaseStepRepository extends EntityRepositoryAdapter<Step, StepEn
         return new DatabaseStepRepository(manager) as this;
     }
 
-    /** Steps are append-only (their identity `id` is no key a caller holds): refused with EntityQueryError. */
-    override async upsert(): Promise<Step> {
+    /** Steps are append-only: refused with EntityQueryError. */
+    override async upsert(): Promise<StepRecord> {
         throw new EntityQueryError({ entity: this.options.entity });
     }
 
     /** Steps are append-only: refused with EntityQueryError. */
-    override async upsertMany(): Promise<Step[]> {
+    override async upsertMany(): Promise<StepRecord[]> {
         throw new EntityQueryError({ entity: this.options.entity });
     }
 }

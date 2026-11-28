@@ -71,8 +71,8 @@ describe('public api', () => {
         expect(pkg.STORE_ENTITIES).toBeInstanceOf(Array);
         expect(pkg.STORE_ENTITIES).toHaveLength(19);
         expect(pkg.STORE_MIGRATIONS).toBeInstanceOf(Array);
-        expect(pkg.STORE_MIGRATIONS).toHaveLength(4);
-        expect(pkg.STORE_MIGRATIONS.at(-1)?.name).toBe('LimitUses1795552285096');
+        expect(pkg.STORE_MIGRATIONS).toHaveLength(5);
+        expect(pkg.STORE_MIGRATIONS.at(-1)?.name).toBe('UuidIds1795856376161');
         expect(pkg.MIGRATION_LOCK_NAME).toBe('chamvi:migrations');
         expect(pkg.STORE_LEGACY_SCHEMA_CODE).toBe('store_legacy_schema');
         expect(pkg.DatabaseErrorCode).toEqual({

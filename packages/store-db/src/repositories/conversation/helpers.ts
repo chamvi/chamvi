@@ -80,12 +80,13 @@ export function fromConversationEntity(entity: ConversationEntity): Conversation
     return record;
 }
 
-/** The columns of a (partial) item; the storage key is a bigint, read back as a string and returned as a number. */
+/** The columns of a (partial) item; the generated `sequence` (a bigint, kept as a string) is never written. */
 export function toConversationItemEntity(value: Partial<ConversationItemRecord>): DeepPartial<ConversationItemEntity> {
     const { target } = value;
 
     return {
         id: value.id,
+        sequence: value.sequence === undefined ? undefined : String(value.sequence),
         scopeId: value.scopeId,
         generation: value.generation,
         key: value.key,
@@ -101,10 +102,11 @@ export function toConversationItemEntity(value: Partial<ConversationItemRecord>)
     } as DeepPartial<ConversationItemEntity>;
 }
 
-/** The item of a row: a NULL (or unselected) column is an absent property, the storage key a number. */
+/** The item of a row: a NULL (or unselected) column is an absent property, the bigint `sequence` a number. */
 export function fromConversationItemEntity(entity: ConversationItemEntity): ConversationItemRecord {
     const record = {
-        id: Number(entity.id),
+        id: entity.id,
+        sequence: Number(entity.sequence),
         scopeId: entity.scopeId,
         generation: entity.generation,
         key: entity.key,

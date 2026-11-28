@@ -121,8 +121,10 @@ export abstract class EntityUpsertAdapter<T extends EntityRecord, E extends Obje
             }
 
             const conflict = upsertKey.map((property) => this.metadata.findColumnWithPropertyName(property)!);
+            // a generated column (a storage order) is the database's: a replaced row keeps it, an inserted one gets the next
+            const generated = this.metadata.columns.filter((column) => column.isGenerated && !column.isPrimary);
             const overwrite = this.metadata.columns
-                .filter((column) => !column.isPrimary && !column.embeddedMetadata && !conflict.includes(column))
+                .filter((column) => !column.isPrimary && !column.isGenerated && !column.embeddedMetadata && !conflict.includes(column))
                 .map((column) => column.databaseName);
             const statement = this.repository.createQueryBuilder()
                 .insert()
@@ -145,7 +147,7 @@ export abstract class EntityUpsertAdapter<T extends EntityRecord, E extends Obje
                 for (const item of items) {
                     const where = Object.fromEntries(upsertKey.map((property) => [property, item.values[property]]));
                     const found = await this.repository.findOne({
-                        select: Object.fromEntries(primary.map((column) => [column.propertyName, true])) as never,
+                        select: Object.fromEntries([...primary, ...generated].map((column) => [column.propertyName, true])) as never,
                         where: where as FindOptionsWhere<E>,
                     });
 
@@ -157,12 +159,12 @@ export abstract class EntityUpsertAdapter<T extends EntityRecord, E extends Obje
                 const { driver } = this.dataSource;
                 // a raw column list: TypeORM's list form drops a column a relation's join column shares
                 const result = await statement
-                    .returning([...primary, ...conflict].map((column) => driver.escape(column.databaseName)).join(', '))
+                    .returning([...primary, ...generated, ...conflict].map((column) => driver.escape(column.databaseName)).join(', '))
                     .execute();
 
                 for (const stored of result.raw as EntityRecord[]) {
                     const values = Object.fromEntries(conflict.map((column) => [column.propertyName, stored[column.databaseName]]));
-                    const key = Object.fromEntries(primary.map((column) => [column.propertyName, stored[column.databaseName]]));
+                    const key = Object.fromEntries([...primary, ...generated].map((column) => [column.propertyName, stored[column.databaseName]]));
 
                     kept.set(upsertKeyOf(values), { key, values });
                 }
@@ -176,10 +178,10 @@ export abstract class EntityUpsertAdapter<T extends EntityRecord, E extends Obje
                     throw new DatabaseUnavailableError(operation);
                 }
 
-                // the stored primary key, and the upsert key as the database keeps it
+                // the stored primary key and generated columns, and the upsert key as the database keeps it
                 Object.assign(item.values, stored.values);
 
-                for (const column of primary) {
+                for (const column of [...primary, ...generated]) {
                     item.values[column.propertyName] = stored.key[column.propertyName];
                 }
             }

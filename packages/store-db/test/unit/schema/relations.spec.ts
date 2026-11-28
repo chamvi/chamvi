@@ -88,6 +88,7 @@ async function seed(ds: DataSource): Promise<Seeded> {
         createdAt: now,
     });
     await ds.getRepository(StepEntity).insert({
+        id: randomUUID(),
         runId,
         index: 0,
         kind: 'llm',
@@ -95,6 +96,7 @@ async function seed(ds: DataSource): Promise<Seeded> {
         finishedAt: now,
     });
     await ds.getRepository(ConversationItemEntity).insert({
+        id: randomUUID(),
         scopeId,
         generation: 0,
         key: 'item',

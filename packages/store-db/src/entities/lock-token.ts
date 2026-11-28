@@ -5,14 +5,30 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { Column, Entity, PrimaryColumn } from 'typeorm';
+import {
+    Column,
+    Entity,
+    Index,
+    PrimaryColumn,
+} from 'typeorm';
 import { BIGINT_NUMBER_TRANSFORMER, TableName } from './constants.ts';
 
-/** The single row (`id` 1) holding the last fencing token the lock store issued. */
+/** The single row (`key` `lock`) holding the last fencing token the lock store issued. */
 @Entity({ name: TableName.LOCK_TOKENS })
 export class LockTokenEntity {
-    @PrimaryColumn({ type: 'smallint', update: false })
-    id!: number;
+    @PrimaryColumn({ type: 'uuid', update: false })
+    id!: string;
+
+    /** A constant: the unique key that keeps the counter a single row. */
+    @Index({ unique: true })
+    @Column({
+        name: 'key',
+        type: 'varchar',
+        length: 32,
+        collation: 'C',
+        update: false,
+    })
+    key!: string;
 
     @Column({
         name: 'value',

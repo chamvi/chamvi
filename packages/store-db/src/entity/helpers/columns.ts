@@ -14,13 +14,14 @@ import type { EntityColumn } from '../types.ts';
  * The non-key columns an update writes: those that differ from the
  * snapshot taken at read, or every column without a snapshot (an object
  * that was never read, e.g. a spread copy). An absent value is written
- * as `NULL`.
+ * as `NULL`; a generated column (a storage order) is the database's and
+ * never written.
  */
 export function changedColumns(metadata: EntityMetadata, values: EntityRecord, snapshot?: EntityRecord): EntityRecord {
     const changed: EntityRecord = {};
 
     for (const column of metadata.columns) {
-        if (column.isPrimary || column.embeddedMetadata) {
+        if (column.isPrimary || column.isGenerated || column.embeddedMetadata) {
             continue;
         }
 

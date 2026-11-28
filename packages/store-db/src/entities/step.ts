@@ -11,18 +11,26 @@ import {
     Index,
     JoinColumn,
     ManyToOne,
-    PrimaryGeneratedColumn,
+    PrimaryColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
-import type { Step } from '@chamvi/core-kit';
+import type { StepRecord } from '@chamvi/core-kit';
 import { OPTIONAL_JSON_TRANSFORMER, TableName } from './constants.ts';
 import { RunEntity } from './run.ts';
 
-@Index(['runId', 'index'])
+@Index(['runId', 'index', 'sequence'])
 @Entity({ name: TableName.STEPS })
 export class StepEntity {
-    @PrimaryGeneratedColumn('increment', { type: 'bigint' })
+    @PrimaryColumn({ type: 'uuid' })
     id!: string;
+
+    /** The order steps were stored in, assigned by the database; never returned by a read. */
+    @Column({
+        type: 'bigint',
+        generated: 'increment',
+        update: false,
+    })
+    sequence!: string;
 
     @Column({
         name: 'run_id',
@@ -38,7 +46,7 @@ export class StepEntity {
         type: 'varchar',
         length: 8,
     })
-    kind!: Step['kind'];
+    kind!: StepRecord['kind'];
 
     @Column({
         name: 'name',

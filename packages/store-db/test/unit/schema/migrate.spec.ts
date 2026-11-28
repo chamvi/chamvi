@@ -26,6 +26,7 @@ const BASELINE = 'UuidBaseline1794096000000';
 const UPGRADE = 'ConnectionsRevisionsItemBytes1794230765000';
 const LOCK_TOKENS = 'LockTokens1795093873329';
 const LIMIT_USES = 'LimitUses1795552285096';
+const UUID_IDS = 'UuidIds1795856376161';
 
 /** The unique key that carries each table's natural identity, as Postgres lists the columns. */
 const NATURAL_KEYS: [string, string][] = [
@@ -91,14 +92,15 @@ describePostgres('schema', () => {
             await ds.undoLastMigration({ transaction: 'each' });
         }
 
-        expect(await pendingMigrations(ds)).toEqual([UPGRADE, LOCK_TOKENS, LIMIT_USES]);
+        expect(await pendingMigrations(ds)).toEqual([UPGRADE, LOCK_TOKENS, LIMIT_USES, UUID_IDS]);
     };
 
     /** Undo the migrations after the released v0.9 chain. */
     const toReleasedChain = async (ds: DataSource) => {
         await ds.undoLastMigration({ transaction: 'each' });
         await ds.undoLastMigration({ transaction: 'each' });
-        expect(await pendingMigrations(ds)).toEqual([LOCK_TOKENS, LIMIT_USES]);
+        await ds.undoLastMigration({ transaction: 'each' });
+        expect(await pendingMigrations(ds)).toEqual([LOCK_TOKENS, LIMIT_USES, UUID_IDS]);
     };
 
     afterEach(async () => {
@@ -215,7 +217,7 @@ describePostgres('schema', () => {
             text: string,
             bytes: number
         }[] = await ds.query(
-            `SELECT key, text, bytes FROM "${TableName.CONVERSATION_ITEMS}" ORDER BY id`,
+            `SELECT key, text, bytes FROM "${TableName.CONVERSATION_ITEMS}" ORDER BY sequence`,
         );
 
         expect(rows.map((row) => row.key)).toEqual(items.map((item) => item.key));
@@ -231,7 +233,7 @@ describePostgres('schema', () => {
         await toReleasedBaseline(ds);
         expect(await itemColumns(ds)).not.toContain('bytes');
         await migrateStore(ds);
-        expect((await ds.query(`SELECT bytes FROM "${TableName.CONVERSATION_ITEMS}" ORDER BY id`)).map((row: { bytes: number }) => row.bytes))
+        expect((await ds.query(`SELECT bytes FROM "${TableName.CONVERSATION_ITEMS}" ORDER BY sequence`)).map((row: { bytes: number }) => row.bytes))
             .toEqual([11, 10, 17, 15, 70_000, 90_000]);
 
         const store = createTestServices({ dataSource: ds });
@@ -290,7 +292,7 @@ describePostgres('schema', () => {
 
         await migrateStore(ds);
 
-        const rows: { text: string; bytes: number }[] = await ds.query(`SELECT text, bytes FROM "${TableName.CONVERSATION_ITEMS}" ORDER BY id`);
+        const rows: { text: string; bytes: number }[] = await ds.query(`SELECT text, bytes FROM "${TableName.CONVERSATION_ITEMS}" ORDER BY sequence`);
 
         expect(rows.map((row) => row.text)).toEqual(texts);
         expect(rows.map((row) => row.bytes)).toEqual(texts.map((text) => Buffer.byteLength(text, 'utf8')));
@@ -313,22 +315,26 @@ describePostgres('schema', () => {
         const ds = await create();
 
         await ds.undoLastMigration({ transaction: 'each' });
+        expect(await itemColumns(ds)).not.toContain('sequence');
+        expect(await pendingMigrations(ds)).toEqual([UUID_IDS]);
+
+        await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length - 1);
-        expect(await pendingMigrations(ds)).toEqual([LIMIT_USES]);
+        expect(await pendingMigrations(ds)).toEqual([LIMIT_USES, UUID_IDS]);
 
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length - 2);
         expect(await lockColumns(ds)).not.toContain('token');
-        expect(await pendingMigrations(ds)).toEqual([LOCK_TOKENS, LIMIT_USES]);
+        expect(await pendingMigrations(ds)).toEqual([LOCK_TOKENS, LIMIT_USES, UUID_IDS]);
 
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length - 3);
         expect(await itemColumns(ds)).not.toContain('bytes');
-        expect(await pendingMigrations(ds)).toEqual([UPGRADE, LOCK_TOKENS, LIMIT_USES]);
+        expect(await pendingMigrations(ds)).toEqual([UPGRADE, LOCK_TOKENS, LIMIT_USES, UUID_IDS]);
 
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'public')).toBe(0);
-        expect(await pendingMigrations(ds)).toEqual([BASELINE, UPGRADE, LOCK_TOKENS, LIMIT_USES]);
+        expect(await pendingMigrations(ds)).toEqual([BASELINE, UPGRADE, LOCK_TOKENS, LIMIT_USES, UUID_IDS]);
 
         await migrateStore(ds);
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length);
@@ -623,7 +629,7 @@ describePostgres('schema', () => {
     it('pendingMigrations lists every migration on an empty database and none after migrateStore', async () => {
         const ds = await create({ migrate: false });
 
-        expect(await pendingMigrations(ds)).toEqual([BASELINE, UPGRADE, LOCK_TOKENS, LIMIT_USES]);
+        expect(await pendingMigrations(ds)).toEqual([BASELINE, UPGRADE, LOCK_TOKENS, LIMIT_USES, UUID_IDS]);
         await migrateStore(ds);
         expect(await pendingMigrations(ds)).toEqual([]);
     });
@@ -648,6 +654,8 @@ describePostgres('schema', () => {
         expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length);
         expect(await tablesIn(ds, 'public')).toBe(0);
 
+        await ds.undoLastMigration({ transaction: 'each' });
+        expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length);
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length - 1);
         await ds.undoLastMigration({ transaction: 'each' });
