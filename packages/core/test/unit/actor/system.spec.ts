@@ -8,12 +8,12 @@
 import type { IPermissionEvaluator } from '@authup/access';
 import { describe, expect, it } from 'vitest';
 import {
-    SystemPermissionEvaluator,
     createSystemActor,
     isActorGranted,
     isActorGrantedSome,
     isSystemActor,
 } from '@chamvi/core';
+import { SystemPermissionEvaluator } from '../../../src/actor/evaluator.ts';
 
 describe('system actor', () => {
     it('is recognized as the system actor', () => {
@@ -21,9 +21,9 @@ describe('system actor', () => {
 
         expect(isSystemActor(actor)).toBe(true);
         expect(actor.identity).toEqual({
-            id: 'system', 
-            kind: 'system', 
-            bindings: [], 
+            id: 'system',
+            kind: 'system',
+            bindings: [],
         });
         expect(actor.permissionEvaluator).toBeInstanceOf(SystemPermissionEvaluator);
     });
@@ -32,13 +32,15 @@ describe('system actor', () => {
         const actor = createSystemActor();
 
         expect(isSystemActor({ ...actor })).toBe(false);
+        expect(isSystemActor(structuredClone(actor))).toBe(false);
+        expect(isSystemActor(JSON.parse(JSON.stringify(actor)))).toBe(false);
         expect(isSystemActor({ permissionEvaluator: actor.permissionEvaluator, identity: structuredClone(actor.identity) })).toBe(false);
         expect(isSystemActor({
             permissionEvaluator: new SystemPermissionEvaluator(),
             identity: {
-                id: 'system', 
-                kind: 'system', 
-                bindings: [], 
+                id: 'system',
+                kind: 'system',
+                bindings: [],
             },
         })).toBe(false);
         expect(isSystemActor(undefined)).toBe(false);

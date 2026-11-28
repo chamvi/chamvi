@@ -22,9 +22,9 @@ export function createSystemActor(): ActorContext {
     const actor: ActorContext = {
         permissionEvaluator: new SystemPermissionEvaluator(),
         identity: {
-            id: 'system', 
-            kind: 'system', 
-            bindings: [], 
+            id: 'system',
+            kind: 'system',
+            bindings: [],
         },
     };
 

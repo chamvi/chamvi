@@ -284,7 +284,6 @@ describe('public api', () => {
         'ConnectionNotConfiguredError',
         'resolveConnection',
         'storedConnectionName',
-        'SystemPermissionEvaluator',
         'createSystemActor',
         'isSystemActor',
         'isActorGranted',
