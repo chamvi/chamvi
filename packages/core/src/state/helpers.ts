@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ValidationError } from '@chamvi/errors';
+import { NotFoundError, ValidationError } from '@chamvi/errors';
 import { randomUUID } from 'node:crypto';
 import { flattenIssueItems } from '@ebec/core';
 import type { Issue } from '@ebec/core';
@@ -14,6 +14,7 @@ import type { ICondition, IFilters, IQuery } from '@rapiq/core';
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec';
 import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
 import type { JSONSchema7 } from 'ai';
+import type { Agent } from '../agent/types.ts';
 import type { ToolContext } from '../tool/types.ts';
 import type { StateSchema } from './types.ts';
 
@@ -99,4 +100,13 @@ export function readDocumentWhere(query: IQuery): Record<string, unknown> {
     }
 
     return where;
+}
+
+/** 404 when the agent declares state collections and this is none of them. */
+export function assertCollection(agent: Agent, collection: string): void {
+    const declared = agent.definition.state;
+
+    if (declared && !Object.hasOwn(declared, collection)) {
+        throw new NotFoundError({ message: `Agent "${agent.name}" declares no state collection "${collection}".` });
+    }
 }

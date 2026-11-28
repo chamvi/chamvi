@@ -5,12 +5,22 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { Permission } from '@chamvi/access';
+import { StateValidator } from '@chamvi/core-kit';
+import { ForbiddenError } from '@chamvi/errors';
 import { and, defineQuery, eq } from '@rapiq/core';
 import type { IQuery } from '@rapiq/core';
 import { uuidv7 } from 'uuidv7';
 import type { IStateDocumentRepository, IStateRepository } from '@chamvi/store';
+import type { ActorContext } from '../actor/types.ts';
+import { requireAgent } from '../agent/helpers.ts';
+import type { Agent } from '../agent/types.ts';
 import { RepositoryNotFoundError } from '../errors/index.ts';
-import { readDocumentWhere, topLevelConditions } from './helpers.ts';
+import { agentResource } from '../permission/agent.ts';
+import type { AgentScope } from '../permission/types.ts';
+import { AbstractEntityService } from '../service/module.ts';
+import { validateBody } from '../service/helpers.ts';
+import { assertCollection, readDocumentWhere, topLevelConditions } from './helpers.ts';
 import type {
     IStateService,
     StateDocumentFindOptions,
@@ -24,14 +34,19 @@ import type {
  * Per-agent state over an `IStateRepository` (keys) and an
  * `IStateDocumentRepository` (collection documents): a set of `undefined`
  * removes the key, keys list in code-point order, documents match by
- * top-level equality and list by document id.
+ * top-level equality and list by document id. The `get*` methods and
+ * `save` serve an actor and check its permissions first.
  */
-export class StateService implements IStateService {
+export class StateService extends AbstractEntityService implements IStateService {
     protected repository: IStateRepository;
 
     protected documentRepository: IStateDocumentRepository;
 
+    protected validator: StateValidator;
+
     constructor(ctx: StateServiceContext) {
+        super();
+        this.validator = new StateValidator();
         this.repository = ctx.repository;
         this.documentRepository = ctx.documentRepository;
     }
@@ -187,5 +202,58 @@ export class StateService implements IStateService {
                 await repository.remove(document);
             }
         });
+    }
+
+    async getMany(agent: string, query: IQuery, actor: ActorContext, options: AgentScope): Promise<StateEntryValue[]> {
+        const { name } = await this.readableAgent(agent, Permission.STATE_READ, actor, options);
+
+        return this.list(name, query);
+    }
+
+    async getOne(agent: string, key: string, actor: ActorContext, options: AgentScope): Promise<unknown> {
+        const { name } = await this.readableAgent(agent, Permission.STATE_READ, actor, options);
+
+        return this.findOne(name, key);
+    }
+
+    async save(agent: string, key: string, data: unknown, actor: ActorContext, options: AgentScope): Promise<unknown> {
+        const { name } = await this.readableAgent(agent, Permission.STATE_WRITE, actor, options);
+        const body = await validateBody(this.validator, data);
+
+        await this.set(name, key, body.value);
+
+        return body.value;
+    }
+
+    async getDocuments(
+        agent: string,
+        collection: string,
+        query: IQuery,
+        actor: ActorContext,
+        options: AgentScope,
+    ): Promise<StateDocumentValue[]> {
+        const readable = await this.readableAgent(agent, Permission.STATE_READ, actor, options);
+
+        assertCollection(readable, collection);
+
+        return this.listDocuments(readable.name, collection, query);
+    }
+
+    /** `permission` for `{ name }` (403), the agent (404), then `chamvi_agent_read` for a private one (403). */
+    protected async readableAgent(
+        name: string,
+        permission: typeof Permission.STATE_READ | typeof Permission.STATE_WRITE,
+        actor: ActorContext,
+        options: AgentScope,
+    ): Promise<Agent> {
+        await this.assertGranted(actor, permission, { name });
+
+        const agent = requireAgent(options.agents, name);
+
+        if (agent.definition.private === true && !await this.isGranted(actor, Permission.AGENT_READ, agentResource(agent.name, agent))) {
+            throw new ForbiddenError({ message: `State of agent "${agent.name}" needs ${Permission.AGENT_READ}.` });
+        }
+
+        return agent;
     }
 }
