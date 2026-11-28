@@ -85,6 +85,28 @@ export default [
         },
     },
     {
+        // the system actor holds every permission: only engine and app code builds it,
+        // so no request path can yield it
+        files: ['{apps,packages}/*/src/**/*.{ts,vue}', 'packages/*/app/**/*.{ts,vue}'],
+        ignores: ['packages/{core,app,test-kit}/src/**'],
+        rules: {
+            'no-restricted-imports': ['error', {
+                paths: [
+                    {
+                        name: '@chamvi/core',
+                        importNames: ['createSystemActor'],
+                        message: 'The system actor bypasses every permission check: only engine and app code builds it.',
+                    },
+                    {
+                        name: '@chamvi/app',
+                        importNames: ['createSystemActor'],
+                        message: 'The system actor bypasses every permission check: only engine and app code builds it.',
+                    },
+                ],
+            }],
+        },
+    },
+    {
         // documentation samples: they log, and show values as bare expressions
         files: ['packages/docs/src/snippets/**/*.ts'],
         rules: {
