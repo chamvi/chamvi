@@ -30,6 +30,7 @@ export * from './model/index.ts';
 export * from './peer/index.ts';
 export * from './permission/index.ts';
 export * from './run/index.ts';
+export * from './service/index.ts';
 export * from './skill/index.ts';
 export * from './state/index.ts';
 export * from './step/index.ts';

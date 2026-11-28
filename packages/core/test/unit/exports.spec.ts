@@ -290,6 +290,7 @@ describe('public api', () => {
         'isActorGranted',
         'isActorGrantedSome',
         'forbidden',
+        'AbstractEntityService',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
         expect(core[name as keyof typeof core]).toBeTypeOf('function');
