@@ -6,8 +6,8 @@
  */
 
 import { can, canSome } from '@chamvi/access';
+import { forbidden } from '@chamvi/core';
 import type { Agent, IClock } from '@chamvi/core';
-import { ForbiddenError } from '@chamvi/errors';
 import type { IAppEvent } from 'routup';
 import { useHttpContext } from '../../app/helpers/index.ts';
 import type { HttpContext } from '../../app/types.ts';
@@ -86,9 +86,4 @@ export function authorizeRequest(
     attributes?: Record<string, unknown>,
 ): Promise<Principal> {
     return authorize(event, useHttpContext(event), permission, attributes);
-}
-
-/** The 403 of a permission the principal does not hold. */
-export function forbidden(permission: string): ForbiddenError {
-    return new ForbiddenError({ message: `Missing permission "${permission}".` });
 }

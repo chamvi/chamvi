@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+export * from './actor/index.ts';
 export * from './agent/index.ts';
 export * from './agent-revision/index.ts';
 export * from './approval/index.ts';
