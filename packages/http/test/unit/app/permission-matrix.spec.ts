@@ -23,7 +23,7 @@ import {
     tokenFor,
 } from '../../utils/app.ts';
 import { callTool, connectMcp, textOf } from '../../utils/mcp.ts';
-import { approvalModel, textModel } from '../../utils/model.ts';
+import { mockModel, textModel } from '../../utils/model.ts';
 
 /*
  * The permission outcome of every route (and the MCP read and approve
@@ -63,7 +63,14 @@ function matrixAgents() {
         }),
         defineModelAgent({
             name: 'gate',
-            model: approvalModel('deploy'),
+            // a deploy call per turn: every gate run pauses on its approval, the cancel tests dispatch one per principal
+            model: mockModel(Array.from({ length: 64 }, () => ({
+                parts: [{
+                    type: 'tool-call' as const,
+                    toolName: 'deploy',
+                    input: {},
+                }],
+            }))),
             instructions: 'Deploy.',
             channels: [http.on()],
             tools: () => ({ deploy: deployTool() }),
@@ -149,10 +156,26 @@ async function setup(kind: 'full' | 'listed') {
         [UNKNOWN_RUN, '<unknown>'],
     ];
 
+    /** Labels with `<gate>` naming a fresh `gate` run, paused on its approval. */
+    const withFreshGate = async (): Promise<Labels> => {
+        const { runId } = await engine.dispatch({
+            agent: 'gate',
+            trigger: 'http',
+            channel: 'http',
+            payload: {},
+        });
+
+        await engine.idle();
+        expect((await engine.runService.findOne(runId))?.status).toBe('waiting');
+
+        return [[runId, '<gate>'], ...labels];
+    };
+
     return {
         ...ctx,
         app,
         labels,
+        withFreshGate,
     };
 }
 
@@ -183,6 +206,8 @@ type Request = {
     stream?: boolean;
     /** Changes state: only the status and an error body are recorded, a success varies. */
     effect?: boolean;
+    /** Runs against a `gate` run paused for this principal alone, labelled `<gate>`. */
+    freshGate?: boolean;
 };
 
 /** Paths name runs and the artifact by label; reads first, then the writes that change nothing, then the one that does. */
@@ -299,11 +324,12 @@ const REQUESTS: Request[] = [
         body: {},
         effect: true,
     })),
-    // last: it cancels the waiting gate run every approve request above reads
+    // a cancel per principal of its own waiting gate run, so no cell sees another's cancel
     {
         method: 'POST',
         path: '/runs/<gate>/cancel',
         effect: true,
+        freshGate: true,
     },
 ];
 
@@ -443,12 +469,18 @@ async function recordMcp(app: App, token: string | undefined, labels: Labels, ca
 describe('permission matrix', () => {
     for (const kind of ['full', 'listed'] as const) {
         it(`pins every route's outcome per principal (${kind})`, async () => {
-            const { app, labels } = await setup(kind);
+            const {
+                app,
+                labels,
+                withFreshGate,
+            } = await setup(kind);
             const cells: Record<string, unknown> = {};
 
             for (const request of REQUESTS) {
                 for (const [principal, token] of PRINCIPALS) {
-                    cells[`${kind} ${principal} ${keyOf(request)}`] = await record(app, request, token, labels);
+                    const requestLabels = request.freshGate ? await withFreshGate() : labels;
+
+                    cells[`${kind} ${principal} ${keyOf(request)}`] = await record(app, request, token, requestLabels);
                 }
             }
 

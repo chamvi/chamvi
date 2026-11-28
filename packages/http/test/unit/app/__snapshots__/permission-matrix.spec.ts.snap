@@ -8228,12 +8228,7 @@ exports[`permission matrix > pins every route's outcome per principal (full) 1`]
     "status": 403,
   },
   "full chamvi_run_cancel POST /runs/<gate>/cancel": {
-    "body": {
-      "code": "invalid_run_state",
-      "message": "Run "<gate>" is cancelled; it cannot be cancelled.",
-      "status": 409,
-    },
-    "status": 409,
+    "status": 202,
   },
   "full chamvi_run_cancel POST /runs/<outside>/approve {"approvalId":"stale","approved":true}": {
     "body": {
@@ -22771,12 +22766,7 @@ exports[`permission matrix > pins every route's outcome per principal (listed) 1
     "status": 403,
   },
   "listed chamvi_run_cancel POST /runs/<gate>/cancel": {
-    "body": {
-      "code": "invalid_run_state",
-      "message": "Run "<gate>" is cancelled; it cannot be cancelled.",
-      "status": 409,
-    },
-    "status": 409,
+    "status": 202,
   },
   "listed chamvi_run_cancel POST /runs/<outside>/approve {"approvalId":"stale","approved":true}": {
     "body": {
